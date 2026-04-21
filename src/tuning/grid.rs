@@ -113,6 +113,81 @@ impl TuningGrid {
             .find(|(_, r)| r.contains(moria))
     }
 
+    /// Apply a pthora at `moria`: split the containing region at `moria` and
+    /// let `[moria, end)` adopt `(new_genus, target_degree)`.
+    ///
+    /// Returns `false` if `moria` is not covered by any region.
+    ///
+    /// If `moria` equals a region's `start_moria`, the split produces a
+    /// zero-width left remnant which is discarded — only the right half is
+    /// kept. This cleanly replaces an existing pthora boundary.
+    pub fn apply_pthora(&mut self, moria: i32, new_genus: Genus, target_degree: Degree) -> bool {
+        let Some(idx) = self.regions.iter().position(|r| r.contains(moria)) else {
+            return false;
+        };
+        let old = self.regions.remove(idx);
+        // Build the two halves, discarding a zero-width left remnant.
+        if old.start_moria < moria {
+            self.regions.insert(
+                idx,
+                Region {
+                    start_moria: old.start_moria,
+                    end_moria: moria,
+                    genus: old.genus,
+                    root_degree: old.root_degree,
+                    shading: old.shading,
+                },
+            );
+            self.regions.insert(
+                idx + 1,
+                Region {
+                    start_moria: moria,
+                    end_moria: old.end_moria,
+                    genus: new_genus,
+                    root_degree: target_degree,
+                    shading: None,
+                },
+            );
+        } else {
+            // moria == old.start_moria: replace in-place.
+            self.regions.insert(
+                idx,
+                Region {
+                    start_moria: moria,
+                    end_moria: old.end_moria,
+                    genus: new_genus,
+                    root_degree: target_degree,
+                    shading: None,
+                },
+            );
+        }
+        true
+    }
+
+    /// Remove the pthora at `moria` (i.e. remove the region *starting* at
+    /// `moria`). Merges the removed region into its left neighbor.
+    ///
+    /// Returns `false` if no region starts at `moria`, or if the region to
+    /// remove is the first region (nothing to merge into).
+    ///
+    /// The merge absorbs the removed region's span into the left neighbor's
+    /// end_moria without changing the neighbor's genus or root_degree.
+    pub fn remove_pthora(&mut self, moria: i32) -> bool {
+        let Some(idx) = self
+            .regions
+            .iter()
+            .position(|r| r.start_moria == moria)
+        else {
+            return false;
+        };
+        if idx == 0 {
+            return false;
+        }
+        let removed = self.regions.remove(idx);
+        self.regions[idx - 1].end_moria = removed.end_moria;
+        true
+    }
+
     /// Materialize the ladder cells in `[low_moria, high_moria)`.
     ///
     /// Every even moria yields a cell. For closed genera, positions matching
@@ -468,5 +543,126 @@ mod tests {
             (66, Degree::Ga),
         ];
         assert_eq!(degree_cells, expected);
+    }
+
+    // ── Pthora application tests ───────────────────────────────────────────
+
+    /// Applying a pthora mid-region produces two contiguous regions.
+    #[test]
+    fn apply_pthora_splits_region() {
+        let mut g = TuningGrid::new_default();
+        assert_eq!(g.regions().len(), 1);
+        // Drop HardChromatic from Pa at moria=30 (where Ga sits in Diatonic).
+        let ok = g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
+        assert!(ok);
+        assert_eq!(g.regions().len(), 2);
+        let r0 = &g.regions()[0];
+        let r1 = &g.regions()[1];
+        // Left remnant keeps Diatonic.
+        assert_eq!(r0.genus, Genus::Diatonic);
+        assert_eq!(r0.start_moria, -144);
+        assert_eq!(r0.end_moria, 30);
+        // Right region starts the pthora.
+        assert_eq!(r1.genus, Genus::HardChromatic);
+        assert_eq!(r1.root_degree, Degree::Pa);
+        assert_eq!(r1.start_moria, 30);
+        assert_eq!(r1.end_moria, 144);
+    }
+
+    /// Applying at a region's own start_moria replaces (no zero-width remnant).
+    #[test]
+    fn apply_pthora_at_start_moria_replaces() {
+        let mut g = TuningGrid::new_default();
+        let original_start = g.regions()[0].start_moria;
+        g.apply_pthora(original_start, Genus::SoftChromatic, Degree::Ni);
+        assert_eq!(g.regions().len(), 1);
+        assert_eq!(g.regions()[0].genus, Genus::SoftChromatic);
+        assert_eq!(g.regions()[0].start_moria, original_start);
+    }
+
+    /// Applying a second pthora within the newly created region splits it again.
+    #[test]
+    fn apply_pthora_twice_gives_three_regions() {
+        let mut g = TuningGrid::new_default();
+        g.apply_pthora(0, Genus::HardChromatic, Degree::Pa);
+        g.apply_pthora(42, Genus::SoftChromatic, Degree::Ni);
+        assert_eq!(g.regions().len(), 3);
+        // Contiguity invariant.
+        let r = g.regions();
+        assert_eq!(r[0].end_moria, r[1].start_moria);
+        assert_eq!(r[1].end_moria, r[2].start_moria);
+        assert_eq!(r[2].start_moria, 42);
+        assert_eq!(r[2].genus, Genus::SoftChromatic);
+    }
+
+    /// `apply_pthora` returns false when moria is outside any region.
+    #[test]
+    fn apply_pthora_outside_region_returns_false() {
+        let mut g = TuningGrid::new_default();
+        let out_of_range = g.regions()[0].end_moria + 10;
+        assert!(!g.apply_pthora(out_of_range, Genus::Diatonic, Degree::Ni));
+        assert_eq!(g.regions().len(), 1);
+    }
+
+    /// remove_pthora merges the removed region into its left neighbor.
+    #[test]
+    fn remove_pthora_merges_into_left_neighbor() {
+        let mut g = TuningGrid::new_default();
+        g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
+        assert_eq!(g.regions().len(), 2);
+        let end = g.regions()[1].end_moria;
+        g.remove_pthora(30);
+        assert_eq!(g.regions().len(), 1);
+        assert_eq!(g.regions()[0].genus, Genus::Diatonic);
+        assert_eq!(g.regions()[0].end_moria, end);
+    }
+
+    /// remove_pthora on the first region (nothing to merge into) returns false.
+    #[test]
+    fn remove_pthora_on_first_region_returns_false() {
+        let mut g = TuningGrid::new_default();
+        let first_start = g.regions()[0].start_moria;
+        assert!(!g.remove_pthora(first_start));
+        assert_eq!(g.regions().len(), 1);
+    }
+
+    /// remove_pthora returns false if no region starts at moria.
+    #[test]
+    fn remove_pthora_no_region_at_moria_returns_false() {
+        let mut g = TuningGrid::new_default();
+        assert!(!g.remove_pthora(99));
+    }
+
+    /// After apply+remove, cells() output matches the original grid.
+    #[test]
+    fn pthora_apply_then_remove_restores_cells() {
+        let original_cells = TuningGrid::new_default().cells();
+        let mut g = TuningGrid::new_default();
+        g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
+        g.remove_pthora(30);
+        assert_eq!(g.cells(), original_cells);
+    }
+
+    /// Cells immediately around the pthora boundary use the correct genus.
+    #[test]
+    fn pthora_boundary_cells_use_correct_genus() {
+        let mut g = TuningGrid::new_default();
+        // Place HardChromatic from Pa at moria=12 (Pa in the Diatonic octave).
+        g.apply_pthora(12, Genus::HardChromatic, Degree::Pa);
+        let cells = g.cells();
+
+        // moria=0 is in the Diatonic region (region 0) — should be Ni.
+        let c0 = cells.iter().find(|c| c.moria == 0).unwrap();
+        assert_eq!(c0.degree, Some(Degree::Ni));
+        assert_eq!(c0.region_idx, 0);
+
+        // moria=12 is start of HardChromatic region — should be Pa.
+        let c12 = cells.iter().find(|c| c.moria == 12).unwrap();
+        assert_eq!(c12.degree, Some(Degree::Pa));
+        assert_eq!(c12.region_idx, 1);
+
+        // moria=18 in HardChromatic (Pa+6=Vou).
+        let c18 = cells.iter().find(|c| c.moria == 18).unwrap();
+        assert_eq!(c18.degree, Some(Degree::Vou));
     }
 }
