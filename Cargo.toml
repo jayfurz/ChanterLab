@@ -1,0 +1,30 @@
+[package]
+name = "byzorgan-core"
+version = "0.1.0"
+edition = "2021"
+description = "Byzantine tuning engine and DSP primitives for the Byzorgan web app"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Full main-thread API: TuningGrid, pthora/shading/accidental ops, JSON serde, wasm_bindgen exports.
+main = ["dep:wasm-bindgen", "dep:serde", "dep:serde_json"]
+# Worklet-only DSP: filters, gate, pitch detector, PSOLA. No serde.
+worklet = ["dep:wasm-bindgen", "dep:realfft"]
+
+[dependencies]
+wasm-bindgen = { version = "0.2", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+realfft = { version = "3", optional = true }
+
+[dev-dependencies]
+proptest = "1"
+approx = "0.5"
+
+[profile.release]
+opt-level = "z"
+lto = true
