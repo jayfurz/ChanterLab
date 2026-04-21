@@ -115,20 +115,20 @@ impl TuningGrid {
 
     /// Materialize the ladder cells in `[low_moria, high_moria)`.
     ///
-    /// Every even moria yields a cell; positions matching the region's
-    /// rotated scale get `degree: Some(..)` and `enabled: true`. Non-degree
-    /// cells start disabled — the UI lights them up by user action.
+    /// Every even moria yields a cell. For closed genera, positions matching
+    /// the region's rotated scale get `degree: Some(..)` and `enabled: true`;
+    /// non-degree slots start disabled. For `EnharmonicGa` regions the
+    /// generator is tiled across the span (see `build_generator_map`).
     pub fn cells(&self) -> Vec<Cell> {
         let mut cells = Vec::new();
         for (idx, region) in self.regions.iter().enumerate() {
-            if !region.genus.is_closed() {
-                continue;
-            }
-            let degree_map = self.build_degree_map(region);
+            let degree_map = if region.genus.is_closed() {
+                self.build_degree_map(region)
+            } else {
+                self.build_generator_map(region)
+            };
             let start = region.start_moria.max(self.low_moria);
             let end = region.end_moria.min(self.high_moria);
-            // Align to the cell grid (start_moria is even by construction;
-            // low_moria is assumed even).
             let mut m = align_up(start, CELL_STEP);
             while m < end {
                 let degree = degree_map.get(&m).copied();
@@ -147,7 +147,8 @@ impl TuningGrid {
         cells
     }
 
-    /// Tile the region's degree positions across its span.
+    /// Tile the closed genus's degree positions across the region span,
+    /// returning a map from absolute moria → Degree.
     fn build_degree_map(&self, region: &Region) -> HashMap<i32, Degree> {
         let mut map = HashMap::new();
         let octave = region.degree_positions();
@@ -160,6 +161,34 @@ impl TuningGrid {
                 }
             }
             offset += OCTAVE_MORIA;
+        }
+        map
+    }
+
+    /// Tile the `EnharmonicGa` generator `[6, 12, 12]` across the region span.
+    ///
+    /// Each generator step lands on an absolute moria position. These
+    /// positions are assigned sequential degree names starting from
+    /// `region.root_degree`, cycling through all seven degrees as the
+    /// generator repeats. This naming is a convention for the UI — the true
+    /// tonal identity of each position comes from the tetrachord structure,
+    /// not the named degree.
+    ///
+    /// Non-generator even-moria positions fall in the map as `None` (not
+    /// inserted) so the caller marks them disabled.
+    fn build_generator_map(&self, region: &Region) -> HashMap<i32, Degree> {
+        let generator = region.genus.intervals();
+        let mut map = HashMap::new();
+        let mut m = region.start_moria;
+        let mut step_idx: i32 = 0;
+        while m < region.end_moria {
+            let degree = region.root_degree.shifted_by(step_idx);
+            map.insert(m, degree);
+            // Advance to the next generator step, cycling through the
+            // generator slice.
+            let gen_step = generator[(step_idx as usize) % generator.len()];
+            m += gen_step;
+            step_idx += 1;
         }
         map
     }
@@ -352,5 +381,92 @@ mod tests {
         assert_eq!(idx, 0);
         assert_eq!(r.start_moria, -144);
         assert!(g.region_at(200).is_none());
+    }
+
+    // ── EnharmonicGa tiling tests ──────────────────────────────────────────
+
+    fn enharmonic_ga_grid(low: i32, high: i32) -> TuningGrid {
+        // Build directly since with_preset refuses open genera.
+        let start = floor_to_multiple(low, OCTAVE_MORIA);
+        let end = ceil_to_multiple(high, OCTAVE_MORIA);
+        TuningGrid {
+            ref_ni_hz: DEFAULT_REF_NI_HZ,
+            low_moria: low,
+            high_moria: high,
+            regions: vec![Region {
+                start_moria: start,
+                end_moria: end,
+                genus: Genus::EnharmonicGa,
+                root_degree: Degree::Ga,
+                shading: None,
+            }],
+        }
+    }
+
+    /// Generator steps from Ga land at 0, 6, 18, 30 (=30 moria / tetrachord).
+    #[test]
+    fn enharmonic_ga_first_tetrachord_positions() {
+        let g = enharmonic_ga_grid(0, 72);
+        let cells = g.cells();
+        let enabled_moria: Vec<i32> = cells
+            .iter()
+            .filter(|c| c.enabled)
+            .map(|c| c.moria)
+            .collect();
+        // From start_moria=0 (snapped from low_moria=0), generator:
+        // 0 (Ga), +6=6, +12=18, +12=30, +6=36, +12=48, +12=60, +6=66 (exits at 72)
+        assert_eq!(enabled_moria, vec![0, 6, 18, 30, 36, 48, 60, 66]);
+    }
+
+    /// Enabled cells form the 6·12·12 tiling pattern.
+    #[test]
+    fn enharmonic_ga_tiling_pattern() {
+        let g = enharmonic_ga_grid(0, 72);
+        let enabled: Vec<i32> = g.cells().iter().filter(|c| c.enabled).map(|c| c.moria).collect();
+        let diffs: Vec<i32> = enabled.windows(2).map(|w| w[1] - w[0]).collect();
+        // Generator [6,12,12] cycling: 6,12,12, 6,12,12, 6,12 (before 72 ends it)
+        assert_eq!(diffs, vec![6, 12, 12, 6, 12, 12, 6]);
+    }
+
+    /// Non-generator cells (between generator positions) are disabled.
+    #[test]
+    fn enharmonic_ga_non_generator_cells_disabled() {
+        let g = enharmonic_ga_grid(0, 72);
+        let cells = g.cells();
+        // All cells exist at 2-moria granularity; only generator positions enabled.
+        assert_eq!(cells.len(), 36); // (72-0)/2
+        for cell in &cells {
+            if [0, 6, 18, 30, 36, 48, 60, 66].contains(&cell.moria) {
+                assert!(cell.enabled, "generator pos {} should be enabled", cell.moria);
+                assert!(cell.degree.is_some(), "generator pos {} should have degree", cell.moria);
+            } else {
+                assert!(!cell.enabled, "gap pos {} should be disabled", cell.moria);
+                assert!(cell.degree.is_none(), "gap pos {} should have no degree", cell.moria);
+            }
+        }
+    }
+
+    /// Root Ga sits at start_moria; the degree sequence cycles from Ga.
+    #[test]
+    fn enharmonic_ga_degree_sequence_from_ga() {
+        let g = enharmonic_ga_grid(0, 72);
+        let degree_cells: Vec<(i32, Degree)> = g
+            .cells()
+            .into_iter()
+            .filter(|c| c.degree.is_some())
+            .map(|c| (c.moria, c.degree.unwrap()))
+            .collect();
+        // Sequential cycling from Ga: Ga, Di, Ke, Zo, Ni, Pa, Vou, Ga (wraps).
+        let expected = vec![
+            (0,  Degree::Ga),
+            (6,  Degree::Di),
+            (18, Degree::Ke),
+            (30, Degree::Zo),
+            (36, Degree::Ni),
+            (48, Degree::Pa),
+            (60, Degree::Vou),
+            (66, Degree::Ga),
+        ];
+        assert_eq!(degree_cells, expected);
     }
 }
