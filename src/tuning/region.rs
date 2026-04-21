@@ -48,15 +48,50 @@ impl Region {
         iv
     }
 
+    /// Rotated intervals with the optional shading applied.
+    ///
+    /// Shading replaces the `NUM_SHADING_STEPS` intervals starting from Γα
+    /// (the Ga offset within the rotated sequence). For 3-step shadings
+    /// (SpathiA), the last interval is adjusted to keep the octave sum at 72.
+    /// For 4-step shadings the reference intervals already sum correctly when
+    /// applied to any scale — deviations on non-Diatonic genera are musically
+    /// intentional and not corrected here.
+    pub fn effective_intervals(&self) -> Vec<i32> {
+        let mut iv = self.rotated_intervals();
+        let Some(shading) = self.shading else {
+            return iv;
+        };
+        if iv.len() != NUM_DEGREES {
+            return iv;
+        }
+        let ga_offset = (Degree::Ga.index() as i32 - self.root_degree.index() as i32)
+            .rem_euclid(NUM_DEGREES as i32) as usize;
+        let shading_steps = shading.intervals();
+        // Replace intervals from the Ga position.
+        for (i, &step) in shading_steps.iter().enumerate() {
+            if ga_offset + i < NUM_DEGREES {
+                iv[ga_offset + i] = step;
+            }
+        }
+        // 3-step shading (SpathiA): restore the closing interval so the octave
+        // sums to exactly 72. The closing interval = 72 − sum(iv[0..ga_offset+3]).
+        if shading_steps.len() == 3 && ga_offset + 3 < NUM_DEGREES {
+            let partial: i32 = iv[..ga_offset + 3].iter().sum();
+            iv[ga_offset + 3] = 72 - partial;
+        }
+        iv
+    }
+
     /// The seven `(degree, absolute_moria)` pairs for one octave starting at
-    /// `start_moria`. Panics (debug) if the genus is open.
+    /// `start_moria`, with any shading applied. Panics (debug) if the genus
+    /// is open.
     pub fn degree_positions(&self) -> [(Degree, i32); NUM_DEGREES] {
         debug_assert!(
             self.genus.is_closed(),
             "degree_positions requires a closed genus; got {}",
             self.genus.name()
         );
-        let iv = self.rotated_intervals();
+        let iv = self.effective_intervals();
         let mut out = [(Degree::Ni, 0i32); NUM_DEGREES];
         let mut acc = 0i32;
         for i in 0..NUM_DEGREES {

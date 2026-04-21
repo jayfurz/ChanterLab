@@ -113,6 +113,18 @@ impl TuningGrid {
             .find(|(_, r)| r.contains(moria))
     }
 
+    /// Set or clear the shading on the region containing `moria`.
+    ///
+    /// Returns `false` if no region contains `moria`.
+    pub fn apply_shading(&mut self, moria: i32, shading: Option<crate::tuning::Shading>) -> bool {
+        if let Some(idx) = self.regions.iter().position(|r| r.contains(moria)) {
+            self.regions[idx].shading = shading;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Apply a pthora at `moria`: split the containing region at `moria` and
     /// let `[moria, end)` adopt `(new_genus, target_degree)`.
     ///
@@ -299,6 +311,7 @@ fn align_up(n: i32, step: i32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tuning::Shading;
 
     #[test]
     fn moria_to_hz_at_zero_is_reference() {
@@ -664,5 +677,91 @@ mod tests {
         // moria=18 in HardChromatic (Pa+6=Vou).
         let c18 = cells.iter().find(|c| c.moria == 18).unwrap();
         assert_eq!(c18.degree, Some(Degree::Vou));
+    }
+
+    // ── Shading tests ──────────────────────────────────────────────────────
+
+    /// Zygos on Diatonic from Ni: Ga stays at 30, Di→48, Ke→52, Zo→68, Ni'→72.
+    #[test]
+    fn zygos_shading_shifts_degrees_correctly() {
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(0, Some(Shading::Zygos));
+        let cells = g.cells();
+        let degree_cells: Vec<(i32, Degree)> = cells
+            .iter()
+            .filter(|c| c.degree.is_some())
+            .map(|c| (c.moria, c.degree.unwrap()))
+            .collect();
+        // Zygos [18,4,16,4] from Ga=30: Di=48, Ke=52, Zo=68. Ni' at 72 is
+        // outside [0,72) so only 5 degree cells appear.
+        let expected = vec![
+            (0, Degree::Ni),
+            (12, Degree::Pa),
+            (22, Degree::Vou),
+            (30, Degree::Ga),
+            (48, Degree::Di),
+            (52, Degree::Ke),
+            (68, Degree::Zo),
+        ];
+        assert_eq!(degree_cells, expected);
+    }
+
+    /// After applying Zygos, effective_intervals still sums to 72.
+    #[test]
+    fn shaded_intervals_sum_to_72() {
+        let r = Region {
+            start_moria: 0,
+            end_moria: 72,
+            genus: Genus::Diatonic,
+            root_degree: Degree::Ni,
+            shading: Some(Shading::Zygos),
+        };
+        assert_eq!(r.effective_intervals().iter().sum::<i32>(), 72);
+
+        let r2 = Region { shading: Some(Shading::Kliton), ..r.clone() };
+        assert_eq!(r2.effective_intervals().iter().sum::<i32>(), 72);
+
+        let r3 = Region { shading: Some(Shading::SpathiB), ..r.clone() };
+        assert_eq!(r3.effective_intervals().iter().sum::<i32>(), 72);
+
+        let r4 = Region { shading: Some(Shading::SpathiA), ..r.clone() };
+        assert_eq!(r4.effective_intervals().iter().sum::<i32>(), 72);
+    }
+
+    /// SpathiA closing interval is auto-adjusted: Zo stays at Ga+30,
+    /// Zo→Ni' is recomputed as 72 - (sum before that step).
+    #[test]
+    fn spathi_a_closing_interval_auto_adjusted() {
+        let r = Region {
+            start_moria: 0,
+            end_moria: 72,
+            genus: Genus::Diatonic,
+            root_degree: Degree::Ni,
+            shading: Some(Shading::SpathiA),
+        };
+        let iv = r.effective_intervals();
+        // SpathiA: iv[3..6] = [14,12,4], iv[6] = 72-12-10-8-14-12-4 = 12.
+        assert_eq!(iv[3], 14);
+        assert_eq!(iv[4], 12);
+        assert_eq!(iv[5], 4);
+        assert_eq!(iv[6], 12);
+        assert_eq!(iv.iter().sum::<i32>(), 72);
+    }
+
+    /// apply_shading returns false when moria is outside all regions.
+    #[test]
+    fn apply_shading_outside_region_returns_false() {
+        let mut g = TuningGrid::new_default();
+        assert!(!g.apply_shading(9999, Some(Shading::Zygos)));
+    }
+
+    /// Clearing shading (None) restores the unshaded cells.
+    #[test]
+    fn clearing_shading_restores_cells() {
+        let unshaded = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni).cells();
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(0, Some(Shading::Kliton));
+        g.apply_shading(0, None);
+        assert_eq!(g.cells(), unshaded);
     }
 }
