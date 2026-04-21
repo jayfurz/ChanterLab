@@ -16,6 +16,21 @@
 
 use crate::tuning::Degree;
 
+/// Per-cell user state stored in `TuningGrid::overrides`.
+///
+/// Absence from the map means "no override; use region default." Storing
+/// both fields avoids Option overhead and lets the serializer round-trip
+/// cleanly — callers that only want to change one field first read the
+/// current value from `TuningGrid::cells()`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CellOverride {
+    /// Even-moria shift applied to the cell's nominal position. 0 = no shift.
+    pub accidental: i32,
+    /// Whether the cell is active. Overrides the region-derived default
+    /// (degree cells default true; non-degree cells default false).
+    pub enabled: bool,
+}
+
 /// A single ladder cell. See module docs for semantics.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cell {

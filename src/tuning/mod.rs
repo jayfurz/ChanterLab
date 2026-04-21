@@ -12,7 +12,7 @@ pub mod pthora;
 pub mod region;
 pub mod shading;
 
-pub use cell::Cell;
+pub use cell::{Cell, CellOverride};
 pub use degree::{Degree, NUM_DEGREES};
 pub use genus::Genus;
 pub use grid::{TuningGrid, moria_to_hz};

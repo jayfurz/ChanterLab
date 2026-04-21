@@ -18,7 +18,7 @@
 
 use std::collections::HashMap;
 
-use crate::tuning::{Cell, Degree, Genus, Region};
+use crate::tuning::{Cell, CellOverride, Degree, Genus, Region};
 
 /// Default reference frequency: middle C (C4).
 pub const DEFAULT_REF_NI_HZ: f64 = 261.63;
@@ -45,6 +45,8 @@ pub struct TuningGrid {
     pub low_moria: i32,
     pub high_moria: i32,
     regions: Vec<Region>,
+    /// Per-cell user overrides keyed by the cell's nominal moria.
+    overrides: HashMap<i32, CellOverride>,
 }
 
 impl TuningGrid {
@@ -93,11 +95,66 @@ impl TuningGrid {
             low_moria,
             high_moria,
             regions: vec![region],
+            overrides: HashMap::new(),
         }
     }
 
     pub fn regions(&self) -> &[Region] {
         &self.regions
+    }
+
+    /// Read-only access to the override map.
+    pub fn overrides(&self) -> &HashMap<i32, CellOverride> {
+        &self.overrides
+    }
+
+    /// Set an accidental on the cell at `moria`. `accidental` is the moria
+    /// shift; use 0 to remove a prior accidental. Inserts or updates an
+    /// override; use `clear_override` to fully remove the override entry.
+    ///
+    /// Panics if `accidental` is odd (Byzantine accidentals must be even).
+    pub fn set_accidental(&mut self, moria: i32, accidental: i32) {
+        assert_eq!(accidental % 2, 0, "accidental must be an even number of moria");
+        // Seed the override's enabled field from the current cell state so
+        // the user's prior toggle is not clobbered.
+        let current_enabled = self
+            .cells()
+            .into_iter()
+            .find(|c| c.moria == moria)
+            .map(|c| c.enabled)
+            .unwrap_or(false);
+        let entry = self.overrides.entry(moria).or_insert(CellOverride {
+            accidental: 0,
+            enabled: current_enabled,
+        });
+        entry.accidental = accidental;
+    }
+
+    /// Explicitly set the enabled state for the cell at `moria`.
+    ///
+    /// Inserts or updates an override. Use `clear_override` to restore the
+    /// region default.
+    pub fn set_enabled(&mut self, moria: i32, enabled: bool) {
+        let entry = self.overrides.entry(moria).or_insert(CellOverride {
+            accidental: 0,
+            enabled,
+        });
+        entry.enabled = enabled;
+    }
+
+    /// Toggle the enabled state of the cell at `moria`. Returns the new state,
+    /// or `None` if no cell exists at that moria in the visible range.
+    pub fn toggle_cell(&mut self, moria: i32) -> Option<bool> {
+        let cells = self.cells();
+        let base_enabled = cells.iter().find(|c| c.moria == moria)?.enabled;
+        let new_state = !base_enabled;
+        self.set_enabled(moria, new_state);
+        Some(new_state)
+    }
+
+    /// Remove the override for `moria`, restoring the region-derived default.
+    pub fn clear_override(&mut self, moria: i32) {
+        self.overrides.remove(&moria);
     }
 
     /// Frequency at a given moria using `self.ref_ni_hz`.
@@ -219,11 +276,15 @@ impl TuningGrid {
             let mut m = align_up(start, CELL_STEP);
             while m < end {
                 let degree = degree_map.get(&m).copied();
-                let enabled = degree.is_some();
+                let (accidental, enabled) = self
+                    .overrides
+                    .get(&m)
+                    .map(|ov| (ov.accidental, ov.enabled))
+                    .unwrap_or((0, degree.is_some()));
                 cells.push(Cell {
                     moria: m,
                     degree,
-                    accidental: 0,
+                    accidental,
                     enabled,
                     region_idx: idx,
                 });
@@ -488,6 +549,7 @@ mod tests {
                 root_degree: Degree::Ga,
                 shading: None,
             }],
+            overrides: HashMap::new(),
         }
     }
 
@@ -763,5 +825,119 @@ mod tests {
         g.apply_shading(0, Some(Shading::Kliton));
         g.apply_shading(0, None);
         assert_eq!(g.cells(), unshaded);
+    }
+
+    // ── Accidental / override tests ────────────────────────────────────────
+
+    /// set_accidental changes effective_moria without moving the cell's
+    /// nominal moria.
+    #[test]
+    fn set_accidental_shifts_effective_moria() {
+        let mut g = TuningGrid::new_default();
+        g.set_accidental(12, 4); // Pa +4 = sharp by 4 moria
+        let cells = g.cells();
+        let pa = cells.iter().find(|c| c.moria == 12).unwrap();
+        assert_eq!(pa.moria, 12);
+        assert_eq!(pa.accidental, 4);
+        assert_eq!(pa.effective_moria(), 16);
+    }
+
+    #[test]
+    fn set_accidental_negative() {
+        let mut g = TuningGrid::new_default();
+        g.set_accidental(22, -6); // Vou flat by 6 moria
+        let vou = g.cells().into_iter().find(|c| c.moria == 22).unwrap();
+        assert_eq!(vou.accidental, -6);
+        assert_eq!(vou.effective_moria(), 16);
+    }
+
+    /// Odd accidental panics (Byzantine intervals are always even).
+    #[test]
+    #[should_panic(expected = "accidental must be an even number of moria")]
+    fn set_accidental_odd_panics() {
+        let mut g = TuningGrid::new_default();
+        g.set_accidental(12, 3);
+    }
+
+    /// Large accidentals (beyond ±8) are accepted — the data model is
+    /// unbounded as per docs/ARCHITECTURE.md §3.4.
+    #[test]
+    fn set_accidental_large_value_accepted() {
+        let mut g = TuningGrid::new_default();
+        g.set_accidental(12, 20);
+        let pa = g.cells().into_iter().find(|c| c.moria == 12).unwrap();
+        assert_eq!(pa.effective_moria(), 32);
+    }
+
+    /// Setting accidental on a non-degree cell (between degrees) is allowed.
+    #[test]
+    fn set_accidental_on_non_degree_cell() {
+        let mut g = TuningGrid::new_default();
+        g.set_accidental(4, 2); // moria=4 is a gap between Ni(0) and Pa(12)
+        let cell = g.cells().into_iter().find(|c| c.moria == 4).unwrap();
+        assert_eq!(cell.accidental, 2);
+    }
+
+    /// set_enabled toggles a cell independently of its region default.
+    #[test]
+    fn set_enabled_overrides_region_default() {
+        let mut g = TuningGrid::new_default();
+        // Disable a degree cell (Ga at moria 30, enabled by default).
+        g.set_enabled(30, false);
+        let ga = g.cells().into_iter().find(|c| c.moria == 30).unwrap();
+        assert!(!ga.enabled);
+        // Enable a non-degree cell (moria=2, disabled by default).
+        g.set_enabled(2, true);
+        let gap = g.cells().into_iter().find(|c| c.moria == 2).unwrap();
+        assert!(gap.enabled);
+    }
+
+    /// toggle_cell flips the current state.
+    #[test]
+    fn toggle_cell_flips_state() {
+        let mut g = TuningGrid::new_default();
+        // Degree cell starts enabled.
+        let new_state = g.toggle_cell(12).unwrap();
+        assert!(!new_state);
+        let pa = g.cells().into_iter().find(|c| c.moria == 12).unwrap();
+        assert!(!pa.enabled);
+        // Toggle back.
+        g.toggle_cell(12);
+        let pa2 = g.cells().into_iter().find(|c| c.moria == 12).unwrap();
+        assert!(pa2.enabled);
+    }
+
+    /// set_accidental preserves the cell's existing enabled state.
+    #[test]
+    fn set_accidental_preserves_enabled_state() {
+        let mut g = TuningGrid::new_default();
+        g.set_enabled(12, false); // disable Pa
+        g.set_accidental(12, 4); // then add accidental
+        let pa = g.cells().into_iter().find(|c| c.moria == 12).unwrap();
+        assert!(!pa.enabled, "enabled state should be preserved");
+        assert_eq!(pa.accidental, 4);
+    }
+
+    /// clear_override restores the region-derived default.
+    #[test]
+    fn clear_override_restores_default() {
+        let mut g = TuningGrid::new_default();
+        g.set_accidental(12, 6);
+        g.set_enabled(12, false);
+        g.clear_override(12);
+        let pa = g.cells().into_iter().find(|c| c.moria == 12).unwrap();
+        assert_eq!(pa.accidental, 0);
+        assert!(pa.enabled); // degree cell default = enabled
+    }
+
+    /// Overrides survive a pthora operation (they're stored by moria key,
+    /// independent of the region split).
+    #[test]
+    fn overrides_survive_pthora() {
+        let mut g = TuningGrid::new_default();
+        g.set_accidental(42, 4); // Di +4
+        g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
+        let di = g.cells().into_iter().find(|c| c.moria == 42).unwrap();
+        assert_eq!(di.accidental, 4, "accidental should survive pthora");
     }
 }
