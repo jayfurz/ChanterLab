@@ -10,6 +10,7 @@
 
 <header id="app-header">
   <h1>Byzorgan</h1>
+  <span id="audio-status" class="audio-status audio-off" title="Click or press a key to start audio">&#9654; Audio off</span>
 </header>
 
 <div id="app-body">
@@ -39,6 +40,29 @@
 
     <div class="control-group">
       <button id="reset-btn">Reset Grid</button>
+    </div>
+
+    <div class="control-group" id="ison-controls">
+      <h2>Ison Drone</h2>
+      <div class="ison-row">
+        <button id="ison-toggle-btn" class="ison-btn">Off</button>
+        <select id="ison-degree-select">
+          <option value="Ni">Ni</option>
+          <option value="Pa">Pa</option>
+          <option value="Vou">Vou</option>
+          <option value="Ga">Ga</option>
+          <option value="Di">Di</option>
+          <option value="Ke">Ke</option>
+          <option value="Zo">Zo</option>
+        </select>
+        <select id="ison-octave-select">
+          <option value="-1">-1</option>
+          <option value="0" selected>0</option>
+          <option value="1">+1</option>
+        </select>
+      </div>
+      <label for="ison-volume-slider">Volume</label>
+      <input type="range" id="ison-volume-slider" min="0" max="1" step="0.01" value="0.5">
     </div>
 
     <div class="control-group">

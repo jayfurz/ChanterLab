@@ -268,3 +268,46 @@ input[type="number"] {
 .acc-custom-row button:hover { border-color: var(--accent2); color: var(--accent2); }
 #acc-clear-btn { margin-top: 4px; width: 100%; color: var(--accent); }
 #acc-clear-btn:hover { border-color: var(--accent); }
+
+/* ── Audio status ────────────────────────────────────────── */
+.audio-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid currentColor;
+  cursor: default;
+  letter-spacing: 0.04em;
+}
+.audio-off  { color: var(--text-dim); border-color: #444; }
+.audio-on   { color: #50c878; border-color: #50c878; }
+
+/* ── Ison controls ───────────────────────────────────────── */
+.ison-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.ison-btn {
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  min-width: 36px;
+}
+.ison-btn.active { color: #50c878; border-color: #50c878; background: #0a2010; }
+.ison-btn:hover  { border-color: var(--accent2); }
+
+#ison-degree-select, #ison-octave-select {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+#ison-octave-select { max-width: 44px; }

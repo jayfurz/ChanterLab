@@ -22,6 +22,7 @@ export class ScaleLadder {
     this.app = app;
     this._cells = [];
     this._rowMap = []; // [{cell, y, h}] top-to-bottom
+    this._activeCells = new Set(); // moria values of currently playing cells
 
     this._ro = new ResizeObserver(() => this._onResize());
     this._ro.observe(canvas);
@@ -30,6 +31,12 @@ export class ScaleLadder {
     canvas.addEventListener('contextmenu', e => this._onRightClick(e));
     canvas.addEventListener('dragover', e => this._onDragOver(e));
     canvas.addEventListener('drop', e => this._onDrop(e));
+  }
+
+  /** Highlight cells that are currently playing (from keyboard). */
+  setActiveCells(moriaSet) {
+    this._activeCells = moriaSet;
+    this._paint();
   }
 
   /** Re-read cells from WASM and repaint. */
@@ -89,7 +96,11 @@ export class ScaleLadder {
       }
 
       // Cell fill.
-      if (isDeg && cell.enabled) {
+      const isActive = this._activeCells.has(cell.moria);
+      if (isActive) {
+        ctx.fillStyle = '#2a5f9f';
+        ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+      } else if (isDeg && cell.enabled) {
         ctx.fillStyle = '#1e3a5f';
         ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
       } else if (isDeg) {
@@ -110,7 +121,7 @@ export class ScaleLadder {
       // Degree label.
       const name = cell.degree ?? '?';
       ctx.font = `${Math.round(11 * scale)}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = cell.enabled ? '#53c0f0' : '#445';
+      ctx.fillStyle = isActive ? '#ffffff' : (cell.enabled ? '#53c0f0' : '#445');
       ctx.fillText(name, 6, ry + h / 2 + 4 * scale);
 
       // Hz label.
@@ -132,7 +143,59 @@ export class ScaleLadder {
       }
     }
 
+    this._paintIntervals(ctx, cssW, scale);
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  /**
+   * Draw interval labels (in moria) between consecutive degree cells.
+   *
+   * Each label sits in the visual gap between two degree rows. The width of
+   * a horizontal bar is proportional to the interval size (reference: 24 moria
+   * = full ladder width). Color: red for narrow intervals (≤ 6 moria, i.e.
+   * chromatic near-semitones), yellow for wider steps.
+   *
+   * Uses effective_moria (moria + accidental) so the display reacts to
+   * accidentals applied to any degree.
+   */
+  _paintIntervals(ctx, cssW, scale) {
+    const degRows = this._rowMap.filter(r => r.cell.degree !== null);
+
+    for (let i = 0; i < degRows.length - 1; i++) {
+      const upper = degRows[i];      // smaller canvas y → higher moria
+      const lower = degRows[i + 1];
+
+      const upperEff = upper.cell.moria + upper.cell.accidental;
+      const lowerEff = lower.cell.moria + lower.cell.accidental;
+      const interval = upperEff - lowerEff;
+      if (interval <= 0) continue;
+
+      const gapTop    = upper.y + upper.h;
+      const gapBottom = lower.y;
+      const gapH      = gapBottom - gapTop;
+      if (gapH < 3) continue;  // no room
+
+      const midY  = gapTop + gapH / 2;
+      const color = interval <= 6 ? '#e94560' : '#f0c040';
+
+      // Horizontal bar: width ∝ interval (24 moria ≈ full width).
+      const barW = Math.min((interval / 24) * cssW * 0.82, cssW * 0.82);
+      const barH = Math.max(1.5, Math.min(gapH * 0.25, 5));
+      const barX = (cssW - barW) / 2;
+      ctx.fillStyle = color + '50';
+      ctx.fillRect(barX, midY - barH / 2, barW, barH);
+
+      // Interval number, centered in the gap.
+      if (gapH >= 7) {
+        const fontSize = Math.max(7, Math.round(9 * scale));
+        ctx.font = `bold ${fontSize}px monospace`;
+        ctx.fillStyle = color;
+        const label = String(interval);
+        const tw = ctx.measureText(label).width;
+        ctx.fillText(label, cssW / 2 - tw / 2, midY + fontSize * 0.38);
+      }
+    }
   }
 
   /** Return the cell hit by a CSS-space y coordinate, or null. */

@@ -1,5 +1,7 @@
 import init, { JsTuningGrid } from './pkg/byzorgan_core.js';
-import { ScaleLadder } from './ui/scale_ladder.js';
+import { ScaleLadder  } from './ui/scale_ladder.js';
+import { AudioEngine  } from './audio/audio_engine.js';
+import { VKeyboard    } from './ui/vkeyboard.js';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -13,9 +15,16 @@ const PRESETS = [
 ];
 
 const app = {
-  grid: null,
-  ladder: null,
+  grid:           null,
+  ladder:         null,
+  engine:         null,
+  keyboard:       null,
   activePresetIdx: 0,
+  // Ison state
+  isonEnabled:    false,
+  isonDegree:     'Ni',
+  isonOctave:     0,
+  isonVolume:     0.5,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -23,19 +32,57 @@ const app = {
 async function main() {
   await init();
 
-  app.grid = new JsTuningGrid();
+  app.grid   = new JsTuningGrid();
+  app.engine = new AudioEngine();
 
-  // ScaleLadder
-  const canvas = document.getElementById('scale-ladder');
-  app.ladder = new ScaleLadder(canvas, app);
+  const canvas  = document.getElementById('scale-ladder');
+  app.ladder    = new ScaleLadder(canvas, app);
+  app.keyboard  = new VKeyboard(app.engine, app.ladder);
 
   buildPresetButtons();
   wireControls();
   wirePalettes();
   wireAccidentalPopup();
   wirePresetSaveLoad();
+  wireIsonControls();
+  wireAudioInit();
 
+  gridChanged();
+}
+
+// ── Called whenever the grid state changes ────────────────────────────────────
+
+function gridChanged() {
   app.ladder.refresh();
+  const cells = JSON.parse(app.grid.cellsJson());
+  app.keyboard.rebuildKeyMap(cells);
+  app.engine.updateTuning(cells, app.grid.refNiHz);
+  updateIsonVoice(cells);
+}
+
+// ── Audio init on first user gesture ─────────────────────────────────────────
+
+function wireAudioInit() {
+  const statusEl = document.getElementById('audio-status');
+
+  async function ensureAudio() {
+    if (app.engine.ready) return;
+    try {
+      await app.engine.init();
+      statusEl.textContent = '▶ Audio on';
+      statusEl.classList.replace('audio-off', 'audio-on');
+      // Push the current tuning table now that the engine is ready.
+      const cells = JSON.parse(app.grid.cellsJson());
+      app.engine.updateTuning(cells, app.grid.refNiHz);
+      updateIsonVoice(cells);
+    } catch (e) {
+      console.error('Audio init failed', e);
+    }
+  }
+
+  // Both click and first keydown can trigger audio context creation.
+  document.addEventListener('click', ensureAudio, { once: true });
+  document.addEventListener('keydown', ensureAudio, { once: true });
 }
 
 // ── Preset buttons ────────────────────────────────────────────────────────────
@@ -54,7 +101,6 @@ function buildPresetButtons() {
 
 function selectPreset(idx) {
   const p = PRESETS[idx];
-  // Reset grid with the chosen genus: apply pthora at moria 0 on a fresh grid.
   app.grid = new JsTuningGrid();
   app.grid.applyPthora(0, p.genus, p.degree);
   app.activePresetIdx = idx;
@@ -62,39 +108,35 @@ function selectPreset(idx) {
   document.querySelectorAll('.preset-btn').forEach((b, i) => {
     b.classList.toggle('active', i === idx);
   });
-  app.ladder.refresh();
+  gridChanged();
 }
 
 // ── Wiring ────────────────────────────────────────────────────────────────────
 
 function wireControls() {
-  // Ni Hz slider
-  const slider = document.getElementById('ni-hz-slider');
+  const slider    = document.getElementById('ni-hz-slider');
   const niDisplay = document.getElementById('ni-hz-display');
   slider.addEventListener('input', () => {
     const hz = parseFloat(slider.value);
     niDisplay.textContent = hz.toFixed(2);
     app.grid.refNiHz = hz;
-    app.ladder.refresh();
+    gridChanged();
   });
 
-  // Viewport shift
   document.getElementById('shift-up-btn').addEventListener('click', () => {
-    // Not yet implemented in WASM API — placeholder for Phase 2.7 extension.
-    // Would need a shiftViewport method on JsTuningGrid.
+    // Placeholder — viewport shift not yet in WASM API.
   });
   document.getElementById('shift-down-btn').addEventListener('click', () => {
     // placeholder
   });
 
-  // Reset
   document.getElementById('reset-btn').addEventListener('click', () => {
     app.grid = new JsTuningGrid();
     app.activePresetIdx = 0;
     document.querySelectorAll('.preset-btn').forEach((b, i) => {
       b.classList.toggle('active', i === 0);
     });
-    app.ladder.refresh();
+    gridChanged();
   });
 }
 
@@ -110,11 +152,11 @@ const PTHORA_ITEMS = [
 ];
 
 const SHADING_ITEMS = [
-  { label: 'Zygos',   shading: 'Zygos'   },
-  { label: 'Kliton',  shading: 'Kliton'  },
-  { label: 'Spathi A',shading: 'SpathiA' },
-  { label: 'Spathi B',shading: 'SpathiB' },
-  { label: '(clear)', shading: ''         },
+  { label: 'Zygos (Di)',    shading: 'Zygos'    },
+  { label: 'Kliton (Di)',   shading: 'Kliton'   },
+  { label: 'Spathi (Ke)',   shading: 'SpathiKe' },
+  { label: 'Spathi (Ga)',   shading: 'SpathiGa' },
+  { label: '(clear)',       shading: ''          },
 ];
 
 function wirePalettes() {
@@ -150,7 +192,6 @@ let _accPopupCell = null;
 function wireAccidentalPopup() {
   const popup = document.getElementById('accidental-popup');
 
-  // Preset offset buttons.
   [-8, -6, -4, -2, +2, +4, +6, +8].forEach(offset => {
     const btn = document.createElement('button');
     btn.className = 'acc-btn';
@@ -158,33 +199,30 @@ function wireAccidentalPopup() {
     btn.addEventListener('click', () => {
       if (_accPopupCell) {
         app.grid.setAccidental(_accPopupCell.moria, offset);
-        app.ladder.refresh();
+        gridChanged();
       }
       hideAccidentalPopup();
     });
     document.getElementById('acc-preset-btns').appendChild(btn);
   });
 
-  // Custom input.
   document.getElementById('acc-custom-apply').addEventListener('click', () => {
     const val = parseInt(document.getElementById('acc-custom-input').value, 10);
     if (!isNaN(val) && val % 2 === 0 && _accPopupCell) {
       app.grid.setAccidental(_accPopupCell.moria, val);
-      app.ladder.refresh();
+      gridChanged();
     }
     hideAccidentalPopup();
   });
 
-  // Clear.
   document.getElementById('acc-clear-btn').addEventListener('click', () => {
     if (_accPopupCell) {
       app.grid.clearOverride(_accPopupCell.moria);
-      app.ladder.refresh();
+      gridChanged();
     }
     hideAccidentalPopup();
   });
 
-  // Dismiss on outside click.
   document.addEventListener('click', e => {
     if (!popup.contains(e.target)) hideAccidentalPopup();
   });
@@ -202,6 +240,57 @@ app.showAccidentalPopup = function(cell, x, y) {
   popup.style.top  = y + 'px';
   popup.classList.add('visible');
 };
+
+// ── Ison drone ────────────────────────────────────────────────────────────────
+
+function wireIsonControls() {
+  const toggleBtn   = document.getElementById('ison-toggle-btn');
+  const degreeSelect = document.getElementById('ison-degree-select');
+  const octaveSelect = document.getElementById('ison-octave-select');
+  const volSlider    = document.getElementById('ison-volume-slider');
+
+  toggleBtn.addEventListener('click', () => {
+    app.isonEnabled = !app.isonEnabled;
+    toggleBtn.textContent = app.isonEnabled ? 'On' : 'Off';
+    toggleBtn.classList.toggle('active', app.isonEnabled);
+    updateIsonVoice(JSON.parse(app.grid.cellsJson()));
+  });
+
+  degreeSelect.addEventListener('change', () => {
+    app.isonDegree = degreeSelect.value;
+    updateIsonVoice(JSON.parse(app.grid.cellsJson()));
+  });
+
+  octaveSelect.addEventListener('change', () => {
+    app.isonOctave = parseInt(octaveSelect.value, 10);
+    updateIsonVoice(JSON.parse(app.grid.cellsJson()));
+  });
+
+  volSlider.addEventListener('input', () => {
+    app.isonVolume = parseFloat(volSlider.value);
+    if (app.isonEnabled) {
+      updateIsonVoice(JSON.parse(app.grid.cellsJson()));
+    }
+  });
+}
+
+function updateIsonVoice(cells) {
+  if (!app.isonEnabled) {
+    app.engine.setIson(null, 0);
+    return;
+  }
+  // Find the enabled cell for the chosen degree + octave.
+  const cell = cells.find(
+    c => c.degree === app.isonDegree &&
+         Math.floor(c.moria / 72) === app.isonOctave &&
+         c.enabled
+  );
+  if (cell) {
+    app.engine.setIson(cell.moria, app.isonVolume);
+  } else {
+    app.engine.setIson(null, 0);
+  }
+}
 
 // ── Preset save/load ──────────────────────────────────────────────────────────
 
@@ -233,10 +322,9 @@ function renderSavedPresets() {
     loadBtn.title = 'Load';
     loadBtn.textContent = '↑';
     loadBtn.addEventListener('click', () => {
-      const json = presets[name];
       try {
-        app.grid = JsTuningGrid.fromJson(json);
-        app.ladder.refresh();
+        app.grid = JsTuningGrid.fromJson(presets[name]);
+        gridChanged();
       } catch (e) {
         console.error('Failed to load preset', e);
       }
@@ -265,9 +353,8 @@ function wirePresetSaveLoad() {
     const name = document.getElementById('preset-name-input').value.trim();
     if (!name) return;
     try {
-      const json = app.grid.toJson();
       const stored = loadStoredPresets();
-      stored[name] = json;
+      stored[name] = app.grid.toJson();
       saveStoredPresets(stored);
       renderSavedPresets();
     } catch (e) {
