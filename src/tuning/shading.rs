@@ -10,6 +10,7 @@
 
 /// One of the four canonical Byzantine shadings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Shading {
     /// Ζυγός: 18·4·16·4 from Γα. Diatonic-adjacent.
     Zygos,

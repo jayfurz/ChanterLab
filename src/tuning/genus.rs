@@ -21,6 +21,7 @@ use crate::tuning::Degree;
 /// (`EnharmonicGa`) carry a generator tetrachord that tiles across the region
 /// span; see `BYZANTINE_SCALES_REFERENCE.md` §4.2.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Genus {
     /// Octave Natural Diatonic, canonical root Ni.
     Diatonic,

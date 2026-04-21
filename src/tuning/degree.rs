@@ -8,6 +8,7 @@ pub const NUM_DEGREES: usize = 7;
 /// The `repr(usize)` discriminants are the canonical indices (Ni = 0, ...,
 /// Zo = 6) used when accumulating intervals.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(usize)]
 pub enum Degree {
     Ni = 0,

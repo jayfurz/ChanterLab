@@ -16,6 +16,7 @@ use crate::tuning::{Degree, Genus, Shading, NUM_DEGREES};
 
 /// A contiguous moria span with a single genus rooted at a specific degree.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Region {
     /// Absolute start in moria, inclusive. `root_degree` sits here.
     pub start_moria: i32,

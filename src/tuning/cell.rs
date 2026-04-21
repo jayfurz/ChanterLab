@@ -23,6 +23,7 @@ use crate::tuning::Degree;
 /// cleanly — callers that only want to change one field first read the
 /// current value from `TuningGrid::cells()`.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CellOverride {
     /// Even-moria shift applied to the cell's nominal position. 0 = no shift.
     pub accidental: i32,
@@ -33,6 +34,7 @@ pub struct CellOverride {
 
 /// A single ladder cell. See module docs for semantics.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Cell {
     pub moria: i32,
     pub degree: Option<Degree>,

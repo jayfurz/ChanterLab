@@ -10,8 +10,10 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-# Full main-thread API: TuningGrid, pthora/shading/accidental ops, JSON serde, wasm_bindgen exports.
-main = ["dep:wasm-bindgen", "dep:serde", "dep:serde_json"]
+# Serde derives on all tuning types + TuningGrid::serialize/deserialize.
+serde = ["dep:serde", "dep:serde_json"]
+# Full main-thread WASM API: serde + wasm_bindgen exports.
+main = ["serde", "dep:wasm-bindgen"]
 # Worklet-only DSP: filters, gate, pitch detector, PSOLA. No serde.
 worklet = ["dep:wasm-bindgen", "dep:realfft"]
 
@@ -24,6 +26,8 @@ realfft = { version = "3", optional = true }
 [dev-dependencies]
 proptest = "1"
 approx = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [profile.release]
 opt-level = "z"

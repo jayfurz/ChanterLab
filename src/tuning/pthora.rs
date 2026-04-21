@@ -13,6 +13,7 @@ use crate::tuning::{Degree, Genus};
 /// A pthora instruction: what genus starts at the drop point and which
 /// degree sits at that position.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pthora {
     pub genus: Genus,
     /// Which degree name the pthora assigns to the drop position.

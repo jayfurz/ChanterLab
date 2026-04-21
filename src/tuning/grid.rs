@@ -40,6 +40,7 @@ pub fn moria_to_hz(ref_ni_hz: f64, moria: i32) -> f64 {
 
 /// The authoritative tuning state. See module docs.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TuningGrid {
     pub ref_ni_hz: f64,
     pub low_moria: i32,
@@ -47,6 +48,19 @@ pub struct TuningGrid {
     regions: Vec<Region>,
     /// Per-cell user overrides keyed by the cell's nominal moria.
     overrides: HashMap<i32, CellOverride>,
+}
+
+#[cfg(feature = "serde")]
+impl TuningGrid {
+    /// Serialize the grid to a compact JSON string for LocalStorage / postMessage.
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+
+    /// Deserialize a grid from a JSON string produced by `to_json`.
+    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(json)
+    }
 }
 
 impl TuningGrid {
@@ -939,5 +953,61 @@ mod tests {
         g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
         let di = g.cells().into_iter().find(|c| c.moria == 42).unwrap();
         assert_eq!(di.accidental, 4, "accidental should survive pthora");
+    }
+
+    // ── Serialization roundtrip tests (require --features serde) ──────────
+
+    #[cfg(feature = "serde")]
+    mod serde_tests {
+        use super::*;
+
+        #[test]
+        fn default_grid_roundtrips_via_json() {
+            let original = TuningGrid::new_default();
+            let json = original.to_json().expect("serialize");
+            let restored = TuningGrid::from_json(&json).expect("deserialize");
+            assert_eq!(original, restored);
+        }
+
+        #[test]
+        fn json_includes_ref_ni_hz_field() {
+            let g = TuningGrid::new_default();
+            let json = g.to_json().unwrap();
+            assert!(json.contains("ref_ni_hz"), "JSON: {json}");
+        }
+
+        #[test]
+        fn grid_with_pthora_and_overrides_roundtrips() {
+            let mut g = TuningGrid::new_default();
+            g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
+            g.set_accidental(12, 4);
+            g.set_enabled(2, true);
+            g.apply_shading(30, Some(Shading::Zygos));
+
+            let json = g.to_json().unwrap();
+            let restored = TuningGrid::from_json(&json).unwrap();
+            assert_eq!(g, restored);
+            // Verify the override round-tripped.
+            let pa = restored.cells().into_iter().find(|c| c.moria == 12).unwrap();
+            assert_eq!(pa.accidental, 4);
+        }
+
+        #[test]
+        fn cells_after_roundtrip_match_original() {
+            let mut g = TuningGrid::new_default();
+            g.set_accidental(0, -2);
+            g.apply_pthora(42, Genus::SoftChromatic, Degree::Ni);
+            let original_cells = g.cells();
+
+            let json = g.to_json().unwrap();
+            let restored = TuningGrid::from_json(&json).unwrap();
+            assert_eq!(restored.cells(), original_cells);
+        }
+
+        #[test]
+        fn from_json_rejects_malformed_input() {
+            assert!(TuningGrid::from_json("not json").is_err());
+            assert!(TuningGrid::from_json("{\"ref_ni_hz\": 261}").is_err());
+        }
     }
 }
