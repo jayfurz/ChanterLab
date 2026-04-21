@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Byzorgan</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="app-header">
+  <h1>Byzorgan</h1>
+</header>
+
+<div id="app-body">
+
+  <!-- Controls sidebar -->
+  <aside id="controls-panel">
+    <div class="control-group">
+      <h2>Scale Preset</h2>
+      <div id="preset-buttons"></div>
+    </div>
+
+    <div class="control-group">
+      <h2>Reference Ni</h2>
+      <label for="ni-hz-slider">
+        <span id="ni-hz-display">261.63</span> Hz
+      </label>
+      <input type="range" id="ni-hz-slider" min="200" max="550" step="0.01" value="261.63">
+    </div>
+
+    <div class="control-group">
+      <h2>Viewport</h2>
+      <div class="viewport-btns">
+        <button class="viewport-btn" id="shift-up-btn" title="Shift up">▲</button>
+        <button class="viewport-btn" id="shift-down-btn" title="Shift down">▼</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <button id="reset-btn">Reset Grid</button>
+    </div>
+
+    <div class="control-group">
+      <h2>Save Preset</h2>
+      <input type="text" id="preset-name-input" placeholder="preset name…">
+      <button id="save-btn">Save</button>
+    </div>
+
+    <div class="control-group">
+      <h2>Saved Presets</h2>
+      <div id="saved-presets-list"></div>
+    </div>
+  </aside>
+
+  <div id="main-content">
+
+    <!-- Scale ladder -->
+    <div id="ladder-container">
+      <canvas id="scale-ladder"></canvas>
+    </div>
+
+    <!-- Pthora + shading palettes -->
+    <div id="palettes">
+      <div class="palette-section">
+        <h3>Pthora</h3>
+        <div id="pthora-palette"></div>
+      </div>
+      <div class="palette-section">
+        <h3>Shading</h3>
+        <div id="shading-palette"></div>
+      </div>
+    </div>
+
+  </div><!-- main-content -->
+
+</div><!-- app-body -->
+
+<!-- Accidental popup -->
+<div id="accidental-popup">
+  <div class="acc-btns" id="acc-preset-btns"></div>
+  <div class="acc-custom-row">
+    <input type="number" id="acc-custom-input" step="2" placeholder="±N">
+    <button id="acc-custom-apply">Set</button>
+  </div>
+  <button id="acc-clear-btn">Clear accidental</button>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
