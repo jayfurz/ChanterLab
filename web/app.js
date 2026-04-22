@@ -120,6 +120,20 @@ function wireAudioInit() {
 }
 
 function handlePitchEvent(msg) {
+  if (msg.type === 'dsp_path') {
+    const statusEl = document.getElementById('audio-status');
+    if (msg.path === 'wasm') {
+      statusEl.textContent = '▶ Audio + Mic (WASM DSP)';
+    } else {
+      // JS fallback means the Rust DSP didn't load — usually a WASM MIME type
+      // or HTTPS/CORS issue on the server. Surface it so it's visible on mobile.
+      statusEl.textContent = '▶ Audio + Mic (JS DSP — slow)';
+      if (msg.error) console.warn('Voice WASM failed:', msg.error);
+    }
+    return;
+  }
+  if (msg.type !== 'pitch') return;
+
   if (!msg.gate_open || msg.cell_id < 0) {
     app.ladder.setDetectedCell(null, null, 0);
   } else {

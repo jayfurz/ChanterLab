@@ -541,25 +541,29 @@ class VoiceProcessor extends AudioWorkletProcessor {
 
   // Load the wasm-bindgen no-modules glue via importScripts, then initialise
   // the Rust VoiceProcessor.  Falls back silently if anything fails so the
-  // JS DSP path continues working without pkg-worklet present.
+  // JS DSP path continues working without pkg-worklet present. Posts a
+  // `dsp_path` status message to the main thread either way so the UI can
+  // show which path is running.
   _initWasm(glueUrl, wasmUrl) {
+    const reportPath = (path, error) =>
+      this.port.postMessage({ type: 'dsp_path', path, error: error ? String(error) : undefined });
+
     try {
-      // importScripts is synchronous and loads the IIFE glue into the worklet
-      // global scope, making wasm_bindgen available as a global function.
       importScripts(glueUrl);
-      // wasm_bindgen(wasmUrl) fetches + compiles the .wasm and returns a Promise.
-      // AudioWorklet runners support async code outside the process() callback.
       wasm_bindgen(wasmUrl).then(() => {
-        const sr = sampleRate; // AudioWorkletGlobalScope global
+        const sr = sampleRate;
         this._wasmProc = new wasm_bindgen.VoiceProcessor(sr, this._gate.gateOnAmp || 0.01);
         this._syncWasmTuning();
         this._wasmReady = true;
         console.log('[voice-worklet] WASM VoiceProcessor ready');
+        reportPath('wasm');
       }).catch(err => {
         console.warn('[voice-worklet] WASM init failed, continuing with JS DSP:', err);
+        reportPath('js', err);
       });
     } catch (e) {
       console.warn('[voice-worklet] importScripts failed, continuing with JS DSP:', e);
+      reportPath('js', e);
     }
   }
 
@@ -608,12 +612,11 @@ class VoiceProcessor extends AudioWorkletProcessor {
   // WASM DSP path — delegates filtering, gate, pitch detection, and PSOLA to Rust.
   _processWasm(input, output) {
     const proc = this._wasmProc;
-    const n    = input.length;
 
-    for (let i = 0; i < n; i++) {
-      const filtered = proc.processSample(input[i]);
-      if (output) output[i] = filtered;
-    }
+    // One boundary crossing per render quantum instead of 128 — critical
+    // for mobile Safari, which otherwise runs out of quantum budget.
+    const filtered = proc.processBlock(input);
+    if (output) output.set(filtered);
 
     // Emit pitch events at ~60 Hz (same throttle as JS path).
     if (++this._blockCount >= PITCH_RATE_DIV) {

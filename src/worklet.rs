@@ -67,6 +67,9 @@ mod worklet_exports {
 
         /// Apply the full preprocessing chain to one sample and push it into
         /// the FFT ring buffer. Returns the HPF-filtered sample.
+        ///
+        /// Prefer `processBlock` from AudioWorklet code — the per-sample wasm
+        /// boundary crossing cost dominates on mobile Safari.
         #[wasm_bindgen(js_name = processSample)]
         pub fn process_sample(&mut self, input: f32) -> f32 {
             let filtered = self.hpf.process(input);
@@ -82,6 +85,18 @@ mod worklet_exports {
             // FFT ring buffer.
             self.fft_det.push(out);
             self.sample_count = self.sample_count.wrapping_add(1);
+            out
+        }
+
+        /// Block variant of `process_sample`. Processes `input` in one wasm
+        /// call and returns the filtered block. Use this from the AudioWorklet
+        /// — a render quantum of 128 samples fits in a single boundary crossing.
+        #[wasm_bindgen(js_name = processBlock)]
+        pub fn process_block(&mut self, input: &[f32]) -> Vec<f32> {
+            let mut out = Vec::with_capacity(input.len());
+            for &x in input {
+                out.push(self.process_sample(x));
+            }
             out
         }
 

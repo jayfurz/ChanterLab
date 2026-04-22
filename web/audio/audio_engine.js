@@ -66,12 +66,24 @@ export class AudioEngine {
     this._voiceInitPromise = (async () => {
       if (!this._ready) await this.init();
 
-      this._micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      // Ask the browser for an unprocessed mic signal. iOS Safari defaults
+      // echoCancellation/noiseSuppression/autoGainControl all to ON, which
+      // mangle the signal before our pitch detector sees it. We want raw.
+      this._micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl:  false,
+        },
+        video: false,
+      });
       await this._ctx.audioWorklet.addModule(new URL('./voice_worklet.js', import.meta.url));
 
       this._voiceNode = new AudioWorkletNode(this._ctx, 'voice-processor');
+      // Forward all messages from the voice worklet (pitch events, dsp_path
+      // status, etc.) to the single callback. Caller dispatches on type.
       this._voiceNode.port.onmessage = e => {
-        if (e.data?.type === 'pitch' && this._onPitch) this._onPitch(e.data);
+        if (e.data && this._onPitch) this._onPitch(e.data);
       };
 
       // Send the worklet WASM glue + binary URLs so it can load VoiceProcessor.
