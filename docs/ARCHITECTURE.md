@@ -8,10 +8,12 @@ Primary design goal: make the scale / pthora / accidental model as open as the
 theory allows, while preserving the pedagogical voice-detection and
 pitch-correction loop that is the distinctive feature of the original.
 
-## Authoritative references
+## References
 
 - `docs/BYZANTINE_SCALES_REFERENCE.md` — scale intervals, shadings, pthora
-  families. Consult for every tuning-related decision.
+  families, as Chrysanthine / PMC 1881 theory. Consult for every tuning-related
+  decision. These are one tradition's textbook values; see that doc's Scope
+  section for what that does and doesn't cover.
 - `/mnt/data/code/byzorgan-source/ARCHITECTURE.md` — DSP/threading reference
   for the C++ app (§6 in particular is the centerpiece for pitch detection).
 - `/mnt/data/code/byzorgan-source/byzorgan-code-r138-trunk/vocproc.{h,cpp}` —

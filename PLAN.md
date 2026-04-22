@@ -7,8 +7,10 @@
 detection + PSOLA correction and a singscope visualization. Rust/WASM core;
 WebAudio + Canvas UI; fully client-side.
 
-**Authoritative scale reference:** `docs/BYZANTINE_SCALES_REFERENCE.md`.
-Consult for every tuning-related task.
+**Scale reference:** `docs/BYZANTINE_SCALES_REFERENCE.md` — Chrysanthine /
+PMC 1881 textbook values. Consult for every tuning-related task. Note that
+these are one tradition's theoretical values, not a description of all living
+practice (see that doc's Scope section).
 
 **C++ source to port DSP from:**
 `/mnt/data/code/byzorgan-source/byzorgan-code-r138-trunk/` — notably

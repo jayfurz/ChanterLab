@@ -1,6 +1,21 @@
 # Byzantine Chant Scales — Reference Document
 
-All intervals are given in **moria (μόρια)**, the intervallic units of Byzantine theory. The octave = **72 moria**. Each scale is expressed as a sequence of ascending step sizes between consecutive degrees.
+## Scope
+
+This document records the interval values Byzorgan Web uses as built-in presets.
+They are the **Chrysanthine / Patriarchal Music Committee (1881) theoretical
+values** — the 72-moria system taught in the Greek Orthodox school tradition.
+They are a **pedagogical reference**, not a description of every living
+practice. Romanian, Antiochian, Athonite, and Karas-school performance
+traditions diverge from these values, and acoustic studies of recorded chant
+(in particular of the soft chromatic genus) show that practiced intervals
+routinely drift from the textbook figures by several moria. Users who want
+those traditions should apply accidentals or a Custom genus; the tuning engine
+is deliberately open enough to represent them.
+
+All intervals below are given in **moria (μόρια)**. The octave = **72 moria**.
+Each scale is expressed as a sequence of ascending step sizes between
+consecutive degrees.
 
 -----
 
@@ -143,56 +158,60 @@ Enharmonic Barys rooted on Ga, showing the extended tetrachord pattern.
 
 ## 5. Tetrachord Shadings (χρόαι / Chroai)
 
-Shadings are local alterations applied to a tetrachord within a scale, most often in the diatonic family, to produce expressive color characteristic of specific modes and phrases.
+Shadings are local alterations applied relative to a **drop note**. The drop
+note itself never changes position; only the intervals around it are modified.
 
-### 5.1 Even (Zygos) on Ga
+### 5.1 Even (Zygos) — dropped on Δι (Di)
 
-|Step|Moria|
-|----|-----|
-|1   |18   |
-|2   |4    |
-|3   |16   |
-|4   |4    |
+The four ascending intervals ending at Di are replaced:
 
-- **Step sequence:** `18 · 4 · 16 · 4`
-- Applied locally on Ga; produces the Zygos character.
+|Interval|Moria|
+|--------|-----|
+|Ni → Pa |18   |
+|Pa → Vou|4    |
+|Vou → Ga|16   |
+|Ga → Di |4    |
 
-### 5.2 Inflected (Kliton) on Ga
+- Di's cumulative position is preserved (sum = 42 in diatonic).
+- Intervals above Di (Di→Ke, Ke→Zo, Zo→Ni') are unchanged.
 
-|Step|Moria|
-|----|-----|
-|1   |20   |
-|2   |4    |
-|3   |4    |
-|4   |14   |
+### 5.2 Inflected (Kliton) — dropped on Δι (Di)
 
-- **Step sequence:** `20 · 4 · 4 · 14`
-- Applied locally on Ga.
+Two notes below Di shift; **Pa stays fixed**. The interval Pa→Di remains a
+perfect fourth (30 moria):
 
-### 5.3 Broad (Spathi) on Ga
+|Interval|Moria|
+|--------|-----|
+|Pa → Vou|14   |
+|Vou → Ga|12   |
+|Ga → Di |4    |
 
-Spathi has two commonly cited forms:
+- Ni→Pa is unchanged.
+- Intervals above Di are unchanged.
 
-**Form A:**
+### 5.3 Broad (Spathi) — dropped on Κε (Ke) or Γα (Ga)
 
-|Step|Moria|
-|----|-----|
-|1   |14   |
-|2   |12   |
-|3   |4    |
+Both intervals immediately adjacent to the drop note become **4 moria**. The
+intervals one step further out are recalculated to keep the ±2 anchor notes
+at their original positions.
 
-- **Step sequence:** `14 · 12 · 4` *(plus the closing interval of the containing scale)*
+**Spathi on Ke** (Di→Ke=4, Ke→Zo=4; anchors Ga and Ni' are preserved):
 
-**Form B:**
+|Interval|Moria (result on diatonic)|
+|--------|--------------------------|
+|Ga → Di |20 (recalculated)         |
+|Di → Ke |4                         |
+|Ke → Zo |4                         |
+|Zo → Ni'|14 (recalculated)         |
 
-|Step|Moria|
-|----|-----|
-|1   |14   |
-|2   |4    |
-|3   |4    |
-|4   |20   |
+**Spathi on Ga** (Vou→Ga=4, Ga→Di=4; anchors Pa and Ke are preserved):
 
-- **Step sequence:** `14 · 4 · 4 · 20`
+|Interval|Moria (result on diatonic)|
+|--------|--------------------------|
+|Pa → Vou|14 (recalculated)         |
+|Vou → Ga|4                         |
+|Ga → Di |4                         |
+|Di → Ke |20 (recalculated)         |
 
 -----
 
@@ -257,9 +276,13 @@ These govern metric placement and accentuation, not interval content.
 
 ## 9. Summary Table of Shadings
 
-|Shading           |Applied on|Step sequence (moria)|
-|------------------|----------|---------------------|
-|Zygos (Even)      |Ga        |18 · 4 · 16 · 4      |
-|Kliton (Inflected)|Ga        |20 · 4 · 4 · 14      |
-|Spathi (Broad) A  |Ga        |14 · 12 · 4          |
-|Spathi (Broad) B  |Ga        |14 · 4 · 4 · 20      |
+All shadings leave the drop note's absolute position unchanged.
+
+|Shading      |Drop note|Changed intervals (ascending, diatonic result)   |
+|-------------|---------|--------------------------------------------------|
+|Zygos        |Di       |Ni→Pa=18, Pa→Vou=4, Vou→Ga=16, Ga→Di=4          |
+|Kliton       |Di       |Pa→Vou=14, Vou→Ga=12, Ga→Di=4 (Pa fixed)         |
+|Spathi on Ke |Ke       |Ga→Di=20*, Di→Ke=4, Ke→Zo=4, Zo→Ni'=14*         |
+|Spathi on Ga |Ga       |Pa→Vou=14*, Vou→Ga=4, Ga→Di=4, Di→Ke=20*         |
+
+\* Recalculated to preserve the ±2 anchor notes.
