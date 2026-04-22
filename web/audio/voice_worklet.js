@@ -534,37 +534,44 @@ class VoiceProcessor extends AudioWorkletProcessor {
         if (msg.amp != null)    this._notch.amp = msg.amp;
         break;
       case 'init_wasm':
-        this._initWasm(msg.glueUrl, msg.wasmUrl);
+        this._initWasm(msg.glueText, msg.wasmBuffer);
+        break;
+      case 'init_wasm_failed':
+        this.port.postMessage({ type: 'dsp_path', path: 'js', error: msg.error });
         break;
     }
   }
 
-  // Load the wasm-bindgen no-modules glue via importScripts, then initialise
-  // the Rust VoiceProcessor.  Falls back silently if anything fails so the
-  // JS DSP path continues working without pkg-worklet present. Posts a
-  // `dsp_path` status message to the main thread either way so the UI can
-  // show which path is running.
-  _initWasm(glueUrl, wasmUrl) {
+  // Evaluate the wasm-bindgen no-modules glue text in a function scope so
+  // its top-level `let wasm_bindgen = (...)` binding can be captured and
+  // returned. Then initialise the Rust VoiceProcessor from the transferred
+  // ArrayBuffer. Safari's AudioWorkletGlobalScope does not expose
+  // `importScripts` or `fetch`, so all network I/O happens on the main
+  // thread and bytes are transferred here. Falls back to JS DSP on failure.
+  _initWasm(glueText, wasmBuffer) {
     const reportPath = (path, error) =>
       this.port.postMessage({ type: 'dsp_path', path, error: error ? String(error) : undefined });
 
+    let bindgen;
     try {
-      importScripts(glueUrl);
-      wasm_bindgen(wasmUrl).then(() => {
-        const sr = sampleRate;
-        this._wasmProc = new wasm_bindgen.VoiceProcessor(sr, this._gate.gateOnAmp || 0.01);
-        this._syncWasmTuning();
-        this._wasmReady = true;
-        console.log('[voice-worklet] WASM VoiceProcessor ready');
-        reportPath('wasm');
-      }).catch(err => {
-        console.warn('[voice-worklet] WASM init failed, continuing with JS DSP:', err);
-        reportPath('js', err);
-      });
+      bindgen = new Function(glueText + '\nreturn wasm_bindgen;')();
     } catch (e) {
-      console.warn('[voice-worklet] importScripts failed, continuing with JS DSP:', e);
+      console.warn('[voice-worklet] glue eval failed, continuing with JS DSP:', e);
       reportPath('js', e);
+      return;
     }
+
+    bindgen(wasmBuffer).then(() => {
+      const sr = sampleRate;
+      this._wasmProc = new bindgen.VoiceProcessor(sr, this._gate.gateOnAmp || 0.01);
+      this._syncWasmTuning();
+      this._wasmReady = true;
+      console.log('[voice-worklet] WASM VoiceProcessor ready');
+      reportPath('wasm');
+    }).catch(err => {
+      console.warn('[voice-worklet] WASM instantiate failed, continuing with JS DSP:', err);
+      reportPath('js', err);
+    });
   }
 
   // Push the current tuning table into the WASM VoiceProcessor.

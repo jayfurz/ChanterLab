@@ -86,12 +86,32 @@ export class AudioEngine {
         if (e.data && this._onPitch) this._onPitch(e.data);
       };
 
-      // Send the worklet WASM glue + binary URLs so it can load VoiceProcessor.
-      // Note: the server must serve .wasm files with MIME type application/wasm.
-      // importScripts (used inside the worklet) requires absolute URLs.
-      const glueUrl = new URL('../../pkg-worklet/byzorgan_core.js', import.meta.url).href;
-      const wasmUrl = new URL('../../pkg-worklet/byzorgan_core_bg.wasm', import.meta.url).href;
-      this._voiceNode.port.postMessage({ type: 'init_wasm', glueUrl, wasmUrl });
+      // Fetch the wasm-bindgen glue + binary on the main thread and transfer
+      // the ArrayBuffer to the worklet. Safari's AudioWorkletGlobalScope
+      // does not reliably expose `importScripts` and will refuse a .wasm
+      // response if a tunnel serves the wrong MIME type; bypass both by
+      // doing all network I/O here and handing bytes over by transfer.
+      const glueUrl = new URL('../../pkg-worklet/byzorgan_core.js',      import.meta.url);
+      const wasmUrl = new URL('../../pkg-worklet/byzorgan_core_bg.wasm', import.meta.url);
+      try {
+        const [glueText, wasmBuffer] = await Promise.all([
+          fetch(glueUrl).then(r => {
+            if (!r.ok) throw new Error(`worklet glue HTTP ${r.status}`);
+            return r.text();
+          }),
+          fetch(wasmUrl).then(r => {
+            if (!r.ok) throw new Error(`worklet wasm HTTP ${r.status}`);
+            return r.arrayBuffer();
+          }),
+        ]);
+        this._voiceNode.port.postMessage(
+          { type: 'init_wasm', glueText, wasmBuffer },
+          [wasmBuffer],
+        );
+      } catch (e) {
+        console.warn('Failed to load worklet WASM; JS DSP fallback will run:', e);
+        this._voiceNode.port.postMessage({ type: 'init_wasm_failed', error: String(e) });
+      }
 
       this._micSource = this._ctx.createMediaStreamSource(this._micStream);
       this._micSource.connect(this._voiceNode);

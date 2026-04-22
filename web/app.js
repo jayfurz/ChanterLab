@@ -124,10 +124,14 @@ function handlePitchEvent(msg) {
     const statusEl = document.getElementById('audio-status');
     if (msg.path === 'wasm') {
       statusEl.textContent = '▶ Audio + Mic (WASM DSP)';
+      statusEl.title = 'Rust DSP running in the AudioWorklet';
     } else {
-      // JS fallback means the Rust DSP didn't load — usually a WASM MIME type
-      // or HTTPS/CORS issue on the server. Surface it so it's visible on mobile.
+      // JS fallback means the Rust DSP didn't load. Put the actual reason in
+      // the pill's title (long-press on iOS) and short-form in the visible
+      // label so we can diagnose without desktop tooling.
+      const reason = msg.error ? msg.error.slice(0, 80) : 'reason unknown';
       statusEl.textContent = '▶ Audio + Mic (JS DSP — slow)';
+      statusEl.title = `WASM DSP unavailable: ${reason}`;
       if (msg.error) console.warn('Voice WASM failed:', msg.error);
     }
     return;
