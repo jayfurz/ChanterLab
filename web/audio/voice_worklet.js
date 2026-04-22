@@ -586,7 +586,12 @@ class VoiceProcessor extends AudioWorkletProcessor {
     return this._processJs(input, output);
   }
 
-  // Original JS DSP path — HPF → notch → gate → FFT pitch detect → PSOLA.
+  // Original JS DSP path — HPF → notch → gate → FFT pitch detect.
+  // Monitor output is the HPF'd dry signal, continuous. PSOLA output is
+  // intentionally NOT routed here: its volume envelope fades on every
+  // detection miss, producing the "breaking up" stutter that makes the
+  // monitor unusable. PSOLA correction will be reintroduced on a separate
+  // output channel once the detector feeds it a valid target period.
   _processJs(input, output) {
     const n = input.length;  // 128 per render quantum
 
@@ -596,8 +601,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
       this._gate.process(s);
       this._det.push(s);
 
-      this._psola.push(s);
-      if (output) output[i] = this._psola.getSample();
+      if (output) output[i] = s;
     }
 
     // Run pitch detection every FFT_BLOCK samples (= every render quantum).
