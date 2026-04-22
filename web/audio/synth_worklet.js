@@ -73,9 +73,10 @@ class Voice {
 class SynthProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this._voices    = []; // regular voices
-    this._isonVoice = null;
-    this._tuning    = new Map(); // cell_id(moria) → hz
+    this._voices           = []; // regular voices
+    this._isonVoice        = null;
+    this._tuning           = new Map(); // cell_id(moria) → hz
+    this._correctionVolume = 0.5;
 
     this.port.onmessage = ({ data }) => this._dispatch(data);
   }
@@ -108,6 +109,10 @@ class SynthProcessor extends AudioWorkletProcessor {
         }
         break;
       }
+      case 'correction_volume': {
+        this._correctionVolume = msg.volume;
+        break;
+      }
       case 'ison': {
         if (!msg.cell_id || msg.volume <= 0) {
           if (this._isonVoice) { this._isonVoice.release(); this._isonVoice = null; }
@@ -122,7 +127,7 @@ class SynthProcessor extends AudioWorkletProcessor {
     }
   }
 
-  process(_inputs, outputs) {
+  process(inputs, outputs) {
     const ch = outputs[0]?.[0];
     if (!ch) return true;
 
@@ -139,6 +144,13 @@ class SynthProcessor extends AudioWorkletProcessor {
       } else {
         this._isonVoice = null;
       }
+    }
+
+    // Mix in PSOLA-corrected voice audio from the VoiceWorklet.
+    const voiceIn = inputs[0]?.[0];
+    if (voiceIn) {
+      const vol = this._correctionVolume;
+      for (let i = 0; i < ch.length; i++) ch[i] += voiceIn[i] * vol;
     }
 
     return true;

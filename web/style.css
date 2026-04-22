@@ -168,6 +168,15 @@ input[type="number"] {
   overflow: hidden;
 }
 
+/* ── Scale ladder + singscope side-by-side ───────────────────── */
+#main-view {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
 /* ── Scale ladder ────────────────────────────────────────────── */
 #ladder-container {
   width: var(--ladder-w);
@@ -182,6 +191,14 @@ input[type="number"] {
   height: 100%;
   display: block;
   cursor: pointer;
+}
+
+/* ── Singscope ───────────────────────────────────────────────── */
+#singscope {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  background: #111;
 }
 
 /* ── Pthora / shading palettes ───────────────────────────────── */
@@ -211,14 +228,30 @@ input[type="number"] {
   background: var(--bg);
   border: 1px solid #444;
   border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 11px;
+  padding: 4px 2px;
   cursor: grab;
-  text-align: center;
   user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--accent2);
 }
-.pthora-icon:hover, .shading-icon:hover { border-color: var(--accent2); }
+.pthora-icon:hover, .shading-icon:hover { border-color: var(--accent2); background: var(--surface2); }
 .pthora-icon:active, .shading-icon:active { cursor: grabbing; }
+
+.palette-glyph {
+  width: 24px;
+  height: 24px;
+  display: block;
+  pointer-events: none;
+}
+.palette-label {
+  font-size: 10px;
+  line-height: 1.1;
+  color: var(--text);
+  pointer-events: none;
+}
 
 /* ── Accidental popup ────────────────────────────────────────── */
 #accidental-popup {
@@ -311,3 +344,14 @@ input[type="number"] {
   cursor: pointer;
 }
 #ison-octave-select { max-width: 44px; }
+
+/* ── Mic / correction ────────────────────────────────────── */
+.mic-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.mic-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}

@@ -23,6 +23,10 @@ export class ScaleLadder {
     this._cells = [];
     this._rowMap = []; // [{cell, y, h}] top-to-bottom
     this._activeCells = new Set(); // moria values of currently playing cells
+    // Voice pitch detection state.
+    this._detectedCell    = null; // moria or null
+    this._detectedNeighbor = null; // moria or null
+    this._detectedNeighborVel = 0; // 0..1
 
     this._ro = new ResizeObserver(() => this._onResize());
     this._ro.observe(canvas);
@@ -38,6 +42,21 @@ export class ScaleLadder {
     this._activeCells = moriaSet;
     this._paint();
   }
+
+  /**
+   * Show the voice-detected pitch on the ladder.
+   * moria / neighborMoria: cell moria values, or null to clear.
+   * neighborVel: proportional closeness of the neighbor (0..1).
+   */
+  setDetectedCell(moria, neighborMoria, neighborVel) {
+    this._detectedCell     = moria;
+    this._detectedNeighbor = neighborMoria;
+    this._detectedNeighborVel = neighborVel ?? 0;
+    this._paint();
+  }
+
+  /** Expose the row layout so other components (e.g. Singscope) can align. */
+  get rowMap() { return this._rowMap; }
 
   /** Re-read cells from WASM and repaint. */
   refresh() {
@@ -96,9 +115,19 @@ export class ScaleLadder {
       }
 
       // Cell fill.
-      const isActive = this._activeCells.has(cell.moria);
+      const isActive   = this._activeCells.has(cell.moria);
+      const isDetected = cell.moria === this._detectedCell;
+      const isNeighbor = cell.moria === this._detectedNeighbor;
       if (isActive) {
         ctx.fillStyle = '#2a5f9f';
+        ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+      } else if (isDetected) {
+        ctx.fillStyle = '#8a5200';
+        ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+      } else if (isNeighbor && this._detectedNeighborVel > 0) {
+        // Half-lit neighbor: amber tinted proportional to velocity.
+        const alpha = Math.round(this._detectedNeighborVel * 180).toString(16).padStart(2, '0');
+        ctx.fillStyle = `#8a5200${alpha}`;
         ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
       } else if (isDeg && cell.enabled) {
         ctx.fillStyle = '#1e3a5f';
@@ -121,7 +150,7 @@ export class ScaleLadder {
       // Degree label.
       const name = cell.degree ?? '?';
       ctx.font = `${Math.round(11 * scale)}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = isActive ? '#ffffff' : (cell.enabled ? '#53c0f0' : '#445');
+      ctx.fillStyle = (isActive || isDetected) ? '#ffffff' : (cell.enabled ? '#53c0f0' : '#445');
       ctx.fillText(name, 6, ry + h / 2 + 4 * scale);
 
       // Hz label.

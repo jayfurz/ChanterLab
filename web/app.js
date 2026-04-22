@@ -1,7 +1,10 @@
 import init, { JsTuningGrid } from './pkg/byzorgan_core.js';
-import { ScaleLadder  } from './ui/scale_ladder.js';
-import { AudioEngine  } from './audio/audio_engine.js';
-import { VKeyboard    } from './ui/vkeyboard.js';
+import { ScaleLadder    } from './ui/scale_ladder.js';
+import { AudioEngine    } from './audio/audio_engine.js';
+import { VKeyboard      } from './ui/vkeyboard.js';
+import { Singscope      } from './ui/singscope.js';
+import { PthoraPalette  } from './ui/pthora_palette.js';
+import { ShadingPalette } from './ui/shading_palette.js';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -17,6 +20,7 @@ const PRESETS = [
 const app = {
   grid:           null,
   ladder:         null,
+  singscope:      null,
   engine:         null,
   keyboard:       null,
   activePresetIdx: 0,
@@ -25,6 +29,10 @@ const app = {
   isonDegree:     'Ni',
   isonOctave:     0,
   isonVolume:     0.5,
+  // Mic / PSOLA correction state. Off by default — chanters should hear
+  // their own voice first and opt in to correction as a training aid.
+  correctionEnabled: false,
+  correctionVolume:  0.5,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -39,12 +47,17 @@ async function main() {
   app.ladder    = new ScaleLadder(canvas, app);
   app.keyboard  = new VKeyboard(app.engine, app.ladder);
 
+  const singCanvas  = document.getElementById('singscope');
+  app.singscope     = new Singscope(singCanvas);
+  app.singscope.start();
+
   buildPresetButtons();
   wireControls();
   wirePalettes();
   wireAccidentalPopup();
   wirePresetSaveLoad();
   wireIsonControls();
+  wireCorrectionControls();
   wireAudioInit();
 
   gridChanged();
@@ -54,6 +67,7 @@ async function main() {
 
 function gridChanged() {
   app.ladder.refresh();
+  if (app.singscope) app.singscope.setRowMap(app.ladder.rowMap);
   const cells = JSON.parse(app.grid.cellsJson());
   app.keyboard.rebuildKeyMap(cells);
   app.engine.updateTuning(cells, app.grid.refNiHz);
@@ -75,14 +89,47 @@ function wireAudioInit() {
       const cells = JSON.parse(app.grid.cellsJson());
       app.engine.updateTuning(cells, app.grid.refNiHz);
       updateIsonVoice(cells);
+      // Correction defaults to off; the synth's own default is 0.5, so we
+      // override explicitly on first init.
+      app.engine.setCorrectionVolume(
+        app.correctionEnabled ? app.correctionVolume : 0
+      );
     } catch (e) {
       console.error('Audio init failed', e);
     }
   }
 
-  // Both click and first keydown can trigger audio context creation.
+  async function ensureVoice() {
+    if (app.engine.voiceReady) return;
+    try {
+      await app.engine.initVoice(handlePitchEvent);
+      statusEl.textContent = '▶ Audio + Mic';
+    } catch (e) {
+      // Mic permission denied or unavailable — non-fatal.
+      console.warn('Voice init failed (mic unavailable?)', e);
+    }
+  }
+
+  // Both click and first keydown trigger audio context creation.
   document.addEventListener('click', ensureAudio, { once: true });
   document.addEventListener('keydown', ensureAudio, { once: true });
+
+  // A second user gesture (or the same one if audio was already up) starts mic.
+  document.addEventListener('click', async () => { await ensureAudio(); ensureVoice(); });
+  document.addEventListener('keydown', async () => { await ensureAudio(); ensureVoice(); });
+}
+
+function handlePitchEvent(msg) {
+  if (!msg.gate_open || msg.cell_id < 0) {
+    app.ladder.setDetectedCell(null, null, 0);
+  } else {
+    app.ladder.setDetectedCell(
+      msg.cell_id,
+      msg.neighbor_id >= 0 ? msg.neighbor_id : null,
+      msg.neighbor_vel,
+    );
+  }
+  if (app.singscope) app.singscope.pushPitch(msg);
 }
 
 // ── Preset buttons ────────────────────────────────────────────────────────────
@@ -142,47 +189,9 @@ function wireControls() {
 
 // ── Palettes ──────────────────────────────────────────────────────────────────
 
-const PTHORA_ITEMS = [
-  { label: 'Diatonic · Ni',      genus: 'Diatonic',      degree: 'Ni'  },
-  { label: 'Hard Chr · Pa',      genus: 'HardChromatic',  degree: 'Pa'  },
-  { label: 'Soft Chr · Ni',      genus: 'SoftChromatic',  degree: 'Ni'  },
-  { label: 'Grave Di · Ga',      genus: 'GraveDiatonic',  degree: 'Ga'  },
-  { label: 'Enh Zo · Zo',        genus: 'EnharmonicZo',   degree: 'Zo'  },
-  { label: 'Enh Ga · Ga',        genus: 'EnharmonicGa',   degree: 'Ga'  },
-];
-
-const SHADING_ITEMS = [
-  { label: 'Zygos (Di)',    shading: 'Zygos'    },
-  { label: 'Kliton (Di)',   shading: 'Kliton'   },
-  { label: 'Spathi (Ke)',   shading: 'SpathiKe' },
-  { label: 'Spathi (Ga)',   shading: 'SpathiGa' },
-  { label: '(clear)',       shading: ''          },
-];
-
 function wirePalettes() {
-  const pthoraContainer = document.getElementById('pthora-palette');
-  PTHORA_ITEMS.forEach(item => {
-    const el = document.createElement('div');
-    el.className = 'pthora-icon';
-    el.draggable = true;
-    el.textContent = item.label;
-    el.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('application/json', JSON.stringify({ type: 'pthora', genus: item.genus, degree: item.degree }));
-    });
-    pthoraContainer.appendChild(el);
-  });
-
-  const shadingContainer = document.getElementById('shading-palette');
-  SHADING_ITEMS.forEach(item => {
-    const el = document.createElement('div');
-    el.className = 'shading-icon';
-    el.draggable = true;
-    el.textContent = item.label;
-    el.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('application/json', JSON.stringify({ type: 'shading', shading: item.shading }));
-    });
-    shadingContainer.appendChild(el);
-  });
+  new PthoraPalette(document.getElementById('pthora-palette'));
+  new ShadingPalette(document.getElementById('shading-palette'));
 }
 
 // ── Accidental popup ──────────────────────────────────────────────────────────
@@ -290,6 +299,31 @@ function updateIsonVoice(cells) {
   } else {
     app.engine.setIson(null, 0);
   }
+}
+
+// ── Mic / PSOLA correction ───────────────────────────────────────────────────
+
+function wireCorrectionControls() {
+  const toggleBtn = document.getElementById('correction-toggle-btn');
+  const volSlider = document.getElementById('correction-volume-slider');
+
+  const pushVolume = () => {
+    app.engine.setCorrectionVolume(
+      app.correctionEnabled ? app.correctionVolume : 0
+    );
+  };
+
+  toggleBtn.addEventListener('click', () => {
+    app.correctionEnabled = !app.correctionEnabled;
+    toggleBtn.textContent = app.correctionEnabled ? 'On' : 'Off';
+    toggleBtn.classList.toggle('active', app.correctionEnabled);
+    pushVolume();
+  });
+
+  volSlider.addEventListener('input', () => {
+    app.correctionVolume = parseFloat(volSlider.value);
+    if (app.correctionEnabled) pushVolume();
+  });
 }
 
 // ── Preset save/load ──────────────────────────────────────────────────────────

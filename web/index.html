@@ -65,6 +65,16 @@
       <input type="range" id="ison-volume-slider" min="0" max="1" step="0.01" value="0.5">
     </div>
 
+    <div class="control-group" id="mic-controls">
+      <h2>Mic / Correction</h2>
+      <div class="mic-row">
+        <button id="correction-toggle-btn" class="ison-btn" title="Mix PSOLA-corrected voice into the synth output">Off</button>
+        <span class="mic-label">Pitch correction</span>
+      </div>
+      <label for="correction-volume-slider">Wet mix</label>
+      <input type="range" id="correction-volume-slider" min="0" max="1" step="0.01" value="0.5">
+    </div>
+
     <div class="control-group">
       <h2>Save Preset</h2>
       <input type="text" id="preset-name-input" placeholder="preset name…">
@@ -79,9 +89,12 @@
 
   <div id="main-content">
 
-    <!-- Scale ladder -->
-    <div id="ladder-container">
-      <canvas id="scale-ladder"></canvas>
+    <!-- Scale ladder + singscope -->
+    <div id="main-view">
+      <div id="ladder-container">
+        <canvas id="scale-ladder"></canvas>
+      </div>
+      <canvas id="singscope"></canvas>
     </div>
 
     <!-- Pthora + shading palettes -->
