@@ -9,6 +9,9 @@
 //! exports are gated here; all core logic lives in `tuning/`.
 
 pub mod tuning;
+pub mod dsp;
+#[cfg(feature = "worklet")]
+pub mod worklet;
 
 #[cfg(feature = "main")]
 mod main_exports {
@@ -100,8 +103,8 @@ mod main_exports {
 
         /// Apply or clear a shading on the region containing `moria`.
         ///
-        /// `shading` is one of `"Zygos"`, `"Kliton"`, `"SpathiA"`,
-        /// `"SpathiB"`, or `null`/`""` to clear. Returns `false` if
+        /// `shading` is one of `"Zygos"`, `"Kliton"`, `"SpathiKe"`,
+        /// `"SpathiGa"`, or `""` to clear. Returns `false` if
         /// `moria` is out of range.
         #[wasm_bindgen(js_name = applyShading)]
         pub fn apply_shading(&mut self, moria: i32, shading: &str) -> bool {
@@ -171,8 +174,8 @@ mod main_exports {
         match s {
             "Zygos" => Some(Shading::Zygos),
             "Kliton" => Some(Shading::Kliton),
-            "SpathiA" => Some(Shading::SpathiA),
-            "SpathiB" => Some(Shading::SpathiB),
+            "SpathiKe" => Some(Shading::SpathiKe),
+            "SpathiGa" => Some(Shading::SpathiGa),
             _ => None,
         }
     }

@@ -1,45 +1,36 @@
 //! Shading — a local tetrachord override applied within a region.
 //!
-//! See `BYZANTINE_SCALES_REFERENCE.md` §5. All four shadings are tetrachords
-//! rooted at Γα; the engine attaches a shading to a region and re-applies it
-//! every time cells are rebuilt.
-//!
-//! Interval tables live here so `Region` can stay free of lookup code. Actual
-//! application (overriding the Ga–Di–Ke–Zo span of a region) is implemented
-//! in Task 1.7.
+//! Each shading is applied relative to a fixed drop note; the drop note's
+//! absolute position never changes. Only intervals around it are modified.
+//! The actual interval calculations are context-sensitive and live in
+//! `Region::effective_intervals`.
 
 /// One of the four canonical Byzantine shadings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Shading {
-    /// Ζυγός: 18·4·16·4 from Γα. Diatonic-adjacent.
+    /// Ζυγός: dropped on Δι. The four ascending intervals ending at Di become
+    /// 18·4·16·4 (Ni→Pa=18, Pa→Vou=4, Vou→Ga=16, Ga→Di=4). Di is unchanged.
     Zygos,
-    /// Κλιτόν: 20·4·4·14 from Γα. Chromatic-adjacent.
+    /// Κλιτόν: dropped on Δι. Two notes below Di shift; Pa is preserved.
+    /// Ga→Di=4, Vou→Ga=12, Pa→Vou=14 (perfect fourth Pa→Di preserved at 30).
     Kliton,
-    /// Σπάθη (α): 14·12·4 from Γα. Three-interval variant.
-    SpathiA,
-    /// Σπάθη (β): 14·4·4·20 from Γα. Four-interval variant.
-    SpathiB,
+    /// Σπάθη on Κε: dropped on Ke. Di→Ke and Ke→Zo become 4; Ga→Di and
+    /// Zo→Ni' are recalculated to keep Ga and Ni' at their original positions.
+    SpathiKe,
+    /// Σπάθη on Γα: dropped on Ga. Vou→Ga and Ga→Di become 4; Pa→Vou and
+    /// Di→Ke are recalculated to keep Pa and Ke at their original positions.
+    SpathiGa,
 }
 
 impl Shading {
-    /// Tetrachord steps in moria, starting from Γα.
-    pub fn intervals(self) -> &'static [i32] {
-        match self {
-            Shading::Zygos => &[18, 4, 16, 4],
-            Shading::Kliton => &[20, 4, 4, 14],
-            Shading::SpathiA => &[14, 12, 4],
-            Shading::SpathiB => &[14, 4, 4, 20],
-        }
-    }
-
     /// Display name for UI.
     pub fn name(self) -> &'static str {
         match self {
             Shading::Zygos => "Zygos",
             Shading::Kliton => "Kliton",
-            Shading::SpathiA => "Spathi A",
-            Shading::SpathiB => "Spathi B",
+            Shading::SpathiKe => "Spathi (Ke)",
+            Shading::SpathiGa => "Spathi (Ga)",
         }
     }
 
@@ -47,8 +38,8 @@ impl Shading {
     pub const ALL: [Shading; 4] = [
         Shading::Zygos,
         Shading::Kliton,
-        Shading::SpathiA,
-        Shading::SpathiB,
+        Shading::SpathiKe,
+        Shading::SpathiGa,
     ];
 }
 
@@ -56,20 +47,10 @@ impl Shading {
 mod tests {
     use super::*;
 
-    /// Reference §5: Zygos and Kliton are four-interval tetrachords summing
-    /// to 42 moria (Γα → Ζω' span).
     #[test]
-    fn zygos_and_kliton_span_42_moria() {
-        assert_eq!(Shading::Zygos.intervals().iter().sum::<i32>(), 42);
-        assert_eq!(Shading::Kliton.intervals().iter().sum::<i32>(), 42);
-    }
-
-    /// Reference §5.3: Spathi A is explicitly open — 3 intervals summing to
-    /// 30 moria, with the closing step inherited from the containing scale.
-    /// Spathi B is closed at 42 moria.
-    #[test]
-    fn spathi_spans() {
-        assert_eq!(Shading::SpathiA.intervals().iter().sum::<i32>(), 30);
-        assert_eq!(Shading::SpathiB.intervals().iter().sum::<i32>(), 42);
+    fn names_are_non_empty() {
+        for s in Shading::ALL {
+            assert!(!s.name().is_empty());
+        }
     }
 }

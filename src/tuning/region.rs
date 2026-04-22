@@ -14,6 +14,12 @@
 
 use crate::tuning::{Degree, Genus, Shading, NUM_DEGREES};
 
+/// Offset of Di in a rotated interval sequence whose first degree is `root`.
+fn di_offset(root: Degree) -> usize {
+    (Degree::Di.index() as i32 - root.index() as i32)
+        .rem_euclid(NUM_DEGREES as i32) as usize
+}
+
 /// A contiguous moria span with a single genus rooted at a specific degree.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -51,12 +57,10 @@ impl Region {
 
     /// Rotated intervals with the optional shading applied.
     ///
-    /// Shading replaces the `NUM_SHADING_STEPS` intervals starting from Γα
-    /// (the Ga offset within the rotated sequence). For 3-step shadings
-    /// (SpathiA), the last interval is adjusted to keep the octave sum at 72.
-    /// For 4-step shadings the reference intervals already sum correctly when
-    /// applied to any scale — deviations on non-Diatonic genera are musically
-    /// intentional and not corrected here.
+    /// Each shading is anchored to its canonical drop note (Di for Zygos and
+    /// Kliton; Ke or Ga for Spathi). The drop note's cumulative position never
+    /// changes — only the intervals around it are modified. The resulting slice
+    /// always sums to 72 for any closed genus.
     pub fn effective_intervals(&self) -> Vec<i32> {
         let mut iv = self.rotated_intervals();
         let Some(shading) = self.shading else {
@@ -65,22 +69,58 @@ impl Region {
         if iv.len() != NUM_DEGREES {
             return iv;
         }
-        let ga_offset = (Degree::Ga.index() as i32 - self.root_degree.index() as i32)
-            .rem_euclid(NUM_DEGREES as i32) as usize;
-        let shading_steps = shading.intervals();
-        // Replace intervals from the Ga position.
-        for (i, &step) in shading_steps.iter().enumerate() {
-            if ga_offset + i < NUM_DEGREES {
-                iv[ga_offset + i] = step;
+
+        match shading {
+            Shading::Zygos => {
+                // Zygos on Di: the four ascending intervals ending at Di become
+                // [18, 4, 16, 4] — Di's position is preserved (sum = 42 both
+                // before and after for diatonic; any genus with the same Ni→Di
+                // span will also be preserved).
+                let d = di_offset(self.root_degree);
+                if d >= 4 {
+                    iv[d - 4] = 18; // Ni→Pa
+                    iv[d - 3] = 4;  // Pa→Vou
+                    iv[d - 2] = 16; // Vou→Ga
+                    iv[d - 1] = 4;  // Ga→Di
+                }
             }
+            Shading::Kliton => {
+                // Kliton on Di: two notes below Di shift; Pa stays fixed.
+                // Ga→Di=4, Vou→Ga=12, Pa→Vou=14 (so Pa→Di = 30 preserved).
+                let d = di_offset(self.root_degree);
+                if d >= 3 {
+                    iv[d - 1] = 4;  // Ga→Di
+                    iv[d - 2] = 12; // Vou→Ga
+                    iv[d - 3] = 14; // Pa→Vou (= 30 - 12 - 4)
+                }
+            }
+            Shading::SpathiKe => Self::apply_spathi(&mut iv, self.root_degree, Degree::Ke),
+            Shading::SpathiGa => Self::apply_spathi(&mut iv, self.root_degree, Degree::Ga),
         }
-        // 3-step shading (SpathiA): restore the closing interval so the octave
-        // sums to exactly 72. The closing interval = 72 − sum(iv[0..ga_offset+3]).
-        if shading_steps.len() == 3 && ga_offset + 3 < NUM_DEGREES {
-            let partial: i32 = iv[..ga_offset + 3].iter().sum();
-            iv[ga_offset + 3] = 72 - partial;
-        }
+
         iv
+    }
+
+    /// Spathi helper: set the two intervals adjacent to `on` to 4, then
+    /// recalculate the ±2 intervals so the ±2 anchor notes stay fixed.
+    fn apply_spathi(iv: &mut [i32], root: Degree, on: Degree) {
+        let d = (on.index() as i32 - root.index() as i32)
+            .rem_euclid(NUM_DEGREES as i32) as usize;
+        // Need at least one interval below and one above the drop note,
+        // plus one more on each side for the anchor recalculation.
+        if d < 2 || d + 2 > NUM_DEGREES {
+            return;
+        }
+        let old_below = iv[d - 1]; // interval into `on` from below
+        let old_above = iv[d];     // interval from `on` going up
+        iv[d - 1] = 4;
+        iv[d] = 4;
+        // Preserve the node two below `on` by absorbing the change into iv[d-2].
+        iv[d - 2] += old_below - 4;
+        // Preserve the node two above `on` by absorbing the change into iv[d+1].
+        if d + 1 < NUM_DEGREES {
+            iv[d + 1] += old_above - 4;
+        }
     }
 
     /// The seven `(degree, absolute_moria)` pairs for one octave starting at
@@ -287,5 +327,63 @@ mod tests {
             };
             assert_eq!(r.rotated_intervals(), g.intervals(), "{}", g.name());
         }
+    }
+
+    fn diatonic_shaded(shading: Shading) -> Region {
+        Region {
+            start_moria: 0,
+            end_moria: 72,
+            genus: Genus::Diatonic,
+            root_degree: Degree::Ni,
+            shading: Some(shading),
+        }
+    }
+
+    /// Zygos on Di: replaces the four ascending intervals ending at Di with
+    /// [18,4,16,4]. Di stays at 42; upper intervals are unchanged.
+    #[test]
+    fn zygos_on_di_intervals() {
+        let iv = diatonic_shaded(Shading::Zygos).effective_intervals();
+        assert_eq!(iv, vec![18, 4, 16, 4, 12, 10, 8]);
+        assert_eq!(iv.iter().sum::<i32>(), 72);
+        // Di position (sum of first 4) = 18+4+16+4 = 42 (same as unshaded).
+        assert_eq!(iv[..4].iter().sum::<i32>(), 42);
+    }
+
+    /// Kliton on Di: Pa stays fixed (Ni→Pa=12 unchanged), two notes below
+    /// Di shift. Pa→Di span remains a perfect fourth (30 moria).
+    #[test]
+    fn kliton_on_di_intervals() {
+        let iv = diatonic_shaded(Shading::Kliton).effective_intervals();
+        assert_eq!(iv, vec![12, 14, 12, 4, 12, 10, 8]);
+        assert_eq!(iv.iter().sum::<i32>(), 72);
+        // Ni→Pa unchanged.
+        assert_eq!(iv[0], 12);
+        // Pa→Di = 14+12+4 = 30 (perfect fourth preserved).
+        assert_eq!(iv[1] + iv[2] + iv[3], 30);
+    }
+
+    /// SpathiKe: Di→Ke and Ke→Zo become 4; Ga→Di and Zo→Ni' are recalculated
+    /// so Ga (pos 30) and Ni' (pos 72) stay fixed.
+    #[test]
+    fn spathi_ke_intervals() {
+        let iv = diatonic_shaded(Shading::SpathiKe).effective_intervals();
+        assert_eq!(iv, vec![12, 10, 8, 20, 4, 4, 14]);
+        assert_eq!(iv.iter().sum::<i32>(), 72);
+        // Ga position unchanged at 30.
+        assert_eq!(iv[..3].iter().sum::<i32>(), 30);
+    }
+
+    /// SpathiGa: Vou→Ga and Ga→Di become 4; Pa→Vou and Di→Ke are recalculated
+    /// so Pa (pos 12) and Ke (pos 54) stay fixed.
+    #[test]
+    fn spathi_ga_intervals() {
+        let iv = diatonic_shaded(Shading::SpathiGa).effective_intervals();
+        assert_eq!(iv, vec![12, 14, 4, 4, 20, 10, 8]);
+        assert_eq!(iv.iter().sum::<i32>(), 72);
+        // Pa position unchanged at 12.
+        assert_eq!(iv[0], 12);
+        // Ke position unchanged at 54.
+        assert_eq!(iv[..5].iter().sum::<i32>(), 54);
     }
 }

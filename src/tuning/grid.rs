@@ -362,6 +362,135 @@ impl Default for TuningGrid {
     }
 }
 
+impl TuningGrid {
+    /// Build the period table sent to both worklets on every grid change.
+    ///
+    /// Returns a vec of `(period_24_8, cell_id)` pairs sorted ascending by
+    /// period (= descending by frequency), containing only enabled cells.
+    /// `period_24_8` is a 24.8 fixed-point sample count:
+    ///   `floor((sample_rate / cell_hz) * 256)`
+    /// matching the `setKeyTuning` / `tuning_table` spec in `ARCHITECTURE.md §3.7`.
+    pub fn tuning_table(&self, sample_rate: f32) -> Vec<(u32, i32)> {
+        let cells = self.cells();
+        let mut table: Vec<(u32, i32)> = cells
+            .iter()
+            .filter(|c| c.enabled)
+            .map(|c| {
+                let hz = moria_to_hz(self.ref_ni_hz, c.effective_moria());
+                let period = ((sample_rate as f64 / hz) * 256.0).round() as u32;
+                (period, c.moria)
+            })
+            .collect();
+        table.sort_by_key(|(p, _)| *p);
+        table
+    }
+}
+
+/// Result of a nearest-cell lookup.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NearestCellResult {
+    /// Moria index of the primary (best-matching) enabled cell.
+    pub primary_id: i32,
+    /// Moria index of the adjacent neighbor cell (for half-lit UI feedback),
+    /// or `None` if there is only one enabled cell.
+    pub neighbor_id: Option<i32>,
+    /// Proportional velocity 0.0..1.0 for the neighbor; see `processPeriod` in
+    /// `vocproc.cpp:1028-1033`.
+    pub neighbor_vel: f32,
+}
+
+/// Find the nearest enabled cell to `period_24_8`, applying `last_cell_id`
+/// hysteresis (halves the distance to the previously held cell).
+///
+/// `sorted_table` must be the output of `TuningGrid::tuning_table` (sorted
+/// ascending by period). Returns `None` only if the table is empty.
+///
+/// Port of `VocProc::nearestKeyForPeriod` (`vocproc.cpp:886-959`).
+pub fn nearest_enabled_cell(
+    sorted_table: &[(u32, i32)],
+    period_24_8: u32,
+    last_cell_id: Option<i32>,
+) -> Option<NearestCellResult> {
+    let n = sorted_table.len();
+    if n == 0 {
+        return None;
+    }
+
+    // Binary search: first entry with period > period_24_8.
+    let pos = sorted_table.partition_point(|(p, _)| *p <= period_24_8);
+
+    let primary_idx = if pos == 0 {
+        0
+    } else if pos == n {
+        n - 1
+    } else {
+        let below = &sorted_table[pos - 1];
+        let above = &sorted_table[pos];
+        let mut dist_below = period_24_8 - below.0;
+        let mut dist_above = above.0 - period_24_8;
+        // Hysteresis: halve distance to the currently held cell.
+        if let Some(last) = last_cell_id {
+            if below.1 == last {
+                dist_below >>= 1;
+            }
+            if above.1 == last {
+                dist_above >>= 1;
+            }
+        }
+        // Ties go to the above entry, matching C++ `if (a1 < a2) key = i1; else key = i2`.
+        if dist_below < dist_above { pos - 1 } else { pos }
+    };
+
+    let primary_id = sorted_table[primary_idx].1;
+    let primary_period = sorted_table[primary_idx].0;
+
+    // Find neighbor: the other adjacent cell in the sorted table.
+    // Port of key2/key3 and their velocity calculation in `processPeriod`.
+    let (neighbor_id, neighbor_vel) = if n > 1 {
+        let below_nb = if primary_idx > 0 { Some(sorted_table[primary_idx - 1]) } else { None };
+        let above_nb = if primary_idx + 1 < n { Some(sorted_table[primary_idx + 1]) } else { None };
+
+        match (below_nb, above_nb) {
+            (Some(below), Some(above)) => {
+                // a2 = distance from actual period to below-primary neighbor.
+                // a3 = distance from above-primary neighbor to actual period.
+                let a2 = period_24_8.saturating_sub(below.0);
+                let a3 = above.0.saturating_sub(period_24_8);
+                let total = a2 + a3;
+                if total > 0 {
+                    // The closer neighbor gets higher velocity (matches C++ formula).
+                    if a2 <= a3 {
+                        let vel = (a3 as f32 / total as f32).min(1.0);
+                        (Some(below.1), vel)
+                    } else {
+                        let vel = (a2 as f32 / total as f32).min(1.0);
+                        (Some(above.1), vel)
+                    }
+                } else {
+                    (Some(below.1), 0.5)
+                }
+            }
+            (Some(b), None) => {
+                let dist = primary_period.saturating_sub(b.0);
+                let total = period_24_8.abs_diff(b.0) + dist;
+                let vel = if total > 0 { period_24_8.abs_diff(b.0) as f32 / total as f32 } else { 0.5 };
+                (Some(b.1), vel.min(1.0))
+            }
+            (None, Some(a)) => {
+                let dist = a.0.saturating_sub(primary_period);
+                let total = period_24_8.abs_diff(a.0) + dist;
+                let vel = if total > 0 { period_24_8.abs_diff(a.0) as f32 / total as f32 } else { 0.5 };
+                (Some(a.1), vel.min(1.0))
+            }
+            (None, None) => (None, 0.0),
+        }
+    } else {
+        (None, 0.0)
+    };
+
+    Some(NearestCellResult { primary_id, neighbor_id, neighbor_vel })
+}
+
 /// Largest multiple of `m` ≤ `n`. `m` must be positive.
 fn floor_to_multiple(n: i32, m: i32) -> i32 {
     n.div_euclid(m) * m
@@ -757,7 +886,8 @@ mod tests {
 
     // ── Shading tests ──────────────────────────────────────────────────────
 
-    /// Zygos on Diatonic from Ni: Ga stays at 30, Di→48, Ke→52, Zo→68, Ni'→72.
+    /// Zygos on Di: the four intervals *below* Di change to [18,4,16,4].
+    /// Di stays at 42; intervals above Di (→Ke, →Zo) are unchanged.
     #[test]
     fn zygos_shading_shifts_degrees_correctly() {
         let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
@@ -768,16 +898,15 @@ mod tests {
             .filter(|c| c.degree.is_some())
             .map(|c| (c.moria, c.degree.unwrap()))
             .collect();
-        // Zygos [18,4,16,4] from Ga=30: Di=48, Ke=52, Zo=68. Ni' at 72 is
-        // outside [0,72) so only 5 degree cells appear.
+        // iv = [18,4,16,4,12,10,8]: Pa=18, Vou=22, Ga=38, Di=42, Ke=54, Zo=64.
         let expected = vec![
             (0, Degree::Ni),
-            (12, Degree::Pa),
+            (18, Degree::Pa),
             (22, Degree::Vou),
-            (30, Degree::Ga),
-            (48, Degree::Di),
-            (52, Degree::Ke),
-            (68, Degree::Zo),
+            (38, Degree::Ga),
+            (42, Degree::Di),
+            (54, Degree::Ke),
+            (64, Degree::Zo),
         ];
         assert_eq!(degree_cells, expected);
     }
@@ -797,30 +926,48 @@ mod tests {
         let r2 = Region { shading: Some(Shading::Kliton), ..r.clone() };
         assert_eq!(r2.effective_intervals().iter().sum::<i32>(), 72);
 
-        let r3 = Region { shading: Some(Shading::SpathiB), ..r.clone() };
+        let r3 = Region { shading: Some(Shading::SpathiKe), ..r.clone() };
         assert_eq!(r3.effective_intervals().iter().sum::<i32>(), 72);
 
-        let r4 = Region { shading: Some(Shading::SpathiA), ..r.clone() };
+        let r4 = Region { shading: Some(Shading::SpathiGa), ..r.clone() };
         assert_eq!(r4.effective_intervals().iter().sum::<i32>(), 72);
     }
 
-    /// SpathiA closing interval is auto-adjusted: Zo stays at Ga+30,
-    /// Zo→Ni' is recomputed as 72 - (sum before that step).
+    /// SpathiKe: Di→Ke=4, Ke→Zo=4; Ga→Di and Zo→Ni' are recalculated so
+    /// Ga and Ni' remain at their original positions.
     #[test]
-    fn spathi_a_closing_interval_auto_adjusted() {
+    fn spathi_ke_recalculates_adjacent_intervals() {
         let r = Region {
             start_moria: 0,
             end_moria: 72,
             genus: Genus::Diatonic,
             root_degree: Degree::Ni,
-            shading: Some(Shading::SpathiA),
+            shading: Some(Shading::SpathiKe),
         };
         let iv = r.effective_intervals();
-        // SpathiA: iv[3..6] = [14,12,4], iv[6] = 72-12-10-8-14-12-4 = 12.
-        assert_eq!(iv[3], 14);
-        assert_eq!(iv[4], 12);
-        assert_eq!(iv[5], 4);
-        assert_eq!(iv[6], 12);
+        // Diatonic base: [12,10,8,12,12,10,8]. Ke at offset 5.
+        // old_below=iv[4]=12, old_above=iv[5]=10.
+        // iv[4]=4, iv[5]=4, iv[3]+=12-4=8→20, iv[6]+=10-4=6→14.
+        assert_eq!(iv, vec![12, 10, 8, 20, 4, 4, 14]);
+        assert_eq!(iv.iter().sum::<i32>(), 72);
+    }
+
+    /// SpathiGa: Vou→Ga=4, Ga→Di=4; Pa→Vou and Di→Ke are recalculated so
+    /// Pa and Ke remain at their original positions.
+    #[test]
+    fn spathi_ga_recalculates_adjacent_intervals() {
+        let r = Region {
+            start_moria: 0,
+            end_moria: 72,
+            genus: Genus::Diatonic,
+            root_degree: Degree::Ni,
+            shading: Some(Shading::SpathiGa),
+        };
+        let iv = r.effective_intervals();
+        // Diatonic base: [12,10,8,12,12,10,8]. Ga at offset 3.
+        // old_below=iv[2]=8, old_above=iv[3]=12.
+        // iv[2]=4, iv[3]=4, iv[1]+=8-4=4→14, iv[4]+=12-4=8→20.
+        assert_eq!(iv, vec![12, 14, 4, 4, 20, 10, 8]);
         assert_eq!(iv.iter().sum::<i32>(), 72);
     }
 
@@ -1009,5 +1156,64 @@ mod tests {
             assert!(TuningGrid::from_json("not json").is_err());
             assert!(TuningGrid::from_json("{\"ref_ni_hz\": 261}").is_err());
         }
+    }
+
+    // ── nearest_enabled_cell tests ─────────────────────────────────────────
+
+    /// Build a hand-crafted table with three cells at periods 100, 120, 150.
+    ///
+    /// Plan test: "input period 110 snaps to 100 if last = 100 (hysteresis),
+    /// else to 120."
+    fn period_table() -> Vec<(u32, i32)> {
+        vec![(100 * 256, 0), (120 * 256, 1), (150 * 256, 2)]
+    }
+
+    #[test]
+    fn nearest_cell_no_hysteresis_picks_closer() {
+        let table = period_table();
+        // Period 110: equidistant between 100 and 120 → tie goes to 120 (above).
+        let r = nearest_enabled_cell(&table, 110 * 256, None).unwrap();
+        assert_eq!(r.primary_id, 1, "equidistant snap should pick 120 (above)");
+    }
+
+    #[test]
+    fn nearest_cell_hysteresis_favors_last_key() {
+        let table = period_table();
+        // Period 110 + last = 0 (period 100): halved dist = 5 < 10 → picks 100.
+        let r = nearest_enabled_cell(&table, 110 * 256, Some(0)).unwrap();
+        assert_eq!(r.primary_id, 0, "hysteresis should snap to last cell (100)");
+    }
+
+    #[test]
+    fn nearest_cell_clearly_closer_without_hysteresis() {
+        let table = period_table();
+        // Period 105: dist to 100 = 5, dist to 120 = 15 → picks 100.
+        let r = nearest_enabled_cell(&table, 105 * 256, None).unwrap();
+        assert_eq!(r.primary_id, 0);
+    }
+
+    #[test]
+    fn nearest_cell_returns_none_on_empty_table() {
+        assert!(nearest_enabled_cell(&[], 100 * 256, None).is_none());
+    }
+
+    #[test]
+    fn nearest_cell_single_entry_always_matches() {
+        let table = vec![(200 * 256, 42)];
+        let r = nearest_enabled_cell(&table, 100 * 256, None).unwrap();
+        assert_eq!(r.primary_id, 42);
+        assert!(r.neighbor_id.is_none());
+    }
+
+    #[test]
+    fn tuning_table_sorted_and_enabled_only() {
+        let g = TuningGrid::new_default();
+        let table = g.tuning_table(44100.0);
+        // Periods should be sorted ascending (= pitches descending).
+        for w in table.windows(2) {
+            assert!(w[0].0 <= w[1].0, "tuning_table must be sorted by period");
+        }
+        // Default grid: all 7 degree cells per octave, 3 octaves → 21 cells.
+        assert_eq!(table.len(), 21, "default grid should have 21 enabled cells");
     }
 }
