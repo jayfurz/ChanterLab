@@ -18,12 +18,13 @@ const PRESETS = [
 ];
 
 const app = {
-  grid:           null,
-  ladder:         null,
-  singscope:      null,
-  engine:         null,
-  keyboard:       null,
+  grid:            null,
+  ladder:          null,
+  singscope:       null,
+  engine:          null,
+  keyboard:        null,
   activePresetIdx: 0,
+  gridChanged:     null,
   // Ison state
   isonEnabled:    false,
   isonDegree:     'Ni',
@@ -73,6 +74,8 @@ function gridChanged() {
   app.engine.updateTuning(cells, app.grid.refNiHz);
   updateIsonVoice(cells);
 }
+
+app.gridChanged = gridChanged;
 
 // ── Audio init on first user gesture ─────────────────────────────────────────
 

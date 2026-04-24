@@ -2,7 +2,11 @@
 //
 // Drop payload: `{type: 'shading', shading}` where shading is one of
 // 'Zygos', 'Kliton', 'SpathiKe', 'SpathiGa', or '' to clear.
-// ScaleLadder's drop handler gates these to degree cells only.
+// ScaleLadder gates these to degree cells only in its drop handler.
+//
+// Uses pointer-event drag (see pointer_drag.js) so it works on touch.
+
+import { makeDraggable } from './pointer_drag.js';
 
 const ITEMS = [
   // Zygos (yoke) — two parallel bars, evoking the paired tetrachord.
@@ -41,18 +45,14 @@ export class ShadingPalette {
     for (const item of ITEMS) {
       const el = document.createElement('div');
       el.className = 'shading-icon';
-      el.draggable = true;
       el.title = item.shading
         ? `${item.label} — drop on a degree cell to apply this shading`
         : `${item.label} — drop on a degree cell to clear shading`;
       el.innerHTML = `<svg viewBox="0 0 24 24" class="palette-glyph" aria-hidden="true">${item.svg}</svg>`
                    + `<span class="palette-label">${item.label}</span>`;
-      el.addEventListener('dragstart', e => {
-        e.dataTransfer.setData('application/json', JSON.stringify({
-          type: 'shading',
-          shading: item.shading,
-        }));
-        e.dataTransfer.effectAllowed = 'copy';
+      makeDraggable(el, {
+        payload: () => ({ type: 'shading', shading: item.shading }),
+        targetSelector: '#scale-ladder',
       });
       container.appendChild(el);
     }

@@ -42,7 +42,10 @@ export class AudioEngine {
 
       // AudioWorklet path is relative to the module URL.
       await this._ctx.audioWorklet.addModule(new URL('./synth_worklet.js', import.meta.url));
-      this._node = new AudioWorkletNode(this._ctx, 'synth-processor', { numberOfInputs: 1 });
+      this._node = new AudioWorkletNode(this._ctx, 'synth-processor', {
+        numberOfInputs: 1,
+        outputChannelCount: [2],
+      });
       this._node.connect(this._ctx.destination);
       this._ready = true;
 

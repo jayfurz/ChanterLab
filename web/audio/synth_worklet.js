@@ -22,6 +22,8 @@ const VOICE_AMPS = _makeAmps(
   Array.from({ length: K }, (_, i) => 1 / Math.pow(i + 1, ALPHA))
 );
 
+const VOICE_MIX_GAIN = 4.0;
+
 // Ison: richer lower harmonics, attenuated upper.
 const ISON_AMPS = _makeAmps([1.0, 0.75, 0.55, 0.38, 0.26, 0.17, 0.11, 0.07]);
 
@@ -114,7 +116,7 @@ class SynthProcessor extends AudioWorkletProcessor {
         break;
       }
       case 'ison': {
-        if (!msg.cell_id || msg.volume <= 0) {
+        if (msg.cell_id == null || msg.volume <= 0) {
           if (this._isonVoice) { this._isonVoice.release(); this._isonVoice = null; }
           return;
         }
@@ -128,19 +130,21 @@ class SynthProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs) {
-    const ch = outputs[0]?.[0];
-    if (!ch) return true;
+    const out = outputs[0];
+    const chL = out?.[0];
+    const chR = out?.[1];
+    if (!chL) return true;
 
-    ch.fill(0);
+    chL.fill(0);
 
     for (const v of this._voices) {
-      if (!v.isDead) v.renderInto(ch, ch.length);
+      if (!v.isDead) v.renderInto(chL, chL.length);
     }
     this._voices = this._voices.filter(v => !v.isDead);
 
     if (this._isonVoice) {
       if (!this._isonVoice.isDead) {
-        this._isonVoice.renderInto(ch, ch.length);
+        this._isonVoice.renderInto(chL, chL.length);
       } else {
         this._isonVoice = null;
       }
@@ -149,9 +153,12 @@ class SynthProcessor extends AudioWorkletProcessor {
     // Mix in PSOLA-corrected voice audio from the VoiceWorklet.
     const voiceIn = inputs[0]?.[0];
     if (voiceIn) {
-      const vol = this._correctionVolume;
-      for (let i = 0; i < ch.length; i++) ch[i] += voiceIn[i] * vol;
+      const vol = this._correctionVolume * VOICE_MIX_GAIN;
+      for (let i = 0; i < chL.length; i++) chL[i] += voiceIn[i] * vol;
     }
+
+    // Duplicate mono to right channel for stereo output.
+    if (chR) chR.set(chL);
 
     return true;
   }

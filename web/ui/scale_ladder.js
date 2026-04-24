@@ -31,10 +31,17 @@ export class ScaleLadder {
     this._ro = new ResizeObserver(() => this._onResize());
     this._ro.observe(canvas);
 
+    // Drop hover preview state.
+    this._hoverCell = null;
+
     canvas.addEventListener('click', e => this._onClick(e));
     canvas.addEventListener('contextmenu', e => this._onRightClick(e));
-    canvas.addEventListener('dragover', e => this._onDragOver(e));
-    canvas.addEventListener('drop', e => this._onDrop(e));
+    canvas.addEventListener('byzorgan:palette-drop', e => this._onPaletteDrop(e));
+    canvas.addEventListener('byzorgan:palette-hover', e => this._onPaletteHover(e));
+
+    // Long-press → accidental popup. Parallel path to right-click, not gated
+    // by pointerType so trackpad users can use whichever feels natural.
+    canvas.addEventListener('pointerdown', e => this._onPointerDown(e));
   }
 
   /** Highlight cells that are currently playing (from keyboard). */
@@ -135,6 +142,13 @@ export class ScaleLadder {
       } else if (isDeg) {
         ctx.fillStyle = '#12243a';
         ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+      }
+
+      // Hover preview border during palette drag.
+      if (this._hoverCell && this._hoverCell.moria === cell.moria) {
+        ctx.strokeStyle = '#53c0f0';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(0.5, ry, cssW, h);
       }
 
       // Separator line.
@@ -241,10 +255,15 @@ export class ScaleLadder {
   }
 
   _onClick(e) {
+    if (this._suppressNextClick) {
+      this._suppressNextClick = false;
+      e.stopPropagation();
+      return;
+    }
     const cell = this._hitTest(this._cssY(e));
     if (!cell || cell.degree === null) return;
     this.app.grid.toggleCell(cell.moria);
-    this.refresh();
+    this.app.gridChanged();
   }
 
   _onRightClick(e) {
@@ -254,27 +273,66 @@ export class ScaleLadder {
     this.app.showAccidentalPopup(cell, e.clientX, e.clientY);
   }
 
-  _onDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+  _onPointerDown(e) {
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startCell = this._hitTest(this._cssY(e));
+    if (!startCell || startCell.degree === null) return;
+
+    let fired = false;
+    const timer = setTimeout(() => {
+      fired = true;
+      this.app.showAccidentalPopup(startCell, startX, startY);
+    }, 500);
+
+    const finish = () => {
+      clearTimeout(timer);
+      this.canvas.removeEventListener('pointermove', onMove);
+      this.canvas.removeEventListener('pointerup', finish);
+      this.canvas.removeEventListener('pointercancel', finish);
+      if (fired) {
+        // Suppress the synthetic click that follows pointerup so we don't
+        // (a) toggle the cell in _onClick, or (b) let the document-level
+        // "click outside → hide popup" handler hide the popup we just opened.
+        this._suppressNextClick = true;
+        setTimeout(() => { this._suppressNextClick = false; }, 400);
+      }
+    };
+    const onMove = me => {
+      if (fired) return;
+      const dx = me.clientX - startX;
+      const dy = me.clientY - startY;
+      if (dx * dx + dy * dy > 36) finish();  // 6px threshold
+    };
+    this.canvas.addEventListener('pointermove', onMove);
+    this.canvas.addEventListener('pointerup', finish);
+    this.canvas.addEventListener('pointercancel', finish);
   }
 
-  _onDrop(e) {
-    e.preventDefault();
-    const cell = this._hitTest(this._cssY(e));
+  _onPaletteDrop(e) {
+    const { payload, clientY } = e.detail;
+    const rect = this.canvas.getBoundingClientRect();
+    const cell = this._hitTest(clientY - rect.top);
     if (!cell) return;
 
-    let data;
-    try { data = JSON.parse(e.dataTransfer.getData('application/json')); }
-    catch { return; }
-
-    if (data.type === 'pthora') {
-      this.app.grid.applyPthora(cell.moria, data.genus, data.degree);
-      this.refresh();
-    } else if (data.type === 'shading') {
+    if (payload.type === 'pthora') {
+      this.app.grid.applyPthora(cell.moria, payload.genus, payload.degree);
+      this.app.gridChanged();
+    } else if (payload.type === 'shading') {
       if (cell.degree === null) return;
-      this.app.grid.applyShading(cell.moria, data.shading);
-      this.refresh();
+      this.app.grid.applyShading(cell.moria, payload.shading);
+      this.app.gridChanged();
     }
+  }
+
+  _onPaletteHover(e) {
+    const { clientY, leaving } = e.detail;
+    if (leaving) {
+      this._hoverCell = null;
+    } else {
+      const rect = this.canvas.getBoundingClientRect();
+      this._hoverCell = this._hitTest(clientY - rect.top);
+    }
+    this._paint();
   }
 }

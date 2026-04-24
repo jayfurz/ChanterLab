@@ -231,6 +231,10 @@ input[type="number"] {
   padding: 4px 2px;
   cursor: grab;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  touch-action: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -239,6 +243,20 @@ input[type="number"] {
 }
 .pthora-icon:hover, .shading-icon:hover { border-color: var(--accent2); background: var(--surface2); }
 .pthora-icon:active, .shading-icon:active { cursor: grabbing; }
+.pthora-icon.dragging, .shading-icon.dragging {
+  opacity: 0.4;
+  border-color: var(--accent2);
+}
+
+.pointer-drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.85;
+  border-color: var(--accent2) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  background: var(--surface2) !important;
+}
 
 .palette-glyph {
   width: 24px;

@@ -1,10 +1,14 @@
 // PthoraPalette — draggable pthora items.
 //
-// Each item carries a drop payload of `{type: 'pthora', genus, degree}` which
-// ScaleLadder's drop handler routes into `grid.applyPthora(moria, genus, degree)`.
+// Each item emits a drop payload of `{type: 'pthora', genus, degree}` which
+// ScaleLadder's palette-drop handler routes into
+// `grid.applyPthora(moria, genus, degree)`.
 //
-// Icons are inline SVG ladder-fragments whose line spacing mirrors each
-// genus's step pattern — a visual cue, not a literal rendering.
+// Uses pointer-event drag (see pointer_drag.js) so it works on touch as well
+// as mouse. Icons are inline SVG ladder-fragments whose line spacing mirrors
+// each genus's step pattern — a visual cue, not a literal rendering.
+
+import { makeDraggable } from './pointer_drag.js';
 
 const ITEMS = [
   { label: 'Diatonic',  genus: 'Diatonic',       degree: 'Ni', pattern: [5, 10, 15, 20] },
@@ -30,17 +34,12 @@ export class PthoraPalette {
     for (const item of ITEMS) {
       const el = document.createElement('div');
       el.className = 'pthora-icon';
-      el.draggable = true;
       el.title = `${item.label} — drop on a cell to apply this pthora rooted at ${item.degree}`;
       el.innerHTML = glyph(item.pattern)
                    + `<span class="palette-label">${item.label}</span>`;
-      el.addEventListener('dragstart', e => {
-        e.dataTransfer.setData('application/json', JSON.stringify({
-          type: 'pthora',
-          genus: item.genus,
-          degree: item.degree,
-        }));
-        e.dataTransfer.effectAllowed = 'copy';
+      makeDraggable(el, {
+        payload: () => ({ type: 'pthora', genus: item.genus, degree: item.degree }),
+        targetSelector: '#scale-ladder',
       });
       container.appendChild(el);
     }
