@@ -22,13 +22,15 @@ Two separate semantic bugs/gaps are also blocking the UX:
    pivot is a re-anchor in *both* directions — cells below M are also
    re-interpreted, walking downward from the pivot until a pre-existing
    boundary or the grid edge.
-2. **Spathi engine semantics don't match the palette's single glyph.** The
+2. **Chroa semantics need resolved anchors, not just target degrees.** The
    engine still has `SpathiKe`/`SpathiGa` variants hard-coded to operate
-   on the region's Ke or Ga regardless of drop location. The user model is
-   "make the two intervals adjacent to the drop target become 4" — local,
-   drop-centric, works on any degree.
+   on the region's Ke or Ga regardless of drop location. Kliton and Zygos
+   are also hard-coded around their current region-relative behavior. The
+   desired model is "drop a symbol on an actual note, resolve the musical
+   anchor, then apply that symbol's interval patch." The clicked note may
+   stay fixed, or it may move to satisfy the interval rule.
 
-This document is a plan for unifying both.
+This document is a plan for moving the engine to that semantic event model.
 
 ---
 
@@ -37,8 +39,8 @@ This document is a plan for unifying both.
 | Palette item | Palette payload | Engine behavior |
 | --- | --- | --- |
 | 24 pthora slots (3×8) | `{type:'pthora', genus, degree}` | `grid.applyPthora(moria, genus, degree)` — works **upward only** |
-| Zygos | `{shading:'Zygos'}` | `Shading::Zygos`, correct |
-| Kliton | `{shading:'Kliton'}` | `Shading::Kliton`, correct |
+| Zygos | `{shading:'Zygos'}` | `Shading::Zygos` — partial; Di-style behavior only, drop moria ignored |
+| Kliton | `{shading:'Kliton'}` | `Shading::Kliton` — partial; Di-style behavior only, missing Ga/Ni/effective-anchor cases |
 | Spathi | `{shading:'Spathi'}` | JS maps to `SpathiGa` if drop is Ga, else `SpathiKe`; engine applies to the region's Ke/Ga (**not** the drop moria) |
 | Ajem (Enharmonic) | `{shading:'Enharmonic'}` | **no-op** — JS warns, engine has no variant |
 | Diesis Geniki (♯) | `{shading:'DiesisGeniki'}` | **no-op** — JS warns, engine has no variant |
@@ -51,210 +53,261 @@ unifies.
 
 ---
 
-## Part 2 — Required engine changes
+## Part 2 — Required engine model
 
-### 2.1 Shading enum refactor
+The old plan treated a palette drop as "apply this symbol to this target
+degree." That is too weak for the musical behavior we need. A symbol is
+dropped on an actual note degree, but the clicked note is not always the
+note that remains fixed. Some drops keep the clicked note where it was and
+move notes around it; other drops move the clicked note so a required
+interval is satisfied.
 
-**Current:**
-
-```rust
-// src/tuning/shading.rs
-pub enum Shading { Zygos, Kliton, SpathiKe, SpathiGa }
-```
-
-**Proposed:**
+The engine should model drops as semantic events:
 
 ```rust
-pub enum Shading {
-    Zygos,
-    Kliton,
-    /// Local modifier: the two intervals adjacent to `target` (the drop
-    /// degree) become 4 moria each. Remaining intervals recalculate from
-    /// the new anchor positions so that the cells two steps away from the
-    /// drop stay at their pre-shading moria.
-    Spathi { target: Degree },
-    /// Enharmonic / Ajem. Local modifier centered on `target`. See §2.3.
-    Enharmonic { target: Degree },
-    /// General sharp — raise all cells matching `target` across every
-    /// octave by +6 moria. See §2.4.
-    DiesisGeniki { target: Degree },
-    /// General flat — lower all cells matching `target` across every
-    /// octave by −6 moria.
-    YfesisGeniki { target: Degree },
+struct TuningEvent {
+    id: EventId,
+    drop_moria: i32,
+    drop_degree: Degree,
+    resolved_anchor_moria: i32,
+    resolved_anchor_degree: Degree,
+    kind: TuningEventKind,
+}
+
+enum TuningEventKind {
+    PthoraReanchor(PthoraRule),
+    ChroaPatch(IntervalPatch),
+    GenikiModulator(ModulatorRule),
+    ManualAccidental,
+    IsonChange,
 }
 ```
 
-All variants now carry the drop target degree. `Zygos` and `Kliton` still
-take no data because their current semantics depend on the region's
-`root_degree` alone (they reshape the first tetrachord relative to the
-region root, not the drop target) — leave those unchanged.
+`drop_moria` is where the user placed the symbol. `resolved_anchor_moria`
+is the pitch the engine uses as the local reference for rebuilding the
+scale. These are often the same, but must not be assumed to be the same.
 
-**Serde:** tagged representation (`{"type":"Spathi","target":"Ga"}`) is
-preferred over stringly-typed to keep LocalStorage presets forward-
-compatible.
+Do not flatten pthora/chroa effects into anonymous `CellOverride`s. Manual
+accidentals, chroa patches, pthora reanchors, inferred transcription
+events, and grid-wide modulators need separate provenance even when they
+produce the same pitch.
 
-**Migration:** JSON presets from the old format (`"SpathiKe"`, `"SpathiGa"`)
-should map on deserialize to `Spathi { target: Ke }` / `Spathi { target:
-Ga }`. Add a `#[serde(alias = ...)]` or custom Visitor.
+### 2.1 Split region boundaries from region anchors
 
-### 2.2 `apply_spathi` — drop-centric
+**Current problem:** `Region.start_moria` is both the region boundary and
+the moria where `root_degree` sits. That makes true bidirectional pthora
+hard, and it cannot represent a modulation where the new local Ni is at an
+absolute moria that is not the region boundary.
 
-**Current** (`src/tuning/region.rs:104`):
+**Proposed shape:**
 
 ```rust
-fn apply_spathi(iv: &mut [i32], root: Degree, on: Degree) {
-    let d = (on.index() as i32 - root.index() as i32)
-        .rem_euclid(NUM_DEGREES as i32) as usize;
-    if d < 2 || d + 2 > NUM_DEGREES { return; }
-    // ...zero-out iv[d-1], iv[d], set to 4, recalc iv[d-2], iv[d+1]...
+pub struct Region {
+    pub start_moria: i32,
+    pub end_moria: i32,
+    pub genus: Genus,
+    pub anchor_moria: i32,
+    pub anchor_degree: Degree,
+    pub active_rules: Vec<EventId>,
 }
 ```
 
-**Proposed:** keep the helper signature, but always pass the palette drop
-target. Allow targets where the neighbor-recalc would walk off either end
-of the tetrachord by clamping: if `d == 0`, only set `iv[d] = 4` (above);
-if `d == NUM_DEGREES - 1`, only set `iv[d-1] = 4` (below). Anchor cells
-outside the region aren't re-anchorable by this mechanism — that's
-expected.
+`start_moria` / `end_moria` define the span. `anchor_moria` /
+`anchor_degree` define where the interval pattern is pinned. Cell
+generation walks upward and downward from the anchor through the active
+genus and interval patches.
 
-**Test matrix:** 7 tests (one per target degree), each on a diatonic
-region rooted at Ni. Assert:
+This supports:
 
-- The two intervals immediately adjacent to the target sum to (at most) 8.
-- The second-adjacent intervals are recalculated so the second-neighbor
-  cells stay at their pre-shading moria (where possible).
+- bidirectional pthora propagation from the drop point;
+- chroas that affect notes below, above, or around the anchor;
+- drops that move the clicked note before it becomes a new local anchor;
+- later transcription, where an inferred event can be attached to a time
+  range and replayed semantically.
 
-### 2.3 Enharmonic (Ajem) — local adjacency flattening
+### 2.2 Interval patches
 
-**User description, consolidated:**
+Chroas should be represented as anchor-relative interval constraints, not
+as one-off hard-coded mutations to a seven-element interval array.
 
-> [Ajem] affects the notes right around where you drop them. Dropped on
-> Zo: Zo→Ke becomes 6 (and Zo→Ni becomes 12; the 8-step flips to a 6).
-> Dropped on Ga or Ni: raises Vou/Zo respectively by 2, so the 8-step
-> below the raised note becomes 6. The Zo variant also works when dropped
-> on Vou (same adjacency rule, symmetric on the descending side).
+```rust
+struct IntervalPatch {
+    symbol: ChroaSymbol,
+    anchor_policy: AnchorPolicy,
+    constraints: Vec<IntervalConstraint>,
+    fixed_notes: Vec<RelativeDegree>,
+}
 
-**Unified rule:** "On target degree D, shift the interval structure around
-D so that the adjacency that is normally 8 moria becomes 6 and the
-adjacency that is normally 10 moria becomes 12." Equivalently: raise or
-lower the neighbor of D by ±2 moria so the asymmetry inverts.
+struct IntervalConstraint {
+    from: RelativeDegree,
+    to: RelativeDegree,
+    moria: i32,
+}
+```
 
-**Valid drop targets (diatonic frame of reference):**
+`AnchorPolicy` resolves the clicked note into the effective anchor. Most
+symbols use the clicked pitch directly. Some symbols normalize to their
+usual written anchor. Some symbols intentionally move the clicked note
+before the local scale is rebuilt.
 
-| Drop | Effect on neighbor | Resulting intervals |
-| --- | --- | --- |
-| Zo | raise Zo by 2 | Ke→Zo: 10→12; Zo→Ni: 8→6 |
-| Vou | lower Vou by 2 (or raise Pa by 2) | Pa→Vou: 10→12; Vou→Ga: 8→6 |
-| Ga | raise Vou by 2 | Pa→Vou: 10→12; Vou→Ga: 8→6 |
-| Ni (either octave) | raise Zo by 2 | Ke→Zo: 10→12; Zo→Ni: 8→6 |
-| Pa / Di / Ke | undefined — engine should no-op or warn |
+The implementation does not need this exact type layout, but it does need
+this separation of concerns:
 
-**Implementation:**
+1. identify the clicked pitch;
+2. resolve the effective anchor;
+3. apply symbol-specific interval constraints;
+4. rebuild derived cells from the semantic state.
 
-- On `apply_shading(moria, Some(Enharmonic { target }))`, identify the
-  adjacent degree whose position needs to shift (Vou or Zo depending on
-  `target`) and install a `CellOverride { accidental: ±2 }` on that cell.
-- Do *not* modify region intervals — this mod is entirely expressed via
-  the override machinery, which already feeds into `cells()` and the
-  tuning table.
-- Removal: `apply_shading(moria, None)` clears the override if one was
-  installed by a prior Enharmonic.
+### 2.3 Chroa behavior to encode
 
-This sidesteps the region-intervals data model entirely and reuses
-existing plumbing. Cleaner than adding a new kind of shading semantic.
+#### Spathi
 
-### 2.4 Diesis Geniki / Yfesis Geniki — grid-wide accidental
+Spathi is one palette symbol. The old `SpathiKe` / `SpathiGa` split is an
+implementation artifact.
 
-**User description:**
+General behavior: apply the local Spathi interval patch around the resolved
+anchor. In common middle-of-scale cases this makes the two adjacent
+intervals around the anchor become 4 moria and compensates outward so the
+larger local span remains coherent.
 
-> Modulator which causes all e's in a piece to be sharp / all b's in a
-> piece to be flat.
+Important non-canonical case: Spathi can be placed on Ni. In that usage it
+flattens Pa above Ni so that `Ni -> Pa = 4`. That flattened Pa can then
+become the landing pitch for the next modulation.
 
-**Rule:** Raise (`+6`) or lower (`−6`) every cell sharing the drop's
-degree, across every octave in the grid.
+#### Zygos
 
-**Implementation:**
+Zygos normally resolves as if anchored on Di. If dropped on Vou, it should
+act as if dropped on the corresponding Di.
 
-- `apply_shading(moria, Some(DiesisGeniki { target }))` iterates over
-  every cell with `cell.degree == Some(target)` and installs a
-  `CellOverride { accidental: +6 }`.
-- `YfesisGeniki` same with `-6`.
-- These are grid-level operations, not region-level. The `shading` field
-  on `Region` doesn't fit — these probably want a separate
-  `grid.modulators: Vec<Modulator>` field, or a flattening pass that
-  expands them into `overrides` at apply-time.
+On Di in the diatonic frame:
 
-**Open question for user:** Should `+6` (♯) actually be `+6` moria, or a
-different value? Byzantine "general sharp" is usually the general sharpening
-modulator of 6 moria (= one enharmonic step). Confirm.
+```text
+Ni -> Pa  = 18
+Pa -> Vou = 4
+Vou -> Ga = 16
+Ga -> Di  = 4
+```
 
-**Open question:** Is the modulator *persistent* or a one-shot? Option A:
-persists on the grid state as a modulator object that can be individually
-cleared. Option B: expands into per-cell accidentals on apply, no state
-carried. Option A is more faithful to the notation but more state to
-manage. Option B is simpler but "clearing a general flat" means finding
-and clearing every cell override matching the degree — which is error-
-prone if the user also set a manual accidental on one of those cells.
+This raises Pa and Ga while keeping the surrounding frame coherent. It is
+not simply an adjacent-note modifier.
 
-Recommend A with a distinct `grid.modulators` list.
+#### Kliton
 
-### 2.5 Pthora bidirectional propagation
+Kliton can be placed on Di, Ga, and Ni. It can also be used musically on a
+different pitch when that pitch is functioning as the effective anchor.
 
-**Current** (`src/tuning/grid.rs::apply_pthora`): splits the region at
-the drop moria. The **right** half `[M, old_region.end)` adopts the new
+Rule anchored on X:
+
+```text
+third-below -> second-below = 14
+second-below -> first-below  = 12
+first-below  -> X            = 4
+```
+
+So Kliton on Ni is:
+
+```text
+Di -> Ke = 14
+Ke -> Zo = 12
+Zo -> Ni = 4
+```
+
+This matters for modulation chains. Example: Spathi on Ni flattens the Pa
+above Ni to `Ni -> Pa = 4`; the melody lands on that flattened Pa; Kliton
+is then placed on that pitch, treating it as the new effective Ni. The
+whole local scale has effectively modulated up by 4 moria, with Kliton
+intervals below and normal `12,10` diatonic intervals ascending above the
+new Ni.
+
+#### Enharmonic / Ajem
+
+Ajem is not only a neighbor accidental. In important cases it moves the
+note it was dropped on:
+
+- dropped on Zo: lower Zo so `Ke -> Zo = 6`, then recompute the interval
+  above it;
+- dropped on Vou: lower Vou so `Pa -> Vou = 6`, then recompute the
+  interval above it;
+- dropped on Ga or Ni: apply the corresponding local Ajem behavior around
+  Vou or Zo.
+
+The same "move the dropped note to satisfy the lower interval" behavior
+also appears when a diatonic Ga pthora is dropped on Zo or Vou.
+
+#### Soft chromatic pthora on Ke or Pa
+
+When the Ke soft-chromatic pthora is placed on Ke, or the same pattern is
+placed on Pa, the dropped note is flatted to only 8 moria above the note
+below it. The note above is then recalculated from the new position.
+
+This is another case where `drop_moria` and `resolved_anchor_moria` may
+diverge, and where the clicked note may move before the scale is rebuilt.
+
+### 2.4 Pthora bidirectional propagation
+
+**Current** (`src/tuning/grid.rs::apply_pthora`): splits the region at the
+drop moria. The right half `[M, old_region.end)` adopts the new
 `(genus, root_degree)`. The left half keeps its old genus/root.
 
-**User expected semantic:** the drop is a pivot — everything in both
-directions from M adopts the new genus/root. The drop moria anchors
-`root_degree` (so the cell at M is labeled as the pthora's target
-degree), and intervals propagate upward *and* downward.
+**Required behavior:** a pthora drop is a local reanchor. The containing
+region should be rebuilt in both directions from the resolved anchor until
+the containing region boundary is reached. Adjacent pre-existing regions
+should remain intact unless the user explicitly applies a new pthora inside
+them.
 
-**Boundary behavior options:**
+This requires §2.1. Without an independent `anchor_moria`, the engine
+cannot express "this whole region uses the new genus, anchored at moria M"
+unless M is also the region start.
 
-- **(a) Overwrite any pre-existing region.** A pthora drop replaces every
-  region that overlaps with its propagation domain, up to the grid edges.
-  Simplest. Destructive — prior pthorae in either direction are lost.
-- **(b) Stop at the nearest pre-existing region boundary on each side.**
-  The new region replaces only the region that contained M; adjacent
-  regions upstream/downstream (if present) are left alone. Preserves
-  intent when chaining pthorae.
-- **(c) Stop at the nearest pre-existing region boundary, but also
-  propagate into an adjacent region if its intervals happen to match the
-  new pthora's descending pattern** (the "Pa pthora on Di: notes below
-  stay where they are" case the user described on 2026-04-24).
+Recommended first implementation:
 
-(a) is implementable today. (b) is what a competent engine should do and
-matches the mental model ("this pthora re-paints the current section").
-(c) is a curiosity — under Byzantine practice the invariance the user
-described is a *consequence* of the cell-moria coincidences, not a rule
-enforced by the engine. (b) plus "preserve moria of cells whose moria
-would end up unchanged" gives (c) for free.
+1. Find the region R containing `drop_moria`.
+2. Resolve the pthora rule to `(anchor_moria, anchor_degree, genus)`.
+3. Replace R with one region spanning `[R.start_moria, R.end_moria)`,
+   preserving adjacent regions.
+4. Build cells by walking intervals upward and downward from
+   `anchor_moria`.
 
-**Recommend (b).** Concrete behavior:
+This gives the intended "repaint the current section" behavior while
+preserving neighboring pthora-defined sections.
 
-1. Find the region R containing M.
-2. Replace R with **up to three** regions:
-   - left stub: `[R.start, M)` — genus is R's old genus/root (preserved).
-   - new pivot: `[M, M + 72)` — new pthora's genus/root, with
-     `start_moria = M` and the first interval of the rotated pattern
-     anchored so the cell at M is the pthora's target degree.
-   - right stub: `[M + 72, R.end)` — genus is R's old genus/root
-     (preserved).
-3. The pivot's descending side is computed by walking the rotated
-   interval pattern **backwards** from M. Add a fourth region if needed
-   for the span immediately below M down to R.start.
+### 2.5 Diesis Geniki / Yfesis Geniki
 
-Hmm, re-reading (2) I realize it's actually a **four-way split**: left
-of `M-72` → R's old genus, `[M-72, M)` → new genus descending, `[M, M+72)`
-→ new genus ascending, right → R's old genus. That's getting messy.
+These are grid-level modulators, not region shadings.
 
-**Simpler equivalent:** new region spans the **whole** of R, rooted such
-that `target_degree` sits at moria M. Left stub + right stub of R are
-gone (they adopt the new genus). Adjacent regions beyond R stay. This is
-option (b') — between (a) and (b). Probably the right call.
+Rule: raise or lower every occurrence of the resolved degree across the
+grid. The expected magnitude is currently `+6` for Diesis Geniki and `-6`
+for Yfesis Geniki.
 
-**Either way this is a non-trivial refactor** to `apply_pthora` — worth
-its own commit with substantial test coverage.
+Represent these as persistent `ModulatorRule` events, not expanded
+per-cell overrides. Expanding into `CellOverride`s would make clearing a
+general sharp/flat ambiguous when the user also has manual accidentals on
+some of the same cells.
+
+### 2.6 WASM / JS boundary
+
+The JS API should pass enough information for Rust to resolve the event.
+The current string-only `applyShading(moria, shading)` is not enough once
+the engine needs the clicked degree, resolved anchor, and symbol-specific
+behavior.
+
+Proposed boundary shape:
+
+```js
+grid.applySymbolDrop(JSON.stringify({
+  type: 'chroa',
+  symbol: 'Kliton',
+  dropMoria: cell.moria,
+  dropDegree: cell.degree
+}));
+```
+
+`applyPthora` can remain as a convenience wrapper initially, but internally
+it should create the same kind of semantic event.
+
+**Serde migration:** old JSON presets containing `"SpathiKe"` or
+`"SpathiGa"` should deserialize into equivalent Spathi event/rule data.
+Keep the aliases until a future storage-version migration exists.
 
 ---
 
@@ -262,36 +315,50 @@ its own commit with substantial test coverage.
 
 ### Rust unit tests
 
-1. `spathi_on_each_degree` — 7 cases, one per target in Ni..Zo, asserting
-   the adjacent-4 rule.
-2. `spathi_legacy_json_roundtrip` — old SpathiKe/SpathiGa presets load as
-   the new `Spathi { target: Ke|Ga }`.
-3. `enharmonic_on_zo` — dropping Enharmonic on Zo installs `+2` override,
-   `Ke→Zo` interval resolves to 12, `Zo→Ni` to 6.
-4. `enharmonic_on_vou` — dropping Enharmonic on Vou installs `-2`
-   override on Vou, check interval rearrangement.
-5. `enharmonic_on_ga` — dropping Enharmonic on Ga raises Vou by 2.
-6. `enharmonic_on_unsupported_degree` — dropping on Pa/Di/Ke returns
-   `false` and doesn't mutate state.
-7. `diesis_geniki_raises_every_occurrence` — on a 3-octave default grid,
-   apply `DiesisGeniki { target: Zo }`, assert every Zo cell moves +6.
-8. `pthora_bidirectional` — apply HardChromatic-Pa at moria 42. Assert
-   cells at moria 30, 18, 6, 72, 84 all follow the new intervals (not
-   just ≥42).
-9. `pthora_preserves_adjacent_regions` — pre-populate two regions;
-   confirm pthora only affects the region containing the drop moria.
+1. `region_anchor_independent_from_start` — a region can span
+   `[start,end)` while its `anchor_moria` sits in the middle.
+2. `cells_walk_upward_and_downward_from_anchor` — degree positions on both
+   sides of an anchor follow the active genus.
+3. `pthora_bidirectional` — apply HardChromatic-Pa at moria 42. Assert
+   cells below and above 42 follow the new intervals.
+4. `pthora_preserves_adjacent_regions` — pre-populate multiple regions;
+   confirm pthora only rewrites the region containing the drop.
+5. `spathi_legacy_json_roundtrip` — old SpathiKe/SpathiGa presets load as
+   Spathi semantic events/rules.
+6. `spathi_on_ni_flattens_pa` — dropping Spathi on Ni yields
+   `Ni -> Pa = 4`.
+7. `zygos_on_di_patch` — assert the Di-anchored interval sequence
+   `18,4,16,4` below Di.
+8. `zygos_on_vou_resolves_to_di` — dropping on Vou resolves to the
+   corresponding Di anchor.
+9. `kliton_on_di_ga_ni` — assert the anchored rule on all three canonical
+   anchors, including `Di -> Ke = 14`, `Ke -> Zo = 12`, `Zo -> Ni = 4`
+   for Ni.
+10. `kliton_on_effective_new_ni` — after Spathi-on-Ni flattens Pa,
+    Kliton on that flattened Pa can treat it as the new effective Ni.
+11. `ajem_on_zo_moves_dropped_note` — Zo moves so `Ke -> Zo = 6`.
+12. `ajem_on_vou_moves_dropped_note` — Vou moves so `Pa -> Vou = 6`.
+13. `soft_chromatic_ke_on_ke_moves_drop` — Ke moves to 8 above Di and
+    the note above recalculates.
+14. `diesis_geniki_raises_every_occurrence` — on a 3-octave default grid,
+    apply Diesis Geniki to Zo and assert every resolved Zo occurrence moves
+    +6 without overwriting manual accidentals.
 
 ### Web-side smoke (manual)
 
 1. Drop each of the 24 pthora slots on each of the 7 default degree cells.
    Verify the ladder reflects the expected intervals.
-2. Drop Spathi on Ni, Pa, Vou, Ga, Di, Ke, Zo, Ni′. Each should produce a
-   local adjacent-4 change (currently only Ke and Ga work).
-3. Drop Enharmonic on Zo, Vou, Ga, Ni. Verify +2/-2 accidental appears
-   on the corresponding cell and the Hz reflects the shift.
-4. Drop Diesis Geniki on Zo in any octave — all three Zo cells (−1, 0,
-   +1 octaves) should show `+6` accidental.
-5. Repeat 4 with Yfesis Geniki, expect `−6`.
+2. Drop Spathi on Ni and verify Pa above Ni is flattened to a 4-moria
+   interval.
+3. Drop Zygos on Di and Vou; Vou should resolve to the corresponding Di
+   behavior.
+4. Drop Kliton on Di, Ga, Ni, and on a pitch that is functioning as a new
+   effective Ni after a Spathi modulation.
+5. Drop Enharmonic/Ajem on Zo and Vou. Verify the dropped note moves to
+   make the lower interval 6.
+6. Drop Diesis Geniki on Zo in any octave; all Zo occurrences should be
+   raised by 6 without erasing unrelated manual accidentals.
+7. Repeat 6 with Yfesis Geniki, expect `-6`.
 
 ---
 
@@ -299,17 +366,21 @@ its own commit with substantial test coverage.
 
 Split the engine work into separate landable commits so each is reviewable:
 
-1. **`fix: pthora propagates bidirectionally from drop moria`** — §2.5.
-   No palette changes. Pure Rust + tests. Fixes the "only affects above"
-   bug independently of everything else.
-2. **`refactor: unify Spathi into one Shading variant with drop target`** —
-   §2.1 (partial), §2.2. Deletes the JS translation hack in
-   `scale_ladder.js`. Adds serde back-compat for SpathiKe/SpathiGa.
-3. **`feat: Enharmonic (Ajem) local modifier via CellOverride`** — §2.1
-   (Enharmonic variant), §2.3. Deletes its `console.warn` in JS.
-4. **`feat: Diesis/Yfesis Geniki grid-wide modulators`** — §2.1 (Geniki
-   variants), §2.4. Deletes the last two `console.warn`s. Introduces
-   `grid.modulators` if option A is taken.
+1. **`refactor: split region boundary from anchor`** — add
+   `anchor_moria` / `anchor_degree`; preserve current behavior with tests.
+2. **`fix: pthora propagates bidirectionally from resolved anchor`** —
+   rebuild the containing region from the anchor while preserving adjacent
+   regions.
+3. **`refactor: introduce semantic tuning events`** — add event/rule
+   storage and provenance, still mapping current Zygos/Kliton/Spathi
+   behavior through compatibility rules.
+4. **`feat: encode chroa interval patches`** — implement Spathi, Zygos,
+   Kliton, and Ajem through anchor-relative patches; remove the JS Spathi
+   routing hack.
+5. **`feat: add pthora cases that move the dropped note`** — cover Ajem on
+   Zo/Vou, diatonic Ga on Zo/Vou, and soft-chromatic Ke/Pa behavior.
+6. **`feat: Diesis/Yfesis Geniki grid-wide modulators`** — persistent
+   modulator events with clear provenance.
 
 Each commit should include its own unit tests from Part 3.
 
@@ -317,16 +388,20 @@ Each commit should include its own unit tests from Part 3.
 
 ## Part 5 — Open questions for user review
 
-1. **Pthora propagation boundary** (§2.5) — option (b) or (b') as
-   described? I'll default to (b') unless told otherwise.
-2. **Geniki modulator state** (§2.4 open question 2) — persistent state
-   (option A) or expand-on-apply (option B)?
-3. **Geniki magnitude** (§2.4 open question 1) — is `±6` moria the right
-   value for the general sharp/flat?
-4. **Enharmonic on Pa/Di/Ke** (§2.3) — reject silently, or pick a
-   sensible default (e.g. on Pa, raise Ni by 2)?
-5. **SpathiKe/SpathiGa serde aliases** (§2.1) — support indefinitely, or
-   mark deprecated and drop in a future major rev?
+1. **Fallback anchors per symbol** — default policy should be musical:
+   when a symbol is placed on a non-canonical pitch, treat the clicked
+   pitch as the effective anchor if the phrase is using it that way.
+   Exact fallback tables still need to be written symbol by symbol.
+2. **Geniki magnitude** — `+6` / `-6` moria is the current assumption for
+   general sharp/flat.
+3. **Event clearing UX** — clearing a visible symbol should remove the
+   semantic event, not manual accidentals that happen to produce the same
+   pitch.
+4. **Storage migration** — support legacy SpathiKe/SpathiGa aliases until
+   a formal preset storage version exists.
+5. **Transcription timeline** — future recording analysis should attach
+   inferred pthora/chroa events to time ranges with confidence scores, but
+   this does not need to be implemented in the current engine pass.
 
 ---
 
@@ -334,7 +409,13 @@ Each commit should include its own unit tests from Part 3.
 
 - **Martyria rendering on the ladder.** Separate pass; needs its own
   design (role-degree vs. positional-degree, two-part glyph composition,
-  chromatic alternation). Tracked in §6 of the field report.
+  chromatic alternation). The semantic event model should make this
+  easier because the current note can be resolved against the active
+  genus, anchor, and chroa/pthora context.
+- **Recording transcription / replay.** Future pass. The event/provenance
+  model is intentionally compatible with detecting melody plus optional
+  ison, classifying likely accidentals or pthorae, and replaying either
+  original pitch, snapped pitch, or snapped pitch with explicit notation.
 - **Palette visual refinements** (per-column degree labels in the 3×8
   grid, alternate-form toggles, chroa row mobile collapse).
 - **Mobile palette layout.** The 320px wide panel will be cramped on
