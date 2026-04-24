@@ -148,11 +148,7 @@ mod worklet_exports {
         /// inside `process_sample` as a warm-up path.
         #[wasm_bindgen(js_name = detectPitch)]
         pub fn detect_pitch(&mut self) -> u32 {
-            let min_period = if self.tuning_table.is_empty() {
-                (self.sample_rate / 1200.0 * 256.0) as u32
-            } else {
-                self.tuning_table[0].0 // already sorted: smallest period = highest pitch
-            };
+            let min_period = (self.sample_rate / 1200.0 * 256.0).max(1.0) as u32;
             self.fft_det.detect(min_period)
         }
 

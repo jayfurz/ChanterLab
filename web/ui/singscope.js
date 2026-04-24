@@ -32,11 +32,12 @@ export class Singscope {
   pushPitch(msg) {
     const gateOpen = !!msg.gate_open;
     const cellId   = (typeof msg.cell_id === 'number') ? msg.cell_id : -1;
+    const hasSnap  = Number.isFinite(cellId) && cellId !== -1;
     const rawMoria = (typeof msg.raw_moria === 'number' && Number.isFinite(msg.raw_moria))
       ? msg.raw_moria
       : null;
-    const moria    = gateOpen ? (rawMoria ?? (cellId >= 0 ? cellId : null)) : null;
-    const snap     = (gateOpen && cellId >= 0) ? cellId : null;
+    const moria    = gateOpen ? (rawMoria ?? (hasSnap ? cellId : null)) : null;
+    const snap     = (gateOpen && hasSnap) ? cellId : null;
     const conf     = (typeof msg.confidence === 'number') ? msg.confidence : 0;
 
     this._buf[this._head] = { moria, snapMoria: snap, confidence: conf, gateOpen };

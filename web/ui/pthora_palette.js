@@ -1,47 +1,114 @@
-// PthoraPalette — draggable pthora items.
+// PthoraPalette — 3×8 grid of full-region pthora items.
 //
-// Each item emits a drop payload of `{type: 'pthora', genus, degree}` which
-// ScaleLadder's palette-drop handler routes into
-// `grid.applyPthora(moria, genus, degree)`.
+// Rows are genera (Diatonic, Soft Chromatic, Hard Chromatic). Columns are the
+// eight scale degrees (Ni low, Pa, Vou, Ga, Di, Ke, Zo, Ni high). Dropping
+// a cell on the ladder re-roots a region at that moria using the row's genus
+// and the column's target degree.
 //
-// Uses pointer-event drag (see pointer_drag.js) so it works on touch as well
-// as mouse. Icons are inline SVG ladder-fragments whose line spacing mirrors
-// each genus's step pattern — a visual cue, not a literal rendering.
+// Glyphs come from Neanes (SBMuFL), rendered as single Private-Use-Area
+// codepoints. Diatonic gives each degree a distinct glyph; the chromatic
+// genera only ship two glyphs each in SBMuFL, so those rows alternate
+// per-column — matching Byzantine practice where adjacent notes alternate
+// between two pthora forms.
+//
+// Each slot carries `{type: 'pthora', genus, degree}`. ScaleLadder's drop
+// handler routes it into `grid.applyPthora(moria, genus, degree)`.
 
 import { makeDraggable } from './pointer_drag.js';
 
-const ITEMS = [
-  { label: 'Diatonic',  genus: 'Diatonic',       degree: 'Ni', pattern: [5, 10, 15, 20] },
-  { label: 'Hard Chr',  genus: 'HardChromatic',  degree: 'Pa', pattern: [4, 6, 17, 20] },
-  { label: 'Soft Chr',  genus: 'SoftChromatic',  degree: 'Ni', pattern: [5, 8, 15, 19] },
-  { label: 'Grave Di',  genus: 'GraveDiatonic',  degree: 'Ga', pattern: [4, 6, 12, 17, 20] },
-  { label: 'Enh Zo',    genus: 'EnharmonicZo',   degree: 'Zo', pattern: [4, 6, 12, 20] },
-  { label: 'Enh Ga',    genus: 'EnharmonicGa',   degree: 'Ga', pattern: [4, 6, 10, 14, 18, 20] },
+// Column order — mirrors the scale walking upward.
+const DEGREES = [
+  { label: 'Ni',  degree: 'Ni',  octaveHint: 'low'  },
+  { label: 'Pa',  degree: 'Pa'                      },
+  { label: 'Vou', degree: 'Vou'                     },
+  { label: 'Ga',  degree: 'Ga'                      },
+  { label: 'Di',  degree: 'Di'                      },
+  { label: 'Ke',  degree: 'Ke'                      },
+  { label: 'Zo',  degree: 'Zo'                      },
+  { label: 'Ni′', degree: 'Ni',  octaveHint: 'high' },
 ];
 
-function glyph(pattern) {
-  const lines = pattern
-    .map(y => `<line x1="5" y1="${y}" x2="19" y2="${y}"/>`)
-    .join('');
-  return `<svg viewBox="0 0 24 24" class="palette-glyph" aria-hidden="true">`
-       + `<g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none">${lines}</g>`
-       + `</svg>`;
-}
+// SBMuFL codepoints in Neanes.otf.
+const CP = {
+  DIAT_NI_LOW:  '',
+  DIAT_PA:      '',
+  DIAT_VOU:     '',
+  DIAT_GA:      '',
+  DIAT_DI:      '',
+  DIAT_KE:      '',
+  DIAT_ZO:      '',
+  DIAT_NI_HIGH: '',
+  HARD_PA:      '',
+  HARD_DI:      '',
+  SOFT_DI:      '',
+  SOFT_KE:      '',
+};
+
+// Per-column glyphs for each genus. Diatonic has a unique glyph per degree.
+// Chromatic rows alternate; the alternation starts with the "Di" form at
+// column 0 (Ni-low), matching the user's rotation preference.
+const DIATONIC_GLYPHS = [
+  CP.DIAT_NI_LOW, CP.DIAT_PA, CP.DIAT_VOU, CP.DIAT_GA,
+  CP.DIAT_DI, CP.DIAT_KE, CP.DIAT_ZO, CP.DIAT_NI_HIGH,
+];
+const SOFT_CHR_GLYPHS = [
+  CP.SOFT_DI, CP.SOFT_KE, CP.SOFT_DI, CP.SOFT_KE,
+  CP.SOFT_DI, CP.SOFT_KE, CP.SOFT_DI, CP.SOFT_KE,
+];
+const HARD_CHR_GLYPHS = [
+  CP.HARD_DI, CP.HARD_PA, CP.HARD_DI, CP.HARD_PA,
+  CP.HARD_DI, CP.HARD_PA, CP.HARD_DI, CP.HARD_PA,
+];
+
+const ROWS = [
+  { label: 'Diatonic',   genus: 'Diatonic',      glyphs: DIATONIC_GLYPHS },
+  { label: 'Soft Chr',   genus: 'SoftChromatic', glyphs: SOFT_CHR_GLYPHS },
+  { label: 'Hard Chr',   genus: 'HardChromatic', glyphs: HARD_CHR_GLYPHS },
+];
 
 export class PthoraPalette {
   constructor(container) {
     container.innerHTML = '';
-    for (const item of ITEMS) {
-      const el = document.createElement('div');
-      el.className = 'pthora-icon';
-      el.title = `${item.label} — drop on a cell to apply this pthora rooted at ${item.degree}`;
-      el.innerHTML = glyph(item.pattern)
-                   + `<span class="palette-label">${item.label}</span>`;
-      makeDraggable(el, {
-        payload: () => ({ type: 'pthora', genus: item.genus, degree: item.degree }),
-        targetSelector: '#scale-ladder',
-      });
-      container.appendChild(el);
+
+    // Column header: degree labels.
+    const headerRow = document.createElement('div');
+    headerRow.className = 'pthora-column-labels';
+    const spacer = document.createElement('span');
+    spacer.textContent = '';
+    headerRow.appendChild(spacer);
+    for (const col of DEGREES) {
+      const s = document.createElement('span');
+      s.textContent = col.label;
+      headerRow.appendChild(s);
+    }
+    container.appendChild(headerRow);
+
+    // Three grid rows.
+    for (const row of ROWS) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'pthora-row';
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'pthora-row-label';
+      labelEl.textContent = row.label;
+      rowEl.appendChild(labelEl);
+
+      for (let i = 0; i < DEGREES.length; i++) {
+        const col = DEGREES[i];
+        const glyph = row.glyphs[i];
+        const el = document.createElement('div');
+        el.className = 'pthora-icon';
+        el.title = `${row.label} pthora — drop on a note to re-root as ${col.label}`;
+        el.innerHTML = `<span class="palette-glyph-sbmufl">${glyph}</span>`;
+
+        makeDraggable(el, {
+          payload: () => ({ type: 'pthora', genus: row.genus, degree: col.degree }),
+          targetSelector: '#scale-ladder',
+        });
+        rowEl.appendChild(el);
+      }
+
+      container.appendChild(rowEl);
     }
   }
 }

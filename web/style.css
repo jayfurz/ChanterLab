@@ -201,9 +201,16 @@ input[type="number"] {
   background: #111;
 }
 
+/* ── SBMuFL Neanes font (OFL, bundled) ─────────────────────────── */
+@font-face {
+  font-family: 'Neanes';
+  src: url('fonts/neanes/Neanes.otf') format('opentype');
+  font-display: swap;
+}
+
 /* ── Pthora / shading palettes ───────────────────────────────── */
 #palettes {
-  width: 120px;
+  width: 320px;
   background: var(--surface);
   border-right: 1px solid #333;
   overflow-y: auto;
@@ -224,6 +231,35 @@ input[type="number"] {
 
 .palette-section { display: flex; flex-direction: column; gap: 4px; }
 
+/* Column header row above the 3×8 pthora grid — degree names. */
+.pthora-column-labels,
+.pthora-row {
+  display: grid;
+  grid-template-columns: 34px repeat(8, 1fr);
+  gap: 2px;
+  align-items: center;
+}
+.pthora-column-labels > span,
+.pthora-row-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+.pthora-row-label {
+  text-align: right;
+  padding-right: 4px;
+}
+
+/* Chroa row — flex wrap of the local modifiers. */
+.shading-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.shading-row .shading-icon { flex: 1 1 42px; min-width: 42px; }
+
 .pthora-icon, .shading-icon {
   background: var(--bg);
   border: 1px solid #444;
@@ -238,8 +274,10 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   color: var(--accent2);
+  min-height: 36px;
 }
 .pthora-icon:hover, .shading-icon:hover { border-color: var(--accent2); background: var(--surface2); }
 .pthora-icon:active, .shading-icon:active { cursor: grabbing; }
@@ -264,6 +302,18 @@ input[type="number"] {
   display: block;
   pointer-events: none;
 }
+
+/* SBMuFL-rendered glyph: a single Private Use Area codepoint set in Neanes. */
+.palette-glyph-sbmufl {
+  font-family: 'Neanes', serif;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--accent2);
+  pointer-events: none;
+  user-select: none;
+  display: block;
+}
+
 .palette-label {
   font-size: 10px;
   line-height: 1.1;
@@ -368,6 +418,9 @@ input[type="number"] {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+.follow-row {
+  margin-top: 8px;
 }
 .mic-label {
   font-size: 11px;

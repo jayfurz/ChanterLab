@@ -1,60 +1,70 @@
-// ShadingPalette — draggable tetrachord shadings.
+// ShadingPalette — local modifiers (chroa + enharmonic + generic sharp/flat).
+//
+// Unlike pthorae (which re-root a full region), these only affect the
+// immediate neighborhood of the drop target.
 //
 // Drop payload: `{type: 'shading', shading}` where shading is one of
-// 'Zygos', 'Kliton', 'SpathiKe', 'SpathiGa', or '' to clear.
-// ScaleLadder gates these to degree cells only in its drop handler.
+// 'Zygos', 'Kliton', 'Spathi', 'Enharmonic', 'DiesisGeniki', 'YfesisGeniki',
+// or '' to clear. ScaleLadder's drop handler gates these to degree cells
+// only.
 //
-// Uses pointer-event drag (see pointer_drag.js) so it works on touch.
+// Glyphs come from Neanes (SBMuFL), rendered as single Private-Use-Area
+// codepoints.
 
 import { makeDraggable } from './pointer_drag.js';
 
+// SBMuFL Neanes codepoints (PUA). Using \u escapes so the source is ASCII.
+const CP = {
+  ZYGOS:          '',  // chroaZygos
+  KLITON:         '',  // chroaKliton
+  SPATHI:         '',  // chroaSpathi
+  ENHARMONIC:     '',  // fthoraEnharmonic
+  DIESIS_GENIKI:  '',  // diesisGenikiAbove
+  YFESIS_GENIKI:  '',  // yfesisGenikiAbove
+};
+
 const ITEMS = [
-  // Zygos (yoke) — two parallel bars, evoking the paired tetrachord.
-  { label: 'Zygos',    shading: 'Zygos',    svg: `
-      <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none">
-        <line x1="6" y1="8"  x2="18" y2="8"/>
-        <line x1="6" y1="16" x2="18" y2="16"/>
-      </g>` },
-  // Kliton — a single slope.
-  { label: 'Kliton',   shading: 'Kliton',   svg: `
-      <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none">
-        <polyline points="5,18 12,6 19,18"/>
-      </g>` },
-  // Spathi on Ke — blade with crossguard near the top.
-  { label: 'Spathi Ke', shading: 'SpathiKe', svg: `
-      <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none">
-        <line x1="12" y1="4"  x2="12" y2="20"/>
-        <line x1="7"  y1="8"  x2="17" y2="8"/>
-      </g>` },
-  // Spathi on Ga — blade with crossguard near the bottom.
-  { label: 'Spathi Ga', shading: 'SpathiGa', svg: `
-      <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none">
-        <line x1="12" y1="4"  x2="12" y2="20"/>
-        <line x1="7"  y1="16" x2="17" y2="16"/>
-      </g>` },
-  // Clear — dashed circle to mean "remove".
-  { label: 'Clear',    shading: '',         svg: `
-      <g stroke="currentColor" stroke-width="1.6" fill="none" stroke-dasharray="2 2">
-        <circle cx="12" cy="12" r="7"/>
-      </g>` },
+  { label: 'Zygos',   shading: 'Zygos',        glyph: CP.ZYGOS,
+    tip: 'Zygos — drop on a degree cell to apply this chroa' },
+  { label: 'Kliton',  shading: 'Kliton',       glyph: CP.KLITON,
+    tip: 'Kliton — drop on a degree cell to apply this chroa' },
+  { label: 'Spathi',  shading: 'Spathi',       glyph: CP.SPATHI,
+    tip: 'Spathi — adjacent intervals become 4 moria on either side of the drop' },
+  { label: 'Ajem',    shading: 'Enharmonic',   glyph: CP.ENHARMONIC,
+    tip: 'Enharmonic (Ajem) — drop to apply the enharmonic modifier' },
+  { label: '♯ Gen',   shading: 'DiesisGeniki', glyph: CP.DIESIS_GENIKI,
+    tip: 'Geniki Diesis (general sharp) — raises every occurrence of this note' },
+  { label: '♭ Gen',   shading: 'YfesisGeniki', glyph: CP.YFESIS_GENIKI,
+    tip: 'Geniki Yfesis (general flat) — lowers every occurrence of this note' },
+  { label: 'Clear',   shading: '',             glyph: '',
+    tip: 'Clear any shading on the target region' },
 ];
 
 export class ShadingPalette {
   constructor(container) {
     container.innerHTML = '';
+    const row = document.createElement('div');
+    row.className = 'shading-row';
     for (const item of ITEMS) {
       const el = document.createElement('div');
       el.className = 'shading-icon';
-      el.title = item.shading
-        ? `${item.label} — drop on a degree cell to apply this shading`
-        : `${item.label} — drop on a degree cell to clear shading`;
-      el.innerHTML = `<svg viewBox="0 0 24 24" class="palette-glyph" aria-hidden="true">${item.svg}</svg>`
-                   + `<span class="palette-label">${item.label}</span>`;
+      el.title = item.tip;
+
+      if (item.glyph) {
+        el.innerHTML = `<span class="palette-glyph-sbmufl">${item.glyph}</span>`
+                     + `<span class="palette-label">${item.label}</span>`;
+      } else {
+        // Clear: no glyph, just the label in a dashed box.
+        el.innerHTML = `<span class="palette-label">${item.label}</span>`;
+        el.style.borderStyle = 'dashed';
+      }
+
       makeDraggable(el, {
         payload: () => ({ type: 'shading', shading: item.shading }),
         targetSelector: '#scale-ladder',
       });
-      container.appendChild(el);
+      row.appendChild(el);
     }
+    container.appendChild(row);
   }
 }

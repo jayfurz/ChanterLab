@@ -5,6 +5,7 @@
 //   { type: 'noteOn',  cell_id, velocity }
 //   { type: 'noteOff', cell_id }
 //   { type: 'ison',    cell_id, volume }  (cell_id=null or volume=0 to disable)
+//   { type: 'synth_follow', cell_id, volume }  (cell_id=null or volume=0 to disable)
 
 const K = 8;       // harmonics per voice
 const ALPHA = 1.2; // amplitude of kth harmonic = 1 / k^ALPHA
@@ -44,6 +45,10 @@ class Voice {
     if (this.state !== 'dead') this.state = 'release';
   }
 
+  setVelocity(velocity) {
+    this.velocity = velocity;
+  }
+
   get isDead() { return this.state === 'dead'; }
 
   renderInto(buf, len) {
@@ -77,10 +82,19 @@ class SynthProcessor extends AudioWorkletProcessor {
     super();
     this._voices           = []; // regular voices
     this._isonVoice        = null;
+    this._followVoice      = null;
+    this._followReleases   = [];
     this._tuning           = new Map(); // cell_id(moria) → hz
     this._correctionVolume = 0.5;
 
     this.port.onmessage = ({ data }) => this._dispatch(data);
+  }
+
+  _releaseFollowVoice() {
+    if (!this._followVoice) return;
+    this._followVoice.release();
+    this._followReleases.push(this._followVoice);
+    this._followVoice = null;
   }
 
   _dispatch(msg) {
@@ -126,6 +140,21 @@ class SynthProcessor extends AudioWorkletProcessor {
         this._isonVoice = new Voice(msg.cell_id, hz, msg.volume, ISON_AMPS);
         break;
       }
+      case 'synth_follow': {
+        if (msg.cell_id == null || msg.volume <= 0) {
+          this._releaseFollowVoice();
+          return;
+        }
+        const hz = this._tuning.get(msg.cell_id);
+        if (hz === undefined) return;
+        if (this._followVoice?.cellId === msg.cell_id && this._followVoice.state !== 'release') {
+          this._followVoice.setVelocity(msg.volume);
+        } else {
+          this._releaseFollowVoice();
+          this._followVoice = new Voice(msg.cell_id, hz, msg.volume, VOICE_AMPS);
+        }
+        break;
+      }
     }
   }
 
@@ -149,6 +178,18 @@ class SynthProcessor extends AudioWorkletProcessor {
         this._isonVoice = null;
       }
     }
+
+    if (this._followVoice) {
+      if (!this._followVoice.isDead) {
+        this._followVoice.renderInto(chL, chL.length);
+      } else {
+        this._followVoice = null;
+      }
+    }
+    for (const v of this._followReleases) {
+      if (!v.isDead) v.renderInto(chL, chL.length);
+    }
+    this._followReleases = this._followReleases.filter(v => !v.isDead);
 
     // Mix in PSOLA-corrected voice audio from the VoiceWorklet.
     const voiceIn = inputs[0]?.[0];

@@ -535,7 +535,7 @@ function nearestEnabledCell(sortedTable, period24_8, lastCellId) {
     }
   }
 
-  return { primary: primary.cell_id, neighbor };
+  return { primary: primary.cell_id, period: primary.period, neighbor };
 }
 
 // ─── VoiceProcessor (AudioWorkletProcessor) ───────────────────────────────────
@@ -720,15 +720,22 @@ class VoiceProcessor extends AudioWorkletProcessor {
       if (gateOpen && this._tuning.length > 0) {
         period24_8 = proc.detectPitch();
         if (period24_8 > 0) {
-          const raw = proc.nearestCellFull(period24_8);
-          // raw: [primary_id, neighbor_id, neighbor_vel*1000]
-          cellId      = raw[0];
-          neighborId  = raw[1];
-          neighborVel = raw[2] / 1000.0;
+          const snap = nearestEnabledCell(this._tuning, period24_8, this._lastCellId);
+          if (snap) {
+            cellId = snap.primary;
+            this._lastCellId = cellId;
+            if (snap.neighbor) {
+              neighborId = snap.neighbor.cell_id;
+              neighborVel = snap.neighbor.vel;
+            }
+          }
         }
       }
 
-      if (!gateOpen || period24_8 === 0) proc.resetHysteresis();
+      if (!gateOpen || period24_8 === 0) {
+        this._lastCellId = null;
+        proc.resetHysteresis();
+      }
 
       this.port.postMessage({
         type:         'pitch',
@@ -755,8 +762,8 @@ class VoiceProcessor extends AudioWorkletProcessor {
     let detectedPeriod24_8 = 0;
 
     if (gateOpen && this._tuning.length > 0) {
-      const lowestPeriod = this._tuning[0].period;  // smallest = highest pitch
-      const period24_8   = this._det.detect(lowestPeriod);
+      const minPeriod24_8 = Math.max(1, Math.floor(sampleRate / 1200 * 256));
+      const period24_8    = this._det.detect(minPeriod24_8);
       detectedPeriod24_8 = period24_8;
 
       if (period24_8 > 0) {

@@ -10,6 +10,7 @@
 //   engine.noteOn(moria);
 //   engine.noteOff(moria);
 //   engine.setIson(moria, volume);  // moria=null or volume=0 to disable
+//   engine.setSynthFollow(moria, volume);  // moria=null or volume=0 to disable
 
 const DEFAULT_VOICE_GATE_THRESHOLD = 0.02;
 
@@ -28,6 +29,8 @@ export class AudioEngine {
     this._voiceInitPromise  = null;
     this._onPitch           = null;
     this._pendingVoiceTable = null;
+    this._synthFollowCellId = null;
+    this._synthFollowVolume = 0;
   }
 
   get ready() { return this._ready; }
@@ -54,6 +57,13 @@ export class AudioEngine {
       if (this._pendingTable) {
         this._post({ type: 'tuning_table', table: this._pendingTable });
         this._pendingTable = null;
+      }
+      if (this._synthFollowCellId != null && this._synthFollowVolume > 0) {
+        this._post({
+          type: 'noteOn',
+          cell_id: this._synthFollowCellId,
+          velocity: this._synthFollowVolume,
+        });
       }
     })();
 
@@ -181,6 +191,28 @@ export class AudioEngine {
   setIson(cellId, volume) {
     if (!this._ready) return;
     this._post({ type: 'ison', cell_id: cellId ?? null, volume: volume ?? 0 });
+  }
+
+  // Synth voice driven by the snapped mic pitch. Uses the same note messages
+  // as the keyboard path so it works with the current SynthWorklet.
+  setSynthFollow(cellId, volume) {
+    const nextCellId = cellId ?? null;
+    const nextVolume = volume ?? 0;
+    const prevCellId = this._synthFollowCellId;
+    const prevVolume = this._synthFollowVolume;
+
+    this._synthFollowCellId = nextVolume > 0 ? nextCellId : null;
+    this._synthFollowVolume = nextVolume;
+    if (!this._ready) return;
+
+    if (prevCellId != null && (prevCellId !== nextCellId || nextVolume <= 0)) {
+      this._post({ type: 'noteOff', cell_id: prevCellId });
+    }
+    if (nextCellId == null || nextVolume <= 0) return;
+
+    if (prevCellId !== nextCellId || prevVolume !== nextVolume) {
+      this._post({ type: 'noteOn', cell_id: nextCellId, velocity: nextVolume });
+    }
   }
 
   // Set the mix volume for the PSOLA-corrected voice signal in the synth.

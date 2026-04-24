@@ -317,11 +317,25 @@ export class ScaleLadder {
     if (!cell) return;
 
     if (payload.type === 'pthora') {
+      if (cell.degree === null) return;
       this.app.grid.applyPthora(cell.moria, payload.genus, payload.degree);
       this.app.gridChanged();
     } else if (payload.type === 'shading') {
       if (cell.degree === null) return;
-      this.app.grid.applyShading(cell.moria, payload.shading);
+      // Translate palette-level shading names to what the Rust engine currently
+      // understands. Spathi is one glyph in the palette but the engine still
+      // has SpathiKe/SpathiGa variants; pick based on the drop cell's degree,
+      // defaulting to SpathiKe for other degrees until the engine unifies.
+      // Enharmonic (Ajem) and the general sharp/flat are palette-side only
+      // for now — engine wiring pending.
+      let engineShading = payload.shading;
+      if (engineShading === 'Spathi') {
+        engineShading = cell.degree === 'Ga' ? 'SpathiGa' : 'SpathiKe';
+      } else if (['Enharmonic', 'DiesisGeniki', 'YfesisGeniki'].includes(engineShading)) {
+        console.warn(`[scale-ladder] "${engineShading}" drop ignored — engine support pending`);
+        return;
+      }
+      this.app.grid.applyShading(cell.moria, engineShading);
       this.app.gridChanged();
     }
   }

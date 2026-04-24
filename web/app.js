@@ -34,6 +34,12 @@ const app = {
   // their own voice first and opt in to correction as a training aid.
   correctionEnabled: false,
   correctionVolume:  0.5,
+  voiceSnapTable:    [],
+  voiceLastCellId:   null,
+  synthFollowEnabled: false,
+  synthFollowVolume:  0.5,
+  synthFollowCellId:  null,
+  synthFollowMisses:  0,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -59,6 +65,7 @@ async function main() {
   wirePresetSaveLoad();
   wireIsonControls();
   wireCorrectionControls();
+  wireSynthFollowControls();
   wireAudioInit();
 
   gridChanged();
@@ -71,8 +78,18 @@ function gridChanged() {
   if (app.singscope) app.singscope.setRowMap(app.ladder.rowMap);
   const cells = JSON.parse(app.grid.cellsJson());
   app.keyboard.rebuildKeyMap(cells);
+  app.voiceSnapTable = cells
+    .filter(c => c.enabled)
+    .map(c => ({
+      cell_id: c.moria,
+      moria: c.moria + (c.accidental ?? 0),
+    }))
+    .filter(c => Number.isFinite(c.cell_id) && Number.isFinite(c.moria))
+    .sort((a, b) => a.moria - b.moria);
+  app.voiceLastCellId = null;
   app.engine.updateTuning(cells, app.grid.refNiHz);
   updateIsonVoice(cells);
+  stopSynthFollow();
 }
 
 app.gridChanged = gridChanged;
@@ -97,6 +114,7 @@ function wireAudioInit() {
       app.engine.setCorrectionVolume(
         app.correctionEnabled ? app.correctionVolume : 0
       );
+      app.engine.setSynthFollow(null, 0);
     } catch (e) {
       console.error('Audio init failed', e);
     }
@@ -151,16 +169,115 @@ function handlePitchEvent(msg) {
     msg.raw_moria = null;
   }
 
-  if (!msg.gate_open || msg.cell_id < 0) {
+  const snap = (msg.gate_open && msg.raw_moria !== null)
+    ? nearestEnabledMoriaCell(msg.raw_moria, app.voiceLastCellId)
+    : null;
+  if (snap) {
+    msg.cell_id = snap.primary;
+    msg.neighbor_id = snap.neighbor?.cell_id ?? -1;
+    msg.neighbor_vel = snap.neighbor?.vel ?? 0;
+    app.voiceLastCellId = snap.primary;
+  } else if (!msg.gate_open) {
+    app.voiceLastCellId = null;
+  }
+
+  updateSynthFollowFromPitch(msg);
+
+  if (!msg.gate_open || !isValidCellId(msg.cell_id)) {
     app.ladder.setDetectedCell(null, null, 0);
   } else {
     app.ladder.setDetectedCell(
       msg.cell_id,
-      msg.neighbor_id >= 0 ? msg.neighbor_id : null,
+      isValidCellId(msg.neighbor_id) ? msg.neighbor_id : null,
       msg.neighbor_vel,
     );
   }
   if (app.singscope) app.singscope.pushPitch(msg);
+}
+
+function isValidCellId(cellId) {
+  return typeof cellId === 'number' && Number.isFinite(cellId) && cellId !== -1;
+}
+
+function stopSynthFollow() {
+  if (app.synthFollowCellId !== null) {
+    app.engine.setSynthFollow(null, 0);
+    app.synthFollowCellId = null;
+  }
+  app.synthFollowMisses = 0;
+}
+
+function updateSynthFollowFromPitch(msg) {
+  if (!app.synthFollowEnabled || app.synthFollowVolume <= 0) {
+    stopSynthFollow();
+    return;
+  }
+
+  if (!msg.gate_open || !isValidCellId(msg.cell_id)) {
+    if (app.synthFollowCellId !== null && app.synthFollowMisses < 8) {
+      app.synthFollowMisses++;
+      return;
+    }
+    stopSynthFollow();
+    return;
+  }
+
+  app.synthFollowMisses = 0;
+  if (app.synthFollowCellId !== msg.cell_id) {
+    app.engine.setSynthFollow(msg.cell_id, app.synthFollowVolume);
+    app.synthFollowCellId = msg.cell_id;
+  }
+}
+
+function nearestEnabledMoriaCell(rawMoria, lastCellId) {
+  const table = app.voiceSnapTable;
+  const n = table.length;
+  if (n === 0) return null;
+
+  let lo = 0;
+  let hi = n;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (table[mid].moria <= rawMoria) lo = mid + 1;
+    else hi = mid;
+  }
+  const pos = lo;
+
+  let primaryIdx;
+  if (pos === 0) {
+    primaryIdx = 0;
+  } else if (pos === n) {
+    primaryIdx = n - 1;
+  } else {
+    const below = table[pos - 1];
+    const above = table[pos];
+    let dBelow = rawMoria - below.moria;
+    let dAbove = above.moria - rawMoria;
+    if (lastCellId != null) {
+      if (below.cell_id === lastCellId) dBelow /= 2;
+      if (above.cell_id === lastCellId) dAbove /= 2;
+    }
+    primaryIdx = dBelow < dAbove ? pos - 1 : pos;
+  }
+
+  const primary = table[primaryIdx];
+  let neighbor = null;
+  if (n > 1) {
+    const below = primaryIdx > 0 ? table[primaryIdx - 1] : null;
+    const above = primaryIdx < n - 1 ? table[primaryIdx + 1] : null;
+    if (below && above) {
+      const a2 = Math.max(0, rawMoria - below.moria);
+      const a3 = Math.max(0, above.moria - rawMoria);
+      const total = a2 + a3;
+      neighbor = a2 <= a3
+        ? { cell_id: below.cell_id, vel: total > 0 ? a3 / total : 0.5 }
+        : { cell_id: above.cell_id, vel: total > 0 ? a2 / total : 0.5 };
+    } else {
+      neighbor = { cell_id: (below ?? above).cell_id, vel: 0.5 };
+    }
+  }
+
+  return { primary: primary.cell_id, neighbor };
 }
 
 // ── Preset buttons ────────────────────────────────────────────────────────────
@@ -354,6 +471,30 @@ function wireCorrectionControls() {
   volSlider.addEventListener('input', () => {
     app.correctionVolume = parseFloat(volSlider.value);
     if (app.correctionEnabled) pushVolume();
+  });
+}
+
+// ── Synth follow ─────────────────────────────────────────────────────────────
+
+function wireSynthFollowControls() {
+  const toggleBtn = document.getElementById('synth-follow-toggle-btn');
+  const volSlider = document.getElementById('synth-follow-volume-slider');
+
+  toggleBtn.addEventListener('click', () => {
+    app.synthFollowEnabled = !app.synthFollowEnabled;
+    toggleBtn.textContent = app.synthFollowEnabled ? 'On' : 'Off';
+    toggleBtn.classList.toggle('active', app.synthFollowEnabled);
+    if (!app.synthFollowEnabled) stopSynthFollow();
+  });
+
+  volSlider.addEventListener('input', () => {
+    app.synthFollowVolume = parseFloat(volSlider.value);
+    if (!app.synthFollowEnabled) return;
+    if (app.synthFollowCellId !== null && app.synthFollowVolume > 0) {
+      app.engine.setSynthFollow(app.synthFollowCellId, app.synthFollowVolume);
+    } else {
+      stopSynthFollow();
+    }
   });
 }
 
