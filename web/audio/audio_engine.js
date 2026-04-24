@@ -11,6 +11,8 @@
 //   engine.noteOff(moria);
 //   engine.setIson(moria, volume);  // moria=null or volume=0 to disable
 
+const DEFAULT_VOICE_GATE_THRESHOLD = 0.02;
+
 export class AudioEngine {
   constructor() {
     this._ctx               = null;
@@ -88,6 +90,10 @@ export class AudioEngine {
       this._voiceNode.port.onmessage = e => {
         if (e.data && this._onPitch) this._onPitch(e.data);
       };
+      this._voiceNode.port.postMessage({
+        type: 'gate_threshold',
+        amp: DEFAULT_VOICE_GATE_THRESHOLD,
+      });
 
       // Fetch the wasm-bindgen glue + binary on the main thread and transfer
       // the ArrayBuffer to the worklet. Safari's AudioWorkletGlobalScope

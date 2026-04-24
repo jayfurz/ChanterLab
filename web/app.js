@@ -141,6 +141,16 @@ function handlePitchEvent(msg) {
   }
   if (msg.type !== 'pitch') return;
 
+  if (
+    typeof msg.detected_hz === 'number' &&
+    Number.isFinite(msg.detected_hz) &&
+    msg.detected_hz > 0
+  ) {
+    msg.raw_moria = 72 * Math.log2(msg.detected_hz / app.grid.refNiHz);
+  } else {
+    msg.raw_moria = null;
+  }
+
   if (!msg.gate_open || msg.cell_id < 0) {
     app.ladder.setDetectedCell(null, null, 0);
   } else {

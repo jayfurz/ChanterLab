@@ -77,6 +77,7 @@ export class ScaleLadder {
     this.canvas.width = width * devicePixelRatio;
     this.canvas.height = height * devicePixelRatio;
     this._paint();
+    this.app.singscope?.setRowMap(this._rowMap);
   }
 
   _paint() {

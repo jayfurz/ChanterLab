@@ -17,13 +17,53 @@
 
 'use strict';
 
+// ─── Polyfill TextDecoder for AudioWorkletGlobalScope ─────────────────────────
+// `TextDecoder` is not available in AudioWorkletGlobalScope (Safari, Chrome).
+// wasm-bindgen glue code references it as a global during `eval`. We provide a
+// minimal UTF-8 decoder so the glue can instantiate the WASM module and decode
+// strings crossing the JS↔WASM boundary.
+if (typeof globalThis.TextDecoder === 'undefined') {
+  globalThis.TextDecoder = class {
+    constructor() {}
+    decode(buffer) {
+      if (!buffer) return '';
+      let str = '';
+      for (let i = 0; i < buffer.length; i++) {
+        const c = buffer[i];
+        if (c < 0x80) {
+          str += String.fromCharCode(c);
+        } else if (c < 0xe0) {
+          str += String.fromCharCode(((c & 0x1f) << 6) | (buffer[i+1] & 0x3f));
+          i++;
+        } else if (c < 0xf0) {
+          str += String.fromCharCode(((c & 0x0f) << 12) | ((buffer[i+1] & 0x3f) << 6) | (buffer[i+2] & 0x3f));
+          i += 2;
+        } else {
+          const codePoint = ((c & 0x07) << 18) | ((buffer[i+1] & 0x3f) << 12) | ((buffer[i+2] & 0x3f) << 6) | (buffer[i+3] & 0x3f);
+          const offset = codePoint - 0x10000;
+          str += String.fromCharCode(0xd800 + (offset >> 10), 0xdc00 + (offset & 0x3ff));
+          i += 3;
+        }
+      }
+      return str;
+    }
+  };
+}
+
 // ─── Constants (match vocproc.cpp defines) ────────────────────────────────────
 
-const RAW_BUFFER_SIZE = 4096;   // audioRaw ring buffer
-const FFTLEN          = 2048;   // FFT window (power-of-2 for JS FFT; C++ uses 2560)
+const RAW_BUFFER_SIZE = 8192;   // audioRaw ring buffer (≥ FFTLEN, power-of-2 for wrap mask)
+const FFTLEN          = 4096;   // FFT window — doubled from 2048 for bass-range cepstrum confidence
 const HALF            = FFTLEN >>> 1;
 const FFT_BLOCK       = 128;    // run detection every 128 samples
 const PITCH_RATE_DIV  = Math.round(sampleRate / 60 / FFT_BLOCK); // throttle pitch events
+const DEFAULT_GATE_THRESHOLD   = 0.02;
+const MONITOR_ATTACK_SECONDS   = 0.015;
+const MONITOR_RELEASE_SECONDS  = 0.180;
+const LOW_NOTE_RELAX_START_HZ = 261.63; // C4 — start relaxing harmonic ambiguity below here
+const LOW_NOTE_RELAX_END_HZ   = 80;     // strong relaxation by baritone/bass fundamentals
+const LOW_NOTE_MAX_AMBIGUITY  = 0.65;
+const LOW_NOTE_RELAX_BOOST    = 0.35;
 
 // Biquad HPF coefficients from vocproc.cpp:665-666.
 const HPF_K0 = -0.9907866988;
@@ -391,9 +431,21 @@ class FftPitchDetector {
       }
     }
 
-    // Two-tier confidence gate.
+    // Two-tier confidence gate. Below C4, let a stronger competing harmonic
+    // coexist before we reject the candidate — bass/baritone voices often
+    // carry a much stronger overtone than the fundamental.
     if (!peakIndex || globalPeak <= 0.03) return 0;
-    if (secondPeak / globalPeak >= Math.min(globalPeak * 0.6 + 0.14, 0.5)) return 0;
+    const baseAmbiguityLimit = Math.min(globalPeak * 0.6 + 0.14, 0.5);
+    const bassStart = sampleRate / LOW_NOTE_RELAX_START_HZ;
+    const bassEnd   = sampleRate / LOW_NOTE_RELAX_END_HZ;
+    const bassBlend = bassEnd > bassStart
+      ? Math.max(0, Math.min(1, (peakIndex - bassStart) / (bassEnd - bassStart)))
+      : 0;
+    const ambiguityLimit = Math.min(
+      LOW_NOTE_MAX_AMBIGUITY,
+      baseAmbiguityLimit + Math.sqrt(bassBlend) * LOW_NOTE_RELAX_BOOST,
+    );
+    if (secondPeak / globalPeak >= ambiguityLimit) return 0;
 
     // Parabolic LSQ sub-sample interpolation.
     const thr  = tdata[peakIndex] * 0.5;
@@ -496,8 +548,12 @@ class VoiceProcessor extends AudioWorkletProcessor {
     this._notch      = new NotchFilter();
     this._notchOn    = false;
     this._gate       = new Gate();
+    this._gate.setThreshold(DEFAULT_GATE_THRESHOLD);
     this._det        = new FftPitchDetector();
     this._psola      = new PsolaRepitcher();
+    this._monitorGain = 0;
+    this._monitorAttackInc = 1 / Math.max(1, MONITOR_ATTACK_SECONDS * sampleRate);
+    this._monitorReleaseInc = 1 / Math.max(1, MONITOR_RELEASE_SECONDS * sampleRate);
 
     // Tuning: [{cell_id, period}] sorted by period ascending.
     this._tuning     = [];
@@ -527,11 +583,21 @@ class VoiceProcessor extends AudioWorkletProcessor {
       }
       case 'gate_threshold':
         this._gate.setThreshold(msg.amp);
+        if (this._wasmReady && this._wasmProc) this._wasmProc.setGateThreshold(msg.amp);
         break;
       case 'notch_enable':
         this._notchOn = msg.enabled;
         if (msg.period_samples) this._notch.setPeriod(msg.period_samples);
         if (msg.amp != null)    this._notch.amp = msg.amp;
+        if (this._wasmReady && this._wasmProc) {
+          this._wasmProc.setNotchEnabled(msg.enabled);
+          if (msg.period_samples || msg.amp != null) {
+            this._wasmProc.setNotchParams(
+              msg.period_samples || this._notch.buffer.length,
+              msg.amp != null ? msg.amp : this._notch.amp,
+            );
+          }
+        }
         break;
       case 'init_wasm':
         this._initWasm(msg.glueText, msg.wasmBuffer);
@@ -554,7 +620,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
 
     let bindgen;
     try {
-      bindgen = new Function(glueText + '\nreturn wasm_bindgen;')();
+      bindgen = new Function('TextDecoder', glueText + '\nreturn wasm_bindgen;')(globalThis.TextDecoder);
     } catch (e) {
       console.warn('[voice-worklet] glue eval failed, continuing with JS DSP:', e);
       reportPath('js', e);
@@ -563,7 +629,9 @@ class VoiceProcessor extends AudioWorkletProcessor {
 
     bindgen(wasmBuffer).then(() => {
       const sr = sampleRate;
-      this._wasmProc = new bindgen.VoiceProcessor(sr, this._gate.gateOnAmp || 0.01);
+      this._wasmProc = new bindgen.VoiceProcessor(sr, this._gate.gateOnAmp || DEFAULT_GATE_THRESHOLD);
+      this._wasmProc.setNotchEnabled(this._notchOn);
+      this._wasmProc.setNotchParams(this._notch.buffer.length, this._notch.amp);
       this._syncWasmTuning();
       this._wasmReady = true;
       console.log('[voice-worklet] WASM VoiceProcessor ready');
@@ -580,6 +648,15 @@ class VoiceProcessor extends AudioWorkletProcessor {
     const ids     = new Int32Array(this._tuning.map(e => e.cell_id));
     const periods = new Uint32Array(this._tuning.map(e => e.period));
     this._wasmProc.setTuning(ids, periods);
+  }
+
+  _stepMonitorGain(gateOpen) {
+    if (gateOpen) {
+      this._monitorGain = Math.min(1, this._monitorGain + this._monitorAttackInc);
+    } else {
+      this._monitorGain = Math.max(0, this._monitorGain - this._monitorReleaseInc);
+    }
+    return this._monitorGain;
   }
 
   process(inputs, outputs) {
@@ -605,10 +682,10 @@ class VoiceProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < n; i++) {
       let s = this._hpf.process(input[i]);
       if (this._notchOn) s = this._notch.process(s);
-      this._gate.process(s);
+      const gateOpen = this._gate.process(s);
       this._det.push(s);
 
-      if (output) output[i] = s;
+      if (output) output[i] = s * this._stepMonitorGain(gateOpen);
     }
 
     // Run pitch detection every FFT_BLOCK samples (= every render quantum).
@@ -626,22 +703,32 @@ class VoiceProcessor extends AudioWorkletProcessor {
 
     // One boundary crossing per render quantum instead of 128 — critical
     // for mobile Safari, which otherwise runs out of quantum budget.
-    const filtered = proc.processBlock(input);
-    if (output) output.set(filtered);
+    if (output) proc.processBlockInto(input, output);
+    else proc.processBlock(input);
 
     // Emit pitch events at ~60 Hz (same throttle as JS path).
     if (++this._blockCount >= PITCH_RATE_DIV) {
       this._blockCount = 0;
 
-      const period24_8  = proc.detectPitch();
-      const raw         = proc.nearestCellFull(period24_8);
-      // raw: [primary_id, neighbor_id, neighbor_vel*1000]
-      const cellId      = raw[0];
-      const neighborId  = raw[1];
-      const neighborVel = raw[2] / 1000.0;
       const gateOpen    = proc.gateOpen();
+      const levelAmp    = proc.currentLevel ? proc.currentLevel() : 0;
+      let period24_8    = 0;
+      let cellId        = -1;
+      let neighborId    = -1;
+      let neighborVel   = 0;
 
-      if (!gateOpen) proc.resetHysteresis();
+      if (gateOpen && this._tuning.length > 0) {
+        period24_8 = proc.detectPitch();
+        if (period24_8 > 0) {
+          const raw = proc.nearestCellFull(period24_8);
+          // raw: [primary_id, neighbor_id, neighbor_vel*1000]
+          cellId      = raw[0];
+          neighborId  = raw[1];
+          neighborVel = raw[2] / 1000.0;
+        }
+      }
+
+      if (!gateOpen || period24_8 === 0) proc.resetHysteresis();
 
       this.port.postMessage({
         type:         'pitch',
@@ -650,7 +737,9 @@ class VoiceProcessor extends AudioWorkletProcessor {
         neighbor_vel: neighborVel,
         gate_open:    gateOpen,
         confidence:   period24_8 > 0 ? 1 : 0,
-        level_amp:    0, // not yet exposed from WASM
+        period_24_8:  period24_8,
+        detected_hz:  period24_8 > 0 ? (sampleRate * 256) / period24_8 : 0,
+        level_amp:    levelAmp,
       });
     }
 
@@ -663,10 +752,12 @@ class VoiceProcessor extends AudioWorkletProcessor {
     let neighborId = -1;
     let neighborVel = 0;
     let confidence  = 0;
+    let detectedPeriod24_8 = 0;
 
     if (gateOpen && this._tuning.length > 0) {
       const lowestPeriod = this._tuning[0].period;  // smallest = highest pitch
       const period24_8   = this._det.detect(lowestPeriod);
+      detectedPeriod24_8 = period24_8;
 
       if (period24_8 > 0) {
         const snap = nearestEnabledCell(this._tuning, period24_8, this._lastCellId);
@@ -713,6 +804,8 @@ class VoiceProcessor extends AudioWorkletProcessor {
       neighbor_vel: neighborVel,
       gate_open:   gateOpen,
       confidence,
+      period_24_8: detectedPeriod24_8,
+      detected_hz: detectedPeriod24_8 > 0 ? (sampleRate * 256) / detectedPeriod24_8 : 0,
       level_amp:   this._gate.currentAmp,
     });
   }

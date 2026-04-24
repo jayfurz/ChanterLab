@@ -32,7 +32,10 @@ export class Singscope {
   pushPitch(msg) {
     const gateOpen = !!msg.gate_open;
     const cellId   = (typeof msg.cell_id === 'number') ? msg.cell_id : -1;
-    const moria    = (gateOpen && cellId >= 0) ? cellId : null;
+    const rawMoria = (typeof msg.raw_moria === 'number' && Number.isFinite(msg.raw_moria))
+      ? msg.raw_moria
+      : null;
+    const moria    = gateOpen ? (rawMoria ?? (cellId >= 0 ? cellId : null)) : null;
     const snap     = (gateOpen && cellId >= 0) ? cellId : null;
     const conf     = (typeof msg.confidence === 'number') ? msg.confidence : 0;
 
@@ -82,12 +85,43 @@ export class Singscope {
    * Map a moria value to a CSS-space Y coordinate (vertical centre of that row).
    * Returns null if the rowMap is empty or no matching row is found.
    */
-  _moriaToY(moria) {
+  _scaledRowExtent(cssH) {
+    if (!this._rowMap.length) return 1;
+    const last = this._rowMap[this._rowMap.length - 1];
+    const ladderH = last.y + last.h;
+    return ladderH > 0 ? cssH / ladderH : 1;
+  }
+
+  _rowCenterY(row, cssH) {
+    return (row.y + row.h / 2) * this._scaledRowExtent(cssH);
+  }
+
+  _moriaToY(moria, cssH, interpolate = false) {
     if (!this._rowMap.length) return null;
 
     // Exact match first.
     for (const row of this._rowMap) {
-      if (row.cell.moria === moria) return row.y + row.h / 2;
+      if (row.cell.moria === moria) return this._rowCenterY(row, cssH);
+    }
+
+    if (interpolate) {
+      const top = this._rowMap[0];
+      const bottom = this._rowMap[this._rowMap.length - 1];
+
+      if (moria >= top.cell.moria) return this._rowCenterY(top, cssH);
+      if (moria <= bottom.cell.moria) return this._rowCenterY(bottom, cssH);
+
+      for (let i = 0; i < this._rowMap.length - 1; i++) {
+        const upper = this._rowMap[i];
+        const lower = this._rowMap[i + 1];
+        if (upper.cell.moria >= moria && moria >= lower.cell.moria) {
+          const upperY = this._rowCenterY(upper, cssH);
+          const lowerY = this._rowCenterY(lower, cssH);
+          const span = upper.cell.moria - lower.cell.moria;
+          const ratio = span > 0 ? (upper.cell.moria - moria) / span : 0;
+          return upperY + (lowerY - upperY) * ratio;
+        }
+      }
     }
 
     // Nearest-moria fallback: binary search for the row whose moria is closest.
@@ -99,7 +133,7 @@ export class Singscope {
       const d = Math.abs(row.cell.moria - moria);
       if (d < bestDist) { bestDist = d; best = row; }
     }
-    return best ? best.y + best.h / 2 : null;
+    return best ? this._rowCenterY(best, cssH) : null;
   }
 
   /** Return an ordered array of the most recent `count` points (oldest first). */
@@ -141,9 +175,10 @@ export class Singscope {
 
     // 2. Faint bands for enabled-cell rows.
     ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    const rowScale = this._scaledRowExtent(cssH);
     for (const row of this._rowMap) {
       if (row.cell.enabled) {
-        ctx.fillRect(0, row.y, cssW, row.h);
+        ctx.fillRect(0, row.y * rowScale, cssW, row.h * rowScale);
       }
     }
 
@@ -178,7 +213,7 @@ export class Singscope {
         prevSnapY  = null;
         continue;
       }
-      const y = this._moriaToY(pt.snapMoria);
+      const y = this._moriaToY(pt.snapMoria, cssH);
       if (y === null) continue;
 
       const x = xOf(i);
@@ -208,8 +243,8 @@ export class Singscope {
       // Break at gate-closed or missing pitch.
       if (!prev.gateOpen || !curr.gateOpen || prev.moria === null || curr.moria === null) continue;
 
-      const y0 = this._moriaToY(prev.moria);
-      const y1 = this._moriaToY(curr.moria);
+      const y0 = this._moriaToY(prev.moria, cssH, true);
+      const y1 = this._moriaToY(curr.moria, cssH, true);
       if (y0 === null || y1 === null) continue;
 
       const x0 = xOf(i - 1);

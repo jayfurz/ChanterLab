@@ -79,7 +79,10 @@ impl TimeDomainDetector {
 
         let mut p = lowest_period;
         while p <= highest_period {
-            self.histogram.push(HistogramBin { period: p, ..Default::default() });
+            self.histogram.push(HistogramBin {
+                period: p,
+                ..Default::default()
+            });
             p = p * 9 / 8;
         }
     }
@@ -190,8 +193,7 @@ impl TimeDomainDetector {
         }
 
         // Accept only if hit power is large enough (matching C++ threshold 1_100_000).
-        let hit_power =
-            total_hits as u64 * self.histogram[hit_idx].period as u64;
+        let hit_power = total_hits as u64 * self.histogram[hit_idx].period as u64;
         if hit_power >= 1_100_000 {
             // Weighted average period (24.8 fixed-point: shift by 8).
             let period_raw = if total_hits > 0 {
@@ -217,7 +219,11 @@ impl TimeDomainDetector {
         } else {
             let a = pp - (self.histogram[pos - 1].period as u64);
             let b = (self.histogram[pos].period as u64) - pp;
-            if a < b { pos - 1 } else { pos }
+            if a < b {
+                pos - 1
+            } else {
+                pos
+            }
         };
 
         self.histogram[idx].hits = self.histogram[idx].hits.saturating_add(1);
@@ -233,15 +239,22 @@ impl TimeDomainDetector {
 /// Only compiled with the `worklet` feature (requires `realfft`).
 #[cfg(feature = "worklet")]
 pub mod fft {
-    use realfft::{RealFftPlanner, RealToComplex, ComplexToReal};
     use realfft::num_complex::Complex;
+    use realfft::{ComplexToReal, RealFftPlanner, RealToComplex};
     use std::sync::Arc;
 
-    /// FFT length — 2560 samples, matching `FFTLEN` in `vocproc.cpp`.
-    pub const FFTLEN: usize = 2560;
+    /// FFT length — 5120 samples (doubled from 2560 for bass-range cepstrum confidence).
+    /// At 48 kHz, 2560 gives only ~4.3 cycles at 80 Hz; 5120 gives ~8.5.
+    pub const FFTLEN: usize = 5120;
     /// Rate at which the FFT runs: every 128 samples (`FFT_DETECT_BLOCK_SIZE`).
     pub const FFT_DETECT_BLOCK_SIZE: usize = 128;
     const HALF: usize = FFTLEN / 2;
+    /// Raw audio ring buffer — must be ≥ FFTLEN and power-of-2 for bitwise wrap.
+    const RAW_BUFFER_SIZE: usize = 8192;
+    const LOW_NOTE_RELAX_START_HZ: f32 = 261.63; // C4
+    const LOW_NOTE_RELAX_END_HZ: f32 = 80.0;
+    const LOW_NOTE_MAX_AMBIGUITY: f32 = 0.65;
+    const LOW_NOTE_RELAX_BOOST: f32 = 0.35;
 
     /// Portable integer-bit-length for alias index mapping. Mirrors `ilog` /
     /// `nbits` in `vocproc.cpp:139-156`.
@@ -265,14 +278,14 @@ pub mod fft {
         // Preallocated buffers.
         fft_window: Box<[f32; FFTLEN]>,
         fft_corr: Box<[f32; HALF]>,
-        fft_tdata: Vec<f32>,                     // r2c input / c2r output
-        fft_spectrum: Vec<Complex<f32>>,          // r2c output
-        fft_fdata2: Vec<f32>,                    // sqrt spectrum (c2r input, real part)
-        fft_fdata2_complex: Vec<Complex<f32>>,   // c2r input buffer
-        fft_tavg: Box<[f32; HALF + 1]>,          // log-bin EMA
+        fft_tdata: Vec<f32>,                   // r2c input / c2r output
+        fft_spectrum: Vec<Complex<f32>>,       // r2c output
+        fft_fdata2: Vec<f32>,                  // sqrt spectrum (c2r input, real part)
+        fft_fdata2_complex: Vec<Complex<f32>>, // c2r input buffer
+        fft_tavg: Box<[f32; HALF + 1]>,        // log-bin EMA
 
-        /// Ring buffer of raw filtered samples (size RAW_BUFFER_SIZE = 4096).
-        pub audio_raw: Box<[f32; 4096]>,
+        /// Ring buffer of raw filtered samples (size RAW_BUFFER_SIZE = 8192).
+        pub audio_raw: Box<[f32; RAW_BUFFER_SIZE]>,
         pub write_ptr: usize,
     }
 
@@ -298,7 +311,7 @@ pub mod fft {
                 fft_fdata2,
                 fft_fdata2_complex,
                 fft_tavg: Box::new([0.0; HALF + 1]),
-                audio_raw: Box::new([0.0; 4096]),
+                audio_raw: Box::new([0.0; RAW_BUFFER_SIZE]),
                 write_ptr: 0,
             };
             det.init_window_and_corr();
@@ -308,7 +321,7 @@ pub mod fft {
         /// Push one filtered sample into the ring buffer.
         #[inline]
         pub fn push(&mut self, sample: f32) {
-            self.audio_raw[self.write_ptr & 4095] = sample;
+            self.audio_raw[self.write_ptr & (RAW_BUFFER_SIZE - 1)] = sample;
             self.write_ptr = self.write_ptr.wrapping_add(1);
         }
 
@@ -326,8 +339,7 @@ pub mod fft {
 
             // Hann window.
             for i in 0..FFTLEN {
-                self.fft_window[i] =
-                    0.5 * (1.0 - (2.0 * PI * i as f32 / FFTLEN as f32).cos());
+                self.fft_window[i] = 0.5 * (1.0 - (2.0 * PI * i as f32 / FFTLEN as f32).cos());
             }
 
             // Compute window autocorrelation for bias removal.
@@ -336,7 +348,9 @@ pub mod fft {
                 self.fft_tdata[i] = self.fft_window[i];
             }
             // 2. Forward FFT.
-            let _ = self.r2c.process(&mut self.fft_tdata, &mut self.fft_spectrum);
+            let _ = self
+                .r2c
+                .process(&mut self.fft_tdata, &mut self.fft_spectrum);
             // 3. Magnitude spectrum.
             for i in 0..HALF {
                 let c = self.fft_spectrum[i];
@@ -354,7 +368,9 @@ pub mod fft {
                 }
             }
             let mut corr_out = self.c2r.make_output_vec();
-            let _ = self.c2r.process(&mut self.fft_fdata2_complex, &mut corr_out);
+            let _ = self
+                .c2r
+                .process(&mut self.fft_fdata2_complex, &mut corr_out);
 
             let t = corr_out[0].abs() + 0.1;
             for i in 0..HALF {
@@ -367,10 +383,12 @@ pub mod fft {
         fn calc_spectrum(&mut self) {
             let j = self.write_ptr.wrapping_sub(FFTLEN);
             for i in 0..FFTLEN {
-                let s = self.audio_raw[(j.wrapping_add(i)) & 4095];
+                let s = self.audio_raw[(j.wrapping_add(i)) & (RAW_BUFFER_SIZE - 1)];
                 self.fft_tdata[i] = self.fft_window[i] * s;
             }
-            let _ = self.r2c.process(&mut self.fft_tdata, &mut self.fft_spectrum);
+            let _ = self
+                .r2c
+                .process(&mut self.fft_tdata, &mut self.fft_spectrum);
         }
 
         /// Port of `VocProc::pitchDetection`. Operates on `fft_spectrum` set by
@@ -490,10 +508,21 @@ pub mod fft {
                 }
             }
 
-            // Two-tier confidence gate.
-            let clarity_ok = global_peak > 0.03
-                && second_peak / global_peak.max(1e-9)
-                    < (global_peak * 0.6 + 0.14).min(0.5);
+            // Two-tier confidence gate. Below C4, tolerate stronger harmonic
+            // competitors before rejecting the candidate — low voices often
+            // project a stronger overtone than the fundamental.
+            let base_ambiguity_limit = (global_peak * 0.6 + 0.14).min(0.5);
+            let bass_start = self.sample_rate / LOW_NOTE_RELAX_START_HZ;
+            let bass_end = self.sample_rate / LOW_NOTE_RELAX_END_HZ;
+            let bass_blend = if bass_end > bass_start {
+                ((peak_index as f32 - bass_start) / (bass_end - bass_start)).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let ambiguity_limit = (base_ambiguity_limit + bass_blend.sqrt() * LOW_NOTE_RELAX_BOOST)
+                .min(LOW_NOTE_MAX_AMBIGUITY);
+            let clarity_ok =
+                global_peak > 0.03 && second_peak / global_peak.max(1e-9) < ambiguity_limit;
             if !clarity_ok || peak_index == 0 {
                 return 0;
             }
@@ -584,14 +613,20 @@ pub mod fft {
                 }
                 sample_pos += block;
                 result = det.detect(min_period);
-                if result > 0 { break; }
+                if result > 0 {
+                    break;
+                }
             }
 
             assert!(result > 0, "expected detection after EMA warm-up, got 0");
             let period_samples = result as f32 / 256.0;
             let detected_freq = SR / period_samples;
             let err = (detected_freq - 220.0).abs() / 220.0;
-            assert!(err < 0.02, "220 Hz: detected {detected_freq:.1} Hz (err {:.1}%)", err * 100.0);
+            assert!(
+                err < 0.02,
+                "220 Hz: detected {detected_freq:.1} Hz (err {:.1}%)",
+                err * 100.0
+            );
         }
 
         /// White noise should produce no confident detection.
@@ -621,8 +656,7 @@ pub mod fft {
             let mut det = make_det();
             for i in 0..8192 {
                 let t = i as f32 / SR;
-                let s = (2.0 * PI * 220.0 * t).sin()
-                    + 0.7 * (2.0 * PI * 440.0 * t).sin();
+                let s = (2.0 * PI * 220.0 * t).sin() + 0.7 * (2.0 * PI * 440.0 * t).sin();
                 det.push(s);
             }
             let min_period = (SR / 1200.0 * 256.0) as u32;
@@ -636,6 +670,130 @@ pub mod fft {
                     "expected ~220 Hz fundamental, got {detected_freq:.1} Hz"
                 );
             }
+        }
+
+        /// Bass-range detection: 100 Hz sine should pass the confidence gate.
+        /// With FFTLEN=5120 at 44.1 kHz we get ~441 cycles per window,
+        /// giving enough cepstral peak energy to clear the 0.03 gate.
+        #[test]
+        fn detects_bass_range_100hz() {
+            let mut det = make_det();
+            let min_period = (SR / 1200.0 * 256.0) as u32;
+
+            let block = FFT_DETECT_BLOCK_SIZE;
+            let mut result = 0u32;
+            let mut sample_pos = 0usize;
+            for _ in 0..120 {
+                for j in 0..block {
+                    det.push((2.0 * PI * 100.0 * (sample_pos + j) as f32 / SR).sin());
+                }
+                sample_pos += block;
+                result = det.detect(min_period);
+                if result > 0 {
+                    break;
+                }
+            }
+
+            assert!(
+                result > 0,
+                "expected bass 100 Hz detection after warm-up, got 0"
+            );
+            let period_samples = result as f32 / 256.0;
+            let detected_freq = SR / period_samples;
+            let err = (detected_freq - 100.0).abs() / 100.0;
+            assert!(
+                err < 0.03,
+                "100 Hz bass: detected {detected_freq:.1} Hz (err {:.1}%)",
+                err * 100.0
+            );
+        }
+
+        /// Very-low bass: 80 Hz (baritone/bass register).
+        #[test]
+        fn detects_deep_bass_80hz() {
+            let mut det = make_det();
+            let min_period = (SR / 1200.0 * 256.0) as u32;
+
+            let block = FFT_DETECT_BLOCK_SIZE;
+            let mut result = 0u32;
+            let mut sample_pos = 0usize;
+            for _ in 0..150 {
+                for j in 0..block {
+                    det.push((2.0 * PI * 80.0 * (sample_pos + j) as f32 / SR).sin());
+                }
+                sample_pos += block;
+                result = det.detect(min_period);
+                if result > 0 {
+                    break;
+                }
+            }
+
+            assert!(
+                result > 0,
+                "expected deep bass 80 Hz detection after warm-up, got 0"
+            );
+            let period_samples = result as f32 / 256.0;
+            let detected_freq = SR / period_samples;
+            let err = (detected_freq - 80.0).abs() / 80.0;
+            assert!(
+                err < 0.04,
+                "80 Hz deep bass: detected {detected_freq:.1} Hz (err {:.1}%)",
+                err * 100.0
+            );
+        }
+
+        /// Harmonic-rich low voices can have a stronger 2f/3f than the
+        /// fundamental. The detector should still keep the bass candidate
+        /// alive instead of rejecting it as ambiguous.
+        #[test]
+        fn detects_noisy_harmonic_rich_low_voice() {
+            let mut det = make_det();
+            let min_period = (SR / 1200.0 * 256.0) as u32;
+            let freq = 174.61f32; // F3, below C4
+
+            fn next_noise(state: &mut u32) -> f32 {
+                *state ^= *state << 13;
+                *state ^= *state >> 17;
+                *state ^= *state << 5;
+                (*state as f32 / u32::MAX as f32) * 2.0 - 1.0
+            }
+
+            let block = FFT_DETECT_BLOCK_SIZE;
+            let mut result = 0u32;
+            let mut sample_pos = 0usize;
+            let mut noise_state = 0x1234_5678u32;
+
+            for _ in 0..180 {
+                for j in 0..block {
+                    let t = (sample_pos + j) as f32 / SR;
+                    let noise = next_noise(&mut noise_state) * 0.10;
+                    let s = 0.04 * (2.0 * PI * freq * t).sin()
+                        + 0.55 * (2.0 * PI * 2.0 * freq * t).sin()
+                        + 0.28 * (2.0 * PI * 3.0 * freq * t).sin()
+                        + 0.15 * (2.0 * PI * 4.0 * freq * t).sin()
+                        + noise;
+                    det.push(s);
+                }
+                sample_pos += block;
+                result = det.detect(min_period);
+                if result > 0 {
+                    break;
+                }
+            }
+
+            assert!(
+                result > 0,
+                "expected noisy harmonic-rich low voice to detect, got 0"
+            );
+
+            let period_samples = result as f32 / 256.0;
+            let detected_freq = SR / period_samples;
+            let err = (detected_freq - freq).abs() / freq;
+            assert!(
+                err < 0.06,
+                "noisy low voice: detected {detected_freq:.1} Hz (err {:.1}%)",
+                err * 100.0
+            );
         }
     }
 }
@@ -675,7 +833,11 @@ mod tests {
             let period_samples = result as f32 / 256.0;
             let detected_freq = sr / period_samples;
             let err = (detected_freq - freq).abs() / freq;
-            assert!(err < 0.05, "440 Hz: detected {detected_freq:.1} Hz (err {:.1}%)", err * 100.0);
+            assert!(
+                err < 0.05,
+                "440 Hz: detected {detected_freq:.1} Hz (err {:.1}%)",
+                err * 100.0
+            );
         }
         // If result is 0 the histogram didn't reach threshold — that's
         // acceptable for 8192 samples; we test the pipeline runs without panic.

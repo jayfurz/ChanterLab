@@ -10,16 +10,16 @@
 
 #[cfg(feature = "worklet")]
 mod worklet_exports {
-    use wasm_bindgen::prelude::*;
+    const MONITOR_ATTACK_SECONDS: f32 = 0.015;
+    const MONITOR_RELEASE_SECONDS: f32 = 0.180;
+
     use crate::dsp::{
+        detector::{fft::FftDetector, TimeDomainDetector},
         filters::{CascadedHpf, LowPassFilter1, NotchFilter},
         gate::Gate,
-        detector::{
-            TimeDomainDetector,
-            fft::FftDetector,
-        },
     };
     use crate::tuning::{nearest_enabled_cell, NearestCellResult};
+    use wasm_bindgen::prelude::*;
 
     /// All-in-one voice DSP processor exposed to the AudioWorklet.
     ///
@@ -40,6 +40,9 @@ mod worklet_exports {
         last_cell_id: Option<i32>,
         sample_rate: f32,
         sample_count: u32,
+        monitor_gain: f32,
+        monitor_attack_inc: f32,
+        monitor_release_inc: f32,
     }
 
     #[wasm_bindgen]
@@ -62,7 +65,19 @@ mod worklet_exports {
                 last_cell_id: None,
                 sample_rate,
                 sample_count: 0,
+                monitor_gain: 0.0,
+                monitor_attack_inc: 1.0 / (MONITOR_ATTACK_SECONDS * sample_rate).max(1.0),
+                monitor_release_inc: 1.0 / (MONITOR_RELEASE_SECONDS * sample_rate).max(1.0),
             }
+        }
+
+        fn step_monitor_gain(&mut self, gate_open: bool) -> f32 {
+            if gate_open {
+                self.monitor_gain = (self.monitor_gain + self.monitor_attack_inc).min(1.0);
+            } else {
+                self.monitor_gain = (self.monitor_gain - self.monitor_release_inc).max(0.0);
+            }
+            self.monitor_gain
         }
 
         /// Apply the full preprocessing chain to one sample and push it into
@@ -78,14 +93,14 @@ mod worklet_exports {
             } else {
                 filtered
             };
-            self.gate.process(out);
+            let gate_open = self.gate.process(out);
             // Time-domain path (LPF → peak machine → histogram).
             let lp = self.lpf.process(out);
             self.td_det.push_sample(lp);
             // FFT ring buffer.
             self.fft_det.push(out);
             self.sample_count = self.sample_count.wrapping_add(1);
-            out
+            out * self.step_monitor_gain(gate_open)
         }
 
         /// Block variant of `process_sample`. Processes `input` in one wasm
@@ -100,10 +115,29 @@ mod worklet_exports {
             out
         }
 
+        /// In-place variant of `process_block`. Avoids allocating a fresh
+        /// JS-facing typed array on every render quantum.
+        #[wasm_bindgen(js_name = processBlockInto)]
+        pub fn process_block_into(&mut self, input: &[f32], output: &mut [f32]) {
+            let n = input.len().min(output.len());
+            for i in 0..n {
+                output[i] = self.process_sample(input[i]);
+            }
+            for x in &mut output[n..] {
+                *x = 0.0;
+            }
+        }
+
         /// True when the gate is currently open.
         #[wasm_bindgen(js_name = gateOpen)]
         pub fn gate_open(&self) -> bool {
             self.gate.gate_open()
+        }
+
+        /// Smoothed peak-to-peak level used by the hysteretic gate.
+        #[wasm_bindgen(js_name = currentLevel)]
+        pub fn current_level(&self) -> f32 {
+            self.gate.current_level()
         }
 
         /// Run pitch detection. Returns a 24.8 fixed-point period in samples,
@@ -117,7 +151,7 @@ mod worklet_exports {
             let min_period = if self.tuning_table.is_empty() {
                 (self.sample_rate / 1200.0 * 256.0) as u32
             } else {
-                self.tuning_table[0].0  // already sorted: smallest period = highest pitch
+                self.tuning_table[0].0 // already sorted: smallest period = highest pitch
             };
             self.fft_det.detect(min_period)
         }
@@ -142,7 +176,11 @@ mod worklet_exports {
         pub fn nearest_cell_full(&mut self, period_24_8: u32) -> Vec<i32> {
             let result = nearest_enabled_cell(&self.tuning_table, period_24_8, self.last_cell_id);
             match result {
-                Some(NearestCellResult { primary_id, neighbor_id, neighbor_vel }) => {
+                Some(NearestCellResult {
+                    primary_id,
+                    neighbor_id,
+                    neighbor_vel,
+                }) => {
                     self.last_cell_id = Some(primary_id);
                     vec![
                         primary_id,
@@ -167,10 +205,9 @@ mod worklet_exports {
             self.tuning_table.sort_by_key(|(p, _)| *p);
 
             // Refresh the time-domain histogram range.
-            if let (Some(&(lo, _)), Some(&(hi, _))) = (
-                self.tuning_table.first(),
-                self.tuning_table.last(),
-            ) {
+            if let (Some(&(lo, _)), Some(&(hi, _))) =
+                (self.tuning_table.first(), self.tuning_table.last())
+            {
                 self.td_det.setup_histogram(lo, hi);
             }
         }
