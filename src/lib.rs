@@ -8,8 +8,8 @@
 //! `TuningGrid` that communicates via JSON strings. No JS-facing type
 //! exports are gated here; all core logic lives in `tuning/`.
 
-pub mod tuning;
 pub mod dsp;
+pub mod tuning;
 #[cfg(feature = "worklet")]
 pub mod worklet;
 
@@ -42,7 +42,9 @@ mod main_exports {
         /// Serialize the grid state to JSON (for LocalStorage / postMessage).
         #[wasm_bindgen(js_name = toJson)]
         pub fn to_json(&self) -> Result<String, JsValue> {
-            self.inner.to_json().map_err(|e| JsValue::from_str(&e.to_string()))
+            self.inner
+                .to_json()
+                .map_err(|e| JsValue::from_str(&e.to_string()))
         }
 
         /// Deserialize a grid previously produced by `toJson`.
@@ -108,7 +110,11 @@ mod main_exports {
         /// `moria` is out of range.
         #[wasm_bindgen(js_name = applyShading)]
         pub fn apply_shading(&mut self, moria: i32, shading: &str) -> bool {
-            let s = if shading.is_empty() { None } else { parse_shading(shading) };
+            let s = if shading.is_empty() {
+                None
+            } else {
+                parse_shading(shading)
+            };
             self.inner.apply_shading(moria, s)
         }
 

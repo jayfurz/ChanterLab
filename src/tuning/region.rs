@@ -16,8 +16,7 @@ use crate::tuning::{Degree, Genus, Shading, NUM_DEGREES};
 
 /// Offset of Di in a rotated interval sequence whose first degree is `root`.
 fn di_offset(root: Degree) -> usize {
-    (Degree::Di.index() as i32 - root.index() as i32)
-        .rem_euclid(NUM_DEGREES as i32) as usize
+    (Degree::Di.index() as i32 - root.index() as i32).rem_euclid(NUM_DEGREES as i32) as usize
 }
 
 /// A contiguous moria span with a single genus rooted at a specific degree.
@@ -48,8 +47,7 @@ impl Region {
             return iv;
         }
         let canonical = self.genus.canonical_root();
-        let offset = (self.root_degree.index() as i32
-            - canonical.index() as i32)
+        let offset = (self.root_degree.index() as i32 - canonical.index() as i32)
             .rem_euclid(NUM_DEGREES as i32) as usize;
         iv.rotate_left(offset);
         iv
@@ -79,9 +77,9 @@ impl Region {
                 let d = di_offset(self.root_degree);
                 if d >= 4 {
                     iv[d - 4] = 18; // Ni→Pa
-                    iv[d - 3] = 4;  // Pa→Vou
+                    iv[d - 3] = 4; // Pa→Vou
                     iv[d - 2] = 16; // Vou→Ga
-                    iv[d - 1] = 4;  // Ga→Di
+                    iv[d - 1] = 4; // Ga→Di
                 }
             }
             Shading::Kliton => {
@@ -89,7 +87,7 @@ impl Region {
                 // Ga→Di=4, Vou→Ga=12, Pa→Vou=14 (so Pa→Di = 30 preserved).
                 let d = di_offset(self.root_degree);
                 if d >= 3 {
-                    iv[d - 1] = 4;  // Ga→Di
+                    iv[d - 1] = 4; // Ga→Di
                     iv[d - 2] = 12; // Vou→Ga
                     iv[d - 3] = 14; // Pa→Vou (= 30 - 12 - 4)
                 }
@@ -104,15 +102,14 @@ impl Region {
     /// Spathi helper: set the two intervals adjacent to `on` to 4, then
     /// recalculate the ±2 intervals so the ±2 anchor notes stay fixed.
     fn apply_spathi(iv: &mut [i32], root: Degree, on: Degree) {
-        let d = (on.index() as i32 - root.index() as i32)
-            .rem_euclid(NUM_DEGREES as i32) as usize;
+        let d = (on.index() as i32 - root.index() as i32).rem_euclid(NUM_DEGREES as i32) as usize;
         // Need at least one interval below and one above the drop note,
         // plus one more on each side for the anchor recalculation.
         if d < 2 || d + 2 > NUM_DEGREES {
             return;
         }
         let old_below = iv[d - 1]; // interval into `on` from below
-        let old_above = iv[d];     // interval from `on` going up
+        let old_above = iv[d]; // interval from `on` going up
         iv[d - 1] = 4;
         iv[d] = 4;
         // Preserve the node two below `on` by absorbing the change into iv[d-2].
@@ -204,10 +201,7 @@ mod tests {
             root_degree: Degree::Pa,
             shading: None,
         };
-        assert_eq!(
-            r.rotated_intervals(),
-            vec![10, 8, 12, 12, 10, 8, 12]
-        );
+        assert_eq!(r.rotated_intervals(), vec![10, 8, 12, 12, 10, 8, 12]);
         let pos = r.degree_positions();
         let moria: Vec<i32> = pos.iter().map(|(_, m)| *m).collect();
         // Pa=0, Vou=10, Ga=18, Di=30, Ke=42, Zo=52, Ni'=60, (Pa'=72).
@@ -265,10 +259,7 @@ mod tests {
         // left by 4 in the canonical sequence to bring Ni-relative steps to
         // the front. intervals[4] = 6 (Ni→Pa), then 16 (Pa→Vou), 8 (Vou→Ga),
         // 12 (Ga→Di), 10 (Di→Ke), 12 (Ke→Zo), 8 (Zo→Ni').
-        assert_eq!(
-            r.rotated_intervals(),
-            vec![6, 16, 8, 12, 10, 12, 8]
-        );
+        assert_eq!(r.rotated_intervals(), vec![6, 16, 8, 12, 10, 12, 8]);
     }
 
     #[test]

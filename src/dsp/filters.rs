@@ -18,7 +18,12 @@ pub struct BiquadHpf {
 
 impl BiquadHpf {
     pub fn new(k0: f32, k1: f32) -> Self {
-        Self { x: [0.0; 3], y: [0.0; 3], k0, k1 }
+        Self {
+            x: [0.0; 3],
+            y: [0.0; 3],
+            k0,
+            k1,
+        }
     }
 
     #[inline]
@@ -28,9 +33,8 @@ impl BiquadHpf {
         self.x[0] = input;
         self.y[2] = self.y[1];
         self.y[1] = self.y[0];
-        self.y[0] = (self.x[0] + self.x[2]) - 2.0 * self.x[1]
-            + self.k0 * self.y[2]
-            + self.k1 * self.y[1];
+        self.y[0] =
+            (self.x[0] + self.x[2]) - 2.0 * self.x[1] + self.k0 * self.y[2] + self.k1 * self.y[1];
         self.y[0]
     }
 }
@@ -86,7 +90,11 @@ impl Default for NotchFilter {
 
 impl NotchFilter {
     pub fn new() -> Self {
-        Self { buffer: vec![0.0, 0.0], amp: 0.0, ptr: 0 }
+        Self {
+            buffer: vec![0.0, 0.0],
+            amp: 0.0,
+            ptr: 0,
+        }
     }
 
     pub fn set_period(&mut self, period_samples: usize) {
@@ -122,7 +130,11 @@ pub struct LowPassFilter1 {
 
 impl LowPassFilter1 {
     pub fn new(k0: f32) -> Self {
-        Self { x: [0.0; 2], y: [0.0; 2], k0 }
+        Self {
+            x: [0.0; 2],
+            y: [0.0; 2],
+            k0,
+        }
     }
 
     /// Pre-configured for the time-domain path in `vocproc.cpp`.
@@ -169,7 +181,10 @@ mod tests {
                 peak = peak.max(y.abs());
             }
         }
-        assert!(peak > 0.80, "HPF should pass 500 Hz with gain > 0.8, got {peak}");
+        assert!(
+            peak > 0.80,
+            "HPF should pass 500 Hz with gain > 0.8, got {peak}"
+        );
     }
 
     /// LPF DC gain: input of 1.0 should converge to 1/(1 - k0) * 2 = very large,

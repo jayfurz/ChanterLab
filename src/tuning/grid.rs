@@ -128,7 +128,11 @@ impl TuningGrid {
     ///
     /// Panics if `accidental` is odd (Byzantine accidentals must be even).
     pub fn set_accidental(&mut self, moria: i32, accidental: i32) {
-        assert_eq!(accidental % 2, 0, "accidental must be an even number of moria");
+        assert_eq!(
+            accidental % 2,
+            0,
+            "accidental must be an even number of moria"
+        );
         // Seed the override's enabled field from the current cell state so
         // the user's prior toggle is not clobbered.
         let current_enabled = self
@@ -256,11 +260,7 @@ impl TuningGrid {
     /// The merge absorbs the removed region's span into the left neighbor's
     /// end_moria without changing the neighbor's genus or root_degree.
     pub fn remove_pthora(&mut self, moria: i32) -> bool {
-        let Some(idx) = self
-            .regions
-            .iter()
-            .position(|r| r.start_moria == moria)
-        else {
+        let Some(idx) = self.regions.iter().position(|r| r.start_moria == moria) else {
             return false;
         };
         if idx == 0 {
@@ -438,7 +438,11 @@ pub fn nearest_enabled_cell(
             }
         }
         // Ties go to the above entry, matching C++ `if (a1 < a2) key = i1; else key = i2`.
-        if dist_below < dist_above { pos - 1 } else { pos }
+        if dist_below < dist_above {
+            pos - 1
+        } else {
+            pos
+        }
     };
 
     let primary_id = sorted_table[primary_idx].1;
@@ -447,8 +451,16 @@ pub fn nearest_enabled_cell(
     // Find neighbor: the other adjacent cell in the sorted table.
     // Port of key2/key3 and their velocity calculation in `processPeriod`.
     let (neighbor_id, neighbor_vel) = if n > 1 {
-        let below_nb = if primary_idx > 0 { Some(sorted_table[primary_idx - 1]) } else { None };
-        let above_nb = if primary_idx + 1 < n { Some(sorted_table[primary_idx + 1]) } else { None };
+        let below_nb = if primary_idx > 0 {
+            Some(sorted_table[primary_idx - 1])
+        } else {
+            None
+        };
+        let above_nb = if primary_idx + 1 < n {
+            Some(sorted_table[primary_idx + 1])
+        } else {
+            None
+        };
 
         match (below_nb, above_nb) {
             (Some(below), Some(above)) => {
@@ -473,13 +485,21 @@ pub fn nearest_enabled_cell(
             (Some(b), None) => {
                 let dist = primary_period.saturating_sub(b.0);
                 let total = period_24_8.abs_diff(b.0) + dist;
-                let vel = if total > 0 { period_24_8.abs_diff(b.0) as f32 / total as f32 } else { 0.5 };
+                let vel = if total > 0 {
+                    period_24_8.abs_diff(b.0) as f32 / total as f32
+                } else {
+                    0.5
+                };
                 (Some(b.1), vel.min(1.0))
             }
             (None, Some(a)) => {
                 let dist = a.0.saturating_sub(primary_period);
                 let total = period_24_8.abs_diff(a.0) + dist;
-                let vel = if total > 0 { period_24_8.abs_diff(a.0) as f32 / total as f32 } else { 0.5 };
+                let vel = if total > 0 {
+                    period_24_8.abs_diff(a.0) as f32 / total as f32
+                } else {
+                    0.5
+                };
                 (Some(a.1), vel.min(1.0))
             }
             (None, None) => (None, 0.0),
@@ -488,7 +508,11 @@ pub fn nearest_enabled_cell(
         (None, 0.0)
     };
 
-    Some(NearestCellResult { primary_id, neighbor_id, neighbor_vel })
+    Some(NearestCellResult {
+        primary_id,
+        neighbor_id,
+        neighbor_vel,
+    })
 }
 
 /// Largest multiple of `m` ≤ `n`. `m` must be positive.
@@ -620,7 +644,11 @@ mod tests {
         let g = TuningGrid::new_default();
         for cell in g.cells() {
             if cell.degree.is_none() {
-                assert!(!cell.enabled, "non-degree cell at {} should be disabled", cell.moria);
+                assert!(
+                    !cell.enabled,
+                    "non-degree cell at {} should be disabled",
+                    cell.moria
+                );
             }
         }
     }
@@ -649,13 +677,7 @@ mod tests {
     /// identity-rotated when rooted at its canonical root.
     #[test]
     fn hard_chromatic_preset_places_pa_at_octave_multiples() {
-        let g = TuningGrid::with_preset(
-            261.63,
-            -72,
-            72,
-            Genus::HardChromatic,
-            Degree::Pa,
-        );
+        let g = TuningGrid::with_preset(261.63, -72, 72, Genus::HardChromatic, Degree::Pa);
         let cells = g.cells();
         let pa_moria: Vec<i32> = cells
             .iter()
@@ -715,7 +737,12 @@ mod tests {
     #[test]
     fn enharmonic_ga_tiling_pattern() {
         let g = enharmonic_ga_grid(0, 72);
-        let enabled: Vec<i32> = g.cells().iter().filter(|c| c.enabled).map(|c| c.moria).collect();
+        let enabled: Vec<i32> = g
+            .cells()
+            .iter()
+            .filter(|c| c.enabled)
+            .map(|c| c.moria)
+            .collect();
         let diffs: Vec<i32> = enabled.windows(2).map(|w| w[1] - w[0]).collect();
         // Generator [6,12,12] cycling: 6,12,12, 6,12,12, 6,12 (before 72 ends it)
         assert_eq!(diffs, vec![6, 12, 12, 6, 12, 12, 6]);
@@ -730,11 +757,23 @@ mod tests {
         assert_eq!(cells.len(), 36); // (72-0)/2
         for cell in &cells {
             if [0, 6, 18, 30, 36, 48, 60, 66].contains(&cell.moria) {
-                assert!(cell.enabled, "generator pos {} should be enabled", cell.moria);
-                assert!(cell.degree.is_some(), "generator pos {} should have degree", cell.moria);
+                assert!(
+                    cell.enabled,
+                    "generator pos {} should be enabled",
+                    cell.moria
+                );
+                assert!(
+                    cell.degree.is_some(),
+                    "generator pos {} should have degree",
+                    cell.moria
+                );
             } else {
                 assert!(!cell.enabled, "gap pos {} should be disabled", cell.moria);
-                assert!(cell.degree.is_none(), "gap pos {} should have no degree", cell.moria);
+                assert!(
+                    cell.degree.is_none(),
+                    "gap pos {} should have no degree",
+                    cell.moria
+                );
             }
         }
     }
@@ -751,8 +790,8 @@ mod tests {
             .collect();
         // Sequential cycling from Ga: Ga, Di, Ke, Zo, Ni, Pa, Vou, Ga (wraps).
         let expected = vec![
-            (0,  Degree::Ga),
-            (6,  Degree::Di),
+            (0, Degree::Ga),
+            (6, Degree::Di),
             (18, Degree::Ke),
             (30, Degree::Zo),
             (36, Degree::Ni),
@@ -923,13 +962,22 @@ mod tests {
         };
         assert_eq!(r.effective_intervals().iter().sum::<i32>(), 72);
 
-        let r2 = Region { shading: Some(Shading::Kliton), ..r.clone() };
+        let r2 = Region {
+            shading: Some(Shading::Kliton),
+            ..r.clone()
+        };
         assert_eq!(r2.effective_intervals().iter().sum::<i32>(), 72);
 
-        let r3 = Region { shading: Some(Shading::SpathiKe), ..r.clone() };
+        let r3 = Region {
+            shading: Some(Shading::SpathiKe),
+            ..r.clone()
+        };
         assert_eq!(r3.effective_intervals().iter().sum::<i32>(), 72);
 
-        let r4 = Region { shading: Some(Shading::SpathiGa), ..r.clone() };
+        let r4 = Region {
+            shading: Some(Shading::SpathiGa),
+            ..r.clone()
+        };
         assert_eq!(r4.effective_intervals().iter().sum::<i32>(), 72);
     }
 
@@ -1135,7 +1183,11 @@ mod tests {
             let restored = TuningGrid::from_json(&json).unwrap();
             assert_eq!(g, restored);
             // Verify the override round-tripped.
-            let pa = restored.cells().into_iter().find(|c| c.moria == 12).unwrap();
+            let pa = restored
+                .cells()
+                .into_iter()
+                .find(|c| c.moria == 12)
+                .unwrap();
             assert_eq!(pa.accidental, 4);
         }
 

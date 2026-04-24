@@ -13,7 +13,7 @@
 const RING_SIZE: usize = 16384;
 const RING_MASK: usize = RING_SIZE - 1;
 
-const LOW_LIMIT: i32  = 1350;
+const LOW_LIMIT: i32 = 1350;
 const HIGH_LIMIT: i32 = 2700;
 
 /// Ramp rate for `out_volume` per sample (6/16384 ≈ 3.66 × 10⁻⁴).
@@ -61,16 +61,16 @@ pub struct PsolaRepitcher {
 impl PsolaRepitcher {
     pub fn new() -> Self {
         PsolaRepitcher {
-            audio_in:      Box::new([0.0f32; RING_SIZE]),
-            write_ptr:     0,
-            read_ptr:      0.0,
+            audio_in: Box::new([0.0f32; RING_SIZE]),
+            write_ptr: 0,
+            read_ptr: 0.0,
             actual_period: 0.0,
             target_period: 0.0,
-            rate:          1.0,
-            xfade:         0.0,
-            xfade_rate:    0.0,
-            xoffset:       0.0,
-            out_volume:    0.0,
+            rate: 1.0,
+            xfade: 0.0,
+            xfade_rate: 0.0,
+            xoffset: 0.0,
+            out_volume: 0.0,
         }
     }
 
@@ -125,7 +125,7 @@ impl PsolaRepitcher {
             let w_new = self.xfade;
             let w_old = 1.0 - w_new;
             let s = self.read_interp(self.read_ptr + self.xoffset) * w_new
-                  + self.read_interp(self.read_ptr) * w_old;
+                + self.read_interp(self.read_ptr) * w_old;
             self.read_ptr += self.rate as f64;
             self.xfade -= self.xfade_rate;
             if self.xfade < 0.0 {
@@ -164,14 +164,14 @@ impl PsolaRepitcher {
     /// Reset all state to initial values (e.g. on stream restart).
     pub fn reset(&mut self) {
         self.audio_in.fill(0.0);
-        self.write_ptr  = 0;
-        self.read_ptr   = 0.0;
+        self.write_ptr = 0;
+        self.read_ptr = 0.0;
         self.actual_period = 0.0;
         self.target_period = 0.0;
-        self.rate       = 1.0;
-        self.xfade      = 0.0;
+        self.rate = 1.0;
+        self.xfade = 0.0;
         self.xfade_rate = 0.0;
-        self.xoffset    = 0.0;
+        self.xoffset = 0.0;
         self.out_volume = 0.0;
     }
 
@@ -246,10 +246,7 @@ mod tests {
 
         for _ in 0..200 {
             let out = r.get_sample();
-            assert!(
-                out >= -1.0 && out <= 1.0,
-                "sample out of range: {out}"
-            );
+            assert!(out >= -1.0 && out <= 1.0, "sample out of range: {out}");
         }
     }
 

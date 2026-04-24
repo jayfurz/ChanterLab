@@ -109,7 +109,10 @@ mod tests {
         for s in sine_samples(2048) {
             last_state = g.process(s);
         }
-        assert!(last_state, "gate should be open after sustained sine signal");
+        assert!(
+            last_state,
+            "gate should be open after sustained sine signal"
+        );
     }
 
     #[test]

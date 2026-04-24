@@ -22,7 +22,10 @@ pub struct Pthora {
 
 impl Pthora {
     pub fn new(genus: Genus, target_degree: Degree) -> Self {
-        Self { genus, target_degree }
+        Self {
+            genus,
+            target_degree,
+        }
     }
 }
 

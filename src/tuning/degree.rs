@@ -119,7 +119,13 @@ mod tests {
             for n in 0..14 {
                 let d = Degree::from_index(start);
                 let expected = Degree::from_index((start + n) % NUM_DEGREES);
-                assert_eq!(d.shifted_by(n as i32), expected, "shift {} by {}", d.name(), n);
+                assert_eq!(
+                    d.shifted_by(n as i32),
+                    expected,
+                    "shift {} by {}",
+                    d.name(),
+                    n
+                );
             }
         }
         // Backward.

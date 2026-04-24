@@ -168,14 +168,14 @@ mod tests {
     #[test]
     fn canonical_cumulatives_match_reference() {
         let cases: &[(Genus, &[i32])] = &[
-            (Genus::Diatonic,       &[0, 12, 22, 30, 42, 54, 64, 72]),
-            (Genus::HardChromatic,  &[0,  6, 26, 30, 42, 48, 68, 72]),
-            (Genus::SoftChromatic,  &[0,  8, 22, 30, 42, 50, 64, 72]),
+            (Genus::Diatonic, &[0, 12, 22, 30, 42, 54, 64, 72]),
+            (Genus::HardChromatic, &[0, 6, 26, 30, 42, 48, 68, 72]),
+            (Genus::SoftChromatic, &[0, 8, 22, 30, 42, 50, 64, 72]),
             // GraveDiatonic cumulative from Ga: 0, 12, 22, 34, 42, 48, 64, 72.
             // Converting to Ni-origin (since Ga is at moria 30 below, i.e.
             // the Ga→Ga octave begins at 30 above Ni) is done in Region tests.
-            (Genus::GraveDiatonic,  &[0, 12, 22, 34, 42, 48, 64, 72]),
-            (Genus::EnharmonicZo,   &[0,  6, 18, 30, 42, 48, 60, 72]),
+            (Genus::GraveDiatonic, &[0, 12, 22, 34, 42, 48, 64, 72]),
+            (Genus::EnharmonicZo, &[0, 6, 18, 30, 42, 48, 60, 72]),
         ];
         for (genus, expected) in cases {
             let mut cum = vec![0i32];
