@@ -24,9 +24,16 @@
 
     <div class="control-group">
       <h2>Reference Ni</h2>
-      <label for="ni-hz-slider">
-        <span id="ni-hz-display">261.63</span> Hz
-      </label>
+      <div class="reference-ni-row">
+        <label for="ni-hz-slider" class="reference-ni-readout">
+          <span id="ni-hz-display">261.63</span> Hz
+          <span id="ni-note-display" class="reference-note-display">C4 +0c</span>
+        </label>
+        <div class="reference-snap-buttons" aria-label="Snap reference Ni to MIDI note">
+          <button id="ni-snap-up-btn" type="button" class="reference-snap-btn" title="Snap to next higher MIDI note">▲</button>
+          <button id="ni-snap-down-btn" type="button" class="reference-snap-btn" title="Snap to next lower MIDI note">▼</button>
+        </div>
+      </div>
       <input type="range" id="ni-hz-slider" min="200" max="550" step="0.01" value="261.63">
     </div>
 

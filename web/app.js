@@ -314,14 +314,78 @@ function selectPreset(idx) {
 
 // ── Wiring ────────────────────────────────────────────────────────────────────
 
+const CONCERT_NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+function hzToExactMidi(hz) {
+  return 69 + 12 * Math.log2(hz / 440);
+}
+
+function midiToHz(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+function nextMidiFromHz(hz, direction) {
+  const exactMidi = hzToExactMidi(hz);
+  const nearestMidi = Math.round(exactMidi);
+  const displaySnapsToMidi = Math.abs(exactMidi - nearestMidi) < 0.005;
+  if (displaySnapsToMidi) return nearestMidi + direction;
+  return direction > 0 ? Math.floor(exactMidi) + 1 : Math.ceil(exactMidi) - 1;
+}
+
+function formatConcertPitch(hz) {
+  if (!Number.isFinite(hz) || hz <= 0) return '';
+
+  const exactMidi = hzToExactMidi(hz);
+  let midi = Math.ceil(exactMidi - 0.5);
+  let cents = Math.round((exactMidi - midi) * 100);
+
+  if (cents <= -50) {
+    midi -= 1;
+    cents += 100;
+  } else if (cents > 50) {
+    midi += 1;
+    cents -= 100;
+  }
+
+  const noteName = CONCERT_NOTE_NAMES[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  const sign = cents >= 0 ? '+' : '';
+  return `${noteName}${octave} ${sign}${cents}c`;
+}
+
+function updateReferenceNiDisplay(hz) {
+  const niDisplay = document.getElementById('ni-hz-display');
+  const noteDisplay = document.getElementById('ni-note-display');
+  niDisplay.textContent = hz.toFixed(2);
+  noteDisplay.textContent = formatConcertPitch(hz);
+}
+
 function wireControls() {
   const slider    = document.getElementById('ni-hz-slider');
-  const niDisplay = document.getElementById('ni-hz-display');
+
+  const setReferenceNiHz = hz => {
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    const clampedHz = Math.min(max, Math.max(min, hz));
+    slider.value = clampedHz.toFixed(2);
+    updateReferenceNiDisplay(clampedHz);
+    app.grid.refNiHz = clampedHz;
+    gridChanged();
+  };
+
+  updateReferenceNiDisplay(parseFloat(slider.value));
   slider.addEventListener('input', () => {
     const hz = parseFloat(slider.value);
-    niDisplay.textContent = hz.toFixed(2);
+    updateReferenceNiDisplay(hz);
     app.grid.refNiHz = hz;
     gridChanged();
+  });
+
+  document.getElementById('ni-snap-up-btn').addEventListener('click', () => {
+    setReferenceNiHz(midiToHz(nextMidiFromHz(app.grid.refNiHz, 1)));
+  });
+  document.getElementById('ni-snap-down-btn').addEventListener('click', () => {
+    setReferenceNiHz(midiToHz(nextMidiFromHz(app.grid.refNiHz, -1)));
   });
 
   document.getElementById('shift-up-btn').addEventListener('click', () => {

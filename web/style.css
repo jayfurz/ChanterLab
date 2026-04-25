@@ -85,6 +85,43 @@ body {
 
 label { font-size: 12px; color: var(--text-dim); }
 
+.reference-ni-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reference-ni-readout {
+  flex: 1;
+  min-width: 0;
+}
+
+.reference-note-display {
+  display: block;
+  color: var(--accent2);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.reference-snap-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reference-snap-btn {
+  width: 28px;
+  height: 20px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+}
+.reference-snap-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
 input[type="range"] { width: 100%; accent-color: var(--accent2); }
 input[type="number"] {
   background: var(--bg);
