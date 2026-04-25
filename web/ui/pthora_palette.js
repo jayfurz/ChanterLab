@@ -98,12 +98,15 @@ export class PthoraPalette {
         const glyph = row.glyphs[i];
         const el = document.createElement('div');
         el.className = 'pthora-icon';
-        el.title = `${row.label} pthora — drop on a note to re-root as ${col.label}`;
+        el.title = `${row.label} pthora - drop on a note, or click while singing, to re-root as ${col.label}`;
+        el.tabIndex = 0;
+        el.setAttribute('role', 'button');
         el.innerHTML = `<span class="palette-glyph-sbmufl">${glyph}</span>`;
 
         makeDraggable(el, {
           payload: () => ({ type: 'pthora', genus: row.genus, degree: col.degree }),
           targetSelector: '#scale-ladder',
+          clickEvent: 'byzorgan:palette-click',
         });
         rowEl.appendChild(el);
       }

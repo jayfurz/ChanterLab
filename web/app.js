@@ -36,6 +36,7 @@ const app = {
   correctionVolume:  0.5,
   voiceSnapTable:    [],
   voiceLastCellId:   null,
+  voiceCurrentCellId: null,
   synthFollowEnabled: false,
   synthFollowVolume:  0.5,
   synthFollowCellId:  null,
@@ -87,6 +88,7 @@ function gridChanged() {
     .filter(c => Number.isFinite(c.cell_id) && Number.isFinite(c.moria))
     .sort((a, b) => a.moria - b.moria);
   app.voiceLastCellId = null;
+  app.voiceCurrentCellId = null;
   app.engine.updateTuning(cells, app.grid.refNiHz);
   updateIsonVoice(cells);
   stopSynthFollow();
@@ -180,6 +182,9 @@ function handlePitchEvent(msg) {
   } else if (!msg.gate_open) {
     app.voiceLastCellId = null;
   }
+  app.voiceCurrentCellId = msg.gate_open && isValidCellId(msg.cell_id)
+    ? msg.cell_id
+    : null;
 
   updateSynthFollowFromPitch(msg);
 
@@ -340,7 +345,51 @@ function wireControls() {
 function wirePalettes() {
   new PthoraPalette(document.getElementById('pthora-palette'));
   new ShadingPalette(document.getElementById('shading-palette'));
+  document.addEventListener('byzorgan:palette-click', e => {
+    applySymbolPayloadToCurrentSungCell(e.detail?.payload);
+  });
 }
+
+function applySymbolPayloadToCurrentSungCell(payload) {
+  if (!isValidCellId(app.voiceCurrentCellId)) return false;
+  const cell = findCellByMoria(app.voiceCurrentCellId);
+  if (!cell || cell.degree === null || !cell.enabled) return false;
+  return applySymbolPayloadToCell(payload, cell);
+}
+
+function findCellByMoria(moria) {
+  const cells = JSON.parse(app.grid.cellsJson());
+  return cells.find(c => c.moria === moria) ?? null;
+}
+
+function applySymbolPayloadToCell(payload, cell) {
+  if (!payload || !cell || cell.degree === null) return false;
+
+  let drop = null;
+  if (payload.type === 'pthora') {
+    drop = {
+      type: 'pthora',
+      genus: payload.genus,
+      degree: payload.degree,
+      dropMoria: cell.moria,
+      dropDegree: cell.degree,
+    };
+  } else if (payload.type === 'shading') {
+    drop = {
+      type: 'shading',
+      shading: payload.shading,
+      dropMoria: cell.moria,
+      dropDegree: cell.degree,
+    };
+  }
+  if (!drop) return false;
+
+  const ok = app.grid.applySymbolDrop(JSON.stringify(drop));
+  if (ok) app.gridChanged();
+  return ok;
+}
+
+app.applySymbolPayloadToCell = applySymbolPayloadToCell;
 
 // ── Accidental popup ──────────────────────────────────────────────────────────
 

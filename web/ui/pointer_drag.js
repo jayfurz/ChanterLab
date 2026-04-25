@@ -9,6 +9,7 @@
 //     payload: () => ({ ... }),      // called at drag start
 //     targetSelector: '#scale-ladder', // drop zone (closest match)
 //     dropEvent: 'byzorgan:palette-drop', // default is this
+//     clickEvent: 'byzorgan:palette-click', // optional click-without-drag event
 //     ghost: () => Node,             // optional; defaults to cloning src
 //   });
 //
@@ -22,10 +23,20 @@ export function makeDraggable(src, opts) {
     payload,
     targetSelector,
     dropEvent = 'byzorgan:palette-drop',
+    clickEvent = null,
     ghost: ghostFactory,
   } = opts;
 
   src.addEventListener('pointerdown', onDown);
+  if (clickEvent) {
+    src.addEventListener('keydown', onKeyDown);
+  }
+
+  function onKeyDown(e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    dispatchSourceEvent(clickEvent, src, payload(), null, null);
+  }
 
   function onDown(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -81,7 +92,10 @@ export function makeDraggable(src, opts) {
       const upX = ue.clientX;
       const upY = ue.clientY;
       cleanup();
-      if (!wasDragging) return;
+      if (!wasDragging) {
+        dispatchSourceEvent(clickEvent, src, data, upX, upY);
+        return;
+      }
       const target = document.elementFromPoint(upX, upY);
       const zone = target && target.closest(targetSelector);
       if (!zone) return;
@@ -110,6 +124,14 @@ export function makeDraggable(src, opts) {
       ghost = null;
     }
   }
+}
+
+function dispatchSourceEvent(eventName, src, data, x, y) {
+  if (!eventName) return;
+  src.dispatchEvent(new CustomEvent(eventName, {
+    bubbles: true,
+    detail: { payload: data, clientX: x, clientY: y },
+  }));
 }
 
 function makeGhost(factory, src) {

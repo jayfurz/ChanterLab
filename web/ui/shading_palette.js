@@ -25,19 +25,19 @@ const CP = {
 
 const ITEMS = [
   { label: 'Zygos',   shading: 'Zygos',        glyph: CP.ZYGOS,
-    tip: 'Zygos — drop on a degree cell to apply this chroa' },
+    tip: 'Zygos - drop on a degree cell, or click while singing, to apply this chroa' },
   { label: 'Kliton',  shading: 'Kliton',       glyph: CP.KLITON,
-    tip: 'Kliton — drop on a degree cell to apply this chroa' },
+    tip: 'Kliton - drop on a degree cell, or click while singing, to apply this chroa' },
   { label: 'Spathi',  shading: 'Spathi',       glyph: CP.SPATHI,
-    tip: 'Spathi — adjacent intervals become 4 moria on either side of the drop' },
+    tip: 'Spathi - click while singing or drop on a degree cell to apply adjacent 4-moria intervals' },
   { label: 'Ajem',    shading: 'Enharmonic',   glyph: CP.ENHARMONIC,
-    tip: 'Enharmonic (Ajem) — drop to apply the enharmonic modifier' },
+    tip: 'Enharmonic (Ajem) - click while singing or drop to apply the enharmonic modifier' },
   { label: '♯ Gen',   shading: 'DiesisGeniki', glyph: CP.DIESIS_GENIKI,
-    tip: 'Geniki Diesis (general sharp) — raises every occurrence of this note' },
+    tip: 'Geniki Diesis (general sharp) - click while singing or drop to raise this note' },
   { label: '♭ Gen',   shading: 'YfesisGeniki', glyph: CP.YFESIS_GENIKI,
-    tip: 'Geniki Yfesis (general flat) — lowers every occurrence of this note' },
+    tip: 'Geniki Yfesis (general flat) - click while singing or drop to lower this note' },
   { label: 'Clear',   shading: '',             glyph: '',
-    tip: 'Clear any shading on the target region' },
+    tip: 'Clear shading on the sung note or dropped target region' },
 ];
 
 export class ShadingPalette {
@@ -49,6 +49,8 @@ export class ShadingPalette {
       const el = document.createElement('div');
       el.className = 'shading-icon';
       el.title = item.tip;
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
 
       if (item.glyph) {
         el.innerHTML = `<span class="palette-glyph-sbmufl">${item.glyph}</span>`
@@ -62,6 +64,7 @@ export class ShadingPalette {
       makeDraggable(el, {
         payload: () => ({ type: 'shading', shading: item.shading }),
         targetSelector: '#scale-ladder',
+        clickEvent: 'byzorgan:palette-click',
       });
       row.appendChild(el);
     }

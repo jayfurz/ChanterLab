@@ -315,27 +315,7 @@ export class ScaleLadder {
     const rect = this.canvas.getBoundingClientRect();
     const cell = this._hitTest(clientY - rect.top);
     if (!cell) return;
-
-    if (payload.type === 'pthora') {
-      if (cell.degree === null) return;
-      this.app.grid.applySymbolDrop(JSON.stringify({
-        type: 'pthora',
-        genus: payload.genus,
-        degree: payload.degree,
-        dropMoria: cell.moria,
-        dropDegree: cell.degree,
-      }));
-      this.app.gridChanged();
-    } else if (payload.type === 'shading') {
-      if (cell.degree === null) return;
-      this.app.grid.applySymbolDrop(JSON.stringify({
-        type: 'shading',
-        shading: payload.shading,
-        dropMoria: cell.moria,
-        dropDegree: cell.degree,
-      }));
-      this.app.gridChanged();
-    }
+    this.app.applySymbolPayloadToCell?.(payload, cell);
   }
 
   _onPaletteHover(e) {
