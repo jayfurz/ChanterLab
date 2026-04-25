@@ -6,6 +6,7 @@
 
 pub mod cell;
 pub mod degree;
+pub mod event;
 pub mod genus;
 pub mod grid;
 pub mod pthora;
@@ -14,6 +15,9 @@ pub mod shading;
 
 pub use cell::{Cell, CellOverride};
 pub use degree::{Degree, NUM_DEGREES};
+pub use event::{
+    ChroaRule, EventId, ModulatorRule, PthoraRule, SymbolDrop, TuningEvent, TuningEventKind,
+};
 pub use genus::Genus;
 pub use grid::{moria_to_hz, nearest_enabled_cell, NearestCellResult, TuningGrid};
 pub use pthora::Pthora;

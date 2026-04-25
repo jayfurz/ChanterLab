@@ -1,9 +1,9 @@
-//! Pthora — a modulation that changes the active genus from a specific
-//! scale position onward.
+//! Pthora — a modulation that reanchors the active genus at a specific scale
+//! position.
 //!
-//! See `docs/ARCHITECTURE.md` §3.5. Dropping a pthora on a moria position M
-//! causes `TuningGrid::apply_pthora` to split the containing region at M;
-//! the new region `[M, …)` adopts the pthora's `(genus, target_degree)`.
+//! Dropping a pthora on a moria position M causes `TuningGrid::apply_pthora`
+//! to rebuild the containing region bidirectionally from M; adjacent
+//! pre-existing regions are preserved.
 //!
 //! The engine accepts any `(genus, degree)` combination on any moria — the
 //! canonical pthora families are a UI concern, not an engine constraint.

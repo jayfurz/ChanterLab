@@ -4,21 +4,23 @@
 //!
 //! - `ref_ni_hz`: reference frequency for Ni at moria 0.
 //! - `low_moria` / `high_moria`: visible cell window (exclusive end).
-//! - `regions`: contiguous, ascending; each owns a (genus, root_degree,
-//!   shading) triple for its span. Regions may extend past the visible
-//!   window to align root_degree naturally (e.g. on a Ni position).
+//! - `regions`: contiguous, ascending spans. Each span has an independent
+//!   musical anchor (`anchor_moria`, `anchor_degree`) so pthorae can repaint
+//!   a section bidirectionally from the drop point.
 //!
 //! Cells are *derived*. Nothing outside the grid stores cell state.
 //! `cells()` materializes the ladder: one cell every 2 moria inside
 //! `[low_moria, high_moria)`, with `degree: Some(..)` set on the positions
 //! that sit on the region's rotated scale.
 //!
-//! Open generators like `EnharmonicGa` are skipped by `cells()` for now;
-//! their tiling lands in Task 1.5.
+//! Open generators like `EnharmonicGa` are tiled from the region anchor.
 
 use std::collections::HashMap;
 
-use crate::tuning::{Cell, CellOverride, Degree, Genus, Region};
+use crate::tuning::{
+    Cell, CellOverride, ChroaRule, Degree, EventId, Genus, ModulatorRule, PthoraRule, Region,
+    Shading, SymbolDrop, TuningEvent, TuningEventKind, NUM_DEGREES,
+};
 
 /// Default reference frequency: middle C (C4).
 pub const DEFAULT_REF_NI_HZ: f64 = 261.63;
@@ -40,14 +42,158 @@ pub fn moria_to_hz(ref_ni_hz: f64, moria: i32) -> f64 {
 
 /// The authoritative tuning state. See module docs.
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct TuningGrid {
     pub ref_ni_hz: f64,
     pub low_moria: i32,
     pub high_moria: i32,
     regions: Vec<Region>,
+    events: Vec<TuningEvent>,
+    next_event_id: EventId,
     /// Per-cell user overrides keyed by the cell's nominal moria.
     overrides: HashMap<i32, CellOverride>,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for TuningGrid {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        use serde::Deserialize;
+
+        #[derive(Deserialize)]
+        struct RawGrid {
+            ref_ni_hz: f64,
+            low_moria: i32,
+            high_moria: i32,
+            regions: Vec<RawRegion>,
+            #[serde(default)]
+            events: Vec<TuningEvent>,
+            #[serde(default)]
+            next_event_id: Option<EventId>,
+            #[serde(default)]
+            overrides: HashMap<i32, CellOverride>,
+        }
+
+        #[derive(Deserialize)]
+        struct RawRegion {
+            start_moria: i32,
+            end_moria: i32,
+            genus: Genus,
+            #[serde(default)]
+            anchor_moria: Option<i32>,
+            #[serde(default)]
+            anchor_degree: Option<Degree>,
+            #[serde(default)]
+            root_degree: Option<Degree>,
+            #[serde(default)]
+            active_rules: Vec<EventId>,
+            #[serde(default)]
+            shading: Option<LegacyShading>,
+        }
+
+        #[derive(Clone, Copy, Deserialize)]
+        enum LegacyShading {
+            Zygos,
+            Kliton,
+            Spathi,
+            SpathiKe,
+            SpathiGa,
+            Enharmonic,
+        }
+
+        let raw = RawGrid::deserialize(deserializer)?;
+        let mut events = raw.events;
+        let mut next_event_id = raw.next_event_id.unwrap_or(1).max(1);
+        if let Some(max_id) = events.iter().map(|event| event.id).max() {
+            next_event_id = next_event_id.max(max_id + 1);
+        }
+
+        let mut regions = Vec::with_capacity(raw.regions.len());
+        for raw_region in raw.regions {
+            let anchor_moria = raw_region.anchor_moria.unwrap_or(raw_region.start_moria);
+            let anchor_degree = raw_region
+                .anchor_degree
+                .or(raw_region.root_degree)
+                .ok_or_else(|| D::Error::missing_field("anchor_degree"))?;
+            let mut active_rules = raw_region.active_rules;
+
+            if let Some(legacy) = raw_region.shading {
+                let (symbol, legacy_anchor_degree) = match legacy {
+                    LegacyShading::Zygos => (Shading::Zygos, Degree::Di),
+                    LegacyShading::Kliton => (Shading::Kliton, Degree::Di),
+                    LegacyShading::Spathi => (Shading::Spathi, anchor_degree),
+                    LegacyShading::SpathiKe => (Shading::Spathi, Degree::Ke),
+                    LegacyShading::SpathiGa => (Shading::Spathi, Degree::Ga),
+                    LegacyShading::Enharmonic => (Shading::Enharmonic, anchor_degree),
+                };
+                let legacy_anchor_moria = closed_degree_moria_from_anchor(
+                    &raw_region.genus,
+                    anchor_moria,
+                    anchor_degree,
+                    legacy_anchor_degree,
+                )
+                .unwrap_or(anchor_moria);
+                let event_id = next_event_id;
+                next_event_id += 1;
+                events.push(TuningEvent {
+                    id: event_id,
+                    drop_moria: legacy_anchor_moria,
+                    drop_degree: legacy_anchor_degree,
+                    resolved_anchor_moria: legacy_anchor_moria,
+                    resolved_anchor_degree: legacy_anchor_degree,
+                    kind: TuningEventKind::ChroaPatch(ChroaRule {
+                        symbol,
+                        prior_anchor_moria: anchor_moria,
+                        prior_anchor_degree: anchor_degree,
+                        reanchors_region: false,
+                    }),
+                });
+                active_rules.push(event_id);
+            }
+
+            regions.push(Region {
+                start_moria: raw_region.start_moria,
+                end_moria: raw_region.end_moria,
+                genus: raw_region.genus,
+                anchor_moria,
+                anchor_degree,
+                active_rules,
+            });
+        }
+
+        Ok(Self {
+            ref_ni_hz: raw.ref_ni_hz,
+            low_moria: raw.low_moria,
+            high_moria: raw.high_moria,
+            regions,
+            events,
+            next_event_id,
+            overrides: raw.overrides,
+        })
+    }
+}
+
+#[cfg(feature = "serde")]
+fn closed_degree_moria_from_anchor(
+    genus: &Genus,
+    anchor_moria: i32,
+    anchor_degree: Degree,
+    target_degree: Degree,
+) -> Option<i32> {
+    let region = Region::new(0, 0, genus.clone(), anchor_moria, anchor_degree);
+    let steps = region.base_steps_by_degree()?;
+    let mut m = anchor_moria;
+    let mut degree = anchor_degree;
+    let count = (target_degree.index() as i32 - anchor_degree.index() as i32)
+        .rem_euclid(NUM_DEGREES as i32);
+    for _ in 0..count {
+        m += steps[degree.index()];
+        degree = degree.shifted_by(1);
+    }
+    Some(m)
 }
 
 #[cfg(feature = "serde")]
@@ -78,16 +224,16 @@ impl TuningGrid {
 
     /// Build a single-region grid with the given preset.
     ///
-    /// `start_moria` and `end_moria` are snapped outward to multiples of 72
-    /// so the region's `root_degree` lands naturally on the 72-moria Ni
-    /// lattice (see module docs). Panics if the preset genus is not closed —
-    /// open generators (`EnharmonicGa`) need dedicated tiling.
+    /// `start_moria` and `end_moria` are snapped outward to multiples of 72.
+    /// The region's initial anchor sits at `start_moria`. Panics if the
+    /// preset genus is not closed — open generators (`EnharmonicGa`) need
+    /// dedicated tiling.
     pub fn with_preset(
         ref_ni_hz: f64,
         low_moria: i32,
         high_moria: i32,
         genus: Genus,
-        root_degree: Degree,
+        anchor_degree: Degree,
     ) -> Self {
         assert!(
             genus.is_closed(),
@@ -97,24 +243,24 @@ impl TuningGrid {
         assert!(low_moria < high_moria, "low_moria must be < high_moria");
         let start_moria = floor_to_multiple(low_moria, OCTAVE_MORIA);
         let end_moria = ceil_to_multiple(high_moria, OCTAVE_MORIA);
-        let region = Region {
-            start_moria,
-            end_moria,
-            genus,
-            root_degree,
-            shading: None,
-        };
+        let region = Region::new(start_moria, end_moria, genus, start_moria, anchor_degree);
         Self {
             ref_ni_hz,
             low_moria,
             high_moria,
             regions: vec![region],
+            events: Vec::new(),
+            next_event_id: 1,
             overrides: HashMap::new(),
         }
     }
 
     pub fn regions(&self) -> &[Region] {
         &self.regions
+    }
+
+    pub fn events(&self) -> &[TuningEvent] {
+        &self.events
     }
 
     /// Read-only access to the override map.
@@ -188,67 +334,360 @@ impl TuningGrid {
             .find(|(_, r)| r.contains(moria))
     }
 
-    /// Set or clear the shading on the region containing `moria`.
-    ///
-    /// Returns `false` if no region contains `moria`.
-    pub fn apply_shading(&mut self, moria: i32, shading: Option<crate::tuning::Shading>) -> bool {
-        if let Some(idx) = self.regions.iter().position(|r| r.contains(moria)) {
-            self.regions[idx].shading = shading;
-            true
-        } else {
-            false
+    /// Apply a typed semantic palette drop.
+    pub fn apply_symbol_drop(&mut self, drop: SymbolDrop) -> bool {
+        match drop {
+            SymbolDrop::Pthora {
+                drop_moria,
+                drop_degree,
+                genus,
+                target_degree,
+            } => self.apply_pthora_drop(drop_moria, drop_degree, genus, target_degree),
+            SymbolDrop::Chroa {
+                drop_moria,
+                drop_degree,
+                symbol,
+            } => self.apply_chroa_drop(drop_moria, drop_degree, symbol),
+            SymbolDrop::Geniki {
+                drop_moria,
+                drop_degree,
+                shift,
+            } => self.apply_geniki_drop(drop_moria, drop_degree, shift),
+            SymbolDrop::ClearChroa {
+                drop_moria,
+                drop_degree: _,
+            } => self.clear_chroa_at(drop_moria),
         }
     }
 
-    /// Apply a pthora at `moria`: split the containing region at `moria` and
-    /// let `[moria, end)` adopt `(new_genus, target_degree)`.
+    /// Set or clear the local chroa/enharmonic modifier on the region
+    /// containing `moria`.
+    ///
+    /// Compatibility wrapper for the old string-only API. New callers should
+    /// use `apply_symbol_drop` so the clicked degree is explicit.
+    pub fn apply_shading(&mut self, moria: i32, shading: Option<Shading>) -> bool {
+        if shading.is_none() {
+            return self.clear_chroa_at(moria);
+        }
+        let Some(cell) = self
+            .cells()
+            .into_iter()
+            .find(|c| c.moria == moria && c.degree.is_some())
+        else {
+            return false;
+        };
+        let degree = cell.degree.unwrap();
+        self.apply_chroa_drop(moria, degree, shading.unwrap())
+    }
+
+    /// Apply a pthora at `moria`: rebuild the containing region around the
+    /// resolved pthora anchor. Unlike the old implementation, this does not
+    /// split the region at `moria`; cells on both sides of the anchor are
+    /// reinterpreted until the pre-existing region boundary is reached.
     ///
     /// Returns `false` if `moria` is not covered by any region.
-    ///
-    /// If `moria` equals a region's `start_moria`, the split produces a
-    /// zero-width left remnant which is discarded — only the right half is
-    /// kept. This cleanly replaces an existing pthora boundary.
     pub fn apply_pthora(&mut self, moria: i32, new_genus: Genus, target_degree: Degree) -> bool {
+        let drop_degree = self
+            .cells()
+            .into_iter()
+            .find(|c| c.moria == moria)
+            .and_then(|c| c.degree)
+            .unwrap_or(target_degree);
+        self.apply_pthora_drop(moria, drop_degree, new_genus, target_degree)
+    }
+
+    fn apply_pthora_drop(
+        &mut self,
+        moria: i32,
+        drop_degree: Degree,
+        new_genus: Genus,
+        target_degree: Degree,
+    ) -> bool {
         let Some(idx) = self.regions.iter().position(|r| r.contains(moria)) else {
             return false;
         };
-        let old = self.regions.remove(idx);
-        // Build the two halves, discarding a zero-width left remnant.
-        if old.start_moria < moria {
-            self.regions.insert(
-                idx,
-                Region {
-                    start_moria: old.start_moria,
-                    end_moria: moria,
-                    genus: old.genus,
-                    root_degree: old.root_degree,
-                    shading: old.shading,
-                },
-            );
-            self.regions.insert(
-                idx + 1,
-                Region {
-                    start_moria: moria,
-                    end_moria: old.end_moria,
-                    genus: new_genus,
-                    root_degree: target_degree,
-                    shading: None,
-                },
-            );
-        } else {
-            // moria == old.start_moria: replace in-place.
-            self.regions.insert(
-                idx,
-                Region {
-                    start_moria: moria,
-                    end_moria: old.end_moria,
-                    genus: new_genus,
-                    root_degree: target_degree,
-                    shading: None,
-                },
-            );
-        }
+
+        let (anchor_moria, anchor_degree) =
+            self.resolve_pthora_anchor(idx, moria, drop_degree, &new_genus, target_degree);
+
+        self.remove_region_events(idx);
+        let event_id = self.push_event(
+            moria,
+            drop_degree,
+            anchor_moria,
+            anchor_degree,
+            TuningEventKind::PthoraReanchor(PthoraRule {
+                genus: new_genus.clone(),
+                anchor_degree,
+            }),
+        );
+
+        let region = &mut self.regions[idx];
+        region.genus = new_genus;
+        region.anchor_moria = anchor_moria;
+        region.anchor_degree = anchor_degree;
+        region.active_rules = vec![event_id];
         true
+    }
+
+    fn apply_chroa_drop(&mut self, moria: i32, drop_degree: Degree, symbol: Shading) -> bool {
+        let Some(idx) = self.regions.iter().position(|r| r.contains(moria)) else {
+            return false;
+        };
+
+        let (anchor_moria, anchor_degree, reanchor_region) =
+            self.resolve_chroa_anchor(idx, moria, drop_degree, symbol);
+        let prior_anchor_moria = self.regions[idx].anchor_moria;
+        let prior_anchor_degree = self.regions[idx].anchor_degree;
+
+        self.remove_chroa_events(idx);
+        let event_id = self.push_event(
+            moria,
+            drop_degree,
+            anchor_moria,
+            anchor_degree,
+            TuningEventKind::ChroaPatch(ChroaRule {
+                symbol,
+                prior_anchor_moria,
+                prior_anchor_degree,
+                reanchors_region: reanchor_region,
+            }),
+        );
+
+        let region = &mut self.regions[idx];
+        if reanchor_region {
+            region.anchor_moria = anchor_moria;
+            region.anchor_degree = anchor_degree;
+        }
+        region.active_rules.push(event_id);
+        true
+    }
+
+    fn apply_geniki_drop(&mut self, moria: i32, drop_degree: Degree, shift: i32) -> bool {
+        if self.region_at(moria).is_none() {
+            return false;
+        }
+        self.events.retain(|event| {
+            !matches!(
+                &event.kind,
+                TuningEventKind::GenikiModulator(ModulatorRule { degree, .. })
+                    if *degree == drop_degree
+            )
+        });
+        self.push_event(
+            moria,
+            drop_degree,
+            moria,
+            drop_degree,
+            TuningEventKind::GenikiModulator(ModulatorRule {
+                degree: drop_degree,
+                shift,
+            }),
+        );
+        true
+    }
+
+    fn clear_chroa_at(&mut self, moria: i32) -> bool {
+        let Some(idx) = self.regions.iter().position(|r| r.contains(moria)) else {
+            return false;
+        };
+        self.remove_chroa_events(idx);
+        true
+    }
+
+    fn push_event(
+        &mut self,
+        drop_moria: i32,
+        drop_degree: Degree,
+        resolved_anchor_moria: i32,
+        resolved_anchor_degree: Degree,
+        kind: TuningEventKind,
+    ) -> EventId {
+        let id = self.next_event_id;
+        self.next_event_id += 1;
+        self.events.push(TuningEvent {
+            id,
+            drop_moria,
+            drop_degree,
+            resolved_anchor_moria,
+            resolved_anchor_degree,
+            kind,
+        });
+        id
+    }
+
+    fn remove_region_events(&mut self, region_idx: usize) {
+        let ids = self.regions[region_idx].active_rules.clone();
+        self.regions[region_idx].active_rules.clear();
+        self.events.retain(|event| !ids.contains(&event.id));
+    }
+
+    fn remove_chroa_events(&mut self, region_idx: usize) {
+        let chroa_ids: Vec<EventId> = self.regions[region_idx]
+            .active_rules
+            .iter()
+            .copied()
+            .filter(|id| {
+                self.events.iter().any(|event| {
+                    event.id == *id && matches!(&event.kind, TuningEventKind::ChroaPatch(_))
+                })
+            })
+            .collect();
+        let restore_anchor = self.events.iter().rev().find_map(|event| {
+            if !chroa_ids.contains(&event.id) {
+                return None;
+            }
+            match &event.kind {
+                TuningEventKind::ChroaPatch(rule) if rule.reanchors_region => {
+                    Some((rule.prior_anchor_moria, rule.prior_anchor_degree))
+                }
+                _ => None,
+            }
+        });
+        self.regions[region_idx]
+            .active_rules
+            .retain(|id| !chroa_ids.contains(id));
+        if let Some((anchor_moria, anchor_degree)) = restore_anchor {
+            self.regions[region_idx].anchor_moria = anchor_moria;
+            self.regions[region_idx].anchor_degree = anchor_degree;
+        }
+        self.events.retain(|event| !chroa_ids.contains(&event.id));
+    }
+
+    fn resolve_pthora_anchor(
+        &self,
+        region_idx: usize,
+        moria: i32,
+        drop_degree: Degree,
+        new_genus: &Genus,
+        target_degree: Degree,
+    ) -> (i32, Degree) {
+        // Soft-chromatic Ke/Pa pthorae can move the dropped note: the new
+        // anchor is 8 moria above the prior lower degree.
+        if matches!(new_genus, Genus::SoftChromatic)
+            && matches!(target_degree, Degree::Ke | Degree::Pa)
+            && drop_degree == target_degree
+        {
+            if let Some(lower) = self.related_degree_moria(region_idx, moria, drop_degree, -1) {
+                return (lower + 8, target_degree);
+            }
+        }
+
+        // A diatonic Ga pthora dropped onto Zo/Vou uses the same "move the
+        // clicked note until the lower interval is 6" behavior as Ajem.
+        if matches!(new_genus, Genus::Diatonic)
+            && target_degree == Degree::Ga
+            && matches!(drop_degree, Degree::Zo | Degree::Vou)
+        {
+            if let Some(lower) = self.related_degree_moria(region_idx, moria, drop_degree, -1) {
+                return (lower + 6, target_degree);
+            }
+        }
+
+        (moria, target_degree)
+    }
+
+    fn resolve_chroa_anchor(
+        &self,
+        region_idx: usize,
+        moria: i32,
+        drop_degree: Degree,
+        symbol: Shading,
+    ) -> (i32, Degree, bool) {
+        match symbol {
+            Shading::Zygos if drop_degree == Degree::Vou => {
+                let anchor = self
+                    .related_degree_moria(region_idx, moria, drop_degree, 2)
+                    .unwrap_or(moria);
+                (anchor, Degree::Di, false)
+            }
+            Shading::Zygos => (moria, drop_degree, false),
+            Shading::Kliton => {
+                if drop_degree == Degree::Pa && self.is_spathi_flattened_pa(region_idx, moria) {
+                    (moria, Degree::Ni, true)
+                } else {
+                    (moria, drop_degree, false)
+                }
+            }
+            Shading::Spathi => (moria, drop_degree, false),
+            Shading::Enharmonic => {
+                let anchor_degree = match drop_degree {
+                    Degree::Ga => Degree::Vou,
+                    Degree::Ni => Degree::Zo,
+                    other => other,
+                };
+                let anchor_seed = if anchor_degree == drop_degree {
+                    moria
+                } else {
+                    self.moria_for_degree_near(region_idx, moria, anchor_degree)
+                        .unwrap_or(moria)
+                };
+                let anchor_moria = self
+                    .related_degree_moria(region_idx, anchor_seed, anchor_degree, -1)
+                    .map(|lower| lower + 6)
+                    .unwrap_or(anchor_seed);
+                (anchor_moria, anchor_degree, false)
+            }
+        }
+    }
+
+    fn is_spathi_flattened_pa(&self, region_idx: usize, moria: i32) -> bool {
+        self.regions[region_idx].active_rules.iter().any(|id| {
+            self.events.iter().any(|event| {
+                event.id == *id
+                    && matches!(
+                        &event.kind,
+                        TuningEventKind::ChroaPatch(ChroaRule {
+                            symbol: Shading::Spathi,
+                            ..
+                        })
+                    )
+                    && event.resolved_anchor_degree == Degree::Ni
+                    && event.resolved_anchor_moria + 4 == moria
+            })
+        })
+    }
+
+    fn related_degree_moria(
+        &self,
+        region_idx: usize,
+        origin_moria: i32,
+        origin_degree: Degree,
+        rel: i32,
+    ) -> Option<i32> {
+        let target = origin_degree.shifted_by(rel);
+        let cells = self.cells();
+        let region = &self.regions[region_idx];
+        let candidates = cells
+            .into_iter()
+            .filter(|cell| {
+                cell.region_idx == region_idx
+                    && cell.degree == Some(target)
+                    && region.contains(cell.moria)
+            })
+            .map(|cell| cell.moria);
+        if rel >= 0 {
+            candidates
+                .filter(|m| *m >= origin_moria)
+                .min_by_key(|m| *m - origin_moria)
+        } else {
+            candidates
+                .filter(|m| *m <= origin_moria)
+                .max_by_key(|m| origin_moria - *m)
+        }
+    }
+
+    fn moria_for_degree_near(
+        &self,
+        region_idx: usize,
+        origin_moria: i32,
+        target: Degree,
+    ) -> Option<i32> {
+        self.cells()
+            .into_iter()
+            .filter(|cell| cell.region_idx == region_idx && cell.degree == Some(target))
+            .map(|cell| cell.moria)
+            .min_by_key(|m| (m - origin_moria).abs())
     }
 
     /// Remove the pthora at `moria` (i.e. remove the region *starting* at
@@ -258,7 +697,7 @@ impl TuningGrid {
     /// remove is the first region (nothing to merge into).
     ///
     /// The merge absorbs the removed region's span into the left neighbor's
-    /// end_moria without changing the neighbor's genus or root_degree.
+    /// end_moria without changing the neighbor's genus or anchor.
     pub fn remove_pthora(&mut self, moria: i32) -> bool {
         let Some(idx) = self.regions.iter().position(|r| r.start_moria == moria) else {
             return false;
@@ -290,11 +729,12 @@ impl TuningGrid {
             let mut m = align_up(start, CELL_STEP);
             while m < end {
                 let degree = degree_map.get(&m).copied();
+                let geniki_shift = degree.map(|d| self.geniki_shift_for(d)).unwrap_or_default();
                 let (accidental, enabled) = self
                     .overrides
                     .get(&m)
-                    .map(|ov| (ov.accidental, ov.enabled))
-                    .unwrap_or((0, degree.is_some()));
+                    .map(|ov| (ov.accidental + geniki_shift, ov.enabled))
+                    .unwrap_or((geniki_shift, degree.is_some()));
                 cells.push(Cell {
                     moria: m,
                     degree,
@@ -313,16 +753,43 @@ impl TuningGrid {
     /// returning a map from absolute moria → Degree.
     fn build_degree_map(&self, region: &Region) -> HashMap<i32, Degree> {
         let mut map = HashMap::new();
-        let octave = region.degree_positions();
-        let mut offset = 0;
-        while region.start_moria + offset < region.end_moria {
-            for &(degree, base) in &octave {
-                let m = base + offset;
-                if m >= region.start_moria && m < region.end_moria {
-                    map.insert(m, degree);
-                }
+        let Some(steps) = self.effective_steps_by_degree(region) else {
+            return map;
+        };
+
+        // Walk upward from the anchor, including repeated octaves.
+        let mut m = region.anchor_moria;
+        let mut degree = region.anchor_degree;
+        while m < region.end_moria {
+            if m >= region.start_moria {
+                map.insert(m, degree);
             }
-            offset += OCTAVE_MORIA;
+            let step = steps[degree.index()];
+            if step <= 0 {
+                break;
+            }
+            m += step;
+            degree = degree.shifted_by(1);
+        }
+
+        // Walk downward from the anchor so cells below the drop are also
+        // reinterpreted by the active genus/patches.
+        let mut m = region.anchor_moria;
+        let mut degree = region.anchor_degree;
+        loop {
+            let prev = degree.shifted_by(-1);
+            let step = steps[prev.index()];
+            if step <= 0 {
+                break;
+            }
+            m -= step;
+            degree = prev;
+            if m < region.start_moria {
+                break;
+            }
+            if m < region.end_moria {
+                map.insert(m, degree);
+            }
         }
         map
     }
@@ -331,7 +798,7 @@ impl TuningGrid {
     ///
     /// Each generator step lands on an absolute moria position. These
     /// positions are assigned sequential degree names starting from
-    /// `region.root_degree`, cycling through all seven degrees as the
+    /// `region.anchor_degree`, cycling through all seven degrees as the
     /// generator repeats. This naming is a convention for the UI — the true
     /// tonal identity of each position comes from the tetrachord structure,
     /// not the named degree.
@@ -341,18 +808,100 @@ impl TuningGrid {
     fn build_generator_map(&self, region: &Region) -> HashMap<i32, Degree> {
         let generator = region.genus.intervals();
         let mut map = HashMap::new();
-        let mut m = region.start_moria;
+        let mut m = region.anchor_moria;
+        let mut degree = region.anchor_degree;
         let mut step_idx: i32 = 0;
         while m < region.end_moria {
-            let degree = region.root_degree.shifted_by(step_idx);
-            map.insert(m, degree);
+            if m >= region.start_moria {
+                map.insert(m, degree);
+            }
             // Advance to the next generator step, cycling through the
             // generator slice.
             let gen_step = generator[(step_idx as usize) % generator.len()];
             m += gen_step;
+            degree = degree.shifted_by(1);
             step_idx += 1;
         }
+
+        let mut m = region.anchor_moria;
+        let mut degree = region.anchor_degree;
+        let mut step_idx: i32 = 0;
+        loop {
+            step_idx -= 1;
+            let prev = degree.shifted_by(-1);
+            let gen_step = generator[step_idx.rem_euclid(generator.len() as i32) as usize];
+            m -= gen_step;
+            degree = prev;
+            if m < region.start_moria {
+                break;
+            }
+            if m < region.end_moria {
+                map.insert(m, degree);
+            }
+        }
         map
+    }
+
+    fn effective_steps_by_degree(&self, region: &Region) -> Option<[i32; NUM_DEGREES]> {
+        let mut steps = region.base_steps_by_degree()?;
+        for event_id in &region.active_rules {
+            let Some(event) = self.events.iter().find(|event| event.id == *event_id) else {
+                continue;
+            };
+            let TuningEventKind::ChroaPatch(rule) = &event.kind else {
+                continue;
+            };
+            Self::apply_chroa_patch(&mut steps, rule.symbol, event.resolved_anchor_degree);
+        }
+        Some(steps)
+    }
+
+    fn apply_chroa_patch(steps: &mut [i32; NUM_DEGREES], symbol: Shading, anchor: Degree) {
+        match symbol {
+            Shading::Zygos => {
+                steps[anchor.shifted_by(-4).index()] = 18;
+                steps[anchor.shifted_by(-3).index()] = 4;
+                steps[anchor.shifted_by(-2).index()] = 16;
+                steps[anchor.shifted_by(-1).index()] = 4;
+            }
+            Shading::Kliton => {
+                steps[anchor.shifted_by(-3).index()] = 14;
+                steps[anchor.shifted_by(-2).index()] = 12;
+                steps[anchor.shifted_by(-1).index()] = 4;
+            }
+            Shading::Spathi => {
+                let below = anchor.shifted_by(-1);
+                let above = anchor;
+                let outer_below = anchor.shifted_by(-2);
+                let outer_above = anchor.shifted_by(1);
+                let old_below = steps[below.index()];
+                let old_above = steps[above.index()];
+                steps[below.index()] = 4;
+                steps[above.index()] = 4;
+                steps[outer_below.index()] += old_below - 4;
+                steps[outer_above.index()] += old_above - 4;
+            }
+            Shading::Enharmonic => {
+                let below = anchor.shifted_by(-1);
+                let old_below = steps[below.index()];
+                steps[below.index()] = 6;
+                steps[anchor.index()] += old_below - 6;
+            }
+        }
+    }
+
+    fn geniki_shift_for(&self, degree: Degree) -> i32 {
+        self.events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                TuningEventKind::GenikiModulator(ModulatorRule { degree: d, shift })
+                    if *d == degree =>
+                {
+                    Some(*shift)
+                }
+                _ => None,
+            })
+            .sum()
     }
 }
 
@@ -587,8 +1136,9 @@ mod tests {
         assert_eq!(r.start_moria, -144);
         assert_eq!(r.end_moria, 144);
         assert_eq!(r.genus, Genus::Diatonic);
-        assert_eq!(r.root_degree, Degree::Ni);
-        assert_eq!(r.shading, None);
+        assert_eq!(r.anchor_moria, -144);
+        assert_eq!(r.anchor_degree, Degree::Ni);
+        assert!(r.active_rules.is_empty());
     }
 
     /// Default grid has cells at every even moria in [-108, 108).
@@ -707,13 +1257,15 @@ mod tests {
             ref_ni_hz: DEFAULT_REF_NI_HZ,
             low_moria: low,
             high_moria: high,
-            regions: vec![Region {
-                start_moria: start,
-                end_moria: end,
-                genus: Genus::EnharmonicGa,
-                root_degree: Degree::Ga,
-                shading: None,
-            }],
+            regions: vec![Region::new(
+                start,
+                end,
+                Genus::EnharmonicGa,
+                start,
+                Degree::Ga,
+            )],
+            events: Vec::new(),
+            next_event_id: 1,
             overrides: HashMap::new(),
         }
     }
@@ -804,29 +1356,27 @@ mod tests {
 
     // ── Pthora application tests ───────────────────────────────────────────
 
-    /// Applying a pthora mid-region produces two contiguous regions.
+    /// Applying a pthora mid-region reanchors the containing region without
+    /// turning the drop point into a boundary.
     #[test]
-    fn apply_pthora_splits_region() {
+    fn apply_pthora_reanchors_existing_region() {
         let mut g = TuningGrid::new_default();
         assert_eq!(g.regions().len(), 1);
         // Drop HardChromatic from Pa at moria=30 (where Ga sits in Diatonic).
         let ok = g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
         assert!(ok);
-        assert_eq!(g.regions().len(), 2);
-        let r0 = &g.regions()[0];
-        let r1 = &g.regions()[1];
-        // Left remnant keeps Diatonic.
-        assert_eq!(r0.genus, Genus::Diatonic);
-        assert_eq!(r0.start_moria, -144);
-        assert_eq!(r0.end_moria, 30);
-        // Right region starts the pthora.
-        assert_eq!(r1.genus, Genus::HardChromatic);
-        assert_eq!(r1.root_degree, Degree::Pa);
-        assert_eq!(r1.start_moria, 30);
-        assert_eq!(r1.end_moria, 144);
+        assert_eq!(g.regions().len(), 1);
+        let r = &g.regions()[0];
+        assert_eq!(r.genus, Genus::HardChromatic);
+        assert_eq!(r.anchor_moria, 30);
+        assert_eq!(r.anchor_degree, Degree::Pa);
+        assert_eq!(r.start_moria, -144);
+        assert_eq!(r.end_moria, 144);
+        assert_eq!(g.events().len(), 1);
     }
 
-    /// Applying at a region's own start_moria replaces (no zero-width remnant).
+    /// Applying at a region's own start_moria still replaces that region's
+    /// genus/anchor in-place.
     #[test]
     fn apply_pthora_at_start_moria_replaces() {
         let mut g = TuningGrid::new_default();
@@ -837,19 +1387,17 @@ mod tests {
         assert_eq!(g.regions()[0].start_moria, original_start);
     }
 
-    /// Applying a second pthora within the newly created region splits it again.
+    /// Applying a second pthora in the same region reanchors that region again.
     #[test]
-    fn apply_pthora_twice_gives_three_regions() {
+    fn apply_pthora_twice_keeps_one_region() {
         let mut g = TuningGrid::new_default();
         g.apply_pthora(0, Genus::HardChromatic, Degree::Pa);
         g.apply_pthora(42, Genus::SoftChromatic, Degree::Ni);
-        assert_eq!(g.regions().len(), 3);
-        // Contiguity invariant.
-        let r = g.regions();
-        assert_eq!(r[0].end_moria, r[1].start_moria);
-        assert_eq!(r[1].end_moria, r[2].start_moria);
-        assert_eq!(r[2].start_moria, 42);
-        assert_eq!(r[2].genus, Genus::SoftChromatic);
+        assert_eq!(g.regions().len(), 1);
+        let r = &g.regions()[0];
+        assert_eq!(r.anchor_moria, 42);
+        assert_eq!(r.anchor_degree, Degree::Ni);
+        assert_eq!(r.genus, Genus::SoftChromatic);
     }
 
     /// `apply_pthora` returns false when moria is outside any region.
@@ -859,19 +1407,6 @@ mod tests {
         let out_of_range = g.regions()[0].end_moria + 10;
         assert!(!g.apply_pthora(out_of_range, Genus::Diatonic, Degree::Ni));
         assert_eq!(g.regions().len(), 1);
-    }
-
-    /// remove_pthora merges the removed region into its left neighbor.
-    #[test]
-    fn remove_pthora_merges_into_left_neighbor() {
-        let mut g = TuningGrid::new_default();
-        g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
-        assert_eq!(g.regions().len(), 2);
-        let end = g.regions()[1].end_moria;
-        g.remove_pthora(30);
-        assert_eq!(g.regions().len(), 1);
-        assert_eq!(g.regions()[0].genus, Genus::Diatonic);
-        assert_eq!(g.regions()[0].end_moria, end);
     }
 
     /// remove_pthora on the first region (nothing to merge into) returns false.
@@ -890,37 +1425,71 @@ mod tests {
         assert!(!g.remove_pthora(99));
     }
 
-    /// After apply+remove, cells() output matches the original grid.
+    /// Cells below and above the pthora anchor follow the new genus.
     #[test]
-    fn pthora_apply_then_remove_restores_cells() {
-        let original_cells = TuningGrid::new_default().cells();
+    fn pthora_bidirectional() {
         let mut g = TuningGrid::new_default();
-        g.apply_pthora(30, Genus::HardChromatic, Degree::Pa);
-        g.remove_pthora(30);
-        assert_eq!(g.cells(), original_cells);
-    }
-
-    /// Cells immediately around the pthora boundary use the correct genus.
-    #[test]
-    fn pthora_boundary_cells_use_correct_genus() {
-        let mut g = TuningGrid::new_default();
-        // Place HardChromatic from Pa at moria=12 (Pa in the Diatonic octave).
-        g.apply_pthora(12, Genus::HardChromatic, Degree::Pa);
+        g.apply_pthora(42, Genus::HardChromatic, Degree::Pa);
         let cells = g.cells();
 
-        // moria=0 is in the Diatonic region (region 0) — should be Ni.
-        let c0 = cells.iter().find(|c| c.moria == 0).unwrap();
-        assert_eq!(c0.degree, Some(Degree::Ni));
-        assert_eq!(c0.region_idx, 0);
+        let below = cells.iter().find(|c| c.moria == 38).unwrap();
+        assert_eq!(below.degree, Some(Degree::Ni));
+        assert_eq!(below.region_idx, 0);
 
-        // moria=12 is start of HardChromatic region — should be Pa.
-        let c12 = cells.iter().find(|c| c.moria == 12).unwrap();
-        assert_eq!(c12.degree, Some(Degree::Pa));
-        assert_eq!(c12.region_idx, 1);
+        let anchor = cells.iter().find(|c| c.moria == 42).unwrap();
+        assert_eq!(anchor.degree, Some(Degree::Pa));
 
-        // moria=18 in HardChromatic (Pa+6=Vou).
-        let c18 = cells.iter().find(|c| c.moria == 18).unwrap();
-        assert_eq!(c18.degree, Some(Degree::Vou));
+        let above = cells.iter().find(|c| c.moria == 48).unwrap();
+        assert_eq!(above.degree, Some(Degree::Vou));
+    }
+
+    #[test]
+    fn cells_walk_upward_and_downward_from_anchor() {
+        let g = TuningGrid {
+            ref_ni_hz: DEFAULT_REF_NI_HZ,
+            low_moria: -36,
+            high_moria: 36,
+            regions: vec![Region::new(-36, 72, Genus::Diatonic, 0, Degree::Ni)],
+            events: Vec::new(),
+            next_event_id: 1,
+            overrides: HashMap::new(),
+        };
+        let cells = g.cells();
+        assert_eq!(
+            cells.iter().find(|c| c.moria == -30).unwrap().degree,
+            Some(Degree::Di)
+        );
+        assert_eq!(
+            cells.iter().find(|c| c.moria == -8).unwrap().degree,
+            Some(Degree::Zo)
+        );
+        assert_eq!(
+            cells.iter().find(|c| c.moria == 12).unwrap().degree,
+            Some(Degree::Pa)
+        );
+    }
+
+    /// Pthora repainting only touches the containing pre-existing region.
+    #[test]
+    fn pthora_preserves_adjacent_regions() {
+        let mut g = TuningGrid {
+            ref_ni_hz: DEFAULT_REF_NI_HZ,
+            low_moria: -72,
+            high_moria: 72,
+            regions: vec![
+                Region::new(-144, 0, Genus::Diatonic, -144, Degree::Ni),
+                Region::new(0, 144, Genus::Diatonic, 0, Degree::Ni),
+            ],
+            events: Vec::new(),
+            next_event_id: 1,
+            overrides: HashMap::new(),
+        };
+        g.apply_pthora(42, Genus::HardChromatic, Degree::Pa);
+        assert_eq!(g.regions().len(), 2);
+        assert_eq!(g.regions()[0].genus, Genus::Diatonic);
+        assert_eq!(g.regions()[0].anchor_moria, -144);
+        assert_eq!(g.regions()[1].genus, Genus::HardChromatic);
+        assert_eq!(g.regions()[1].anchor_moria, 42);
     }
 
     // ── Shading tests ──────────────────────────────────────────────────────
@@ -930,7 +1499,7 @@ mod tests {
     #[test]
     fn zygos_shading_shifts_degrees_correctly() {
         let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
-        g.apply_shading(0, Some(Shading::Zygos));
+        g.apply_shading(42, Some(Shading::Zygos));
         let cells = g.cells();
         let degree_cells: Vec<(i32, Degree)> = cells
             .iter()
@@ -950,73 +1519,246 @@ mod tests {
         assert_eq!(degree_cells, expected);
     }
 
-    /// After applying Zygos, effective_intervals still sums to 72.
+    /// Zygos dropped on Vou resolves to the corresponding Di anchor.
     #[test]
-    fn shaded_intervals_sum_to_72() {
-        let r = Region {
-            start_moria: 0,
-            end_moria: 72,
-            genus: Genus::Diatonic,
-            root_degree: Degree::Ni,
-            shading: Some(Shading::Zygos),
-        };
-        assert_eq!(r.effective_intervals().iter().sum::<i32>(), 72);
-
-        let r2 = Region {
-            shading: Some(Shading::Kliton),
-            ..r.clone()
-        };
-        assert_eq!(r2.effective_intervals().iter().sum::<i32>(), 72);
-
-        let r3 = Region {
-            shading: Some(Shading::SpathiKe),
-            ..r.clone()
-        };
-        assert_eq!(r3.effective_intervals().iter().sum::<i32>(), 72);
-
-        let r4 = Region {
-            shading: Some(Shading::SpathiGa),
-            ..r.clone()
-        };
-        assert_eq!(r4.effective_intervals().iter().sum::<i32>(), 72);
+    fn zygos_on_vou_resolves_to_di() {
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_symbol_drop(SymbolDrop::Chroa {
+            drop_moria: 22,
+            drop_degree: Degree::Vou,
+            symbol: Shading::Zygos,
+        });
+        let event = g.events().last().unwrap();
+        assert_eq!(event.resolved_anchor_degree, Degree::Di);
+        assert_eq!(event.resolved_anchor_moria, 42);
+        let ga = g.cells().into_iter().find(|c| c.moria == 38).unwrap();
+        assert_eq!(ga.degree, Some(Degree::Ga));
     }
 
-    /// SpathiKe: Di→Ke=4, Ke→Zo=4; Ga→Di and Zo→Ni' are recalculated so
-    /// Ga and Ni' remain at their original positions.
+    /// Spathi on Ke: Di→Ke=4 and Ke→Zo=4.
     #[test]
     fn spathi_ke_recalculates_adjacent_intervals() {
-        let r = Region {
-            start_moria: 0,
-            end_moria: 72,
-            genus: Genus::Diatonic,
-            root_degree: Degree::Ni,
-            shading: Some(Shading::SpathiKe),
-        };
-        let iv = r.effective_intervals();
-        // Diatonic base: [12,10,8,12,12,10,8]. Ke at offset 5.
-        // old_below=iv[4]=12, old_above=iv[5]=10.
-        // iv[4]=4, iv[5]=4, iv[3]+=12-4=8→20, iv[6]+=10-4=6→14.
-        assert_eq!(iv, vec![12, 10, 8, 20, 4, 4, 14]);
-        assert_eq!(iv.iter().sum::<i32>(), 72);
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(54, Some(Shading::Spathi));
+        let degree_cells: Vec<(i32, Degree)> = g
+            .cells()
+            .into_iter()
+            .filter_map(|c| c.degree.map(|d| (c.moria, d)))
+            .collect();
+        assert_eq!(
+            degree_cells,
+            vec![
+                (0, Degree::Ni),
+                (12, Degree::Pa),
+                (22, Degree::Vou),
+                (30, Degree::Ga),
+                (50, Degree::Di),
+                (54, Degree::Ke),
+                (58, Degree::Zo),
+            ]
+        );
     }
 
-    /// SpathiGa: Vou→Ga=4, Ga→Di=4; Pa→Vou and Di→Ke are recalculated so
-    /// Pa and Ke remain at their original positions.
+    /// Spathi on Ni flattens Pa above Ni so Ni→Pa=4.
     #[test]
-    fn spathi_ga_recalculates_adjacent_intervals() {
-        let r = Region {
-            start_moria: 0,
-            end_moria: 72,
+    fn spathi_on_ni_flattens_pa() {
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(0, Some(Shading::Spathi));
+        let cells = g.cells();
+        let ni = cells.iter().find(|c| c.degree == Some(Degree::Ni)).unwrap();
+        let pa = cells.iter().find(|c| c.degree == Some(Degree::Pa)).unwrap();
+        assert_eq!(pa.moria - ni.moria, 4);
+    }
+
+    #[test]
+    fn kliton_on_effective_new_ni() {
+        let mut g = TuningGrid::with_preset(261.63, -72, 80, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(0, Some(Shading::Spathi));
+        g.apply_shading(4, Some(Shading::Kliton));
+
+        let r = &g.regions()[0];
+        assert_eq!(r.anchor_moria, 4);
+        assert_eq!(r.anchor_degree, Degree::Ni);
+
+        let cells = g.cells();
+        assert_eq!(
+            cells.iter().find(|c| c.moria == 0).unwrap().degree,
+            Some(Degree::Zo)
+        );
+        assert_eq!(
+            cells.iter().find(|c| c.moria == 4).unwrap().degree,
+            Some(Degree::Ni)
+        );
+        assert_eq!(
+            cells.iter().find(|c| c.moria == 16).unwrap().degree,
+            Some(Degree::Pa)
+        );
+    }
+
+    #[test]
+    fn clearing_reanchoring_chroa_restores_prior_anchor() {
+        let mut g = TuningGrid::with_preset(261.63, -72, 80, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(0, Some(Shading::Spathi));
+        g.apply_shading(4, Some(Shading::Kliton));
+        assert_eq!(g.regions()[0].anchor_moria, 4);
+
+        g.apply_shading(4, None);
+        assert_eq!(g.regions()[0].anchor_moria, -72);
+        assert_eq!(g.regions()[0].anchor_degree, Degree::Ni);
+    }
+
+    #[test]
+    fn kliton_on_ni_intervals() {
+        let mut g = TuningGrid::with_preset(261.63, 0, 144, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(0, Some(Shading::Kliton));
+        let cells = g.cells();
+        let di = cells.iter().find(|c| c.degree == Some(Degree::Di)).unwrap();
+        let ke = cells.iter().find(|c| c.degree == Some(Degree::Ke)).unwrap();
+        let zo = cells.iter().find(|c| c.degree == Some(Degree::Zo)).unwrap();
+        let ni_hi = cells
+            .iter()
+            .filter(|c| c.degree == Some(Degree::Ni))
+            .max_by_key(|c| c.moria)
+            .unwrap();
+        assert_eq!(ke.moria - di.moria, 14);
+        assert_eq!(zo.moria - ke.moria, 12);
+        assert_eq!(ni_hi.moria - zo.moria, 4);
+    }
+
+    #[test]
+    fn kliton_on_di_and_ga_intervals() {
+        let mut on_di = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        on_di.apply_shading(42, Some(Shading::Kliton));
+        let cells = on_di.cells();
+        let pa = cells.iter().find(|c| c.degree == Some(Degree::Pa)).unwrap();
+        let vou = cells
+            .iter()
+            .find(|c| c.degree == Some(Degree::Vou))
+            .unwrap();
+        let ga = cells.iter().find(|c| c.degree == Some(Degree::Ga)).unwrap();
+        let di = cells.iter().find(|c| c.degree == Some(Degree::Di)).unwrap();
+        assert_eq!(vou.moria - pa.moria, 14);
+        assert_eq!(ga.moria - vou.moria, 12);
+        assert_eq!(di.moria - ga.moria, 4);
+
+        let mut on_ga = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        on_ga.apply_shading(30, Some(Shading::Kliton));
+        let cells = on_ga.cells();
+        let ni = cells.iter().find(|c| c.degree == Some(Degree::Ni)).unwrap();
+        let pa = cells.iter().find(|c| c.degree == Some(Degree::Pa)).unwrap();
+        let vou = cells
+            .iter()
+            .find(|c| c.degree == Some(Degree::Vou))
+            .unwrap();
+        let ga = cells.iter().find(|c| c.degree == Some(Degree::Ga)).unwrap();
+        assert_eq!(pa.moria - ni.moria, 14);
+        assert_eq!(vou.moria - pa.moria, 12);
+        assert_eq!(ga.moria - vou.moria, 4);
+    }
+
+    #[test]
+    fn ajem_on_zo_moves_dropped_note() {
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(64, Some(Shading::Enharmonic));
+        let cells = g.cells();
+        let ke = cells.iter().find(|c| c.degree == Some(Degree::Ke)).unwrap();
+        let zo = cells.iter().find(|c| c.degree == Some(Degree::Zo)).unwrap();
+        assert_eq!(zo.moria - ke.moria, 6);
+    }
+
+    #[test]
+    fn ajem_on_vou_moves_dropped_note() {
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(22, Some(Shading::Enharmonic));
+        let cells = g.cells();
+        let pa = cells.iter().find(|c| c.degree == Some(Degree::Pa)).unwrap();
+        let vou = cells
+            .iter()
+            .find(|c| c.degree == Some(Degree::Vou))
+            .unwrap();
+        assert_eq!(vou.moria - pa.moria, 6);
+    }
+
+    #[test]
+    fn soft_chromatic_ke_on_ke_moves_drop() {
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_pthora(54, Genus::SoftChromatic, Degree::Ke);
+        let r = &g.regions()[0];
+        assert_eq!(r.anchor_moria, 50);
+        assert_eq!(r.anchor_degree, Degree::Ke);
+
+        let cells = g.cells();
+        assert_eq!(
+            cells.iter().find(|c| c.moria == 42).unwrap().degree,
+            Some(Degree::Di)
+        );
+        assert_eq!(
+            cells.iter().find(|c| c.moria == 50).unwrap().degree,
+            Some(Degree::Ke)
+        );
+        assert_eq!(cells.iter().find(|c| c.moria == 54).unwrap().degree, None);
+    }
+
+    #[test]
+    fn diatonic_ga_pthora_on_vou_moves_drop() {
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_symbol_drop(SymbolDrop::Pthora {
+            drop_moria: 22,
+            drop_degree: Degree::Vou,
             genus: Genus::Diatonic,
-            root_degree: Degree::Ni,
-            shading: Some(Shading::SpathiGa),
-        };
-        let iv = r.effective_intervals();
-        // Diatonic base: [12,10,8,12,12,10,8]. Ga at offset 3.
-        // old_below=iv[2]=8, old_above=iv[3]=12.
-        // iv[2]=4, iv[3]=4, iv[1]+=8-4=4→14, iv[4]+=12-4=8→20.
-        assert_eq!(iv, vec![12, 14, 4, 4, 20, 10, 8]);
-        assert_eq!(iv.iter().sum::<i32>(), 72);
+            target_degree: Degree::Ga,
+        });
+        let r = &g.regions()[0];
+        assert_eq!(r.anchor_moria, 18);
+        assert_eq!(r.anchor_degree, Degree::Ga);
+
+        let cells = g.cells();
+        assert_eq!(
+            cells.iter().find(|c| c.moria == 18).unwrap().degree,
+            Some(Degree::Ga)
+        );
+        assert_eq!(cells.iter().find(|c| c.moria == 22).unwrap().degree, None);
+    }
+
+    #[test]
+    fn diesis_geniki_raises_every_occurrence_without_overwriting_manual() {
+        let mut g = TuningGrid::new_default();
+        g.set_accidental(64, 2);
+        g.apply_symbol_drop(SymbolDrop::Geniki {
+            drop_moria: 64,
+            drop_degree: Degree::Zo,
+            shift: 6,
+        });
+        let zo_cells: Vec<Cell> = g
+            .cells()
+            .into_iter()
+            .filter(|c| c.degree == Some(Degree::Zo))
+            .collect();
+        assert_eq!(zo_cells.len(), 3);
+        for cell in zo_cells {
+            if cell.moria == 64 {
+                assert_eq!(cell.accidental, 8);
+            } else {
+                assert_eq!(cell.accidental, 6);
+            }
+        }
+    }
+
+    #[test]
+    fn yfesis_geniki_lowers_every_occurrence() {
+        let mut g = TuningGrid::new_default();
+        g.apply_symbol_drop(SymbolDrop::Geniki {
+            drop_moria: 64,
+            drop_degree: Degree::Zo,
+            shift: -6,
+        });
+        for cell in g
+            .cells()
+            .into_iter()
+            .filter(|c| c.degree == Some(Degree::Zo))
+        {
+            assert_eq!(cell.accidental, -6);
+        }
     }
 
     /// apply_shading returns false when moria is outside all regions.
@@ -1033,6 +1775,22 @@ mod tests {
         let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
         g.apply_shading(0, Some(Shading::Kliton));
         g.apply_shading(0, None);
+        assert_eq!(g.cells(), unshaded);
+    }
+
+    #[test]
+    fn clearing_shading_does_not_require_degree_cell() {
+        let unshaded = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni).cells();
+        let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
+        g.apply_shading(22, Some(Shading::Enharmonic));
+        assert!(g
+            .cells()
+            .into_iter()
+            .find(|c| c.moria == 22)
+            .unwrap()
+            .degree
+            .is_none());
+        assert!(g.apply_shading(22, None));
         assert_eq!(g.cells(), unshaded);
     }
 
@@ -1201,6 +1959,48 @@ mod tests {
             let json = g.to_json().unwrap();
             let restored = TuningGrid::from_json(&json).unwrap();
             assert_eq!(restored.cells(), original_cells);
+        }
+
+        #[test]
+        fn spathi_legacy_json_roundtrip() {
+            let legacy = r#"{
+                "ref_ni_hz": 261.63,
+                "low_moria": 0,
+                "high_moria": 72,
+                "regions": [{
+                    "start_moria": 0,
+                    "end_moria": 72,
+                    "genus": "Diatonic",
+                    "root_degree": "Ni",
+                    "shading": "SpathiKe"
+                }],
+                "overrides": {}
+            }"#;
+
+            let restored = TuningGrid::from_json(legacy).unwrap();
+            let event = restored.events().last().unwrap();
+            assert_eq!(event.resolved_anchor_degree, Degree::Ke);
+            assert!(matches!(
+                &event.kind,
+                TuningEventKind::ChroaPatch(ChroaRule {
+                    symbol: Shading::Spathi,
+                    ..
+                })
+            ));
+
+            let cells = restored.cells();
+            assert_eq!(
+                cells.iter().find(|c| c.moria == 50).unwrap().degree,
+                Some(Degree::Di)
+            );
+            assert_eq!(
+                cells.iter().find(|c| c.moria == 54).unwrap().degree,
+                Some(Degree::Ke)
+            );
+
+            let json = restored.to_json().unwrap();
+            let reparsed = TuningGrid::from_json(&json).unwrap();
+            assert_eq!(reparsed, restored);
         }
 
         #[test]

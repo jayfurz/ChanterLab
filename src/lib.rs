@@ -17,7 +17,7 @@ pub mod worklet;
 mod main_exports {
     use wasm_bindgen::prelude::*;
 
-    use crate::tuning::{Degree, Genus, Shading, TuningGrid};
+    use crate::tuning::{Degree, Genus, Shading, SymbolDrop, TuningGrid};
 
     /// WASM-exported handle to a `TuningGrid`.
     ///
@@ -83,8 +83,7 @@ mod main_exports {
             self.inner.ref_ni_hz = hz;
         }
 
-        /// Apply a pthora: split the containing region at `moria` and assign
-        /// the new `(genus, target_degree)` to the right half.
+        /// Apply a pthora by reanchoring the containing region at `moria`.
         ///
         /// `genus` and `target_degree` are the string names used in the
         /// Rust enums (e.g. `"Diatonic"`, `"HardChromatic"`, `"Ni"`, `"Pa"`).
@@ -97,17 +96,30 @@ mod main_exports {
             self.inner.apply_pthora(moria, g, d)
         }
 
+        /// Apply a semantic palette drop from JSON.
+        ///
+        /// Shape:
+        /// `{ type, dropMoria, dropDegree, ... }`, where `type` is `"pthora"`
+        /// or `"shading"`.
+        #[wasm_bindgen(js_name = applySymbolDrop)]
+        pub fn apply_symbol_drop(&mut self, json: &str) -> bool {
+            let Some(drop) = parse_symbol_drop(json) else {
+                return false;
+            };
+            self.inner.apply_symbol_drop(drop)
+        }
+
         /// Remove the pthora whose region starts at `moria`.
         #[wasm_bindgen(js_name = removePthora)]
         pub fn remove_pthora(&mut self, moria: i32) -> bool {
             self.inner.remove_pthora(moria)
         }
 
-        /// Apply or clear a shading on the region containing `moria`.
+        /// Apply or clear a chroa/enharmonic modifier on the region containing
+        /// `moria`.
         ///
-        /// `shading` is one of `"Zygos"`, `"Kliton"`, `"SpathiKe"`,
-        /// `"SpathiGa"`, or `""` to clear. Returns `false` if
-        /// `moria` is out of range.
+        /// Compatibility wrapper for the old API. New callers should use
+        /// `applySymbolDrop`, which also passes the clicked degree.
         #[wasm_bindgen(js_name = applyShading)]
         pub fn apply_shading(&mut self, moria: i32, shading: &str) -> bool {
             let s = if shading.is_empty() {
@@ -180,9 +192,85 @@ mod main_exports {
         match s {
             "Zygos" => Some(Shading::Zygos),
             "Kliton" => Some(Shading::Kliton),
-            "SpathiKe" => Some(Shading::SpathiKe),
-            "SpathiGa" => Some(Shading::SpathiGa),
+            "Spathi" | "SpathiKe" | "SpathiGa" => Some(Shading::Spathi),
+            "Enharmonic" => Some(Shading::Enharmonic),
             _ => None,
         }
+    }
+
+    fn parse_symbol_drop(json: &str) -> Option<SymbolDrop> {
+        #[derive(serde::Deserialize)]
+        #[serde(tag = "type")]
+        enum JsDrop {
+            #[serde(rename = "pthora")]
+            Pthora {
+                genus: String,
+                degree: String,
+                #[serde(rename = "dropMoria")]
+                drop_moria: i32,
+                #[serde(rename = "dropDegree")]
+                drop_degree: String,
+            },
+            #[serde(rename = "shading")]
+            Shading {
+                shading: String,
+                #[serde(rename = "dropMoria")]
+                drop_moria: i32,
+                #[serde(rename = "dropDegree")]
+                drop_degree: String,
+            },
+        }
+
+        let drop = serde_json::from_str::<JsDrop>(json).ok()?;
+        let symbol_drop = match drop {
+            JsDrop::Pthora {
+                genus,
+                degree,
+                drop_moria,
+                drop_degree,
+            } => {
+                let genus = parse_genus(&genus)?;
+                let target_degree = parse_degree(&degree)?;
+                let drop_degree = parse_degree(&drop_degree)?;
+                SymbolDrop::Pthora {
+                    drop_moria,
+                    drop_degree,
+                    genus,
+                    target_degree,
+                }
+            }
+            JsDrop::Shading {
+                shading,
+                drop_moria,
+                drop_degree,
+            } => {
+                let drop_degree = parse_degree(&drop_degree)?;
+                match shading.as_str() {
+                    "" => SymbolDrop::ClearChroa {
+                        drop_moria,
+                        drop_degree,
+                    },
+                    "DiesisGeniki" => SymbolDrop::Geniki {
+                        drop_moria,
+                        drop_degree,
+                        shift: 6,
+                    },
+                    "YfesisGeniki" => SymbolDrop::Geniki {
+                        drop_moria,
+                        drop_degree,
+                        shift: -6,
+                    },
+                    _ => {
+                        let symbol = parse_shading(&shading)?;
+                        SymbolDrop::Chroa {
+                            drop_moria,
+                            drop_degree,
+                            symbol,
+                        }
+                    }
+                }
+            }
+        };
+        Some(symbol_drop)
     }
 }
