@@ -25,6 +25,8 @@ use crate::tuning::Degree;
 pub enum Genus {
     /// Octave Natural Diatonic, canonical root Ni.
     Diatonic,
+    /// Western major scale in 72-moria form, canonical root Ni.
+    Western,
     /// Hard Chromatic, canonical root Pa.
     HardChromatic,
     /// Soft Chromatic, canonical root Ni.
@@ -52,6 +54,7 @@ impl Genus {
     pub fn canonical_root(&self) -> Degree {
         match self {
             Genus::Diatonic => Degree::Ni,
+            Genus::Western => Degree::Ni,
             Genus::HardChromatic => Degree::Pa,
             Genus::SoftChromatic => Degree::Ni,
             Genus::GraveDiatonic => Degree::Ga,
@@ -72,6 +75,9 @@ impl Genus {
             // Diatonic from Ni: Ni→Pa=12, Pa→Vou=10, Vou→Ga=8, Ga→Di=12,
             // Di→Ke=12, Ke→Zo=10, Zo→Ni'=8.
             Genus::Diatonic => vec![12, 10, 8, 12, 12, 10, 8],
+            // Western major from Ni: do→re=12, re→mi=12, mi→fa=6,
+            // fa→so=12, so→la=12, la→ti=12, ti→do'=6.
+            Genus::Western => vec![12, 12, 6, 12, 12, 12, 6],
             // Hard Chromatic from Pa: Pa→Vou=6, Vou→Ga=20, Ga→Di=4,
             // Di→Ke=12, Ke→Zo=6, Zo→Ni'=20, Ni'→Pa'=4.
             Genus::HardChromatic => vec![6, 20, 4, 12, 6, 20, 4],
@@ -100,6 +106,7 @@ impl Genus {
     pub fn name(&self) -> &str {
         match self {
             Genus::Diatonic => "Diatonic",
+            Genus::Western => "Western",
             Genus::HardChromatic => "Hard Chromatic",
             Genus::SoftChromatic => "Soft Chromatic",
             Genus::GraveDiatonic => "Grave Diatonic",
@@ -110,9 +117,10 @@ impl Genus {
     }
 
     /// All built-in (non-custom) genera.
-    pub fn all_builtin() -> [Genus; 6] {
+    pub fn all_builtin() -> [Genus; 7] {
         [
             Genus::Diatonic,
+            Genus::Western,
             Genus::HardChromatic,
             Genus::SoftChromatic,
             Genus::GraveDiatonic,
@@ -137,14 +145,14 @@ mod tests {
         }
     }
 
-    /// The closed genera: Diatonic, HardChromatic, SoftChromatic,
-    /// GraveDiatonic, EnharmonicZo (5 of the 6 built-ins).
+    /// The closed genera: Diatonic, Western, HardChromatic, SoftChromatic,
+    /// GraveDiatonic, EnharmonicZo (6 of the 7 built-ins).
     #[test]
     fn enharmonic_ga_is_the_only_open_builtin() {
         let all = Genus::all_builtin();
         let closed_count = all.iter().filter(|g| g.is_closed()).count();
         let open_count = all.iter().filter(|g| !g.is_closed()).count();
-        assert_eq!(closed_count, 5);
+        assert_eq!(closed_count, 6);
         assert_eq!(open_count, 1);
         assert_eq!(
             all.iter().find(|g| !g.is_closed()).unwrap(),
@@ -156,6 +164,7 @@ mod tests {
     #[test]
     fn canonical_roots() {
         assert_eq!(Genus::Diatonic.canonical_root(), Degree::Ni);
+        assert_eq!(Genus::Western.canonical_root(), Degree::Ni);
         assert_eq!(Genus::HardChromatic.canonical_root(), Degree::Pa);
         assert_eq!(Genus::SoftChromatic.canonical_root(), Degree::Ni);
         assert_eq!(Genus::GraveDiatonic.canonical_root(), Degree::Ga);
@@ -169,6 +178,7 @@ mod tests {
     fn canonical_cumulatives_match_reference() {
         let cases: &[(Genus, &[i32])] = &[
             (Genus::Diatonic, &[0, 12, 22, 30, 42, 54, 64, 72]),
+            (Genus::Western, &[0, 12, 24, 30, 42, 54, 66, 72]),
             (Genus::HardChromatic, &[0, 6, 26, 30, 42, 48, 68, 72]),
             (Genus::SoftChromatic, &[0, 8, 22, 30, 42, 50, 64, 72]),
             // GraveDiatonic cumulative from Ga: 0, 12, 22, 34, 42, 48, 64, 72.

@@ -323,6 +323,15 @@ input[type="number"] {
   transform: translateY(0.24em);
 }
 
+.palette-glyph-western {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--accent2);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
 .palette-label {
   font-size: 10px;
   line-height: 1.1;

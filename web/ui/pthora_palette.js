@@ -1,7 +1,7 @@
 // PthoraPalette — 3×8 grid of full-region pthora items.
 //
-// Rows are genera (Diatonic, Soft Chromatic, Hard Chromatic). Columns are the
-// eight scale degrees (Ni low, Pa, Vou, Ga, Di, Ke, Zo, Ni high). Dropping
+// Rows are genera (Diatonic, Western, Soft Chromatic, Hard Chromatic). Columns
+// are the eight scale degrees (Ni low, Pa, Vou, Ga, Di, Ke, Zo, Ni high). Dropping
 // a cell on the ladder re-roots a region at that moria using the row's genus
 // and the column's target degree.
 //
@@ -59,11 +59,17 @@ const HARD_CHR_GLYPHS = [
   CP.HARD_DI, CP.HARD_PA, CP.HARD_DI, CP.HARD_PA,
   CP.HARD_DI, CP.HARD_PA, CP.HARD_DI, CP.HARD_PA,
 ];
+const WESTERN_SYMBOLS = ['do', 're', 'mi', 'fa', 'so', 'la', 'ti', "do'"];
 
 const ROWS = [
-  { label: 'Diatonic',   genus: 'Diatonic',      glyphs: DIATONIC_GLYPHS },
-  { label: 'Soft Chr',   genus: 'SoftChromatic', glyphs: SOFT_CHR_GLYPHS },
-  { label: 'Hard Chr',   genus: 'HardChromatic', glyphs: HARD_CHR_GLYPHS },
+  { label: 'Diatonic', genus: 'Diatonic', glyphs: DIATONIC_GLYPHS },
+  { label: 'Soft Chr', genus: 'SoftChromatic', glyphs: SOFT_CHR_GLYPHS },
+  { label: 'Hard Chr', genus: 'HardChromatic', glyphs: HARD_CHR_GLYPHS },
+  { label: 'Western',
+    genus: 'Western',
+    glyphs: WESTERN_SYMBOLS,
+    glyphClass: 'palette-glyph-western',
+  }
 ];
 
 export class PthoraPalette {
@@ -101,7 +107,10 @@ export class PthoraPalette {
         el.title = `${row.label} pthora - drop on a note, or click while singing, to re-root as ${col.label}`;
         el.tabIndex = 0;
         el.setAttribute('role', 'button');
-        el.innerHTML = `<span class="palette-glyph-sbmufl">${glyph}</span>`;
+        const glyphEl = document.createElement('span');
+        glyphEl.className = row.glyphClass ?? 'palette-glyph-sbmufl';
+        glyphEl.textContent = glyph;
+        el.appendChild(glyphEl);
 
         makeDraggable(el, {
           payload: () => ({ type: 'pthora', genus: row.genus, degree: col.degree }),

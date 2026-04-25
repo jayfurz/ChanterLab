@@ -44,6 +44,9 @@ pub mod presets {
     pub fn diatonic_from_ga() -> Pthora {
         Pthora::new(Genus::Diatonic, Degree::Ga)
     }
+    pub fn western_from_ni() -> Pthora {
+        Pthora::new(Genus::Western, Degree::Ni)
+    }
     pub fn hard_chromatic_from_pa() -> Pthora {
         Pthora::new(Genus::HardChromatic, Degree::Pa)
     }

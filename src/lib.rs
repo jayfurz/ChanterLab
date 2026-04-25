@@ -179,6 +179,7 @@ mod main_exports {
     fn parse_genus(s: &str) -> Option<Genus> {
         match s {
             "Diatonic" => Some(Genus::Diatonic),
+            "Western" => Some(Genus::Western),
             "HardChromatic" => Some(Genus::HardChromatic),
             "SoftChromatic" => Some(Genus::SoftChromatic),
             "GraveDiatonic" => Some(Genus::GraveDiatonic),
