@@ -5,6 +5,8 @@
 const DEGREE_INDEX = { Ni: 0, Pa: 1, Vou: 2, Ga: 3, Di: 4, Ke: 5, Zo: 6 };
 const DEGREE_H = 26;
 const NONDEG_H = 12;
+const CONCERT_NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+const DEGREE_ACCENTS = ['#65d6ff', '#6fc7ff', '#74d3b7', '#8bc2ff', '#c3a5ff', '#ffca6f', '#ff8ea0'];
 
 // Pthora region colors (cycled by region_idx).
 const REGION_COLORS = [
@@ -15,6 +17,50 @@ const REGION_COLORS = [
   'rgba(200,160,60,0.12)',
   'rgba(160,80,200,0.12)',
 ];
+
+function concertPitchParts(hz) {
+  if (!Number.isFinite(hz) || hz <= 0) return null;
+
+  const exactMidi = 69 + 12 * Math.log2(hz / 440);
+  let midi = Math.ceil(exactMidi - 0.5);
+  let cents = Math.round((exactMidi - midi) * 100);
+
+  if (cents <= -50) {
+    midi -= 1;
+    cents += 100;
+  } else if (cents > 50) {
+    midi += 1;
+    cents -= 100;
+  }
+
+  const noteName = CONCERT_NOTE_NAMES[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  const sign = cents >= 0 ? '+' : '';
+  return {
+    note: `${noteName}${octave}`,
+    cents: `${sign}${cents}c`,
+  };
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function fillRoundedRect(ctx, x, y, w, h, r) {
+  roundedRect(ctx, x, y, w, h, r);
+  ctx.fill();
+}
 
 export class ScaleLadder {
   constructor(canvas, app) {
@@ -93,6 +139,8 @@ export class ScaleLadder {
 
     const cssW = W / dpr;
     const cssH = H / dpr;
+    ctx.fillStyle = '#111a31';
+    ctx.fillRect(0, 0, cssW, cssH);
 
     // Build row map top-to-bottom (cells are sorted low→high by moria from
     // the engine; we reverse so the highest moria is at the top of the canvas).
@@ -114,6 +162,8 @@ export class ScaleLadder {
     // Paint rows.
     for (const { cell, y: ry, h } of this._rowMap) {
       const isDeg = cell.degree !== null;
+      const degreeIdx = isDeg ? DEGREE_INDEX[cell.degree] ?? 0 : 0;
+      const accent = DEGREE_ACCENTS[degreeIdx % DEGREE_ACCENTS.length];
 
       // Region background tint.
       const regionColor = REGION_COLORS[cell.region_idx % REGION_COLORS.length];
@@ -126,23 +176,47 @@ export class ScaleLadder {
       const isActive   = this._activeCells.has(cell.moria);
       const isDetected = cell.moria === this._detectedCell;
       const isNeighbor = cell.moria === this._detectedNeighbor;
+      const rowX = 1;
+      const rowY = ry + 0.75;
+      const rowW = cssW - 2;
+      const rowH = Math.max(1, h - 1.5);
       if (isActive) {
-        ctx.fillStyle = '#2a5f9f';
-        ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+        const grad = ctx.createLinearGradient(rowX, 0, rowX + rowW, 0);
+        grad.addColorStop(0, '#2e7abe');
+        grad.addColorStop(1, '#214b7f');
+        ctx.fillStyle = grad;
+        fillRoundedRect(ctx, rowX, rowY, rowW, rowH, 3);
       } else if (isDetected) {
-        ctx.fillStyle = '#8a5200';
-        ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+        const grad = ctx.createLinearGradient(rowX, 0, rowX + rowW, 0);
+        grad.addColorStop(0, '#9a6415');
+        grad.addColorStop(1, '#623c08');
+        ctx.fillStyle = grad;
+        fillRoundedRect(ctx, rowX, rowY, rowW, rowH, 3);
       } else if (isNeighbor && this._detectedNeighborVel > 0) {
         // Half-lit neighbor: amber tinted proportional to velocity.
         const alpha = Math.round(this._detectedNeighborVel * 180).toString(16).padStart(2, '0');
         ctx.fillStyle = `#8a5200${alpha}`;
-        ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+        fillRoundedRect(ctx, rowX, rowY, rowW, rowH, 3);
       } else if (isDeg && cell.enabled) {
-        ctx.fillStyle = '#1e3a5f';
-        ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+        const grad = ctx.createLinearGradient(rowX, 0, rowX + rowW, 0);
+        grad.addColorStop(0, '#214a78');
+        grad.addColorStop(0.65, '#1c3a62');
+        grad.addColorStop(1, '#162c4f');
+        ctx.fillStyle = grad;
+        fillRoundedRect(ctx, rowX, rowY, rowW, rowH, 3);
       } else if (isDeg) {
         ctx.fillStyle = '#12243a';
-        ctx.fillRect(1, ry + 0.5, cssW - 2, h - 1);
+        fillRoundedRect(ctx, rowX, rowY, rowW, rowH, 3);
+      }
+
+      if (isDeg) {
+        ctx.fillStyle = cell.enabled ? accent : '#33445a';
+        fillRoundedRect(ctx, rowX + 1, rowY + 2, 3, Math.max(1, rowH - 4), 2);
+
+        if (cell.enabled) {
+          ctx.fillStyle = 'rgba(255,255,255,0.055)';
+          ctx.fillRect(rowX + 5, rowY + 1, rowW - 7, Math.max(1, rowH * 0.42));
+        }
       }
 
       // Hover preview border during palette drag.
@@ -153,7 +227,7 @@ export class ScaleLadder {
       }
 
       // Separator line.
-      ctx.strokeStyle = isDeg ? '#334' : '#222';
+      ctx.strokeStyle = isDeg ? '#293a58' : '#202842';
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(0, ry + h);
@@ -164,26 +238,65 @@ export class ScaleLadder {
 
       // Degree label.
       const name = cell.degree ?? '?';
-      ctx.font = `${Math.round(11 * scale)}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = (isActive || isDetected) ? '#ffffff' : (cell.enabled ? '#53c0f0' : '#445');
-      ctx.fillText(name, 6, ry + h / 2 + 4 * scale);
+      ctx.textBaseline = 'middle';
+      ctx.font = `700 ${Math.max(10, Math.round(11 * scale))}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.fillStyle = (isActive || isDetected) ? '#ffffff' : (cell.enabled ? accent : '#52657a');
+      ctx.fillText(name, 9, ry + h / 2);
 
-      // Hz label.
+      // Reference pitch labels.
       const hz = this.app.grid.moriaToHz(cell.moria + cell.accidental);
-      ctx.font = `${Math.round(9 * scale)}px monospace`;
-      ctx.fillStyle = cell.enabled ? '#8ab' : '#334';
+      const pitch = concertPitchParts(hz);
       const hzStr = hz.toFixed(1);
-      const tw = ctx.measureText(hzStr).width;
-      ctx.fillText(hzStr, cssW - tw - 4, ry + h / 2 + 4 * scale);
+      const pitchX = cssW - 4;
+      const hzFontSize = Math.max(7, Math.round(8 * scale));
+      const noteFontSize = Math.max(10, Math.round(12 * scale));
+      const centsFontSize = Math.max(7, Math.round(8 * scale));
+      const noteColor = (isActive || isDetected) ? '#ffffff' : (cell.enabled ? '#d8f1ff' : '#536273');
+      const metaColor = cell.enabled ? '#91acc2' : '#3e4b5c';
+
+      ctx.textAlign = 'right';
+      if (pitch && h >= 20) {
+        const noteY = ry + h / 2 - 4 * scale;
+        const hzY = ry + h / 2 + 7 * scale;
+        ctx.font = `${centsFontSize}px monospace`;
+        ctx.fillStyle = metaColor;
+        const centsW = ctx.measureText(pitch.cents).width;
+        ctx.fillText(pitch.cents, pitchX, noteY);
+        ctx.font = `700 ${noteFontSize}px 'Segoe UI', system-ui, sans-serif`;
+        ctx.fillStyle = noteColor;
+        ctx.fillText(pitch.note, pitchX - centsW - 4, noteY);
+        ctx.font = `${hzFontSize}px monospace`;
+        ctx.fillStyle = metaColor;
+        ctx.fillText(`${hzStr} Hz`, pitchX, hzY);
+      } else if (pitch) {
+        ctx.font = `${centsFontSize}px monospace`;
+        ctx.fillStyle = metaColor;
+        const meta = `${pitch.cents} ${hzStr}`;
+        const metaW = ctx.measureText(meta).width;
+        ctx.fillText(meta, pitchX, ry + h / 2);
+        ctx.font = `700 ${noteFontSize}px 'Segoe UI', system-ui, sans-serif`;
+        ctx.fillStyle = noteColor;
+        ctx.fillText(pitch.note, pitchX - metaW - 5, ry + h / 2);
+      } else {
+        ctx.font = `${hzFontSize}px monospace`;
+        ctx.fillStyle = metaColor;
+        ctx.fillText(hzStr, pitchX, ry + h / 2);
+      }
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
 
       // Accidental badge.
       if (cell.accidental !== 0) {
         const sign = cell.accidental > 0 ? '+' : '';
         const badge = `${sign}${cell.accidental}`;
         ctx.font = `bold ${Math.round(9 * scale)}px monospace`;
-        ctx.fillStyle = '#e94560';
+        ctx.textBaseline = 'middle';
         const bw = ctx.measureText(badge).width;
-        ctx.fillText(badge, cssW / 2 - bw / 2, ry + h / 2 + 4 * scale);
+        ctx.fillStyle = 'rgba(233,69,96,0.22)';
+        fillRoundedRect(ctx, cssW / 2 - bw / 2 - 6, ry + h / 2 - 7, bw + 12, 14, 7);
+        ctx.fillStyle = '#ff6d86';
+        ctx.fillText(badge, cssW / 2 - bw / 2, ry + h / 2);
+        ctx.textBaseline = 'alphabetic';
       }
     }
 
@@ -224,19 +337,23 @@ export class ScaleLadder {
       const color = interval <= 6 ? '#e94560' : '#f0c040';
 
       // Horizontal bar: width ∝ interval (24 moria ≈ full width).
-      const barW = Math.min((interval / 24) * cssW * 0.82, cssW * 0.82);
-      const barH = Math.max(1.5, Math.min(gapH * 0.25, 5));
+      const barW = Math.min((interval / 24) * cssW * 0.72, cssW * 0.72);
+      const barH = Math.max(2, Math.min(gapH * 0.28, 5));
       const barX = (cssW - barW) / 2;
-      ctx.fillStyle = color + '50';
-      ctx.fillRect(barX, midY - barH / 2, barW, barH);
+      ctx.fillStyle = color + '22';
+      fillRoundedRect(ctx, barX - 7, midY - barH / 2 - 3, barW + 14, barH + 6, 5);
+      ctx.fillStyle = color + '72';
+      fillRoundedRect(ctx, barX, midY - barH / 2, barW, barH, barH / 2);
 
       // Interval number, centered in the gap.
       if (gapH >= 7) {
         const fontSize = Math.max(7, Math.round(9 * scale));
         ctx.font = `bold ${fontSize}px monospace`;
-        ctx.fillStyle = color;
         const label = String(interval);
         const tw = ctx.measureText(label).width;
+        ctx.fillStyle = '#111a31cc';
+        fillRoundedRect(ctx, cssW / 2 - tw / 2 - 5, midY - fontSize / 2 - 2, tw + 10, fontSize + 4, 5);
+        ctx.fillStyle = color;
         ctx.fillText(label, cssW / 2 - tw / 2, midY + fontSize * 0.38);
       }
     }
