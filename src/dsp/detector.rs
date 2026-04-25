@@ -1,8 +1,6 @@
-//! Pitch detectors. Two paths, mirroring `vocproc.cpp`:
+//! Pitch detectors. Two paths:
 //!
 //! - `TimeDomainDetector`: peak state-machine feeding a log-spaced histogram.
-//!   Port of `checkPeriod` + `updateHystogram` + `doSimpleDetection`
-//!   (`vocproc.cpp:851-884, 994-1181`).
 //!
 //! - `FftDetector`: cepstrum-based FFT detector. Feature-gated under
 //!   `worklet` since it requires `realfft`.
@@ -20,7 +18,6 @@ struct HistogramBin {
 
 /// Peak state-machine + log-histogram pitch detector.
 ///
-/// Port of `VocProc::checkPeriod` + `updateHystogram` + `doSimpleDetection`.
 /// Call `push_sample` for every audio sample; call `detect` every 2048 samples
 /// to read the histogram peak.
 pub struct TimeDomainDetector {
@@ -89,7 +86,7 @@ impl TimeDomainDetector {
 
     /// Feed one (already filtered) sample. Returns a raw period when a
     /// peak-to-peak crossing is detected, 0 otherwise.
-    /// Port of `VocProc::checkPeriod` (`vocproc.cpp:851-884`).
+    /// Update the period histogram from the current peak state.
     #[inline]
     pub fn push_sample(&mut self, sample: f32) -> u32 {
         let pos = self.sample_pos;
@@ -148,7 +145,7 @@ impl TimeDomainDetector {
 
     /// Find the peak histogram bin and return the weighted average period
     /// (raw samples). Returns 0 if confidence is too low.
-    /// Port of `VocProc::doSimpleDetection` (`vocproc.cpp:1136-1181`).
+    /// Run time-domain pitch detection for one sample.
     pub fn detect(&mut self) -> u32 {
         if self.histogram.is_empty() {
             return 0;
@@ -233,8 +230,7 @@ impl TimeDomainDetector {
 
 // ─── FFT detector ─────────────────────────────────────────────────────────────
 
-/// Cepstrum-based FFT pitch detector. Port of `VocProc::pitchDetection`
-/// and `VocProc::calcSpectrum` (`vocproc.cpp:1183-1353`).
+/// Cepstrum-based FFT pitch detector.
 ///
 /// Only compiled with the `worklet` feature (requires `realfft`).
 #[cfg(feature = "worklet")]
@@ -257,7 +253,7 @@ pub mod fft {
     const LOW_NOTE_RELAX_BOOST: f32 = 0.35;
 
     /// Portable integer-bit-length for alias index mapping. Mirrors `ilog` /
-    /// `nbits` in `vocproc.cpp:139-156`.
+    /// Integer log2 helper for period bucketing.
     fn ilog(x: usize) -> usize {
         if x == 0 {
             return 0;
@@ -378,8 +374,8 @@ pub mod fft {
             }
         }
 
-        /// Port of `VocProc::calcSpectrum`. Reads the ring buffer and fills
-        /// `fft_tdata` with the windowed signal, then runs the forward FFT.
+        /// Read the ring buffer into `fft_tdata` with a Hann window, then run
+        /// the forward FFT.
         fn calc_spectrum(&mut self) {
             let j = self.write_ptr.wrapping_sub(FFTLEN);
             for i in 0..FFTLEN {
@@ -391,8 +387,8 @@ pub mod fft {
                 .process(&mut self.fft_tdata, &mut self.fft_spectrum);
         }
 
-        /// Port of `VocProc::pitchDetection`. Operates on `fft_spectrum` set by
-        /// `calc_spectrum`. Returns 24.8 fixed-point period or 0.
+        /// Operates on `fft_spectrum` set by `calc_spectrum`.
+        /// Returns 24.8 fixed-point period or 0.
         fn pitch_detection(&mut self, lowest_period: u32) -> u32 {
             // Build sqrt-magnitude spectrum → fft_fdata2.
             for i in 0..HALF {

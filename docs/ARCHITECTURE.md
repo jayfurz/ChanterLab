@@ -1,12 +1,11 @@
-# Byzorgan Web — Architecture
+# ChanterLab — Architecture
 
 Byzantine Organ as a browser application. This is a ground-up redesign, not a
-port, of the C++ Byzorgan r138 desktop app at
-`/mnt/data/code/byzorgan-source/byzorgan-code-r138-trunk/`.
+line-by-line port, of earlier Byzantine organ tools.
 
 Primary design goal: make the scale / pthora / accidental model as open as the
-theory allows, while preserving the pedagogical voice-detection and
-pitch-correction loop that is the distinctive feature of the original.
+theory allows, with browser-native voice detection, pitch feedback, and
+training-oriented controls.
 
 ## References
 
@@ -14,12 +13,8 @@ pitch-correction loop that is the distinctive feature of the original.
   families, as Chrysanthine / PMC 1881 theory. Consult for every tuning-related
   decision. These are one tradition's textbook values; see that doc's Scope
   section for what that does and doesn't cover.
-- `/mnt/data/code/byzorgan-source/ARCHITECTURE.md` — DSP/threading reference
-  for the C++ app (§6 in particular is the centerpiece for pitch detection).
-- `/mnt/data/code/byzorgan-source/byzorgan-code-r138-trunk/vocproc.{h,cpp}` —
-  pitch-detection source; line ranges cited inline below.
-- `/mnt/data/code/byzorgan-source/byzorgan-code-r138-trunk/repitcher.{h,cpp}` —
-  PSOLA source.
+- General DSP and pitch-detection literature for cepstral/autocorrelation
+  methods, plus browser AudioWorklet constraints.
 
 ## 1. Goals and non-goals
 
@@ -92,11 +87,10 @@ Communication:
   synth worklet (for corrected-voice playback) and optionally to destination
   (direct monitoring).
 
-Mirrors the C++ app's `VocProc` + `Synthesizer` + `AudioMixer` split
-(`byzorgan-source/ARCHITECTURE.md` §4–§5). `MessagePort` replaces Qt queued
-signals; AudioWorklet replaces the RtAudio callback.
+Uses separate voice-analysis, synth, and UI responsibilities connected by
+`MessagePort`; AudioWorklet provides the real-time audio callback.
 
-## 3. Core abstractions (Rust, in `byzorgan-core`)
+## 3. Core abstractions (Rust, in `chanterlab-core`)
 
 ### 3.1 TuningGrid — the single source of truth
 
@@ -241,23 +235,20 @@ for each enabled cell:
 emit flat arrays (cell_ids, periods) to both worklets via postMessage
 ```
 
-Mirrors C++ `VocProc::setKeyTuning(key, period)`
-(`byzorgan-source/ARCHITECTURE.md` §5.1) — DSP never reasons about moria,
-only periods in samples.
+The DSP layer never reasons about moria directly; it receives periods in
+samples for each enabled cell.
 
 ## 4. DSP pipeline (voice path)
 
-Ported faithfully from `vocproc.cpp`. Section numbers below cross-reference
-`byzorgan-source/ARCHITECTURE.md` §6. The C++ code is load-bearing — every
-one of these elements addresses a known pathology in pitch detection. Don't
-drop any without testing the substitute.
+The voice path is browser-native. Every stage below addresses a known pathology
+in pitch detection; do not drop one without measuring the substitute.
 
 ### 4.1 Preprocessing (per sample)
 
 1. Two cascaded 2nd-order highpass biquads, ~50 Hz corner (kill DC and
-   rumble). Port coefficients from `vocproc.cpp:665-666`.
+   rumble).
 2. Optional notch filter for 50/60 Hz mains hum, with user-selectable
-   frequency and width. Port of `NotchFilter` inline in `vocproc.h:23-46`.
+   frequency and width.
 3. Ring buffers:
    - `audio_raw[4096]` — filtered signal for FFT analysis.
    - `audio_in[16384]` — comb-filtered signal locked to the currently
@@ -269,36 +260,33 @@ drop any without testing the substitute.
 
 ### 4.2 FFT pitch detection (default)
 
-Port of `pitchDetection()` in `vocproc.cpp:1202-1348` using `rustfft` or
-`realfft`. Every element listed is load-bearing:
+Cepstral FFT pitch detection using `realfft`. Every element listed is
+load-bearing:
 
 1. **Hann window** over the last 2560 samples of `audio_raw`.
 2. **Forward FFT → power spectrum → sqrt → inverse DCT** (square-root
    cepstrum). Sharper than plain autocorrelation for voiced speech.
 3. **Window-bias removal** via precomputed `fft_corr`. At init, run the same
-   pipeline on the Hann window itself; divide each lag at detection time
-   (`vocproc.cpp:1218-1223`). Without this, the window's own autocorrelation
-   dominates at low lags.
+   pipeline on the Hann window itself; divide each lag at detection time.
+   Without this, the window's own autocorrelation dominates at low lags.
 4. **Integer-ratio alias suppression.** For `k ∈ {2, 3, 5, 7}`, subtract
    interpolated `fft_tdata[i/k]` from `fft_tdata[i]`, iterating `i` from
-   `limit` downward so subtractions use corrected upstream values
-   (`vocproc.cpp:1227-1237`). Kills the octave-error problem.
+   `limit` downward so subtractions use corrected upstream values. Kills the
+   octave-error problem.
 5. **Log-bin EMA** `fft_tavg[aindex] *= 0.75` per detection, neighbor
    spreading `1/1.1^k²`. Recency bias without hard lock.
 6. **Two-tier confidence gates:** accept iff `global_peak > 0.03` AND
    `second_peak / global_peak < min(global_peak * 0.6 + 0.14, 0.5)`.
    Clarity threshold relaxes when the winner is strong.
 7. **Parabolic least-squares** sub-sample interpolation using `s20`/`s42`
-   moments over bins above half-amplitude (`vocproc.cpp:1295-1329`).
+   moments over bins above half-amplitude.
 8. Output: **24.8 fixed-point period**, clamped to
    `[sample_rate/1200, sample_rate/60]`.
 
 ### 4.3 Time-domain fallback
 
-Port of `checkPeriod()` + `doSimpleDetection()`
-(`vocproc.cpp:846-879, 1131-1176`). Peak-state machine with adaptive
-threshold (`threshold = (peakHigh*2 + peakLow)/3`), log-spaced histogram
-over the active key set, half-life decay (`hits >>= 1`) each 2048 samples.
+Time-domain fallback using a peak-state machine with adaptive threshold,
+log-spaced histogram over the active key set, and half-life decay.
 
 Keep the fallback for low-end mobile and as the pre-warm path while the
 FFT plan initializes.
@@ -309,20 +297,19 @@ FFT plan initializes.
 
 - Period-sorted index of enabled cells for O(log n) lookup.
 - **`last_cell_id` hysteresis:** halve the distance to the currently-held
-  cell. Kills note-edge jitter (port of `processPeriod`'s `lastKey` bias,
-  `vocproc.cpp:1008-1129`).
+  cell. Kills note-edge jitter.
 - Returns a neighbor cell + proportional velocity for the half-lit adjacent
-  UI feedback from the original.
+  UI feedback.
 
 If no cell is enabled in range, emits a gate-closed event — DSP treats this
 as silence.
 
 ### 4.5 PSOLA correction
 
-Port of `RepitchPSOLA` (`repitcher.cpp`). Inputs: raw or comb-filtered voice
-and current `(actual_period, target_period)`. Output: pitch-shifted voice
-stream at `target_period`, routed into SynthWorklet for playback alongside
-the organ voice.
+Experimental PSOLA-style correction. Inputs: raw or comb-filtered voice and
+current `(actual_period, target_period)`. Output: pitch-shifted voice stream at
+`target_period`, routed into SynthWorklet for playback alongside the organ
+voice.
 
 ### 4.6 FFT scheduling
 
@@ -376,9 +363,9 @@ Interactions:
 ### 6.2 Pthora palette
 
 Panel of draggable SVG/PNG icons, organized by family (Diatonic /
-Chromatic / Enharmonic). Assets exist in `byzorgan-source/`; port to
-`web/assets/pthora/`. Drop fires `TuningGrid::apply_pthora(moria, pthora)`
-and the ladder redraws. The affected region can optionally carry a tint.
+Chromatic / Enharmonic). Assets live under `web/assets/pthora/`. Drop fires
+`TuningGrid::apply_pthora(moria, pthora)` and the ladder redraws. The affected
+region can optionally carry a tint.
 
 ### 6.3 Shading palette
 
@@ -415,7 +402,7 @@ DSP is agnostic to the view.
 ## 7. Crate and repo layout
 
 ```
-byzorgan-web/
+chanterlab/
 ├── Cargo.toml
 ├── src/
 │   ├── lib.rs                 # main-thread wasm_bindgen exports
@@ -466,8 +453,8 @@ byzorgan-web/
 The crate compiles to **two WASM bundles** via `wasm-pack` with different
 feature flags:
 
-- `byzorgan-core` (feature `main`): full `TuningGrid` + `Genus` + serialization.
-- `byzorgan-core` (feature `worklet`): only DSP primitives + frequency math,
+- `chanterlab-core` (feature `main`): full `TuningGrid` + `Genus` + serialization.
+- `chanterlab-core` (feature `worklet`): only DSP primitives + frequency math,
   for use inside the AudioWorklet.
 
 ## 8. Cross-cutting concerns
@@ -514,15 +501,10 @@ user presets as LocalStorage keys. No server component.
 - **WASM integration** via `wasm-bindgen-test` headless-browser harness.
 - **UI manual checklist** — correctness here is largely perceptual.
 
-## 10. Suggested reading order when porting DSP
+## 10. DSP Implementation Notes
 
-From `byzorgan-source/ARCHITECTURE.md` §9:
+Build DSP changes from documented signal-processing techniques and local
+measurements. Avoid line-by-line translation from third-party source trees.
 
-1. `vocproc.h` — signal surface and data layout.
-2. `vocproc.cpp::writeData` — per-sample hot path.
-3. `vocproc.cpp::pitchDetection` — FFT detector algorithm.
-4. `vocproc.cpp::processPeriod` — nearest-key logic.
-5. `repitcher.h` + `repitcher.cpp::RepitchPSOLA::convertSamples` — PSOLA.
-
-Skip the Qt glue (QIODevice, mutexes, signals). Replace with Rust types and
+Skip desktop-framework glue (QIODevice, mutexes, signals). Replace with Rust types and
 `postMessage`.

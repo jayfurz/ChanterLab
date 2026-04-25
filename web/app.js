@@ -1,4 +1,4 @@
-import init, { JsTuningGrid } from './pkg/byzorgan_core.js';
+import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
 import { ScaleLadder    } from './ui/scale_ladder.js';
 import { AudioEngine    } from './audio/audio_engine.js';
 import { VKeyboard      } from './ui/vkeyboard.js';
@@ -410,7 +410,7 @@ function wireControls() {
 function wirePalettes() {
   new PthoraPalette(document.getElementById('pthora-palette'));
   new ShadingPalette(document.getElementById('shading-palette'));
-  document.addEventListener('byzorgan:palette-click', e => {
+  document.addEventListener('chanterlab:palette-click', e => {
     applySymbolPayloadToCurrentSungCell(e.detail?.payload);
   });
 }
@@ -614,11 +614,23 @@ function wireSynthFollowControls() {
 
 // ── Preset save/load ──────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'byzorgan_presets';
+const STORAGE_KEY = 'chanterlab_presets';
+const LEGACY_STORAGE_KEY = 'byzorgan_presets';
 
 function loadStoredPresets() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
-  catch { return {}; }
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacy) return {};
+
+    const presets = JSON.parse(legacy);
+    saveStoredPresets(presets);
+    return presets;
+  } catch {
+    return {};
+  }
 }
 
 function saveStoredPresets(presets) {

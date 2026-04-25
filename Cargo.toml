@@ -1,8 +1,8 @@
 [package]
-name = "byzorgan-core"
+name = "chanterlab-core"
 version = "0.1.0"
 edition = "2021"
-description = "Byzantine tuning engine and DSP primitives for the Byzorgan web app"
+description = "Byzantine tuning engine and DSP primitives for ChanterLab"
 license = "MIT"
 
 [lib]

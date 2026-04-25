@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document records the interval values Byzorgan Web uses as built-in presets.
+This document records the interval values ChanterLab uses as built-in presets.
 They are the **Chrysanthine / Patriarchal Music Committee (1881) theoretical
 values** — the 72-moria system taught in the Greek Orthodox school tradition.
 They are a **pedagogical reference**, not a description of every living

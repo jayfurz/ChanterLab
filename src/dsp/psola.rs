@@ -1,14 +1,7 @@
 // PsolaRepitcher — waveform-domain pitch correction.
-// Ports RepitchPSOLA from byzorgan-source repitcher.cpp (lines 762–855).
 //
-// The C++ implementation uses 16.16 fixed-point arithmetic for `rate` and
-// `rptr1`.  Here we use `f32`/`f64` floating-point throughout — no
-// fixed-point needed in the browser target.
-//
-// Constants (from repitcher.cpp lines 1-60):
-//   lowLimit  = 1350  — trigger back-jump when buffer is nearly empty
-//   highLimit = 2700  — trigger forward-jump when buffer is too full
-//   ATTACK_RATE = 6   — numerator for output volume ramp (6/16384 per sample)
+// This is a local experimental implementation. It uses f32/f64 floating point
+// throughout because the browser target does not need fixed-point arithmetic.
 
 const RING_SIZE: usize = 16384;
 const RING_MASK: usize = RING_SIZE - 1;
@@ -94,7 +87,7 @@ impl PsolaRepitcher {
 
     /// Produce one pitch-corrected output sample.
     ///
-    /// Ports `RepitchPSOLA::convertSamples` for a single sample.
+    /// Produce one output sample from the current input ring buffer.
     pub fn get_sample(&mut self) -> f32 {
         let ap = self.actual_period;
         let tp = self.target_period;

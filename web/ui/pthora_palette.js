@@ -115,7 +115,7 @@ export class PthoraPalette {
         makeDraggable(el, {
           payload: () => ({ type: 'pthora', genus: row.genus, degree: col.degree }),
           targetSelector: '#scale-ladder',
-          clickEvent: 'byzorgan:palette-click',
+          clickEvent: 'chanterlab:palette-click',
         });
         rowEl.appendChild(el);
       }

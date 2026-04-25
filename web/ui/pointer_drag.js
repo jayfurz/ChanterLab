@@ -8,8 +8,8 @@
 //   makeDraggable(sourceEl, {
 //     payload: () => ({ ... }),      // called at drag start
 //     targetSelector: '#scale-ladder', // drop zone (closest match)
-//     dropEvent: 'byzorgan:palette-drop', // default is this
-//     clickEvent: 'byzorgan:palette-click', // optional click-without-drag event
+//     dropEvent: 'chanterlab:palette-drop', // default is this
+//     clickEvent: 'chanterlab:palette-click', // optional click-without-drag event
 //     ghost: () => Node,             // optional; defaults to cloning src
 //   });
 //
@@ -22,7 +22,7 @@ export function makeDraggable(src, opts) {
   const {
     payload,
     targetSelector,
-    dropEvent = 'byzorgan:palette-drop',
+    dropEvent = 'chanterlab:palette-drop',
     clickEvent = null,
     ghost: ghostFactory,
   } = opts;
@@ -73,14 +73,14 @@ export function makeDraggable(src, opts) {
         const zone = hoverTarget && hoverTarget.closest(targetSelector);
         if (zone !== lastHoverTarget) {
           if (lastHoverTarget) {
-            lastHoverTarget.dispatchEvent(new CustomEvent('byzorgan:palette-hover', {
+            lastHoverTarget.dispatchEvent(new CustomEvent('chanterlab:palette-hover', {
               detail: { payload: data, clientX: null, clientY: null, leaving: true },
             }));
           }
           lastHoverTarget = zone;
         }
         if (zone) {
-          zone.dispatchEvent(new CustomEvent('byzorgan:palette-hover', {
+          zone.dispatchEvent(new CustomEvent('chanterlab:palette-hover', {
             detail: { payload: data, clientX: me.clientX, clientY: me.clientY },
           }));
         }
@@ -108,7 +108,7 @@ export function makeDraggable(src, opts) {
 
     function cleanup() {
       if (lastHoverTarget) {
-        lastHoverTarget.dispatchEvent(new CustomEvent('byzorgan:palette-hover', {
+        lastHoverTarget.dispatchEvent(new CustomEvent('chanterlab:palette-hover', {
           detail: { payload: data, clientX: null, clientY: null, leaving: true },
         }));
         lastHoverTarget = null;

@@ -1,13 +1,12 @@
-//! Audio filters ported from `vocproc.cpp` and `vocproc.h`.
+//! Audio filters used by the voice analysis path.
 //!
 //! - `CascadedHpf`: two 2nd-order biquad high-pass stages (~50 Hz corner).
-//!   Coefficients from `vocproc.cpp:665-666`.
-//! - `NotchFilter`: comb-delay notch. Port of `vocproc.h:23-46`.
+//! - `NotchFilter`: comb-delay notch.
 //! - `LowPassFilter1`: 1st-order LPF used before the time-domain peak detector.
 
 /// One 2nd-order biquad high-pass section.
 ///
-/// Difference equation (from `highPassFilter2` in `vocproc.cpp`):
+/// Difference equation:
 ///   y[n] = (x[n] + x[n-2]) - 2·x[n-1] + k1·y[n-1] + k0·y[n-2]
 pub struct BiquadHpf {
     x: [f32; 3],
@@ -39,12 +38,11 @@ impl BiquadHpf {
     }
 }
 
-// Coefficients from vocproc.cpp:665-666.
+// Project-tuned coefficients for the voice analysis high-pass filter.
 const HPF_K0: f32 = -0.9907866988;
 const HPF_K1: f32 = 1.9907440595;
 
 /// Two cascaded 2nd-order biquad HPF stages (~32 Hz corner frequency).
-/// Port of the `xa/xb/xc` filter chain in `VocProc::writeData`.
 pub struct CascadedHpf {
     stage1: BiquadHpf,
     stage2: BiquadHpf,
@@ -70,7 +68,7 @@ impl CascadedHpf {
     }
 }
 
-/// Comb-delay notch filter. Port of `NotchFilter` in `vocproc.h:23-46`.
+/// Comb-delay notch filter.
 ///
 /// Creates a notch at frequency `sample_rate / period_samples` and its
 /// harmonics. `amp` (0.0 = bypass, 1.0 = full depth) controls feedback.
@@ -121,7 +119,6 @@ impl NotchFilter {
 }
 
 /// 1st-order IIR low-pass filter used before the time-domain peak detector.
-/// Port of `lowPassFilter1` in `vocproc.cpp` with k0 = 0.9929014614.
 pub struct LowPassFilter1 {
     x: [f32; 2],
     y: [f32; 2],
@@ -137,7 +134,7 @@ impl LowPassFilter1 {
         }
     }
 
-    /// Pre-configured for the time-domain path in `vocproc.cpp`.
+    /// Pre-configured for the time-domain pitch detector path.
     pub fn for_peak_detector() -> Self {
         Self::new(0.9929014614)
     }

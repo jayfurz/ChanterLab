@@ -4,7 +4,7 @@
 //   HPF (2× cascaded biquad) → optional notch → gate → FFT pitch detection
 //   → nearest-cell snap → throttled pitch events to main thread.
 //
-// Port of VocProc from vocproc.cpp/vocproc.h.
+// Browser-native voice analysis and correction worklet.
 //
 // Messages FROM main thread:
 //   { type: 'tuning_table', table: [{cell_id, period_24_8}] }
@@ -50,7 +50,7 @@ if (typeof globalThis.TextDecoder === 'undefined') {
   };
 }
 
-// ─── Constants (match vocproc.cpp defines) ────────────────────────────────────
+// ─── Detector constants ───────────────────────────────────────────────────────
 
 const RAW_BUFFER_SIZE = 8192;   // audioRaw ring buffer (≥ FFTLEN, power-of-2 for wrap mask)
 const FFTLEN          = 4096;   // FFT window — doubled from 2048 for bass-range cepstrum confidence
@@ -65,7 +65,7 @@ const LOW_NOTE_RELAX_END_HZ   = 80;     // strong relaxation by baritone/bass fu
 const LOW_NOTE_MAX_AMBIGUITY  = 0.65;
 const LOW_NOTE_RELAX_BOOST    = 0.35;
 
-// Biquad HPF coefficients from vocproc.cpp:665-666.
+// Project-tuned biquad HPF coefficients.
 const HPF_K0 = -0.9907866988;
 const HPF_K1 =  1.9907440595;
 
@@ -276,7 +276,7 @@ function ifftInPlace(re, im) {
   for (let i = 0; i < n; i++) { re[i] /= n; im[i] = -(im[i] / n); }
 }
 
-// ─── Integer log mapping (port of ilog/nbits from vocproc.cpp:139-156) ────────
+// ─── Integer log mapping ──────────────────────────────────────────────────────
 
 function ilog(x) {
   if (x === 0) return 0;

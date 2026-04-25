@@ -82,8 +82,8 @@ export class ScaleLadder {
 
     canvas.addEventListener('click', e => this._onClick(e));
     canvas.addEventListener('contextmenu', e => this._onRightClick(e));
-    canvas.addEventListener('byzorgan:palette-drop', e => this._onPaletteDrop(e));
-    canvas.addEventListener('byzorgan:palette-hover', e => this._onPaletteHover(e));
+    canvas.addEventListener('chanterlab:palette-drop', e => this._onPaletteDrop(e));
+    canvas.addEventListener('chanterlab:palette-hover', e => this._onPaletteHover(e));
 
     // Long-press → accidental popup. Parallel path to right-click, not gated
     // by pointerType so trackpad users can use whichever feels natural.

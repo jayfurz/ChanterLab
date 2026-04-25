@@ -1,4 +1,4 @@
-# Byzorgan Web — Implementation Plan
+# ChanterLab — Implementation Plan
 
 > Architecture and design decisions live in `docs/ARCHITECTURE.md`. This
 > document is the implementation sequence. Read ARCHITECTURE.md first.
@@ -12,9 +12,10 @@ PMC 1881 textbook values. Consult for every tuning-related task. Note that
 these are one tradition's theoretical values, not a description of all living
 practice (see that doc's Scope section).
 
-**C++ source to port DSP from:**
-`/mnt/data/code/byzorgan-source/byzorgan-code-r138-trunk/` — notably
-`vocproc.{h,cpp}` and `repitcher.{h,cpp}`.
+**DSP approach:**
+Implement browser-native voice analysis and correction from documented signal
+processing techniques. Treat earlier tools as product inspiration, not source
+material to port.
 
 ## Ground rules
 
@@ -25,8 +26,8 @@ practice (see that doc's Scope section).
    array" code path — that was the central bug in the previous plan.
 2. **Tests first for tuning code.** Every `TuningGrid` operation lands with
    a failing test, then an implementation, then a commit.
-3. **Port DSP, don't reinvent.** For pitch detection and PSOLA, the C++
-   source is load-bearing. Each algorithmic element (window bias removal,
+3. **Measure DSP changes.** For pitch detection and PSOLA, each algorithmic
+   element (window bias removal,
    alias suppression, log-bin EMA, confidence gates, parabolic LSQ) is
    there to address a specific pathology — don't drop elements without
    replacement.
@@ -230,9 +231,7 @@ engine wired through WASM (no redundant JS logic).
 
 - `web/ui/pthora_palette.js`: panel of draggable icons. Data attribute
   carries `(genus_index, degree_index)`.
-- Copy SVG/PNG pthora assets from
-  `/mnt/data/code/byzorgan-source/byzorgan-code-r138-trunk/` (find them
-  under the resource directories, e.g. alongside `audio.qrc`).
+- Create ChanterLab-native pthora assets in `web/assets/pthora/`.
 - HTML5 drag-and-drop: dragstart sets `DataTransfer`; ladder dragover
   accepts; drop fires `WasmGrid::apply_pthora(moria, genus, degree)`.
 - Visual: tint the affected region a unique color per pthora family.
@@ -319,9 +318,8 @@ line numbers in commit messages.
 
 ### 4.3 Filters
 
-- `core/dsp/filters.rs`: biquad HPF (2nd order, cascaded ×2). Coefficients
-  from `vocproc.cpp:665-666`.
-- `NotchFilter` port of `vocproc.h:23-46`. `setPeriod`, `setAmp`, `doSample`.
+- `core/dsp/filters.rs`: biquad HPF (2nd order, cascaded ×2).
+- `NotchFilter` comb-delay notch with `set_period`, `set_amp`, `process`.
 - Unit tests: step response / sine passthrough at 500 Hz; HPF should
   attenuate a 30 Hz tone by ≥40 dB.
 
@@ -336,8 +334,7 @@ line numbers in commit messages.
 
 ### 4.5 Time-domain detector (warm-up path)
 
-- `core/dsp/detector.rs`: `TimeDomainDetector` per
-  `vocproc.cpp:846-879, 1131-1176`.
+- `core/dsp/detector.rs`: `TimeDomainDetector`.
 - Peak-state machine, log-histogram keyed to enabled cells, decay per
   2048-sample block.
 - Test: synthetic sine at 440 Hz for 4096 samples → detected period
@@ -411,11 +408,10 @@ Break into sub-tasks; each lands in its own commit with a dedicated test:
 
 ## Phase 6 — PSOLA pitch correction
 
-### 6.1 RepitchPSOLA port
+### 6.1 PSOLA-style correction
 
-- `core/dsp/psola.rs`: port of `RepitchPSOLA::convertSamples`
-  (`repitcher.cpp`). Per-epoch overlap-add, cross-fade between source
-  periods and target periods.
+- `core/dsp/psola.rs`: local PSOLA-style implementation. Per-epoch
+  overlap-add, cross-fade between source periods and target periods.
 - Consumes the comb-filtered voice buffer from `VoiceWorklet`.
 - Output: buffer of shifted samples at `target_period`.
 

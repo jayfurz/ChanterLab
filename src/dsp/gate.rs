@@ -1,5 +1,4 @@
-//! Asymmetric hysteretic noise gate. Port of the gate logic in
-//! `VocProc::writeData` (`vocproc.cpp:704-720`).
+//! Asymmetric hysteretic noise gate for the voice analysis path.
 //!
 //! Every `BLOCK` samples (default 128, matching C++) the peak-to-peak
 //! amplitude of that block is EMA-smoothed into `current_amp`.
@@ -8,7 +7,7 @@
 
 const BLOCK: usize = 128;
 
-/// Hysteretic noise gate matching `VocProc`'s gate logic.
+/// Hysteretic noise gate.
 pub struct Gate {
     lo_amp: f32,
     hi_amp: f32,

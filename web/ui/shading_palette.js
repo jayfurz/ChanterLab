@@ -64,7 +64,7 @@ export class ShadingPalette {
       makeDraggable(el, {
         payload: () => ({ type: 'shading', shading: item.shading }),
         targetSelector: '#scale-ladder',
-        clickEvent: 'byzorgan:palette-click',
+        clickEvent: 'chanterlab:palette-click',
       });
       row.appendChild(el);
     }

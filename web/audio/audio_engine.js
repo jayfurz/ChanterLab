@@ -110,8 +110,8 @@ export class AudioEngine {
       // does not reliably expose `importScripts` and will refuse a .wasm
       // response if a tunnel serves the wrong MIME type; bypass both by
       // doing all network I/O here and handing bytes over by transfer.
-      const glueUrl = new URL('../../pkg-worklet/byzorgan_core.js',      import.meta.url);
-      const wasmUrl = new URL('../../pkg-worklet/byzorgan_core_bg.wasm', import.meta.url);
+      const glueUrl = new URL('../../pkg-worklet/chanterlab_core.js',      import.meta.url);
+      const wasmUrl = new URL('../../pkg-worklet/chanterlab_core_bg.wasm', import.meta.url);
       try {
         const [glueText, wasmBuffer] = await Promise.all([
           fetch(glueUrl).then(r => {

@@ -944,7 +944,7 @@ pub struct NearestCellResult {
     /// or `None` if there is only one enabled cell.
     pub neighbor_id: Option<i32>,
     /// Proportional velocity 0.0..1.0 for the neighbor; see `processPeriod` in
-    /// `vocproc.cpp:1028-1033`.
+    /// the voice detector's nearest-neighbor UI feedback.
     pub neighbor_vel: f32,
 }
 
@@ -954,7 +954,7 @@ pub struct NearestCellResult {
 /// `sorted_table` must be the output of `TuningGrid::tuning_table` (sorted
 /// ascending by period). Returns `None` only if the table is empty.
 ///
-/// Port of `VocProc::nearestKeyForPeriod` (`vocproc.cpp:886-959`).
+/// Period-sorted nearest-cell index for voice detection.
 pub fn nearest_enabled_cell(
     sorted_table: &[(u32, i32)],
     period_24_8: u32,
@@ -998,7 +998,7 @@ pub fn nearest_enabled_cell(
     let primary_period = sorted_table[primary_idx].0;
 
     // Find neighbor: the other adjacent cell in the sorted table.
-    // Port of key2/key3 and their velocity calculation in `processPeriod`.
+    // Neighbor-cell velocity calculation for half-lit adjacent UI feedback.
     let (neighbor_id, neighbor_vel) = if n > 1 {
         let below_nb = if primary_idx > 0 {
             Some(sorted_table[primary_idx - 1])
