@@ -3,6 +3,8 @@ import { ScaleLadder    } from './ui/scale_ladder.js';
 import { AudioEngine    } from './audio/audio_engine.js';
 import { VKeyboard      } from './ui/vkeyboard.js';
 import { Singscope      } from './ui/singscope.js';
+import { NoteIndicator  } from './ui/note_indicator.js?v=0.1.0-alpha.2';
+import { ExerciseMode   } from './ui/exercise_mode.js?v=0.1.0-alpha.2';
 import { PthoraPalette  } from './ui/pthora_palette.js';
 import { ShadingPalette } from './ui/shading_palette.js';
 
@@ -18,14 +20,21 @@ const PRESETS = [
   { label: 'Enharmonic Ga', genus: 'EnharmonicGa',   degree: 'Ga'  },
 ];
 
+const DEFAULT_REF_NI_HZ = 130.81;
+const APP_VERSION = '0.1.0-alpha.2';
+const HELP_RELEASE_ID = APP_VERSION;
+
 const app = {
   grid:            null,
   ladder:          null,
   singscope:       null,
+  noteIndicator:   null,
+  exercise:        null,
   engine:          null,
   keyboard:        null,
   activePresetIdx: 0,
   gridChanged:     null,
+  refNiHz:         DEFAULT_REF_NI_HZ,
   // Ison state
   isonEnabled:    false,
   isonDegree:     'Ni',
@@ -42,6 +51,7 @@ const app = {
   synthFollowVolume:  0.5,
   synthFollowCellId:  null,
   synthFollowMisses:  0,
+  setReferenceNiHz:   null,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -50,6 +60,7 @@ async function main() {
   await init();
 
   app.grid   = new JsTuningGrid();
+  app.grid.refNiHz = app.refNiHz;
   app.engine = new AudioEngine();
 
   const canvas  = document.getElementById('scale-ladder');
@@ -59,6 +70,8 @@ async function main() {
   const singCanvas  = document.getElementById('singscope');
   app.singscope     = new Singscope(singCanvas);
   app.singscope.start();
+  app.noteIndicator = new NoteIndicator(document.getElementById('note-indicator'));
+  app.exercise      = new ExerciseMode(document.getElementById('exercise-panel'), app, { selectPreset });
 
   buildPresetButtons();
   wireControls();
@@ -68,6 +81,8 @@ async function main() {
   wireIsonControls();
   wireCorrectionControls();
   wireSynthFollowControls();
+  syncAppVersionText();
+  wireHelpDialog();
   wireAudioInit();
 
   gridChanged();
@@ -76,9 +91,18 @@ async function main() {
 // ── Called whenever the grid state changes ────────────────────────────────────
 
 function gridChanged() {
+  const gridRefNiHz = app.grid?.refNiHz;
+  if (Number.isFinite(gridRefNiHz) && gridRefNiHz > 0) {
+    app.refNiHz = clampReferenceHz(gridRefNiHz);
+  }
+  app.grid.refNiHz = app.refNiHz;
+  syncReferenceControls();
   app.ladder.refresh();
   if (app.singscope) app.singscope.setRowMap(app.ladder.rowMap);
   const cells = JSON.parse(app.grid.cellsJson());
+  const gridState = readGridState();
+  app.noteIndicator?.refresh(cells, gridState);
+  app.noteIndicator?.clear();
   app.keyboard.rebuildKeyMap(cells);
   app.voiceSnapTable = cells
     .filter(c => c.enabled)
@@ -90,14 +114,68 @@ function gridChanged() {
     .sort((a, b) => a.moria - b.moria);
   app.voiceLastCellId = null;
   app.voiceCurrentCellId = null;
-  app.engine.updateTuning(cells, app.grid.refNiHz);
+  app.engine.updateTuning(cells, app.refNiHz);
   updateIsonVoice(cells);
   stopSynthFollow();
+  app.exercise?.syncReferenceNiHz(app.refNiHz);
+  app.exercise?.refresh();
 }
 
 app.gridChanged = gridChanged;
 
+function readGridState() {
+  try {
+    return JSON.parse(app.grid.toJson());
+  } catch (e) {
+    console.warn('Failed to read grid state for UI context', e);
+    return null;
+  }
+}
+
 // ── Audio init on first user gesture ─────────────────────────────────────────
+
+function syncAppVersionText() {
+  document.querySelectorAll('.app-version, .app-version-text').forEach(el => {
+    el.textContent = el.classList.contains('app-version') ? `v${APP_VERSION}` : APP_VERSION;
+  });
+}
+
+function wireHelpDialog() {
+  const dialog = document.getElementById('help-dialog');
+  const openBtn = document.getElementById('help-open-btn');
+  const closeBtn = document.getElementById('help-close-btn');
+  const doneBtn = document.getElementById('help-done-btn');
+  const showAgain = document.getElementById('help-show-again');
+  if (!dialog || !openBtn || !closeBtn || !doneBtn || !showAgain) return;
+
+  const storageKey = 'chanterlab_help_seen_release';
+  const seenRelease = localStorage.getItem(storageKey);
+  showAgain.checked = false;
+
+  const open = () => {
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+  };
+  const close = () => {
+    if (!showAgain.checked) localStorage.setItem(storageKey, HELP_RELEASE_ID);
+    else localStorage.removeItem(storageKey);
+    dialog.close();
+  };
+
+  openBtn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  doneBtn.addEventListener('click', close);
+  dialog.addEventListener('click', event => {
+    if (event.target === dialog) close();
+  });
+  dialog.addEventListener('cancel', () => {
+    if (!showAgain.checked) localStorage.setItem(storageKey, HELP_RELEASE_ID);
+  });
+
+  if (seenRelease !== HELP_RELEASE_ID) {
+    requestAnimationFrame(open);
+  }
+}
 
 function wireAudioInit() {
   const statusEl = document.getElementById('audio-status');
@@ -110,7 +188,7 @@ function wireAudioInit() {
       statusEl.classList.replace('audio-off', 'audio-on');
       // Push the current tuning table now that the engine is ready.
       const cells = JSON.parse(app.grid.cellsJson());
-      app.engine.updateTuning(cells, app.grid.refNiHz);
+      app.engine.updateTuning(cells, app.refNiHz);
       updateIsonVoice(cells);
       // Correction defaults to off; the synth's own default is 0.5, so we
       // override explicitly on first init.
@@ -167,7 +245,7 @@ function handlePitchEvent(msg) {
     Number.isFinite(msg.detected_hz) &&
     msg.detected_hz > 0
   ) {
-    msg.raw_moria = 72 * Math.log2(msg.detected_hz / app.grid.refNiHz);
+    msg.raw_moria = 72 * Math.log2(msg.detected_hz / app.refNiHz);
   } else {
     msg.raw_moria = null;
   }
@@ -188,15 +266,18 @@ function handlePitchEvent(msg) {
     : null;
 
   updateSynthFollowFromPitch(msg);
+  app.exercise?.handlePitch(msg);
 
   if (!msg.gate_open || !isValidCellId(msg.cell_id)) {
     app.ladder.setDetectedCell(null, null, 0);
+    app.noteIndicator?.clear();
   } else {
     app.ladder.setDetectedCell(
       msg.cell_id,
       isValidCellId(msg.neighbor_id) ? msg.neighbor_id : null,
       msg.neighbor_vel,
     );
+    app.noteIndicator?.showPitch(msg);
   }
   if (app.singscope) app.singscope.pushPitch(msg);
 }
@@ -303,6 +384,7 @@ function buildPresetButtons() {
 function selectPreset(idx) {
   const p = PRESETS[idx];
   app.grid = new JsTuningGrid();
+  app.grid.refNiHz = app.refNiHz;
   app.grid.applyPthora(0, p.genus, p.degree);
   app.activePresetIdx = idx;
 
@@ -353,6 +435,22 @@ function formatConcertPitch(hz) {
   return `${noteName}${octave} ${sign}${cents}c`;
 }
 
+function setReferenceNiHz(hz) {
+  const clampedHz = clampReferenceHz(hz);
+  app.refNiHz = clampedHz;
+  app.grid.refNiHz = clampedHz;
+  gridChanged();
+}
+
+app.setReferenceNiHz = setReferenceNiHz;
+
+function clampReferenceHz(hz) {
+  const slider = document.getElementById('ni-hz-slider');
+  const min = parseFloat(slider ? slider.min : '90');
+  const max = parseFloat(slider ? slider.max : '700');
+  return Math.min(max, Math.max(min, hz));
+}
+
 function updateReferenceNiDisplay(hz) {
   const niDisplay = document.getElementById('ni-hz-display');
   const noteDisplay = document.getElementById('ni-note-display');
@@ -360,32 +458,25 @@ function updateReferenceNiDisplay(hz) {
   noteDisplay.textContent = formatConcertPitch(hz);
 }
 
+function syncReferenceControls() {
+  const slider = document.getElementById('ni-hz-slider');
+  if (slider) slider.value = app.refNiHz.toFixed(2);
+  updateReferenceNiDisplay(app.refNiHz);
+}
+
 function wireControls() {
   const slider    = document.getElementById('ni-hz-slider');
 
-  const setReferenceNiHz = hz => {
-    const min = parseFloat(slider.min);
-    const max = parseFloat(slider.max);
-    const clampedHz = Math.min(max, Math.max(min, hz));
-    slider.value = clampedHz.toFixed(2);
-    updateReferenceNiDisplay(clampedHz);
-    app.grid.refNiHz = clampedHz;
-    gridChanged();
-  };
-
-  updateReferenceNiDisplay(parseFloat(slider.value));
+  syncReferenceControls();
   slider.addEventListener('input', () => {
-    const hz = parseFloat(slider.value);
-    updateReferenceNiDisplay(hz);
-    app.grid.refNiHz = hz;
-    gridChanged();
+    setReferenceNiHz(parseFloat(slider.value));
   });
 
   document.getElementById('ni-snap-up-btn').addEventListener('click', () => {
-    setReferenceNiHz(midiToHz(nextMidiFromHz(app.grid.refNiHz, 1)));
+    setReferenceNiHz(midiToHz(nextMidiFromHz(app.refNiHz, 1)));
   });
   document.getElementById('ni-snap-down-btn').addEventListener('click', () => {
-    setReferenceNiHz(midiToHz(nextMidiFromHz(app.grid.refNiHz, -1)));
+    setReferenceNiHz(midiToHz(nextMidiFromHz(app.refNiHz, -1)));
   });
 
   document.getElementById('shift-up-btn').addEventListener('click', () => {
@@ -397,6 +488,7 @@ function wireControls() {
 
   document.getElementById('reset-btn').addEventListener('click', () => {
     app.grid = new JsTuningGrid();
+    app.grid.refNiHz = app.refNiHz;
     app.activePresetIdx = 0;
     document.querySelectorAll('.preset-btn').forEach((b, i) => {
       b.classList.toggle('active', i === 0);
@@ -656,6 +748,7 @@ function renderSavedPresets() {
     loadBtn.addEventListener('click', () => {
       try {
         app.grid = JsTuningGrid.fromJson(presets[name]);
+        app.refNiHz = app.grid.refNiHz;
         gridChanged();
       } catch (e) {
         console.error('Failed to load preset', e);

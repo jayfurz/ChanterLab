@@ -4,13 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChanterLab</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=0.1.0-alpha.2">
 </head>
 <body>
 
 <header id="app-header">
   <h1>ChanterLab</h1>
+  <span class="app-version">v0.1.0-alpha.2</span>
   <span id="audio-status" class="audio-status audio-off" title="Click or press a key to start audio">&#9654; Audio off</span>
+  <button id="help-open-btn" class="header-btn" type="button">Help</button>
 </header>
 
 <div id="app-body">
@@ -26,15 +28,15 @@
       <h2>Reference Ni</h2>
       <div class="reference-ni-row">
         <label for="ni-hz-slider" class="reference-ni-readout">
-          <span id="ni-hz-display">261.63</span> Hz
-          <span id="ni-note-display" class="reference-note-display">C4 +0c</span>
+          <span id="ni-hz-display">130.81</span> Hz
+          <span id="ni-note-display" class="reference-note-display">C3 +0c</span>
         </label>
         <div class="reference-snap-buttons" aria-label="Snap reference Ni to MIDI note">
           <button id="ni-snap-up-btn" type="button" class="reference-snap-btn" title="Snap to next higher MIDI note">▲</button>
           <button id="ni-snap-down-btn" type="button" class="reference-snap-btn" title="Snap to next lower MIDI note">▼</button>
         </div>
       </div>
-      <input type="range" id="ni-hz-slider" min="200" max="550" step="0.01" value="261.63">
+      <input type="range" id="ni-hz-slider" min="90" max="700" step="0.01" value="130.81">
     </div>
 
     <div class="control-group">
@@ -47,6 +49,45 @@
 
     <div class="control-group">
       <button id="reset-btn">Reset Grid</button>
+    </div>
+
+    <div class="control-group exercise-panel" id="exercise-panel">
+      <h2>Exercise Mode</h2>
+      <select id="exercise-select" aria-label="Choose exercise">
+        <option value="match-ni">Match Ni</option>
+        <option value="diatonic-ascent">Diatonic Ascent</option>
+        <option value="diatonic-descent">Diatonic Descent</option>
+        <option value="hard-chromatic-pa">Hard Chromatic Pa</option>
+      </select>
+      <label for="exercise-range-select">Practice range</label>
+      <select id="exercise-range-select" aria-label="Choose practice range">
+        <option value="110">Bass - Ni A2</option>
+        <option value="130.81" selected>Baritone - Ni C3</option>
+        <option value="155.56">Tenor - Ni Eb3</option>
+        <option value="220">Female low - Ni A3</option>
+        <option value="261.63">Female mid - Ni C4</option>
+        <option value="311.13">Female high - Ni Eb4</option>
+        <option value="custom">Use current Reference Ni</option>
+      </select>
+      <div class="exercise-card">
+        <div class="exercise-target-row">
+          <span id="exercise-target" class="exercise-target">-</span>
+          <span id="exercise-score" class="exercise-score">--</span>
+        </div>
+        <div id="exercise-hint" class="exercise-hint">Choose an exercise and press Start.</div>
+        <div class="exercise-progress" aria-label="Current exercise progress">
+          <span id="exercise-progress-fill"></span>
+        </div>
+        <div class="exercise-meta">
+          <span id="exercise-progress-text">0s / 0s</span>
+          <span id="exercise-details">No attempt yet.</span>
+        </div>
+      </div>
+      <div class="exercise-actions">
+        <button id="exercise-start-btn" type="button">Start</button>
+        <button id="exercise-reset-btn" type="button">Reset</button>
+        <button id="exercise-copy-btn" type="button" disabled>Copy Report</button>
+      </div>
     </div>
 
     <div class="control-group" id="ison-controls">
@@ -108,6 +149,24 @@
         <canvas id="scale-ladder"></canvas>
       </div>
       <canvas id="singscope"></canvas>
+      <div id="note-indicator" class="note-indicator hidden" aria-live="polite">
+        <div class="note-indicator-martyria">
+          <span class="note-indicator-note-glyph"></span>
+          <span class="note-indicator-below-glyph"></span>
+          <span class="note-indicator-western"></span>
+        </div>
+        <div class="note-indicator-body">
+          <div class="note-indicator-topline">
+            <span class="note-indicator-name">Ni</span>
+            <span class="note-indicator-score">Locked</span>
+          </div>
+          <div class="note-indicator-meter">
+            <span class="note-indicator-center"></span>
+            <span class="note-indicator-cursor"></span>
+          </div>
+          <div class="note-indicator-offset">Hold +0.0 m</div>
+        </div>
+      </div>
     </div>
 
     <!-- Pthora + shading palettes -->
@@ -133,9 +192,78 @@
     <input type="number" id="acc-custom-input" step="2" placeholder="±N">
     <button id="acc-custom-apply">Set</button>
   </div>
-  <button id="acc-clear-btn">Clear accidental</button>
+<button id="acc-clear-btn">Clear accidental</button>
 </div>
 
-<script type="module" src="app.js"></script>
+<dialog id="help-dialog" class="help-dialog">
+  <div class="help-dialog-shell">
+    <div class="help-dialog-header">
+      <div>
+        <h2>Welcome to ChanterLab</h2>
+        <div class="help-version">Version <span class="app-version-text">0.1.0-alpha.2</span></div>
+        <p>Free Byzantine chanting practice software by Justin Fursov, a chanter at Holy Resurrection Orthodox Church in Tucson, AZ.</p>
+      </div>
+      <button id="help-close-btn" class="help-close-btn" type="button" aria-label="Close help">×</button>
+    </div>
+
+    <div class="help-dialog-body">
+      <section>
+        <h3>What It Does</h3>
+        <p>ChanterLab uses your microphone to detect pitch and show how close you are to the current Byzantine scale degree. Everything runs locally in your browser.</p>
+      </section>
+
+      <section>
+        <h3>Try This First</h3>
+        <ol>
+          <li>Click anywhere in the app to start audio, then allow microphone access.</li>
+          <li>Use wired headphones if you can. They reduce feedback and avoid Bluetooth delay.</li>
+          <li>Set Reference Ni for your voice range.</li>
+          <li>Sing while watching the bottom note indicator and singscope.</li>
+          <li>Use Exercise Mode for short pitch-holding drills.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h3>Controls</h3>
+        <ul>
+          <li>Drag pthora or chroa symbols onto the scale ladder to transform the scale.</li>
+          <li>Click a pthora while singing to apply it to the note being detected.</li>
+          <li>Right-click or long-press a ladder degree to add diesis or yphesis.</li>
+          <li>Keyboard synth: <span class="key-run">Z X C V B N M</span> for the lower octave and <span class="key-run">A S D F G H J K L</span> for the upper range.</li>
+          <li>Use Ison, Voice Monitor, and Synth Follow from the left panel.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Current Release Notes</h3>
+        <ul>
+          <li>Supports traditional 72-ET tuning with draggable pthora and chroa.</li>
+          <li>Practice mode includes range selection, simple exercises, scoring, and copyable reports.</li>
+          <li>Reference Ni now stays synced when presets are loaded or changed outside the slider.</li>
+          <li>Practice scoring now folds octave-equivalent pitch error, so C3 can match Ni when Reference Ni is C4.</li>
+          <li>Bundled Neanes font support for Byzantine symbols.</li>
+          <li>Martyria rendering is still a work in progress; some symbols do not display correctly yet, especially in the chromatic genera.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Status</h3>
+        <p>This is early tester software. It is free, source code release is planned under GPLv3, and the project is derived from Byzorgan with the open-source Neanes font package.</p>
+        <p>For best results, use wired headphones, especially when Voice Monitor, Ison, or Synth Follow are enabled.</p>
+        <p>Upcoming work includes more training tracks, voice recordings, automatic transcription, and broader practice tools.</p>
+      </section>
+    </div>
+
+    <div class="help-dialog-footer">
+      <label class="help-check">
+        <input id="help-show-again" type="checkbox">
+        Show this on startup
+      </label>
+      <button id="help-done-btn" class="help-done-btn" type="button">Start Practicing</button>
+    </div>
+  </div>
+</dialog>
+
+<script type="module" src="app.js?v=0.1.0-alpha.2"></script>
 </body>
 </html>

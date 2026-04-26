@@ -41,6 +41,24 @@ body {
   color: var(--accent2);
 }
 
+.app-version {
+  color: var(--text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.header-btn {
+  margin-left: auto;
+  background: rgba(83, 192, 240, 0.08);
+  color: var(--accent2);
+  border: 1px solid rgba(83, 192, 240, 0.42);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.header-btn:hover { background: rgba(83, 192, 240, 0.16); }
+
 #app-body {
   display: flex;
   flex: 1;
@@ -132,6 +150,15 @@ input[type="number"] {
   width: 100%;
   font-size: 12px;
 }
+select {
+  background: var(--bg);
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: var(--text);
+  padding: 4px 6px;
+  font-size: 12px;
+  width: 100%;
+}
 
 .viewport-btns { display: flex; gap: 4px; }
 .viewport-btn {
@@ -156,6 +183,94 @@ input[type="number"] {
   font-size: 12px;
 }
 #reset-btn:hover { opacity: 0.85; }
+
+/* ── Exercise mode ───────────────────────────────────────────── */
+.exercise-panel select {
+  border-color: rgba(83, 192, 240, 0.35);
+}
+.exercise-card {
+  background:
+    linear-gradient(145deg, rgba(83, 192, 240, 0.11), rgba(15, 52, 96, 0.12)),
+    var(--bg);
+  border: 1px solid rgba(83, 192, 240, 0.28);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.exercise-target-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.exercise-target {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+}
+.exercise-score {
+  color: var(--accent2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 800;
+}
+.exercise-hint {
+  color: #c8d7e5;
+  font-size: 11px;
+  line-height: 1.3;
+  min-height: 28px;
+}
+.exercise-progress {
+  height: 10px;
+  background: rgba(0,0,0,0.34);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.exercise-progress span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #53c0f0, #78f0ad);
+  transition: width 80ms linear;
+}
+.exercise-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1.25;
+}
+.exercise-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.exercise-actions button {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px 5px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.exercise-actions button:hover:not(:disabled) {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+.exercise-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+#exercise-copy-btn {
+  grid-column: 1 / -1;
+}
 
 /* ── Preset save/load ────────────────────────────────────────── */
 #preset-name-input {
@@ -213,6 +328,7 @@ input[type="number"] {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  position: relative;
 }
 
 /* ── Scale ladder ────────────────────────────────────────────── */
@@ -238,6 +354,170 @@ input[type="number"] {
   display: block;
   background: #111;
 }
+
+/* ── Sung note indicator ────────────────────────────────────── */
+.note-indicator {
+  position: absolute;
+  left: calc(var(--ladder-w) + (100% - var(--ladder-w)) / 2);
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: clamp(220px, 34vw, 360px);
+  min-height: 80px;
+  padding: 9px 12px;
+  border: 1px solid rgba(83, 192, 240, 0.32);
+  border-radius: 8px;
+  background: rgba(10, 14, 22, 0.86);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.38);
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 120ms ease, transform 120ms ease, border-color 120ms ease;
+  z-index: 5;
+}
+.note-indicator.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(6px);
+}
+
+.note-indicator-martyria {
+  position: relative;
+  width: 62px;
+  height: 66px;
+  justify-self: center;
+  font-family: 'Neanes', serif;
+  color: #e8fbff;
+  overflow: visible;
+}
+.note-indicator-note-glyph,
+.note-indicator-below-glyph {
+  position: absolute;
+  left: 50%;
+  top: var(--glyph-top, 0);
+  transform: translateX(calc(-50% + var(--glyph-dx, 0em)));
+  display: block;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.42);
+}
+.note-indicator-note-glyph {
+  font-size: 37px;
+}
+.note-indicator-below-glyph {
+  font-size: 36px;
+}
+.note-indicator-western {
+  display: none;
+}
+.note-indicator-martyria.western-mode {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  display: flex;
+  height: 52px;
+  border: 1px solid rgba(83, 192, 240, 0.26);
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  background: rgba(83, 192, 240, 0.08);
+}
+.note-indicator-martyria.western-mode .note-indicator-western {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #e8fbff;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.note-indicator-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.note-indicator-topline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.note-indicator-name {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+}
+.note-indicator-score {
+  color: #78f0ad;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.note-indicator-meter {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg,
+      #e94560 0%,
+      #f0c040 30%,
+      #50c878 47%,
+      #50c878 53%,
+      #f0c040 70%,
+      #e94560 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
+}
+.note-indicator-center {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: rgba(255,255,255,0.7);
+  transform: translateX(-50%);
+}
+.note-indicator-cursor {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.55);
+  transform: translateX(-50%);
+  transition: left 80ms linear;
+}
+.note-indicator-offset {
+  color: #c8d7e5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-indicator.grade-perfect {
+  border-color: rgba(80, 200, 120, 0.72);
+}
+.note-indicator.grade-perfect .note-indicator-score { color: #78f0ad; }
+.note-indicator.grade-close {
+  border-color: rgba(83, 192, 240, 0.68);
+}
+.note-indicator.grade-close .note-indicator-score { color: #7ee7ff; }
+.note-indicator.grade-work {
+  border-color: rgba(240, 192, 64, 0.72);
+}
+.note-indicator.grade-work .note-indicator-score { color: #ffd867; }
+.note-indicator.grade-wide {
+  border-color: rgba(233, 69, 96, 0.76);
+}
+.note-indicator.grade-wide .note-indicator-score { color: #ff7b91; }
 
 /* ── SBMuFL Neanes font (OFL, bundled) ─────────────────────────── */
 @font-face {
@@ -376,6 +656,121 @@ input[type="number"] {
   pointer-events: none;
 }
 
+/* ── Help / release notes ───────────────────────────────────── */
+.help-dialog {
+  width: min(720px, calc(100vw - 24px));
+  max-height: min(760px, calc(100dvh - 24px));
+  margin: auto;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.help-dialog::backdrop { background: rgba(0, 0, 0, 0.64); }
+.help-dialog-shell {
+  background: #12192b;
+  border: 1px solid rgba(83, 192, 240, 0.32);
+  border-radius: 8px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.52);
+  overflow: hidden;
+}
+.help-dialog-header,
+.help-dialog-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(15, 52, 96, 0.62);
+}
+.help-dialog-header {
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.help-dialog-header h2 {
+  color: #fff;
+  font-size: 18px;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+.help-version {
+  color: var(--accent2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.help-dialog-header p,
+.help-dialog-body p,
+.help-dialog-body li {
+  color: #c8d7e5;
+  line-height: 1.45;
+}
+.help-close-btn {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+.help-close-btn:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+.help-dialog-body {
+  max-height: min(560px, calc(100dvh - 168px));
+  overflow-y: auto;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+.help-dialog-body h3 {
+  color: var(--accent2);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.help-dialog-body ul,
+.help-dialog-body ol {
+  padding-left: 18px;
+}
+.help-dialog-body li + li,
+.help-dialog-body p + p {
+  margin-top: 5px;
+}
+.key-run {
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+.help-dialog-footer {
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.help-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #c8d7e5;
+}
+.help-check input { accent-color: var(--accent2); }
+.help-done-btn {
+  background: var(--accent2);
+  color: #07111f;
+  border: 0;
+  border-radius: 4px;
+  padding: 7px 11px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.help-done-btn:hover { filter: brightness(1.08); }
+
 @media (max-width: 720px) {
   body {
     overflow: auto;
@@ -385,6 +780,23 @@ input[type="number"] {
     flex-direction: column;
     min-width: 0;
     overflow-y: auto;
+  }
+
+  .help-dialog-body {
+    grid-template-columns: 1fr;
+  }
+
+  .help-dialog-header,
+  .help-dialog-footer {
+    align-items: flex-start;
+  }
+
+  .help-dialog-footer {
+    flex-direction: column;
+  }
+
+  .help-done-btn {
+    width: 100%;
   }
 
   #controls-panel {
@@ -418,6 +830,38 @@ input[type="number"] {
   #main-view {
     flex: 1 1 50dvh;
     min-height: 44dvh;
+  }
+
+  .note-indicator {
+    left: 50%;
+    bottom: 8px;
+    width: min(300px, calc(100vw - 20px));
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 8px;
+    min-height: 68px;
+    padding: 7px 9px;
+  }
+
+  .note-indicator-martyria {
+    width: 52px;
+    height: 58px;
+  }
+
+  .note-indicator-note-glyph {
+    font-size: 32px;
+  }
+
+  .note-indicator-below-glyph {
+    font-size: 31px;
+  }
+
+  .note-indicator-name {
+    font-size: 20px;
+  }
+
+  .note-indicator-score,
+  .note-indicator-offset {
+    font-size: 11px;
   }
 
   #palettes {
