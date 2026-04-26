@@ -82,6 +82,7 @@ async function main() {
   wireCorrectionControls();
   wireSynthFollowControls();
   syncAppVersionText();
+  wireSourceLink();
   wireHelpDialog();
   wireAudioInit();
 
@@ -138,6 +139,12 @@ function syncAppVersionText() {
   document.querySelectorAll('.app-version, .app-version-text').forEach(el => {
     el.textContent = el.classList.contains('app-version') ? `v${APP_VERSION}` : APP_VERSION;
   });
+}
+
+function wireSourceLink() {
+  const link = document.getElementById('source-link');
+  if (!link || !link.href.includes('__SOURCE_REPOSITORY_URL__')) return;
+  link.hidden = true;
 }
 
 function wireHelpDialog() {

@@ -3,7 +3,7 @@ name = "chanterlab-core"
 version = "0.1.0-alpha.2"
 edition = "2021"
 description = "Byzantine tuning engine and DSP primitives for ChanterLab"
-license = "MIT"
+license = "GPL-3.0-only"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
