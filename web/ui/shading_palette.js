@@ -40,6 +40,22 @@ const ITEMS = [
     tip: 'Clear shading on the sung note or dropped target region' },
 ];
 
+export function buildQuickShadingControls({ container, onPick }) {
+  if (!container || !onPick) return;
+  container.innerHTML = '';
+  for (const item of ITEMS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'quick-shading-btn';
+    btn.textContent = item.label;
+    btn.title = item.tip;
+    btn.addEventListener('click', () => {
+      onPick({ type: 'shading', shading: item.shading });
+    });
+    container.appendChild(btn);
+  }
+}
+
 export class ShadingPalette {
   constructor(container) {
     container.innerHTML = '';

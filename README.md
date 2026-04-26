@@ -49,9 +49,8 @@ This generates the browser WASM packages in `web/pkg` and `web/pkg-worklet`.
 Those generated files are intentionally ignored in git; the GitHub Pages
 workflow rebuilds them during deployment.
 
-The deployed page includes a **Source** link. During GitHub Pages deployment,
-the workflow replaces the placeholder URL in `web/index.html` with the public
-repository URL from `GITHUB_REPOSITORY`.
+The deployed page includes a **Source** link to
+[github.com/jayfurz/ChanterLab](https://github.com/jayfurz/ChanterLab).
 
 ## Run Locally
 

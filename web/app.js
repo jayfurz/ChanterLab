@@ -3,10 +3,10 @@ import { ScaleLadder    } from './ui/scale_ladder.js';
 import { AudioEngine    } from './audio/audio_engine.js';
 import { VKeyboard      } from './ui/vkeyboard.js';
 import { Singscope      } from './ui/singscope.js';
-import { NoteIndicator  } from './ui/note_indicator.js?v=0.1.0-alpha.2';
-import { ExerciseMode   } from './ui/exercise_mode.js?v=0.1.0-alpha.2';
-import { PthoraPalette  } from './ui/pthora_palette.js';
-import { ShadingPalette } from './ui/shading_palette.js';
+import { NoteIndicator  } from './ui/note_indicator.js?v=0.1.0-alpha.3';
+import { ExerciseMode   } from './ui/exercise_mode.js?v=0.1.0-alpha.3';
+import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js';
+import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ const PRESETS = [
 ];
 
 const DEFAULT_REF_NI_HZ = 130.81;
-const APP_VERSION = '0.1.0-alpha.2';
+const APP_VERSION = '0.1.0-alpha.3';
 const HELP_RELEASE_ID = APP_VERSION;
 
 const app = {
@@ -52,6 +52,8 @@ const app = {
   synthFollowCellId:  null,
   synthFollowMisses:  0,
   setReferenceNiHz:   null,
+  selectedPalettePayload: null,
+  selectedPaletteEl:      null,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -81,8 +83,8 @@ async function main() {
   wireIsonControls();
   wireCorrectionControls();
   wireSynthFollowControls();
+  wireMobileTabs();
   syncAppVersionText();
-  wireSourceLink();
   wireHelpDialog();
   wireAudioInit();
 
@@ -141,12 +143,6 @@ function syncAppVersionText() {
   });
 }
 
-function wireSourceLink() {
-  const link = document.getElementById('source-link');
-  if (!link || !link.href.includes('__SOURCE_REPOSITORY_URL__')) return;
-  link.hidden = true;
-}
-
 function wireHelpDialog() {
   const dialog = document.getElementById('help-dialog');
   const openBtn = document.getElementById('help-open-btn');
@@ -179,7 +175,10 @@ function wireHelpDialog() {
     if (!showAgain.checked) localStorage.setItem(storageKey, HELP_RELEASE_ID);
   });
 
-  if (seenRelease !== HELP_RELEASE_ID) {
+  const compactViewport = window.matchMedia(
+    '(max-width: 720px), (max-width: 980px) and (max-height: 520px) and (orientation: landscape)'
+  ).matches;
+  if (seenRelease !== HELP_RELEASE_ID && !compactViewport) {
     requestAnimationFrame(open);
   }
 }
@@ -486,13 +485,6 @@ function wireControls() {
     setReferenceNiHz(midiToHz(nextMidiFromHz(app.refNiHz, -1)));
   });
 
-  document.getElementById('shift-up-btn').addEventListener('click', () => {
-    // Placeholder — viewport shift not yet in WASM API.
-  });
-  document.getElementById('shift-down-btn').addEventListener('click', () => {
-    // placeholder
-  });
-
   document.getElementById('reset-btn').addEventListener('click', () => {
     app.grid = new JsTuningGrid();
     app.grid.refNiHz = app.refNiHz;
@@ -509,9 +501,45 @@ function wireControls() {
 function wirePalettes() {
   new PthoraPalette(document.getElementById('pthora-palette'));
   new ShadingPalette(document.getElementById('shading-palette'));
-  document.addEventListener('chanterlab:palette-click', e => {
-    applySymbolPayloadToCurrentSungCell(e.detail?.payload);
+  buildQuickPthoraControls({
+    genusSelect: document.getElementById('quick-pthora-genus'),
+    degreeContainer: document.getElementById('quick-pthora-degrees'),
+    onPick: payload => applyOrSelectQuickPayload(payload),
   });
+  buildQuickShadingControls({
+    container: document.getElementById('quick-shading-buttons'),
+    onPick: payload => applyOrSelectQuickPayload(payload),
+  });
+  document.addEventListener('chanterlab:palette-click', e => {
+    const payload = e.detail?.payload;
+    const applied = applySymbolPayloadToCurrentSungCell(payload);
+    if (!applied) {
+      setSelectedPalettePayload(payload, e.target.closest('.pthora-icon, .shading-icon'));
+    } else {
+      clearSelectedPalettePayload();
+    }
+  });
+}
+
+function applyOrSelectQuickPayload(payload) {
+  const applied = applySymbolPayloadToCurrentSungCell(payload);
+  if (!applied) setSelectedPalettePayload(payload);
+  else clearSelectedPalettePayload();
+}
+
+function setSelectedPalettePayload(payload, sourceEl = null) {
+  if (!payload) return;
+  clearSelectedPalettePayload();
+  app.selectedPalettePayload = payload;
+  app.selectedPaletteEl = sourceEl;
+  sourceEl?.classList.add('selected');
+  app.noteIndicator?.setMessage('Tap a ladder note to apply the selected symbol.');
+}
+
+function clearSelectedPalettePayload() {
+  app.selectedPaletteEl?.classList.remove('selected');
+  app.selectedPalettePayload = null;
+  app.selectedPaletteEl = null;
 }
 
 function applySymbolPayloadToCurrentSungCell(payload) {
@@ -554,6 +582,30 @@ function applySymbolPayloadToCell(payload, cell) {
 }
 
 app.applySymbolPayloadToCell = applySymbolPayloadToCell;
+app.clearSelectedPalettePayload = clearSelectedPalettePayload;
+
+function wireMobileTabs() {
+  const tabs = Array.from(document.querySelectorAll('.mobile-tab'));
+  if (!tabs.length) return;
+  const views = new Set(tabs.map(btn => btn.dataset.mobileView).filter(Boolean));
+
+  const setView = view => {
+    if (!views.has(view)) view = 'sing';
+    document.body.dataset.mobileView = view;
+    tabs.forEach(btn => btn.classList.toggle('active', btn.dataset.mobileView === view));
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  };
+
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.mobileView || 'sing';
+      if (location.hash !== `#${view}`) history.replaceState(null, '', `#${view}`);
+      setView(view);
+    });
+  });
+  window.addEventListener('hashchange', () => setView(location.hash.slice(1)));
+  setView(location.hash.slice(1) || 'sing');
+}
 
 // ── Accidental popup ──────────────────────────────────────────────────────────
 

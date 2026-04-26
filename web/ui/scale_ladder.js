@@ -380,6 +380,11 @@ export class ScaleLadder {
     }
     const cell = this._hitTest(this._cssY(e));
     if (!cell || cell.degree === null) return;
+    if (this.app.selectedPalettePayload) {
+      this.app.applySymbolPayloadToCell?.(this.app.selectedPalettePayload, cell);
+      this.app.clearSelectedPalettePayload?.();
+      return;
+    }
     this.app.grid.toggleCell(cell.moria);
     this.app.gridChanged();
   }

@@ -107,6 +107,7 @@ export class ExerciseMode {
 
     this.exercise = EXERCISES[0];
     this.running = false;
+    this.started = false;
     this.finished = false;
     this.stepIdx = 0;
     this.lastEventAt = null;
@@ -115,9 +116,10 @@ export class ExerciseMode {
 
     this._exerciseSelect = container.querySelector('#exercise-select');
     this._rangeSelect = container.querySelector('#exercise-range-select');
-    this._startBtn = container.querySelector('#exercise-start-btn');
-    this._resetBtn = container.querySelector('#exercise-reset-btn');
-    this._copyBtn = container.querySelector('#exercise-copy-btn');
+    this._startBtns = Array.from(document.querySelectorAll('[data-exercise-action="start"]'));
+    this._resetBtns = Array.from(document.querySelectorAll('[data-exercise-action="reset"]'));
+    this._copyBtns = Array.from(document.querySelectorAll('[data-exercise-action="copy"]'));
+    this._setupSummaryEl = container.querySelector('#exercise-setup-summary');
     this._targetEl = container.querySelector('#exercise-target');
     this._hintEl = container.querySelector('#exercise-hint');
     this._progressFillEl = container.querySelector('#exercise-progress-fill');
@@ -219,21 +221,29 @@ export class ExerciseMode {
       this._render();
     });
 
-    this._startBtn.addEventListener('click', () => {
-      if (this.running) {
-        this.running = false;
-        this._render();
-        return;
-      }
-      this._start();
-    });
+    this._startBtns.forEach(btn => btn.addEventListener('click', () => this._toggle()));
 
-    this._resetBtn.addEventListener('click', () => {
-      this._resetState();
+    this._resetBtns.forEach(btn => btn.addEventListener('click', () => this.reset()));
+
+    this._copyBtns.forEach(btn => btn.addEventListener('click', () => this.copyReport()));
+  }
+
+  _toggle() {
+    if (this.running) {
+      this.running = false;
       this._render();
-    });
+      return;
+    }
+    this._start();
+  }
 
-    this._copyBtn.addEventListener('click', () => this._copyReport());
+  reset() {
+    this._resetState();
+    this._render();
+  }
+
+  copyReport() {
+    return this._copyReport();
   }
 
   _start() {
@@ -242,6 +252,7 @@ export class ExerciseMode {
     }
     this._applySelectedRange();
     this.running = true;
+    this.started = true;
     this.finished = false;
     this.lastEventAt = null;
     this._render();
@@ -256,6 +267,7 @@ export class ExerciseMode {
 
   _resetState() {
     this.running = false;
+    this.started = false;
     this.finished = false;
     this.stepIdx = 0;
     this.lastEventAt = null;
@@ -347,37 +359,66 @@ export class ExerciseMode {
     const overall = this._overall();
     const last = this.history[this.exercise.id];
 
-    this._exerciseSelect.value = this.exercise.id;
-    this._startBtn.textContent = this.running ? 'Pause' : this.finished ? 'Run Again' : 'Start';
-    this._copyBtn.disabled = !this.finished;
+    if (this._exerciseSelect) this._exerciseSelect.value = this.exercise.id;
+    this._startBtns.forEach(btn => {
+      btn.textContent = this.running ? 'Pause' : this.finished ? 'Run Again' : 'Start';
+    });
+    this._copyBtns.forEach(btn => { btn.disabled = !this.finished; });
 
-    this._targetEl.textContent = this.finished
+    const targetText = this.finished
       ? 'Complete'
       : `${step ? step.label : '-'} (${this.stepIdx + 1}/${this.exercise.steps.length})`;
+    if (this._targetEl) this._targetEl.textContent = targetText;
 
+    let hintText;
     if (!target && !this.finished) {
-      this._hintEl.textContent = 'Target note is not enabled in the current grid.';
+      hintText = 'Target note is not enabled in the current grid.';
     } else if (this.running && liveError !== null) {
       const dir = liveError > 0.2 ? 'lower' : liveError < -0.2 ? 'lift' : 'hold';
-      this._hintEl.textContent = `${dir}: ${liveError >= 0 ? '+' : ''}${liveError.toFixed(1)} moria`;
+      hintText = `${dir}: ${liveError >= 0 ? '+' : ''}${liveError.toFixed(1)} moria`;
     } else if (this.finished) {
-      this._hintEl.textContent = `${scoreLabel(overall.score)}. ${overall.score}/100`;
+      hintText = `${scoreLabel(overall.score)}. ${overall.score}/100`;
     } else {
-      this._hintEl.textContent = `Sing ${step ? step.label : 'the target'} until the bar fills. Tolerance: +/-${this.exercise.tolerance} moria.`;
+      hintText = `Sing ${step ? step.label : 'the target'} until the bar fills. Tolerance: +/-${this.exercise.tolerance} moria.`;
     }
+    if (this._hintEl) this._hintEl.textContent = hintText;
 
-    this._progressFillEl.style.width = `${Math.round(progress * 100)}%`;
-    this._progressTextEl.textContent = this.finished
+    if (this._progressFillEl) this._progressFillEl.style.width = `${Math.round(progress * 100)}%`;
+    const progressText = this.finished
       ? 'done'
       : `${formatMs(stats.voicedMs)} / ${formatMs(step ? step.holdMs : 0)}`;
+    if (this._progressTextEl) this._progressTextEl.textContent = progressText;
 
-    this._scoreEl.textContent = overall.totalVoiced > 0 || this.finished
+    const scoreText = overall.totalVoiced > 0 || this.finished
       ? `${overall.score}/100`
       : last ? `best ${last.score}/100` : '--';
+    if (this._scoreEl) this._scoreEl.textContent = scoreText;
 
     const avg = overall.avgAbsError === null ? '--' : `${overall.avgAbsError.toFixed(1)} m`;
     const inTune = overall.totalVoiced > 0 ? `${Math.round(overall.inTunePct)}%` : '--';
-    this._detailsEl.textContent = `In tune ${inTune} · avg error ${avg}`;
+    const detailsText = `In tune ${inTune} · avg error ${avg}`;
+    if (this._detailsEl) this._detailsEl.textContent = detailsText;
+    if (this._setupSummaryEl) {
+      this._setupSummaryEl.textContent = this.finished
+        ? `${scoreLabel(overall.score)} - ${detailsText}`
+        : `Center HUD shows ${targetText}. ${detailsText}`;
+    }
+
+    this.app.noteIndicator?.setExerciseState({
+      exerciseTitle: this.exercise.title,
+      targetText,
+      stepText: this.finished ? 'Done' : `${this.stepIdx + 1} / ${this.exercise.steps.length}`,
+      hintText,
+      progress,
+      progressText,
+      scoreText,
+      detailsText,
+      running: this.running,
+      started: this.started,
+      finished: this.finished,
+      canCopy: this.finished,
+      hasTarget: Boolean(target),
+    });
   }
 
   _report() {
@@ -428,10 +469,14 @@ export class ExerciseMode {
     const text = JSON.stringify(this._report(), null, 2);
     try {
       await navigator.clipboard.writeText(text);
-      this._detailsEl.textContent = 'Report copied.';
+      if (this._detailsEl) this._detailsEl.textContent = 'Report copied.';
+      if (this._setupSummaryEl) this._setupSummaryEl.textContent = 'Report copied.';
+      this.app.noteIndicator?.setMessage('Report copied.');
     } catch {
       console.log(text);
-      this._detailsEl.textContent = 'Report printed to console.';
+      if (this._detailsEl) this._detailsEl.textContent = 'Report printed to console.';
+      if (this._setupSummaryEl) this._setupSummaryEl.textContent = 'Report printed to console.';
+      this.app.noteIndicator?.setMessage('Report printed to console.');
     }
   }
 }

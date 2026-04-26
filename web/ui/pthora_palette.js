@@ -72,6 +72,22 @@ const ROWS = [
   }
 ];
 
+export function buildQuickPthoraControls({ genusSelect, degreeContainer, onPick }) {
+  if (!genusSelect || !degreeContainer || !onPick) return;
+  degreeContainer.innerHTML = '';
+  for (const col of DEGREES) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'quick-pthora-btn';
+    btn.textContent = col.label;
+    btn.title = `Apply selected pthora as ${col.label} to the sung note`;
+    btn.addEventListener('click', () => {
+      onPick({ type: 'pthora', genus: genusSelect.value, degree: col.degree });
+    });
+    degreeContainer.appendChild(btn);
+  }
+}
+
 export class PthoraPalette {
   constructor(container) {
     container.innerHTML = '';

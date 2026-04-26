@@ -258,6 +258,8 @@ export class NoteIndicator {
     this._gridState = null;
     this._eventsById = new Map();
     this._linearIndexByMoria = new Map();
+    this._exerciseState = null;
+    this._hasPitch = false;
 
     this._martyriaEl = container.querySelector('.note-indicator-martyria');
     this._noteGlyphEl = container.querySelector('.note-indicator-note-glyph');
@@ -267,6 +269,12 @@ export class NoteIndicator {
     this._scoreEl = container.querySelector('.note-indicator-score');
     this._offsetEl = container.querySelector('.note-indicator-offset');
     this._cursorEl = container.querySelector('.note-indicator-cursor');
+    this._targetEl = container.querySelector('#practice-hud-target-label');
+    this._stepEl = container.querySelector('#practice-hud-step');
+    this._progressFillEl = container.querySelector('#practice-hud-progress-fill');
+    this._hintEl = container.querySelector('#practice-hud-hint');
+    this._exerciseScoreEl = container.querySelector('#practice-hud-score');
+    this._copyBtn = container.querySelector('#practice-hud-copy-btn');
   }
 
   refresh(cells, gridState) {
@@ -277,7 +285,27 @@ export class NoteIndicator {
   }
 
   clear() {
-    this.el.classList.add('hidden');
+    this._hasPitch = false;
+    this._paintNoPitch();
+  }
+
+  setExerciseState(state) {
+    this._exerciseState = state;
+    const activeExercise = Boolean(state?.started || state?.running || state?.finished);
+    this._targetEl.textContent = state?.targetText ?? 'Practice';
+    this._stepEl.textContent = state?.stepText ?? 'Ready';
+    this._progressFillEl.style.width = `${Math.round((state?.progress ?? 0) * 100)}%`;
+    this._hintEl.textContent = state?.hintText ?? 'Choose an exercise and press Start.';
+    this._exerciseScoreEl.textContent = state?.scoreText ?? '--';
+    if (this._copyBtn) this._copyBtn.disabled = !state?.canCopy;
+    this.el.classList.toggle('has-exercise', activeExercise);
+    this.el.classList.toggle('exercise-running', Boolean(state?.running));
+    this.el.classList.toggle('exercise-finished', Boolean(state?.finished));
+    if (!this._hasPitch) this._paintNoPitch();
+  }
+
+  setMessage(message) {
+    if (this._hintEl) this._hintEl.textContent = message;
   }
 
   showPitch(msg) {
@@ -296,6 +324,7 @@ export class NoteIndicator {
     const target = cell.moria + (cell.accidental ?? 0);
     const rawMoria = Number.isFinite(msg.raw_moria) ? msg.raw_moria : target;
     const errorMoria = nearestOctaveMoriaDelta(rawMoria - target);
+    this._hasPitch = true;
     this._paint(cell, context, errorMoria);
   }
 
@@ -323,8 +352,14 @@ export class NoteIndicator {
     const direction = errorMoria > 0.2 ? 'Lower' : errorMoria < -0.2 ? 'Lift' : 'Hold';
     const offsetLabel = `${errorMoria >= 0 ? '+' : ''}${errorMoria.toFixed(1)} m`;
     const cursor = Math.max(-1, Math.min(1, errorMoria / 6));
+    const activeExercise = Boolean(
+      this._exerciseState?.started ||
+      this._exerciseState?.running ||
+      this._exerciseState?.finished
+    );
 
-    this.el.classList.remove('hidden', ...HIDDEN_CLASSES);
+    this.el.classList.remove('hidden', 'no-pitch', ...HIDDEN_CLASSES);
+    this.el.classList.toggle('has-exercise', activeExercise);
     this.el.classList.add(grade.className);
     this._nameEl.textContent = cell.degree;
     this._scoreEl.textContent = grade.label;
@@ -353,5 +388,32 @@ export class NoteIndicator {
     this._noteGlyphEl.style.setProperty('--glyph-top', layout.noteTop);
     this._belowGlyphEl.style.setProperty('--glyph-dx', '0em');
     this._belowGlyphEl.style.setProperty('--glyph-top', layout.belowTop);
+  }
+
+  _paintNoPitch() {
+    this.el.classList.remove(...HIDDEN_CLASSES);
+    const activeExercise = Boolean(
+      this._exerciseState?.started ||
+      this._exerciseState?.running ||
+      this._exerciseState?.finished
+    );
+    if (!activeExercise) {
+      this.el.classList.add('hidden');
+      return;
+    }
+
+    this.el.classList.remove('hidden');
+    this.el.classList.add('has-exercise');
+    this.el.classList.add('no-pitch');
+    this._martyriaEl.classList.remove('western-mode');
+    this._westernEl.textContent = '';
+    this._noteGlyphEl.textContent = '';
+    this._belowGlyphEl.textContent = '';
+    this._nameEl.textContent = this._exerciseState.running ? 'Sing' : 'Ready';
+    this._scoreEl.textContent = this._exerciseState.finished ? 'Complete' : 'Listen';
+    this._offsetEl.textContent = this._exerciseState.running
+      ? 'Waiting for pitch'
+      : this._exerciseState.detailsText ?? 'Mic starts after a click or key press.';
+    this._cursorEl.style.left = '50%';
   }
 }

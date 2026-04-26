@@ -43,9 +43,6 @@ jobs:
       - name: Build WASM
         run: make build
 
-      - name: Set source link
-        run: sed -i "s#__SOURCE_REPOSITORY_URL__#https://github.com/${GITHUB_REPOSITORY}#g" web/index.html
-
       - name: Disable Jekyll
         run: touch web/.nojekyll
 

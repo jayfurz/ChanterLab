@@ -4,30 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChanterLab</title>
-  <link rel="stylesheet" href="style.css?v=0.1.0-alpha.2">
+  <link rel="stylesheet" href="style.css?v=0.1.0-alpha.3">
 </head>
 <body>
 
 <header id="app-header">
   <h1>ChanterLab</h1>
-  <span class="app-version">v0.1.0-alpha.2</span>
+  <span class="app-version">v0.1.0-alpha.3</span>
   <span id="audio-status" class="audio-status audio-off" title="Click or press a key to start audio">&#9654; Audio off</span>
   <div class="header-actions">
-    <a id="source-link" class="header-btn" href="__SOURCE_REPOSITORY_URL__" target="_blank" rel="noopener">Source</a>
+    <a id="source-link" class="header-btn" href="https://github.com/jayfurz/ChanterLab" target="_blank" rel="noopener">Source</a>
     <button id="help-open-btn" class="header-btn" type="button">Help</button>
   </div>
 </header>
+
+<nav id="mobile-tabs" aria-label="Mobile workspace">
+  <button class="mobile-tab active" type="button" data-mobile-view="sing">Sing</button>
+  <button class="mobile-tab" type="button" data-mobile-view="scale">Scale</button>
+  <button class="mobile-tab" type="button" data-mobile-view="train">Train</button>
+  <button class="mobile-tab" type="button" data-mobile-view="more">More</button>
+</nav>
 
 <div id="app-body">
 
   <!-- Controls sidebar -->
   <aside id="controls-panel">
-    <div class="control-group">
+    <div class="control-group mobile-scale mobile-more">
       <h2>Scale Preset</h2>
       <div id="preset-buttons"></div>
     </div>
 
-    <div class="control-group">
+    <div class="control-group mobile-scale mobile-more">
       <h2>Reference Ni</h2>
       <div class="reference-ni-row">
         <label for="ni-hz-slider" class="reference-ni-readout">
@@ -42,19 +49,11 @@
       <input type="range" id="ni-hz-slider" min="90" max="700" step="0.01" value="130.81">
     </div>
 
-    <div class="control-group">
-      <h2>Viewport</h2>
-      <div class="viewport-btns">
-        <button class="viewport-btn" id="shift-up-btn" title="Shift up">▲</button>
-        <button class="viewport-btn" id="shift-down-btn" title="Shift down">▼</button>
-      </div>
-    </div>
-
-    <div class="control-group">
+    <div class="control-group mobile-scale">
       <button id="reset-btn">Reset Grid</button>
     </div>
 
-    <div class="control-group exercise-panel" id="exercise-panel">
+    <div class="control-group exercise-panel mobile-train" id="exercise-panel">
       <h2>Exercise Mode</h2>
       <select id="exercise-select" aria-label="Choose exercise">
         <option value="match-ni">Match Ni</option>
@@ -72,28 +71,15 @@
         <option value="311.13">Female high - Ni Eb4</option>
         <option value="custom">Use current Reference Ni</option>
       </select>
-      <div class="exercise-card">
-        <div class="exercise-target-row">
-          <span id="exercise-target" class="exercise-target">-</span>
-          <span id="exercise-score" class="exercise-score">--</span>
-        </div>
-        <div id="exercise-hint" class="exercise-hint">Choose an exercise and press Start.</div>
-        <div class="exercise-progress" aria-label="Current exercise progress">
-          <span id="exercise-progress-fill"></span>
-        </div>
-        <div class="exercise-meta">
-          <span id="exercise-progress-text">0s / 0s</span>
-          <span id="exercise-details">No attempt yet.</span>
-        </div>
-      </div>
+      <div id="exercise-setup-summary" class="exercise-setup-summary">Live practice feedback appears in the center HUD.</div>
       <div class="exercise-actions">
-        <button id="exercise-start-btn" type="button">Start</button>
-        <button id="exercise-reset-btn" type="button">Reset</button>
-        <button id="exercise-copy-btn" type="button" disabled>Copy Report</button>
+        <button id="exercise-start-btn" type="button" data-exercise-action="start">Start</button>
+        <button id="exercise-reset-btn" type="button" data-exercise-action="reset">Reset</button>
+        <button id="exercise-copy-btn" type="button" data-exercise-action="copy" disabled>Copy Report</button>
       </div>
     </div>
 
-    <div class="control-group" id="ison-controls">
+    <div class="control-group mobile-more" id="ison-controls">
       <h2>Ison Drone</h2>
       <div class="ison-row">
         <button id="ison-toggle-btn" class="ison-btn">Off</button>
@@ -116,7 +102,7 @@
       <input type="range" id="ison-volume-slider" min="0" max="1" step="0.01" value="0.5">
     </div>
 
-    <div class="control-group" id="mic-controls">
+    <div class="control-group mobile-more" id="mic-controls">
       <h2>Mic / Monitor</h2>
       <div class="mic-row">
         <button id="correction-toggle-btn" class="ison-btn" title="Mix your (dry) mic signal into the synth output">Off</button>
@@ -132,13 +118,13 @@
       <input type="range" id="synth-follow-volume-slider" min="0" max="1" step="0.01" value="0.5">
     </div>
 
-    <div class="control-group">
+    <div class="control-group mobile-more">
       <h2>Save Preset</h2>
       <input type="text" id="preset-name-input" placeholder="preset name…">
       <button id="save-btn">Save</button>
     </div>
 
-    <div class="control-group">
+    <div class="control-group mobile-more">
       <h2>Saved Presets</h2>
       <div id="saved-presets-list"></div>
     </div>
@@ -152,7 +138,24 @@
         <canvas id="scale-ladder"></canvas>
       </div>
       <canvas id="singscope"></canvas>
+      <div id="quick-pthora-panel" class="quick-pthora-panel" aria-label="Quick pthora while singing">
+        <div class="quick-pthora-row">
+          <span class="quick-pthora-title">Pthora</span>
+          <select id="quick-pthora-genus" aria-label="Quick pthora genus">
+            <option value="Diatonic">Diatonic</option>
+            <option value="SoftChromatic">Soft Chr</option>
+            <option value="HardChromatic">Hard Chr</option>
+            <option value="Western">Western</option>
+          </select>
+        </div>
+        <div id="quick-pthora-degrees" class="quick-pthora-degrees" aria-label="Apply selected pthora to sung note"></div>
+        <div id="quick-shading-buttons" class="quick-shading-buttons" aria-label="Apply chroa or shading to sung note"></div>
+      </div>
       <div id="note-indicator" class="note-indicator hidden" aria-live="polite">
+        <div class="practice-hud-target">
+          <span id="practice-hud-target-label">Practice</span>
+          <span id="practice-hud-step">Ready</span>
+        </div>
         <div class="note-indicator-martyria">
           <span class="note-indicator-note-glyph"></span>
           <span class="note-indicator-below-glyph"></span>
@@ -168,6 +171,18 @@
             <span class="note-indicator-cursor"></span>
           </div>
           <div class="note-indicator-offset">Hold +0.0 m</div>
+        </div>
+        <div class="practice-hud-progress" aria-label="Current exercise progress">
+          <span id="practice-hud-progress-fill"></span>
+        </div>
+        <div class="practice-hud-footer">
+          <span id="practice-hud-hint">Choose an exercise and press Start.</span>
+          <span id="practice-hud-score">--</span>
+        </div>
+        <div class="practice-hud-actions">
+          <button id="practice-hud-start-btn" type="button" data-exercise-action="start">Start</button>
+          <button id="practice-hud-reset-btn" type="button" data-exercise-action="reset">Reset</button>
+          <button id="practice-hud-copy-btn" type="button" data-exercise-action="copy" disabled>Copy</button>
         </div>
       </div>
     </div>
@@ -203,7 +218,7 @@
     <div class="help-dialog-header">
       <div>
         <h2>Welcome to ChanterLab</h2>
-        <div class="help-version">Version <span class="app-version-text">0.1.0-alpha.2</span></div>
+        <div class="help-version">Version <span class="app-version-text">0.1.0-alpha.3</span></div>
         <p>Free Byzantine chanting practice software by Justin Fursov, a chanter at Holy Resurrection Orthodox Church in Tucson, AZ.</p>
       </div>
       <button id="help-close-btn" class="help-close-btn" type="button" aria-label="Close help">×</button>
@@ -242,6 +257,8 @@
         <ul>
           <li>Supports traditional 72-ET tuning with draggable pthora and chroa.</li>
           <li>Practice mode includes range selection, simple exercises, scoring, and copyable reports.</li>
+          <li>Training feedback now lives in one center HUD with target, score, progress, martyria, and pitch offset.</li>
+          <li>Mobile layout now uses Sing, Scale, Train, and More tabs with quick pthora controls while singing.</li>
           <li>Reference Ni now stays synced when presets are loaded or changed outside the slider.</li>
           <li>Practice scoring now folds octave-equivalent pitch error, so C3 can match Ni when Reference Ni is C4.</li>
           <li>Bundled Neanes font support for Byzantine symbols.</li>
@@ -251,7 +268,7 @@
 
       <section>
         <h3>Status</h3>
-        <p>This is early tester software. It is free, source code release is planned under GPLv3, and the project is derived from Byzorgan with the open-source Neanes font package.</p>
+        <p>This is early tester software. It is free, source code is available under GPLv3, and the project is derived from Byzorgan with the open-source Neanes font package.</p>
         <p>For best results, use wired headphones, especially when Voice Monitor, Ison, or Synth Follow are enabled.</p>
         <p>Upcoming work includes more training tracks, voice recordings, automatic transcription, and broader practice tools.</p>
       </section>
@@ -277,6 +294,6 @@
   </div>
 </dialog>
 
-<script type="module" src="app.js?v=0.1.0-alpha.2"></script>
+<script type="module" src="app.js?v=0.1.0-alpha.3"></script>
 </body>
 </html>
