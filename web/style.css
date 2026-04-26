@@ -711,6 +711,9 @@ select {
   color: #c8d7e5;
   line-height: 1.45;
 }
+.help-dialog-body a {
+  color: var(--accent2);
+}
 .help-close-btn {
   width: 30px;
   height: 30px;

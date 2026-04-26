@@ -14,6 +14,14 @@ This repository is licensed under GPL-3.0-only. See [LICENSE](LICENSE).
 The bundled Neanes font has its own license in
 [web/fonts/neanes/LICENSE.txt](web/fonts/neanes/LICENSE.txt).
 
+## Contact
+
+For questions, inquiries, support, or source code requests:
+
+- Email: [justinpeter0815theotokos@gmail.com](mailto:justinpeter0815theotokos@gmail.com)
+- GitHub: [github.com/jayfurz](https://github.com/jayfurz)
+- LinkedIn: [linkedin.com/in/justinfursov](https://www.linkedin.com/in/justinfursov)
+
 ## Requirements
 
 - Rust with the `wasm32-unknown-unknown` target
