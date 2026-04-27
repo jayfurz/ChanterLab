@@ -999,6 +999,10 @@ select {
 .help-done-btn:hover { filter: brightness(1.08); }
 
 @media (max-width: 720px), (max-width: 980px) and (max-height: 520px) and (orientation: landscape) {
+  :root {
+    --ladder-w: 132px;
+  }
+
   body {
     height: 100dvh;
     overflow: hidden;
@@ -1145,7 +1149,6 @@ select {
     display: none;
   }
 
-  body[data-mobile-view="sing"] #ladder-container,
   body[data-mobile-view="train"] #ladder-container {
     display: none;
   }
@@ -1158,33 +1161,50 @@ select {
 
   body[data-mobile-view="sing"] .quick-pthora-panel {
     position: absolute;
-    top: 8px;
-    left: 8px;
-    right: 8px;
+    top: 6px;
+    left: calc(var(--ladder-w) + 6px);
+    right: 6px;
     z-index: 6;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px;
+    gap: 5px;
+    padding: 6px;
     background: rgba(10, 14, 22, 0.86);
     border: 1px solid rgba(83, 192, 240, 0.32);
     border-radius: 8px;
     pointer-events: auto;
+    overflow: hidden;
+  }
+
+  .quick-pthora-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px;
   }
 
   .quick-pthora-degrees {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 1px;
   }
 
   .quick-shading-buttons {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 1px;
   }
 
-  @media (max-width: 420px) {
-    .quick-pthora-degrees,
-    .quick-shading-buttons {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
+  .quick-pthora-btn {
+    flex: 0 0 52px;
+    min-height: 34px;
+  }
+
+  .quick-shading-btn {
+    flex: 0 0 64px;
+    min-height: 34px;
   }
 
   body[data-mobile-view="scale"] #singscope,
@@ -1226,6 +1246,10 @@ select {
   .note-indicator:not(.has-exercise) {
     width: min(300px, calc(100vw - 20px));
     min-height: 68px;
+  }
+
+  body[data-mobile-view="sing"] .note-indicator:not(.has-exercise) {
+    width: min(260px, calc(100vw - var(--ladder-w) - 14px));
   }
 
   .note-indicator.has-exercise {
@@ -1374,9 +1398,9 @@ select {
 
     body[data-mobile-view="sing"] .quick-pthora-panel {
       top: 6px;
-      left: 6px;
+      left: calc(var(--ladder-w) + 6px);
       right: auto;
-      width: min(420px, calc(100vw - 12px));
+      width: min(420px, calc(100vw - var(--ladder-w) - 12px));
       padding: 6px;
     }
 
