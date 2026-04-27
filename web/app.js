@@ -3,10 +3,10 @@ import { ScaleLadder    } from './ui/scale_ladder.js';
 import { AudioEngine    } from './audio/audio_engine.js';
 import { VKeyboard      } from './ui/vkeyboard.js';
 import { Singscope      } from './ui/singscope.js';
-import { NoteIndicator  } from './ui/note_indicator.js?v=0.1.0-alpha.4';
-import { ExerciseMode   } from './ui/exercise_mode.js?v=0.1.0-alpha.4';
-import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.1.0-alpha.4';
-import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.1.0-alpha.4';
+import { NoteIndicator  } from './ui/note_indicator.js?v=0.1.0-alpha.5';
+import { ExerciseMode   } from './ui/exercise_mode.js?v=0.1.0-alpha.5';
+import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.1.0-alpha.5';
+import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.1.0-alpha.5';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ const PRESETS = [
 ];
 
 const DEFAULT_REF_NI_HZ = 130.81;
-const APP_VERSION = '0.1.0-alpha.4';
+const APP_VERSION = '0.1.0-alpha.5';
 const HELP_RELEASE_ID = APP_VERSION;
 
 const app = {

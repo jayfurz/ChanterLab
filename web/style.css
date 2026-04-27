@@ -880,6 +880,15 @@ select {
   pointer-events: none;
 }
 
+.palette-degree-label {
+  display: none;
+  color: #c8d7e5;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
 /* ── Help / release notes ───────────────────────────────────── */
 .help-dialog {
   width: min(720px, calc(100vw - 24px));
@@ -1115,6 +1124,10 @@ select {
     display: none;
   }
 
+  body[data-mobile-view="scale"] #controls-panel {
+    display: none;
+  }
+
   #preset-buttons {
     display: flex;
     flex-wrap: wrap;
@@ -1214,21 +1227,21 @@ select {
 
   body[data-mobile-view="scale"] #main-content {
     display: flex;
-    overflow-y: auto;
+    overflow: hidden;
     overscroll-behavior: contain;
   }
 
   body[data-mobile-view="scale"] #main-view {
     order: 2;
-    flex: 0 0 auto;
-    min-height: 920px;
-    height: 920px;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
   }
 
   body[data-mobile-view="scale"] #ladder-container {
     display: block;
     width: 100%;
-    height: 920px;
+    height: 100%;
     border-right: 0;
     border-top: 1px solid #333;
   }
@@ -1300,20 +1313,25 @@ select {
     order: 1;
     width: 100%;
     max-width: 100vw;
-    max-height: none;
+    flex: 0 0 auto;
+    max-height: 348px;
     border-right: 0;
     border-bottom: 1px solid #333;
-    overflow: visible;
+    overflow: hidden;
     padding: 8px;
-    gap: 8px;
+    gap: 6px;
   }
 
   #palettes h3 {
     margin-bottom: 2px;
   }
 
+  body[data-mobile-view="scale"] #palettes .palette-section:nth-child(2) {
+    display: none;
+  }
+
   .palette-section {
-    gap: 3px;
+    gap: 2px;
   }
 
   #pthora-palette {
@@ -1326,10 +1344,10 @@ select {
   }
 
   .pthora-row {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
     width: 100%;
-    gap: 4px;
-    padding: 6px 0;
+    gap: 3px;
+    padding: 3px 0;
   }
 
   .pthora-column-labels > span,
@@ -1345,8 +1363,16 @@ select {
 
   .pthora-icon,
   .shading-icon {
-    min-height: 52px;
-    padding: 5px 2px;
+    min-height: 42px;
+    padding: 3px 1px;
+  }
+
+  .pthora-icon {
+    gap: 3px;
+  }
+
+  .palette-degree-label {
+    display: block;
   }
 
   .shading-row {
@@ -1367,9 +1393,9 @@ select {
   }
 
   .palette-glyph-sbmufl {
-    font-size: 26px;
-    width: 30px;
-    height: 28px;
+    font-size: 23px;
+    width: 26px;
+    height: 22px;
   }
 
   .palette-label {
@@ -1438,10 +1464,24 @@ select {
       max-height: 32dvh;
     }
 
+    body[data-mobile-view="scale"] #main-content {
+      flex-direction: row;
+    }
+
+    body[data-mobile-view="scale"] #palettes {
+      width: min(470px, 52vw);
+      max-width: 52vw;
+      height: 100%;
+      max-height: none;
+      border-right: 1px solid #333;
+      border-bottom: 0;
+      overflow: hidden;
+    }
+
     body[data-mobile-view="scale"] #main-view,
     body[data-mobile-view="scale"] #ladder-container {
-      min-height: 620px;
-      height: 620px;
+      min-height: 0;
+      height: 100%;
     }
   }
 }

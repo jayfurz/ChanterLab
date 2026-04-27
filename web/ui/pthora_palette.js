@@ -127,6 +127,10 @@ export class PthoraPalette {
         glyphEl.className = row.glyphClass ?? 'palette-glyph-sbmufl';
         glyphEl.textContent = glyph;
         el.appendChild(glyphEl);
+        const degreeEl = document.createElement('span');
+        degreeEl.className = 'palette-degree-label';
+        degreeEl.textContent = col.label;
+        el.appendChild(degreeEl);
 
         makeDraggable(el, {
           payload: () => ({ type: 'pthora', genus: row.genus, degree: col.degree }),
