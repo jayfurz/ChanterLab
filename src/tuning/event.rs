@@ -65,6 +65,7 @@ pub enum SymbolDrop {
         drop_degree: Degree,
         genus: Genus,
         target_degree: Degree,
+        target_phase: Option<u8>,
     },
     Chroa {
         drop_moria: i32,

@@ -31,7 +31,7 @@ mod main_exports {
 
     #[wasm_bindgen]
     impl JsTuningGrid {
-        /// Default grid: Diatonic, Ni root, 261.63 Hz, ±108 moria visible.
+        /// Default grid: Diatonic, Ni root, 130.81 Hz, -72..146 moria visible.
         #[wasm_bindgen(constructor)]
         pub fn new() -> JsTuningGrid {
             JsTuningGrid {
@@ -58,7 +58,7 @@ mod main_exports {
         /// Return all cells in the visible window as a JSON array.
         ///
         /// Each element has the shape:
-        /// `{ moria, degree, accidental, effective_moria, enabled, region_idx }`
+        /// `{ moria, degree, chromatic_phase, accidental, effective_moria, enabled, region_idx }`
         #[wasm_bindgen(js_name = cellsJson)]
         pub fn cells_json(&self) -> Result<String, JsValue> {
             let cells = self.inner.cells();
@@ -207,6 +207,8 @@ mod main_exports {
             Pthora {
                 genus: String,
                 degree: String,
+                #[serde(default)]
+                phase: Option<u8>,
                 #[serde(rename = "dropMoria")]
                 drop_moria: i32,
                 #[serde(rename = "dropDegree")]
@@ -227,6 +229,7 @@ mod main_exports {
             JsDrop::Pthora {
                 genus,
                 degree,
+                phase,
                 drop_moria,
                 drop_degree,
             } => {
@@ -238,6 +241,7 @@ mod main_exports {
                     drop_degree,
                     genus,
                     target_degree,
+                    target_phase: phase,
                 }
             }
             JsDrop::Shading {

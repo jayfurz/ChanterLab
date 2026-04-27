@@ -738,6 +738,10 @@ select {
   color: var(--accent2);
 }
 
+.quick-pthora-degrees.phase-options .quick-pthora-btn {
+  flex-basis: 58px;
+}
+
 /* ── SBMuFL Neanes font (OFL, bundled) ─────────────────────────── */
 @font-face {
   font-family: 'Neanes';
@@ -775,6 +779,10 @@ select {
   grid-template-columns: 34px repeat(8, minmax(0, 1fr));
   gap: 2px;
   align-items: center;
+}
+
+.pthora-phase-row {
+  grid-template-columns: 34px repeat(4, minmax(0, 1fr));
 }
 .pthora-column-labels > span,
 .pthora-row-label {
@@ -1348,6 +1356,10 @@ select {
     width: 100%;
     gap: 3px;
     padding: 3px 0;
+  }
+
+  .pthora-phase-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .pthora-column-labels > span,

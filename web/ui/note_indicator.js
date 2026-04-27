@@ -162,30 +162,16 @@ function baseDiatonicBelow(cell) {
   return DIATONIC_BELOW[cell.degree] ?? CP.DELTA;
 }
 
-function oppositeChromatic(codepoint, genus) {
-  if (genus === 'SoftChromatic') return codepoint === CP.SOFT_DI ? CP.SOFT_KE : CP.SOFT_DI;
-  return codepoint === CP.HARD_PA ? CP.HARD_DI : CP.HARD_PA;
-}
-
-function anchorVariantForChromatic(genus, anchorLinearIndex) {
-  if (genus === 'SoftChromatic') {
-    // Soft chromatic repeats by fifth from Ni: Ni, Di, upper Pa, ...
-    return posMod(anchorLinearIndex, 4) === 0 ? CP.SOFT_DI : CP.SOFT_KE;
-  }
-  // Hard chromatic repeats by fifth from Pa: Pa, Ke, upper Vou, ...
-  return posMod(anchorLinearIndex - 1, 4) === 0 ? CP.HARD_PA : CP.HARD_DI;
-}
-
 function baseChromaticBelow(cell, context, genus) {
-  const anchorLinear = context.linearIndexForMoria(context.region?.anchor_moria)
-    ?? context.linearIndexForCell(nearestDegreeCell(context.cells, context.region?.anchor_degree, context.region?.anchor_moria))
-    ?? 0;
-  const cellLinear = context.linearIndexForCell(cell);
-  const anchorVariant = anchorVariantForChromatic(genus, anchorLinear);
-  if (!Number.isFinite(cellLinear)) return anchorVariant;
-  return posMod(cellLinear - anchorLinear, 4) === 0
-    ? anchorVariant
-    : oppositeChromatic(anchorVariant, genus);
+  if (Number.isInteger(cell.chromatic_phase)) {
+    const phase = posMod(cell.chromatic_phase, 4);
+    if (genus === 'SoftChromatic') return phase % 2 === 0 ? CP.SOFT_DI : CP.SOFT_KE;
+    return phase % 2 === 0 ? CP.HARD_PA : CP.HARD_DI;
+  }
+
+  const cellLinear = context.linearIndexForCell(cell) ?? 0;
+  if (genus === 'SoftChromatic') return posMod(cellLinear, 2) === 0 ? CP.SOFT_DI : CP.SOFT_KE;
+  return posMod(cellLinear, 2) === 0 ? CP.HARD_PA : CP.HARD_DI;
 }
 
 function baseBelowFor(cell, context) {

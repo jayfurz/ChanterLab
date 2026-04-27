@@ -170,16 +170,13 @@ mod tests {
         );
     }
 
-    /// HardChromatic stored from Pa; placing it with anchor_degree=Pa needs
-    /// zero rotation, and the canonical cumulatives appear verbatim.
+    /// HardChromatic is a cyclic generator, so Region exposes the raw cycle
+    /// instead of an octave-rotated seven-step sequence.
     #[test]
-    fn hard_chromatic_rooted_at_pa_is_identity() {
+    fn hard_chromatic_uses_generator_cycle() {
         let r = Region::new(12, 84, Genus::HardChromatic, 12, Degree::Pa);
         assert_eq!(r.rotated_intervals(), Genus::HardChromatic.intervals());
-        let pos = r.degree_positions();
-        let moria: Vec<i32> = pos.iter().map(|(_, m)| *m).collect();
-        // Pa=12, Vou=18, Ga=38, Di=42, Ke=54, Zo=60, Ni'=80.
-        assert_eq!(moria, vec![12, 18, 38, 42, 54, 60, 80]);
+        assert_eq!(r.rotated_intervals(), vec![6, 20, 4, 12]);
     }
 
     /// GraveDiatonic is stored from Ga; placing it with anchor_degree=Ga is

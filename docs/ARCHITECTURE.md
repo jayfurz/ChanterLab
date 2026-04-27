@@ -96,9 +96,9 @@ Uses separate voice-analysis, synth, and UI responsibilities connected by
 
 ```rust
 pub struct TuningGrid {
-    ref_ni_hz: f64,                      // base Ni frequency; default 261.63
-    low_moria: i32,                      // range start, default -108 (3 octaves total)
-    high_moria: i32,                     // range end,   default +108
+    ref_ni_hz: f64,                      // base Ni frequency; default 130.81 (C3)
+    low_moria: i32,                      // range start, default -72
+    high_moria: i32,                     // range end,   default +146 (exclusive)
     regions: Vec<Region>,                // sorted ascending by start_moria, contiguous
     overrides: HashMap<i32, CellOverride>, // per-moria user state (accidental, enabled)
 }
@@ -392,7 +392,7 @@ DSP is agnostic to the view.
 ### 6.5 Controls panel
 
 - Genus preset selector.
-- Base Ni frequency slider (default 261.63 Hz).
+- Base Ni frequency slider (default 130.81 Hz).
 - Ison: degree selector, octave ±, volume.
 - Mic: enable toggle, input device picker, gate threshold, correction
   toggle.

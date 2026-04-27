@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChanterLab</title>
-  <link rel="stylesheet" href="style.css?v=0.1.0-alpha.5">
+  <link rel="stylesheet" href="style.css?v=0.1.0-alpha.6">
 </head>
 <body>
 
 <header id="app-header">
   <h1>ChanterLab</h1>
-  <span class="app-version">v0.1.0-alpha.5</span>
+  <span class="app-version">v0.1.0-alpha.6</span>
   <span id="audio-status" class="audio-status audio-off" title="Click or press a key to start audio">&#9654; Audio off</span>
   <div class="header-actions">
     <a id="source-link" class="header-btn" href="https://github.com/jayfurz/ChanterLab" target="_blank" rel="noopener">Source</a>
@@ -22,7 +22,7 @@
   <button class="mobile-tab active" type="button" data-mobile-view="sing">Sing</button>
   <button class="mobile-tab" type="button" data-mobile-view="scale">Scale</button>
   <button class="mobile-tab" type="button" data-mobile-view="train">Train</button>
-  <button class="mobile-tab" type="button" data-mobile-view="more">More</button>
+  <button class="mobile-tab" type="button" data-mobile-view="more">Settings</button>
 </nav>
 
 <div id="app-body">
@@ -46,6 +46,16 @@
           <button id="ni-snap-down-btn" type="button" class="reference-snap-btn" title="Snap to next lower MIDI note">▼</button>
         </div>
       </div>
+      <label for="reference-range-select">Voice range</label>
+      <select id="reference-range-select" aria-label="Choose reference Ni by voice range">
+        <option value="110">Bass - Ni A2</option>
+        <option value="130.81" selected>Baritone - Ni C3</option>
+        <option value="155.56">Tenor - Ni Eb3</option>
+        <option value="220">Female low - Ni A3</option>
+        <option value="261.63">Female mid - Ni C4</option>
+        <option value="311.13">Female high - Ni Eb4</option>
+        <option value="custom">Custom</option>
+      </select>
       <input type="range" id="ni-hz-slider" min="90" max="700" step="0.01" value="130.81">
     </div>
 
@@ -218,7 +228,7 @@
     <div class="help-dialog-header">
       <div>
         <h2>Welcome to ChanterLab</h2>
-        <div class="help-version">Version <span class="app-version-text">0.1.0-alpha.5</span></div>
+        <div class="help-version">Version <span class="app-version-text">0.1.0-alpha.6</span></div>
         <p>Free Byzantine chanting practice software by Justin Fursov, a chanter at Holy Resurrection Orthodox Church in Tucson, AZ.</p>
       </div>
       <button id="help-close-btn" class="help-close-btn" type="button" aria-label="Close help">×</button>
@@ -258,8 +268,10 @@
           <li>Supports traditional 72-ET tuning with draggable pthora and chroa.</li>
           <li>Practice mode includes range selection, simple exercises, scoring, and copyable reports.</li>
           <li>Training feedback now lives in one center HUD with target, score, progress, martyria, and pitch offset.</li>
-          <li>Mobile layout now uses Sing, Scale, Train, and More tabs with quick pthora controls while singing.</li>
+          <li>Mobile layout now uses Sing, Scale, Train, and Settings tabs with quick pthora controls while singing.</li>
           <li>Mobile Scale keeps all labeled pthora targets and the ladder visible together.</li>
+          <li>Soft and hard chromatic tuning now use repeating four-phase chromatic cycles.</li>
+          <li>The ladder now shows one octave below Reference Ni through two octaves above it.</li>
           <li>Reference Ni now stays synced when presets are loaded or changed outside the slider.</li>
           <li>Practice scoring now folds octave-equivalent pitch error, so C3 can match Ni when Reference Ni is C4.</li>
           <li>Bundled Neanes font support for Byzantine symbols.</li>
@@ -295,6 +307,6 @@
   </div>
 </dialog>
 
-<script type="module" src="app.js?v=0.1.0-alpha.5"></script>
+<script type="module" src="app.js?v=0.1.0-alpha.6"></script>
 </body>
 </html>

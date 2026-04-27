@@ -82,10 +82,11 @@ Used for Mode Plagal II (and the hard form of Mode II). Characterized by a narro
 |Ke → Zo  |6    |
 |Zo → Ni′ |20   |
 |Ni′ → Pa′|4    |
+|Pa′ → Vou′|12  |
 
-- **Step sequence (rooted on Pa):** `6 · 20 · 4 · 12 · 6 · 20 · 4`
-- **Cumulative degrees from Pa:** `0, 6, 26, 30, 42, 48, 68, 72`
-- **Tetrachord structure:** two hard chromatic tetrachords `6–20–4` connected by a whole tone of `12`.
+- **Repeating phase cycle (rooted on Pa):** `6 · 20 · 4 · 12`
+- **Cumulative degrees from Pa through Ke:** `0, 6, 26, 30, 42`
+- **Cycle structure:** the hard chromatic phase repeats every four scale degrees: Pa → Ke, Ke → upper Vou, and lower Di → Pa use the same `6–20–4–12` cycle.
 
 ### 3.3 Soft Chromatic Scale
 
@@ -100,10 +101,11 @@ Used for Mode II (soft chromatic form). Characterized by balanced chromatic tetr
 |Di → Ke  |8    |
 |Ke → Zo  |14   |
 |Zo → Ni′ |8    |
+|Ni′ → Pa′|12   |
 
-- **Step sequence:** `8 · 14 · 8 · 12 · 8 · 14 · 8`
-- **Cumulative degrees from Ni:** `0, 8, 22, 30, 42, 50, 64, 72`
-- **Tetrachord structure:** two soft chromatic tetrachords `8–14–8` connected by a whole tone of `12`.
+- **Repeating phase cycle:** `8 · 14 · 8 · 12`
+- **Cumulative degrees from Ni through Di:** `0, 8, 22, 30, 42`
+- **Cycle structure:** the soft chromatic phase repeats every four scale degrees: Ni → Di, Di → upper Pa, and Pa → Ke use the same `8–14–8–12` cycle.
 
 ### 3.4 Scale of the Grave Diatonic Mode
 
@@ -268,8 +270,8 @@ These govern metric placement and accentuation, not interval content.
 |Scale                     |Rooted on|Step sequence (moria)              |Sum                               |
 |--------------------------|---------|-----------------------------------|----------------------------------|
 |Octave Natural Diatonic   |Ni       |12 · 10 · 8 · 12 · 12 · 10 · 8     |72                                |
-|Hard Chromatic            |Pa       |6 · 20 · 4 · 12 · 6 · 20 · 4       |72                                |
-|Soft Chromatic            |Ni       |8 · 14 · 8 · 12 · 8 · 14 · 8       |72                                |
+|Hard Chromatic            |Pa       |6 · 20 · 4 · 12                    |cyclic phase generator            |
+|Soft Chromatic            |Ni       |8 · 14 · 8 · 12                    |cyclic phase generator            |
 |Grave Diatonic            |Ga       |6 · 16 · 8 · 12 · 10 · 12 · 8      |72                                |
 |Grave Enharmonic (from Zo)|Zo       |6 · 12 · 12 · 12 · 6 · 12 · 12     |72                                |
 |Grave Enharmonic (from Ga)|Ga       |6 · 12 · 12 · 6 · 12 · 12 · 6·12·12|(tetrachord generator, not closed)|

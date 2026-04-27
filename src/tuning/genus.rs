@@ -1,14 +1,18 @@
 //! Byzantine genera (scale families).
 //!
-//! Every genus carries an interval sequence stored **canonical-root-indexed**:
+//! Closed octave genera carry an interval sequence stored
+//! **canonical-root-indexed**:
 //! `intervals()[0]` is the step from the genus's canonical root to the next
-//! degree. For example, `Genus::HardChromatic.intervals()[0]` is Pa → Vou = 6
-//! moria, because Pa is HardChromatic's canonical root.
+//! degree.
 //!
-//! This single convention is the whole point of the redesign — there is no
-//! "Ni-indexed" or "root-indexed" split; everything is canonical-root-indexed,
-//! and rotation (if needed) happens at the `Region` boundary where the user
-//! places the genus.
+//! Soft and hard chromatic are different: they are cyclic four-step systems
+//! that repeat by fourth/fifth relationships, not octave systems. Their
+//! interval sequences are anchored at a pthora drop point and repeat every
+//! four scale degrees.
+//!
+//! This keeps octave scales and chromatic cycles distinct: octave scales rotate
+//! by degree, while chromatic cycles walk phase-by-phase from the pthora
+//! anchor.
 //!
 //! See `BYZANTINE_SCALES_REFERENCE.md` §3–§4 for the authoritative interval
 //! values.
@@ -17,9 +21,9 @@ use crate::tuning::Degree;
 
 /// A scale family — the interval "color" from which specific scales are built.
 ///
-/// Closed genera have a 7-interval sequence summing to 72 moria. Open genera
-/// (`EnharmonicGa`) carry a generator tetrachord that tiles across the region
-/// span; see `BYZANTINE_SCALES_REFERENCE.md` §4.2.
+/// Closed genera have a 7-interval sequence summing to 72 moria. Cyclic
+/// chromatic genera and open generators carry shorter interval sequences that
+/// tile across the region span.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Genus {
@@ -27,9 +31,9 @@ pub enum Genus {
     Diatonic,
     /// Western major scale in 72-moria form, canonical root Ni.
     Western,
-    /// Hard Chromatic, canonical root Pa.
+    /// Hard Chromatic, canonical phase root Pa.
     HardChromatic,
-    /// Soft Chromatic, canonical root Ni.
+    /// Soft Chromatic, canonical phase root Ni.
     SoftChromatic,
     /// Grave Diatonic (Mode Plagal III diatonic), canonical root Ga.
     GraveDiatonic,
@@ -67,6 +71,7 @@ impl Genus {
     /// Canonical-root-indexed interval sequence in moria.
     ///
     /// For closed 7-element scales, sums to 72.
+    /// For cyclic chromatic genera, returns the repeating four-step cycle.
     /// For the `EnharmonicGa` generator, returns the 30-moria tetrachord
     /// `[6, 12, 12]` which is tiled across a region span — see
     /// `BYZANTINE_SCALES_REFERENCE.md` §4.2.
@@ -78,12 +83,12 @@ impl Genus {
             // Western major from Ni: do→re=12, re→mi=12, mi→fa=6,
             // fa→so=12, so→la=12, la→ti=12, ti→do'=6.
             Genus::Western => vec![12, 12, 6, 12, 12, 12, 6],
-            // Hard Chromatic from Pa: Pa→Vou=6, Vou→Ga=20, Ga→Di=4,
-            // Di→Ke=12, Ke→Zo=6, Zo→Ni'=20, Ni'→Pa'=4.
-            Genus::HardChromatic => vec![6, 20, 4, 12, 6, 20, 4],
-            // Soft Chromatic from Ni: Ni→Pa=8, Pa→Vou=14, Vou→Ga=8,
-            // Ga→Di=12, Di→Ke=8, Ke→Zo=14, Zo→Ni'=8.
-            Genus::SoftChromatic => vec![8, 14, 8, 12, 8, 14, 8],
+            // Hard Chromatic cyclic phase from Pa: Pa→Vou=6, Vou→Ga=20,
+            // Ga→Di=4, Di→Ke=12, then repeat from Ke.
+            Genus::HardChromatic => vec![6, 20, 4, 12],
+            // Soft Chromatic cyclic phase from Ni: Ni→Pa=8, Pa→Vou=14,
+            // Vou→Ga=8, Ga→Di=12, then repeat from Di.
+            Genus::SoftChromatic => vec![8, 14, 8, 12],
             // Grave Diatonic from Ga: Ga→Di=12, Di→Ke=10, Ke→Zo=12,
             // Zo→Ni'=8, Ni'→Pa'=6, Pa'→Vou'=16, Vou'→Ga'=8.
             Genus::GraveDiatonic => vec![12, 10, 12, 8, 6, 16, 8],
@@ -100,6 +105,21 @@ impl Genus {
     pub fn is_closed(&self) -> bool {
         let iv = self.intervals();
         iv.len() == 7 && iv.iter().sum::<i32>() == 72
+    }
+
+    /// True iff this genus is a four-step chromatic cycle rather than a
+    /// seven-step octave scale.
+    pub fn is_chromatic_cycle(&self) -> bool {
+        matches!(self, Genus::HardChromatic | Genus::SoftChromatic)
+    }
+
+    /// True iff this non-closed genus can tile its raw interval sequence
+    /// directly across a region.
+    pub fn is_tiled_generator(&self) -> bool {
+        matches!(
+            self,
+            Genus::HardChromatic | Genus::SoftChromatic | Genus::EnharmonicGa
+        )
     }
 
     /// Display name for UI.
@@ -145,19 +165,20 @@ mod tests {
         }
     }
 
-    /// The closed genera: Diatonic, Western, HardChromatic, SoftChromatic,
-    /// GraveDiatonic, EnharmonicZo (6 of the 7 built-ins).
+    /// The closed genera exclude cyclic chromatic systems and EnharmonicGa.
     #[test]
-    fn enharmonic_ga_is_the_only_open_builtin() {
+    fn non_octave_builtins_are_not_closed() {
         let all = Genus::all_builtin();
         let closed_count = all.iter().filter(|g| g.is_closed()).count();
         let open_count = all.iter().filter(|g| !g.is_closed()).count();
-        assert_eq!(closed_count, 6);
-        assert_eq!(open_count, 1);
-        assert_eq!(
-            all.iter().find(|g| !g.is_closed()).unwrap(),
-            &Genus::EnharmonicGa
-        );
+        assert_eq!(closed_count, 4);
+        assert_eq!(open_count, 3);
+        assert!(!Genus::SoftChromatic.is_closed());
+        assert!(!Genus::HardChromatic.is_closed());
+        assert!(!Genus::EnharmonicGa.is_closed());
+        assert!(Genus::SoftChromatic.is_tiled_generator());
+        assert!(Genus::HardChromatic.is_tiled_generator());
+        assert!(Genus::EnharmonicGa.is_tiled_generator());
     }
 
     /// Canonical roots match `BYZANTINE_SCALES_REFERENCE.md` §3–§4.
@@ -179,8 +200,6 @@ mod tests {
         let cases: &[(Genus, &[i32])] = &[
             (Genus::Diatonic, &[0, 12, 22, 30, 42, 54, 64, 72]),
             (Genus::Western, &[0, 12, 24, 30, 42, 54, 66, 72]),
-            (Genus::HardChromatic, &[0, 6, 26, 30, 42, 48, 68, 72]),
-            (Genus::SoftChromatic, &[0, 8, 22, 30, 42, 50, 64, 72]),
             // GraveDiatonic cumulative from Ga: 0, 12, 22, 34, 42, 48, 64, 72.
             // Converting to Ni-origin (since Ga is at moria 30 below, i.e.
             // the Ga→Ga octave begins at 30 above Ni) is done in Region tests.
@@ -201,6 +220,15 @@ mod tests {
                 genus.name()
             );
         }
+    }
+
+    /// Chromatic genera are four-step cycles, not octave scales.
+    #[test]
+    fn chromatic_generators_match_reference_cycles() {
+        assert_eq!(Genus::SoftChromatic.intervals(), vec![8, 14, 8, 12]);
+        assert_eq!(Genus::HardChromatic.intervals(), vec![6, 20, 4, 12]);
+        assert!(Genus::SoftChromatic.is_chromatic_cycle());
+        assert!(Genus::HardChromatic.is_chromatic_cycle());
     }
 
     /// Enharmonic-Ga generator is the 30-moria tetrachord `[6, 12, 12]`.

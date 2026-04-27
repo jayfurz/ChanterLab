@@ -3,10 +3,10 @@ import { ScaleLadder    } from './ui/scale_ladder.js';
 import { AudioEngine    } from './audio/audio_engine.js';
 import { VKeyboard      } from './ui/vkeyboard.js';
 import { Singscope      } from './ui/singscope.js';
-import { NoteIndicator  } from './ui/note_indicator.js?v=0.1.0-alpha.5';
-import { ExerciseMode   } from './ui/exercise_mode.js?v=0.1.0-alpha.5';
-import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.1.0-alpha.5';
-import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.1.0-alpha.5';
+import { NoteIndicator  } from './ui/note_indicator.js?v=0.1.0-alpha.6';
+import { ExerciseMode   } from './ui/exercise_mode.js?v=0.1.0-alpha.6';
+import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.1.0-alpha.6';
+import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.1.0-alpha.6';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -21,8 +21,19 @@ const PRESETS = [
 ];
 
 const DEFAULT_REF_NI_HZ = 130.81;
-const APP_VERSION = '0.1.0-alpha.5';
+const APP_VERSION = '0.1.0-alpha.6';
 const HELP_RELEASE_ID = APP_VERSION;
+const DETECTION_LOW_MORIA = -72;
+const DETECTION_HIGH_MORIA = 144;
+const REFERENCE_RANGE_OPTIONS = [
+  { value: '110', label: 'Bass - Ni A2' },
+  { value: '130.81', label: 'Baritone - Ni C3' },
+  { value: '155.56', label: 'Tenor - Ni Eb3' },
+  { value: '220', label: 'Female low - Ni A3' },
+  { value: '261.63', label: 'Female mid - Ni C4' },
+  { value: '311.13', label: 'Female high - Ni Eb4' },
+  { value: 'custom', label: 'Custom' },
+];
 
 const app = {
   grid:            null,
@@ -256,7 +267,17 @@ function handlePitchEvent(msg) {
     msg.raw_moria = null;
   }
 
-  const snap = (msg.gate_open && msg.raw_moria !== null)
+  const inDetectionRange = msg.raw_moria !== null
+    && msg.raw_moria >= DETECTION_LOW_MORIA
+    && msg.raw_moria <= DETECTION_HIGH_MORIA;
+  if (!inDetectionRange) {
+    msg.gate_open = false;
+    msg.cell_id = -1;
+    msg.neighbor_id = -1;
+    msg.neighbor_vel = 0;
+  }
+
+  const snap = (msg.gate_open && inDetectionRange)
     ? nearestEnabledMoriaCell(msg.raw_moria, app.voiceLastCellId)
     : null;
   if (snap) {
@@ -464,18 +485,34 @@ function updateReferenceNiDisplay(hz) {
   noteDisplay.textContent = formatConcertPitch(hz);
 }
 
+function syncReferenceRangeSelect(hz) {
+  const rangeSelect = document.getElementById('reference-range-select');
+  if (!rangeSelect) return;
+  const matched = REFERENCE_RANGE_OPTIONS.find(option => {
+    if (option.value === 'custom') return false;
+    return Math.abs(parseFloat(option.value) - hz) < 0.01;
+  });
+  rangeSelect.value = matched?.value ?? 'custom';
+}
+
 function syncReferenceControls() {
   const slider = document.getElementById('ni-hz-slider');
   if (slider) slider.value = app.refNiHz.toFixed(2);
   updateReferenceNiDisplay(app.refNiHz);
+  syncReferenceRangeSelect(app.refNiHz);
 }
 
 function wireControls() {
   const slider    = document.getElementById('ni-hz-slider');
+  const rangeSelect = document.getElementById('reference-range-select');
 
   syncReferenceControls();
   slider.addEventListener('input', () => {
     setReferenceNiHz(parseFloat(slider.value));
+  });
+  rangeSelect?.addEventListener('change', () => {
+    if (rangeSelect.value === 'custom') return;
+    setReferenceNiHz(parseFloat(rangeSelect.value));
   });
 
   document.getElementById('ni-snap-up-btn').addEventListener('click', () => {
@@ -559,13 +596,15 @@ function applySymbolPayloadToCell(payload, cell) {
 
   let drop = null;
   if (payload.type === 'pthora') {
+    const hasPhase = Number.isInteger(payload.phase);
     drop = {
       type: 'pthora',
       genus: payload.genus,
-      degree: payload.degree,
+      degree: hasPhase ? cell.degree : (payload.degree ?? cell.degree),
       dropMoria: cell.moria,
       dropDegree: cell.degree,
     };
+    if (hasPhase) drop.phase = payload.phase;
   } else if (payload.type === 'shading') {
     drop = {
       type: 'shading',

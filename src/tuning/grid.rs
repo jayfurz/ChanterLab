@@ -13,7 +13,8 @@
 //! `[low_moria, high_moria)`, with `degree: Some(..)` set on the positions
 //! that sit on the region's rotated scale.
 //!
-//! Open generators like `EnharmonicGa` are tiled from the region anchor.
+//! Cyclic chromatic systems and open generators like `EnharmonicGa` are tiled
+//! from the region anchor.
 
 use std::collections::HashMap;
 
@@ -22,16 +23,23 @@ use crate::tuning::{
     Shading, SymbolDrop, TuningEvent, TuningEventKind, NUM_DEGREES,
 };
 
-/// Default reference frequency: middle C (C4).
-pub const DEFAULT_REF_NI_HZ: f64 = 261.63;
-/// Default visible range: 3 octaves below Ni to 3 octaves above.
-pub const DEFAULT_LOW_MORIA: i32 = -108;
-pub const DEFAULT_HIGH_MORIA: i32 = 108;
+/// Default reference frequency: baritone Ni at C3.
+pub const DEFAULT_REF_NI_HZ: f64 = 130.81;
+/// Default visible range: one octave below reference Ni through two octaves
+/// above it. `high_moria` is exclusive, so 146 includes the +144 Ni cell.
+pub const DEFAULT_LOW_MORIA: i32 = -72;
+pub const DEFAULT_HIGH_MORIA: i32 = 146;
 
 /// Moria span of a full octave.
 const OCTAVE_MORIA: i32 = 72;
 /// Cell spacing in moria for non-degree slots.
 const CELL_STEP: i32 = 2;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DegreeCellInfo {
+    degree: Degree,
+    chromatic_phase: Option<u8>,
+}
 
 /// Convert a moria offset to a frequency given a reference Ni frequency.
 ///
@@ -226,8 +234,8 @@ impl TuningGrid {
     ///
     /// `start_moria` and `end_moria` are snapped outward to multiples of 72.
     /// The region's initial anchor sits at `start_moria`. Panics if the
-    /// preset genus is not closed — open generators (`EnharmonicGa`) need
-    /// dedicated tiling.
+    /// preset genus is neither a closed octave genus nor a supported tiled
+    /// generator.
     pub fn with_preset(
         ref_ni_hz: f64,
         low_moria: i32,
@@ -236,8 +244,8 @@ impl TuningGrid {
         anchor_degree: Degree,
     ) -> Self {
         assert!(
-            genus.is_closed(),
-            "with_preset requires a closed genus; got {}",
+            genus.is_closed() || genus.is_tiled_generator(),
+            "with_preset requires a closed or tiled genus; got {}",
             genus.name()
         );
         assert!(low_moria < high_moria, "low_moria must be < high_moria");
@@ -342,7 +350,10 @@ impl TuningGrid {
                 drop_degree,
                 genus,
                 target_degree,
-            } => self.apply_pthora_drop(drop_moria, drop_degree, genus, target_degree),
+                target_phase,
+            } => {
+                self.apply_pthora_drop(drop_moria, drop_degree, genus, target_degree, target_phase)
+            }
             SymbolDrop::Chroa {
                 drop_moria,
                 drop_degree,
@@ -393,7 +404,7 @@ impl TuningGrid {
             .find(|c| c.moria == moria)
             .and_then(|c| c.degree)
             .unwrap_or(target_degree);
-        self.apply_pthora_drop(moria, drop_degree, new_genus, target_degree)
+        self.apply_pthora_drop(moria, drop_degree, new_genus, target_degree, None)
     }
 
     fn apply_pthora_drop(
@@ -402,13 +413,20 @@ impl TuningGrid {
         drop_degree: Degree,
         new_genus: Genus,
         target_degree: Degree,
+        target_phase: Option<u8>,
     ) -> bool {
         let Some(idx) = self.regions.iter().position(|r| r.contains(moria)) else {
             return false;
         };
 
-        let (anchor_moria, anchor_degree) =
-            self.resolve_pthora_anchor(idx, moria, drop_degree, &new_genus, target_degree);
+        let (anchor_moria, anchor_degree) = self.resolve_pthora_anchor(
+            idx,
+            moria,
+            drop_degree,
+            &new_genus,
+            target_degree,
+            target_phase,
+        );
 
         self.remove_region_events(idx);
         let event_id = self.push_event(
@@ -561,16 +579,25 @@ impl TuningGrid {
         drop_degree: Degree,
         new_genus: &Genus,
         target_degree: Degree,
+        target_phase: Option<u8>,
     ) -> (i32, Degree) {
-        // Soft-chromatic Ke/Pa pthorae can move the dropped note: the new
-        // anchor is 8 moria above the prior lower degree.
-        if matches!(new_genus, Genus::SoftChromatic)
-            && matches!(target_degree, Degree::Ke | Degree::Pa)
-            && drop_degree == target_degree
-        {
-            if let Some(lower) = self.related_degree_moria(region_idx, moria, drop_degree, -1) {
-                return (lower + 8, target_degree);
+        if new_genus.is_chromatic_cycle() {
+            let phase = target_phase.unwrap_or(0).min(3);
+            if phase == 0 {
+                return (moria, target_degree);
             }
+
+            let anchor_degree = drop_degree.shifted_by(-(phase as i32));
+            if let Some(anchor_moria) =
+                self.related_degree_moria(region_idx, moria, drop_degree, -(phase as i32))
+            {
+                return (anchor_moria, anchor_degree);
+            }
+
+            return (
+                moria - Self::generator_offset_to_phase(new_genus, phase),
+                anchor_degree,
+            );
         }
 
         // A diatonic Ga pthora dropped onto Zo/Vou uses the same "move the
@@ -585,6 +612,11 @@ impl TuningGrid {
         }
 
         (moria, target_degree)
+    }
+
+    fn generator_offset_to_phase(genus: &Genus, phase: u8) -> i32 {
+        let intervals = genus.intervals();
+        intervals.iter().take(phase as usize).sum()
     }
 
     fn resolve_chroa_anchor(
@@ -719,7 +751,7 @@ impl TuningGrid {
     pub fn cells(&self) -> Vec<Cell> {
         let mut cells = Vec::new();
         for (idx, region) in self.regions.iter().enumerate() {
-            let degree_map = if region.genus.is_closed() {
+            let degree_map: HashMap<i32, DegreeCellInfo> = if region.genus.is_closed() {
                 self.build_degree_map(region)
             } else {
                 self.build_generator_map(region)
@@ -728,7 +760,8 @@ impl TuningGrid {
             let end = region.end_moria.min(self.high_moria);
             let mut m = align_up(start, CELL_STEP);
             while m < end {
-                let degree = degree_map.get(&m).copied();
+                let degree_info = degree_map.get(&m).copied();
+                let degree = degree_info.map(|info| info.degree);
                 let geniki_shift = degree.map(|d| self.geniki_shift_for(d)).unwrap_or_default();
                 let (accidental, enabled) = self
                     .overrides
@@ -738,6 +771,7 @@ impl TuningGrid {
                 cells.push(Cell {
                     moria: m,
                     degree,
+                    chromatic_phase: degree_info.and_then(|info| info.chromatic_phase),
                     accidental,
                     enabled,
                     region_idx: idx,
@@ -750,8 +784,8 @@ impl TuningGrid {
     }
 
     /// Tile the closed genus's degree positions across the region span,
-    /// returning a map from absolute moria → Degree.
-    fn build_degree_map(&self, region: &Region) -> HashMap<i32, Degree> {
+    /// returning a map from absolute moria → degree-cell metadata.
+    fn build_degree_map(&self, region: &Region) -> HashMap<i32, DegreeCellInfo> {
         let mut map = HashMap::new();
         let Some(steps) = self.effective_steps_by_degree(region) else {
             return map;
@@ -762,7 +796,13 @@ impl TuningGrid {
         let mut degree = region.anchor_degree;
         while m < region.end_moria {
             if m >= region.start_moria {
-                map.insert(m, degree);
+                map.insert(
+                    m,
+                    DegreeCellInfo {
+                        degree,
+                        chromatic_phase: None,
+                    },
+                );
             }
             let step = steps[degree.index()];
             if step <= 0 {
@@ -788,55 +828,75 @@ impl TuningGrid {
                 break;
             }
             if m < region.end_moria {
-                map.insert(m, degree);
+                map.insert(
+                    m,
+                    DegreeCellInfo {
+                        degree,
+                        chromatic_phase: None,
+                    },
+                );
             }
         }
         map
     }
 
-    /// Tile the `EnharmonicGa` generator `[6, 12, 12]` across the region span.
+    /// Tile a generator interval sequence across the region span.
     ///
-    /// Each generator step lands on an absolute moria position. These
-    /// positions are assigned sequential degree names starting from
-    /// `region.anchor_degree`, cycling through all seven degrees as the
-    /// generator repeats. This naming is a convention for the UI — the true
-    /// tonal identity of each position comes from the tetrachord structure,
-    /// not the named degree.
+    /// For soft/hard chromatic regions, the generator is the four-step
+    /// chromatic phase cycle. The phase is stored alongside the degree name so
+    /// the UI can distinguish, for example, a phase-1 Pa from a phase-3 Pa.
     ///
     /// Non-generator even-moria positions fall in the map as `None` (not
     /// inserted) so the caller marks them disabled.
-    fn build_generator_map(&self, region: &Region) -> HashMap<i32, Degree> {
+    fn build_generator_map(&self, region: &Region) -> HashMap<i32, DegreeCellInfo> {
         let generator = region.genus.intervals();
         let mut map = HashMap::new();
         let mut m = region.anchor_moria;
         let mut degree = region.anchor_degree;
-        let mut step_idx: i32 = 0;
+        let mut phase_idx: i32 = 0;
+        let phase_len = if region.genus.is_chromatic_cycle() {
+            Some(generator.len() as i32)
+        } else {
+            None
+        };
         while m < region.end_moria {
             if m >= region.start_moria {
-                map.insert(m, degree);
+                map.insert(
+                    m,
+                    DegreeCellInfo {
+                        degree,
+                        chromatic_phase: phase_len.map(|len| phase_idx.rem_euclid(len) as u8),
+                    },
+                );
             }
             // Advance to the next generator step, cycling through the
             // generator slice.
-            let gen_step = generator[(step_idx as usize) % generator.len()];
+            let gen_step = generator[phase_idx.rem_euclid(generator.len() as i32) as usize];
             m += gen_step;
             degree = degree.shifted_by(1);
-            step_idx += 1;
+            phase_idx += 1;
         }
 
         let mut m = region.anchor_moria;
         let mut degree = region.anchor_degree;
-        let mut step_idx: i32 = 0;
+        let mut phase_idx: i32 = 0;
         loop {
-            step_idx -= 1;
+            phase_idx -= 1;
             let prev = degree.shifted_by(-1);
-            let gen_step = generator[step_idx.rem_euclid(generator.len() as i32) as usize];
+            let gen_step = generator[phase_idx.rem_euclid(generator.len() as i32) as usize];
             m -= gen_step;
             degree = prev;
             if m < region.start_moria {
                 break;
             }
             if m < region.end_moria {
-                map.insert(m, degree);
+                map.insert(
+                    m,
+                    DegreeCellInfo {
+                        degree,
+                        chromatic_phase: phase_len.map(|len| phase_idx.rem_euclid(len) as u8),
+                    },
+                );
             }
         }
         map
@@ -1133,23 +1193,23 @@ mod tests {
         let g = TuningGrid::new_default();
         assert_eq!(g.regions().len(), 1);
         let r = &g.regions()[0];
-        assert_eq!(r.start_moria, -144);
-        assert_eq!(r.end_moria, 144);
+        assert_eq!(r.start_moria, -72);
+        assert_eq!(r.end_moria, 216);
         assert_eq!(r.genus, Genus::Diatonic);
-        assert_eq!(r.anchor_moria, -144);
+        assert_eq!(r.anchor_moria, -72);
         assert_eq!(r.anchor_degree, Degree::Ni);
         assert!(r.active_rules.is_empty());
     }
 
-    /// Default grid has cells at every even moria in [-108, 108).
+    /// Default grid has cells at every even moria in [-72, 146).
     #[test]
     fn default_grid_cell_count() {
         let g = TuningGrid::new_default();
         let cells = g.cells();
-        let expected = (108 - (-108)) / 2;
+        let expected = (146 - (-72)) / 2;
         assert_eq!(cells.len(), expected as usize);
-        assert_eq!(cells.first().unwrap().moria, -108);
-        assert_eq!(cells.last().unwrap().moria, 106);
+        assert_eq!(cells.first().unwrap().moria, -72);
+        assert_eq!(cells.last().unwrap().moria, 144);
     }
 
     /// Ni appears at every multiple of 72 inside the visible range.
@@ -1162,7 +1222,7 @@ mod tests {
             .filter(|c| c.degree == Some(Degree::Ni))
             .map(|c| c.moria)
             .collect();
-        assert_eq!(ni_moria, vec![-72, 0, 72]);
+        assert_eq!(ni_moria, vec![-72, 0, 72, 144]);
     }
 
     /// All seven degrees appear in each octave of the visible range,
@@ -1243,8 +1303,8 @@ mod tests {
         let g = TuningGrid::new_default();
         let (idx, r) = g.region_at(0).expect("region at 0");
         assert_eq!(idx, 0);
-        assert_eq!(r.start_moria, -144);
-        assert!(g.region_at(200).is_none());
+        assert_eq!(r.start_moria, -72);
+        assert!(g.region_at(216).is_none());
     }
 
     // ── EnharmonicGa tiling tests ──────────────────────────────────────────
@@ -1370,8 +1430,8 @@ mod tests {
         assert_eq!(r.genus, Genus::HardChromatic);
         assert_eq!(r.anchor_moria, 30);
         assert_eq!(r.anchor_degree, Degree::Pa);
-        assert_eq!(r.start_moria, -144);
-        assert_eq!(r.end_moria, 144);
+        assert_eq!(r.start_moria, -72);
+        assert_eq!(r.end_moria, 216);
         assert_eq!(g.events().len(), 1);
     }
 
@@ -1432,15 +1492,18 @@ mod tests {
         g.apply_pthora(42, Genus::HardChromatic, Degree::Pa);
         let cells = g.cells();
 
-        let below = cells.iter().find(|c| c.moria == 38).unwrap();
+        let below = cells.iter().find(|c| c.moria == 30).unwrap();
         assert_eq!(below.degree, Some(Degree::Ni));
         assert_eq!(below.region_idx, 0);
+        assert_eq!(below.chromatic_phase, Some(3));
 
         let anchor = cells.iter().find(|c| c.moria == 42).unwrap();
         assert_eq!(anchor.degree, Some(Degree::Pa));
+        assert_eq!(anchor.chromatic_phase, Some(0));
 
         let above = cells.iter().find(|c| c.moria == 48).unwrap();
         assert_eq!(above.degree, Some(Degree::Vou));
+        assert_eq!(above.chromatic_phase, Some(1));
     }
 
     #[test]
@@ -1680,23 +1743,74 @@ mod tests {
     }
 
     #[test]
-    fn soft_chromatic_ke_on_ke_moves_drop() {
+    fn soft_chromatic_phase_one_on_ke_moves_drop() {
         let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
-        g.apply_pthora(54, Genus::SoftChromatic, Degree::Ke);
+        g.apply_symbol_drop(SymbolDrop::Pthora {
+            drop_moria: 54,
+            drop_degree: Degree::Ke,
+            genus: Genus::SoftChromatic,
+            target_degree: Degree::Ke,
+            target_phase: Some(1),
+        });
         let r = &g.regions()[0];
-        assert_eq!(r.anchor_moria, 50);
-        assert_eq!(r.anchor_degree, Degree::Ke);
+        assert_eq!(r.anchor_moria, 42);
+        assert_eq!(r.anchor_degree, Degree::Di);
 
         let cells = g.cells();
-        assert_eq!(
-            cells.iter().find(|c| c.moria == 42).unwrap().degree,
-            Some(Degree::Di)
-        );
-        assert_eq!(
-            cells.iter().find(|c| c.moria == 50).unwrap().degree,
-            Some(Degree::Ke)
-        );
+        let di = cells.iter().find(|c| c.moria == 42).unwrap();
+        assert_eq!(di.degree, Some(Degree::Di));
+        assert_eq!(di.chromatic_phase, Some(0));
+        let ke = cells.iter().find(|c| c.moria == 50).unwrap();
+        assert_eq!(ke.degree, Some(Degree::Ke));
+        assert_eq!(ke.chromatic_phase, Some(1));
         assert_eq!(cells.iter().find(|c| c.moria == 54).unwrap().degree, None);
+    }
+
+    #[test]
+    fn soft_chromatic_phase_cycle_repeats_by_four_degrees() {
+        let mut g = TuningGrid::new_default();
+        g.apply_pthora(0, Genus::SoftChromatic, Degree::Ni);
+        let cells = g.cells();
+        let cases = [
+            (0, Degree::Ni, 0),
+            (8, Degree::Pa, 1),
+            (22, Degree::Vou, 2),
+            (30, Degree::Ga, 3),
+            (42, Degree::Di, 0),
+            (50, Degree::Ke, 1),
+            (64, Degree::Zo, 2),
+            (72, Degree::Ni, 3),
+            (84, Degree::Pa, 0),
+        ];
+        for (moria, degree, phase) in cases {
+            let cell = cells.iter().find(|c| c.moria == moria).unwrap();
+            assert_eq!(cell.degree, Some(degree), "moria {moria}");
+            assert_eq!(cell.chromatic_phase, Some(phase), "moria {moria}");
+        }
+    }
+
+    #[test]
+    fn hard_chromatic_phase_cycle_places_lower_and_upper_ni_differently() {
+        let mut g = TuningGrid::new_default();
+        g.apply_pthora(0, Genus::HardChromatic, Degree::Pa);
+        let cells = g.cells();
+        let cases = [
+            (-12, Degree::Ni, 3),
+            (0, Degree::Pa, 0),
+            (6, Degree::Vou, 1),
+            (26, Degree::Ga, 2),
+            (30, Degree::Di, 3),
+            (42, Degree::Ke, 0),
+            (48, Degree::Zo, 1),
+            (68, Degree::Ni, 2),
+            (72, Degree::Pa, 3),
+            (84, Degree::Vou, 0),
+        ];
+        for (moria, degree, phase) in cases {
+            let cell = cells.iter().find(|c| c.moria == moria).unwrap();
+            assert_eq!(cell.degree, Some(degree), "moria {moria}");
+            assert_eq!(cell.chromatic_phase, Some(phase), "moria {moria}");
+        }
     }
 
     #[test]
@@ -1707,6 +1821,7 @@ mod tests {
             drop_degree: Degree::Vou,
             genus: Genus::Diatonic,
             target_degree: Degree::Ga,
+            target_phase: None,
         });
         let r = &g.regions()[0];
         assert_eq!(r.anchor_moria, 18);
@@ -2065,7 +2180,7 @@ mod tests {
         for w in table.windows(2) {
             assert!(w[0].0 <= w[1].0, "tuning_table must be sorted by period");
         }
-        // Default grid: all 7 degree cells per octave, 3 octaves → 21 cells.
-        assert_eq!(table.len(), 21, "default grid should have 21 enabled cells");
+        // Default grid: -72 through +144 includes 22 enabled degree cells.
+        assert_eq!(table.len(), 22, "default grid should have 22 enabled cells");
     }
 }

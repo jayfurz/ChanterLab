@@ -1,18 +1,17 @@
-// PthoraPalette — 3×8 grid of full-region pthora items.
+// PthoraPalette — full-region pthora items.
 //
-// Rows are genera (Diatonic, Western, Soft Chromatic, Hard Chromatic). Columns
-// are the eight scale degrees (Ni low, Pa, Vou, Ga, Di, Ke, Zo, Ni high). Dropping
-// a cell on the ladder re-roots a region at that moria using the row's genus
-// and the column's target degree.
+// Diatonic and Western rows target the eight scale-degree positions. Soft and
+// hard chromatic rows target the four cyclic chromatic phases; the drop target
+// supplies the degree name, while the phase determines how the interval cycle
+// is anchored.
 //
 // Glyphs come from Neanes (SBMuFL), rendered as single Private-Use-Area
 // codepoints. Diatonic gives each degree a distinct glyph; the chromatic
-// genera only ship two glyphs each in SBMuFL, so those rows alternate
-// per-column — matching Byzantine practice where adjacent notes alternate
-// between two pthora forms.
+// genera only ship two glyphs each in SBMuFL, so phase buttons reuse them by
+// parity.
 //
-// Each slot carries `{type: 'pthora', genus, degree}`. ScaleLadder's drop
-// handler routes it into `grid.applyPthora(moria, genus, degree)`.
+// Each slot carries `{type: 'pthora', genus, degree?, phase?}`. ScaleLadder's
+// drop handler resolves the target cell before calling the engine.
 
 import { makeDraggable } from './pointer_drag.js';
 
@@ -44,48 +43,78 @@ const CP = {
   SOFT_KE:      '',
 };
 
-// Per-column glyphs for each genus. Diatonic has a unique glyph per degree.
-// Chromatic rows alternate; the alternation starts with the "Di" form at
-// column 0 (Ni-low), matching the user's rotation preference.
+// Per-column glyphs for degree-targeted genera.
 const DIATONIC_GLYPHS = [
   CP.DIAT_NI_LOW, CP.DIAT_PA, CP.DIAT_VOU, CP.DIAT_GA,
   CP.DIAT_DI, CP.DIAT_KE, CP.DIAT_ZO, CP.DIAT_NI_HIGH,
 ];
-const SOFT_CHR_GLYPHS = [
-  CP.SOFT_DI, CP.SOFT_KE, CP.SOFT_DI, CP.SOFT_KE,
-  CP.SOFT_DI, CP.SOFT_KE, CP.SOFT_DI, CP.SOFT_KE,
-];
-const HARD_CHR_GLYPHS = [
-  CP.HARD_DI, CP.HARD_PA, CP.HARD_DI, CP.HARD_PA,
-  CP.HARD_DI, CP.HARD_PA, CP.HARD_DI, CP.HARD_PA,
-];
 const WESTERN_SYMBOLS = ['do', 're', 'mi', 'fa', 'so', 'la', 'ti', "do'"];
 
 const ROWS = [
-  { label: 'Diatonic', genus: 'Diatonic', glyphs: DIATONIC_GLYPHS },
-  { label: 'Soft Chr', genus: 'SoftChromatic', glyphs: SOFT_CHR_GLYPHS },
-  { label: 'Hard Chr', genus: 'HardChromatic', glyphs: HARD_CHR_GLYPHS },
+  { label: 'Diatonic', genus: 'Diatonic', kind: 'degree', glyphs: DIATONIC_GLYPHS },
+  {
+    label: 'Soft Chr',
+    genus: 'SoftChromatic',
+    kind: 'phase',
+    phases: [
+      { phase: 0, label: '0 Di', glyph: CP.SOFT_DI },
+      { phase: 1, label: '1 Ke', glyph: CP.SOFT_KE },
+      { phase: 2, label: '2 Di', glyph: CP.SOFT_DI },
+      { phase: 3, label: '3 Ke', glyph: CP.SOFT_KE },
+    ],
+  },
+  {
+    label: 'Hard Chr',
+    genus: 'HardChromatic',
+    kind: 'phase',
+    phases: [
+      { phase: 0, label: '0 Pa', glyph: CP.HARD_PA },
+      { phase: 1, label: '1 Di', glyph: CP.HARD_DI },
+      { phase: 2, label: '2 Pa', glyph: CP.HARD_PA },
+      { phase: 3, label: '3 Di', glyph: CP.HARD_DI },
+    ],
+  },
   { label: 'Western',
     genus: 'Western',
+    kind: 'degree',
     glyphs: WESTERN_SYMBOLS,
     glyphClass: 'palette-glyph-western',
   }
 ];
 
+const CHROMATIC_PHASES_BY_GENUS = Object.fromEntries(
+  ROWS.filter(row => row.kind === 'phase').map(row => [row.genus, row.phases])
+);
+
 export function buildQuickPthoraControls({ genusSelect, degreeContainer, onPick }) {
   if (!genusSelect || !degreeContainer || !onPick) return;
-  degreeContainer.innerHTML = '';
-  for (const col of DEGREES) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'quick-pthora-btn';
-    btn.textContent = col.label;
-    btn.title = `Apply selected pthora as ${col.label} to the sung note`;
-    btn.addEventListener('click', () => {
-      onPick({ type: 'pthora', genus: genusSelect.value, degree: col.degree });
-    });
-    degreeContainer.appendChild(btn);
-  }
+  const render = () => {
+    degreeContainer.innerHTML = '';
+    const genus = genusSelect.value;
+    const phases = CHROMATIC_PHASES_BY_GENUS[genus];
+    const options = phases ?? DEGREES;
+    degreeContainer.classList.toggle('phase-options', Boolean(phases));
+    for (const option of options) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-pthora-btn';
+      btn.textContent = option.label;
+      btn.title = phases
+        ? `Apply ${genus === 'SoftChromatic' ? 'soft' : 'hard'} chromatic phase ${option.phase} to the sung note`
+        : `Apply selected pthora as ${option.label} to the sung note`;
+      btn.addEventListener('click', () => {
+        onPick({
+          type: 'pthora',
+          genus,
+          degree: phases ? null : option.degree,
+          phase: phases ? option.phase : null,
+        });
+      });
+      degreeContainer.appendChild(btn);
+    }
+  };
+  genusSelect.addEventListener('change', render);
+  render();
 }
 
 export class PthoraPalette {
@@ -108,12 +137,44 @@ export class PthoraPalette {
     // Three grid rows.
     for (const row of ROWS) {
       const rowEl = document.createElement('div');
-      rowEl.className = 'pthora-row';
+      rowEl.className = `pthora-row ${row.kind === 'phase' ? 'pthora-phase-row' : ''}`;
 
       const labelEl = document.createElement('div');
       labelEl.className = 'pthora-row-label';
       labelEl.textContent = row.label;
       rowEl.appendChild(labelEl);
+
+      if (row.kind === 'phase') {
+        for (const phase of row.phases) {
+          const el = document.createElement('div');
+          el.className = 'pthora-icon pthora-phase-icon';
+          el.title = `${row.label} phase ${phase.phase} - drop on a note, or click while singing, to anchor that note in this chromatic phase`;
+          el.tabIndex = 0;
+          el.setAttribute('role', 'button');
+          const glyphEl = document.createElement('span');
+          glyphEl.className = 'palette-glyph-sbmufl';
+          glyphEl.textContent = phase.glyph;
+          el.appendChild(glyphEl);
+          const degreeEl = document.createElement('span');
+          degreeEl.className = 'palette-degree-label';
+          degreeEl.textContent = phase.label;
+          el.appendChild(degreeEl);
+
+          makeDraggable(el, {
+            payload: () => ({
+              type: 'pthora',
+              genus: row.genus,
+              degree: null,
+              phase: phase.phase,
+            }),
+            targetSelector: '#scale-ladder',
+            clickEvent: 'chanterlab:palette-click',
+          });
+          rowEl.appendChild(el);
+        }
+        container.appendChild(rowEl);
+        continue;
+      }
 
       for (let i = 0; i < DEGREES.length; i++) {
         const col = DEGREES[i];

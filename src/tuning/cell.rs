@@ -13,6 +13,8 @@
 //!   ±2/4/6/8 as defaults; data model is unbounded.
 //! - `enabled`: whether the cell plays.
 //! - `region_idx`: index into `TuningGrid.regions` for quick lookup.
+//! - `chromatic_phase`: for cyclic chromatic genera, the 0-based phase in the
+//!   repeating four-step interval cycle.
 
 use crate::tuning::Degree;
 
@@ -38,6 +40,8 @@ pub struct CellOverride {
 pub struct Cell {
     pub moria: i32,
     pub degree: Option<Degree>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub chromatic_phase: Option<u8>,
     pub accidental: i32,
     pub enabled: bool,
     pub region_idx: usize,
@@ -64,6 +68,7 @@ mod tests {
         let c = Cell {
             moria: 12,
             degree: Some(Degree::Pa),
+            chromatic_phase: None,
             accidental: 4,
             enabled: true,
             region_idx: 0,
@@ -76,6 +81,7 @@ mod tests {
         let c = Cell {
             moria: 30,
             degree: Some(Degree::Ga),
+            chromatic_phase: None,
             accidental: 0,
             enabled: true,
             region_idx: 0,
@@ -88,6 +94,7 @@ mod tests {
         let c = Cell {
             moria: 22,
             degree: Some(Degree::Vou),
+            chromatic_phase: None,
             accidental: -6,
             enabled: true,
             region_idx: 0,
@@ -102,6 +109,7 @@ mod tests {
         let c = Cell {
             moria: 22,
             degree: Some(Degree::Vou),
+            chromatic_phase: None,
             accidental: 10,
             enabled: true,
             region_idx: 0,
@@ -114,6 +122,7 @@ mod tests {
         let c = Cell {
             moria: 0,
             degree: Some(Degree::Ni),
+            chromatic_phase: None,
             accidental: 0,
             enabled: true,
             region_idx: 0,
@@ -126,6 +135,7 @@ mod tests {
         let c = Cell {
             moria: 4,
             degree: None,
+            chromatic_phase: None,
             accidental: 0,
             enabled: false,
             region_idx: 0,
