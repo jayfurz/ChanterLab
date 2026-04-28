@@ -8,7 +8,27 @@ import {
   createScorePracticeState,
   layoutScorePracticeTargets,
   scorePitchAtTime,
+  scorePracticeFeatureEnabled,
 } from '../score_practice.js';
+
+test('score practice feature flag is off unless explicitly enabled', () => {
+  assert.equal(scorePracticeFeatureEnabled({
+    location: { search: '' },
+    storage: { getItem: () => null },
+  }), false);
+  assert.equal(scorePracticeFeatureEnabled({
+    location: { search: '?scorePractice=1' },
+    storage: { getItem: () => null },
+  }), true);
+  assert.equal(scorePracticeFeatureEnabled({
+    location: { search: '?scorePractice=0' },
+    storage: { getItem: () => '1' },
+  }), false);
+  assert.equal(scorePracticeFeatureEnabled({
+    location: { search: '' },
+    storage: { getItem: key => key === 'chanterlab_score_practice_enabled' ? 'true' : null },
+  }), true);
+});
 
 test('score practice state is disabled by default', () => {
   const compiled = compileChantScriptExample('symbolic-timing-steal');
@@ -64,6 +84,7 @@ test('layout maps upcoming notes to stable target bars', () => {
   assert.ok(layout.length >= 4);
   assert.equal(layout[0].type, 'note');
   assert.equal(layout[0].degree, 'Ni');
+  assert.equal(layout[0].active, true);
   assert.equal(layout[0].x, 500 * 0.28);
   assert.ok(layout[0].width > 4);
   assert.ok(layout[0].y > 0);

@@ -4,6 +4,24 @@ const DEFAULT_LOOKAHEAD_MS = 6000;
 const DEFAULT_PX_PER_SECOND = 90;
 const DEFAULT_CROSSHAIR_X = 0.28;
 const DEFAULT_TOLERANCE_MORIA = 4;
+const FEATURE_STORAGE_KEY = 'chanterlab_score_practice_enabled';
+
+export function scorePracticeFeatureEnabled({
+  location = globalThis.location,
+  storage = globalThis.localStorage,
+} = {}) {
+  const params = new URLSearchParams(location?.search ?? '');
+  const queryValue = params.get('scorePractice') ?? params.get('score-practice');
+  if (queryValue !== null) return ['1', 'true', 'yes', 'on'].includes(queryValue.toLowerCase());
+
+  try {
+    return ['1', 'true', 'yes', 'on'].includes(
+      String(storage?.getItem?.(FEATURE_STORAGE_KEY) ?? '').toLowerCase()
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function createScorePracticeState(compiled, options = {}) {
   const timeline = Array.isArray(compiled?.timeline) ? compiled.timeline : [];
@@ -103,6 +121,7 @@ export function layoutScorePracticeTargets(state, rowMap, viewport, options = {}
         y,
         width,
         height,
+        active: target.startMs <= nowMs && nowMs < target.endMs,
         visible: x + width >= 0 && x <= cssW,
       };
     })
@@ -120,12 +139,21 @@ export class ScorePracticePrototype {
     this._rafId = null;
     this._startedAt = 0;
     this._options = options;
+    this._statusEl = options.statusEl ?? null;
+    this._lastPitchScore = null;
+    this._ro = null;
+    if (this.canvas && typeof ResizeObserver !== 'undefined') {
+      this._ro = new ResizeObserver(() => this.paint());
+      this._ro.observe(this.canvas);
+    }
   }
 
   setCompiledScore(compiled) {
     this.state = createScorePracticeState(compiled, { enabled: this.enabled });
     this.nowMs = 0;
+    this._lastPitchScore = null;
     this.paint();
+    this._renderStatus();
   }
 
   setRowMap(rowMap) {
@@ -138,6 +166,7 @@ export class ScorePracticePrototype {
     this.state.enabled = this.enabled;
     if (!this.enabled) this.stop();
     else this.paint();
+    this._renderStatus();
   }
 
   start(now = performanceNow()) {
@@ -150,8 +179,11 @@ export class ScorePracticePrototype {
         Math.max(0, timestamp - this._startedAt)
       );
       this.paint();
+      this._renderStatus();
+      if (this.nowMs >= this.state.totalDurationMs) this.stop();
     };
     this._rafId = requestAnimationFrame(tick);
+    this._renderStatus();
   }
 
   stop() {
@@ -163,6 +195,16 @@ export class ScorePracticePrototype {
   seek(ms) {
     this.nowMs = Math.max(0, Math.min(ms, this.state.totalDurationMs));
     this.paint();
+    this._renderStatus();
+  }
+
+  handlePitch(msg) {
+    if (!this.enabled) return null;
+    this._lastPitchScore = scorePitchAtTime(this.state, msg, this.nowMs, {
+      toleranceMoria: this._options.toleranceMoria,
+    });
+    this._renderStatus();
+    return this._lastPitchScore;
   }
 
   paint() {
@@ -186,6 +228,29 @@ export class ScorePracticePrototype {
     }, this._options);
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
+
+  _renderStatus() {
+    if (!this._statusEl || !this.enabled) return;
+    const active = activeScoreTargetAt(this.state, this.nowMs);
+    const elapsed = formatClock(this.nowMs);
+    const total = formatClock(this.state.totalDurationMs);
+    const lyricLabel = active?.lyric?.kind === 'start' && active.lyric.text !== active.degree
+      ? active.lyric.text
+      : '';
+    const targetLabel = active?.type === 'note'
+      ? `${active.degree}${lyricLabel ? ` · ${lyricLabel}` : ''}`
+      : active?.type === 'rest'
+        ? 'Rest'
+        : 'Ready';
+    const pitch = this._lastPitchScore;
+    const pitchLabel = pitch?.expectedSilence
+      ? (pitch.voiced ? 'singing through rest' : 'silent')
+      : Number.isFinite(pitch?.errorMoria)
+        ? `${pitch.inTune ? 'in tune' : 'adjust'} ${pitch.errorMoria >= 0 ? '+' : ''}${pitch.errorMoria.toFixed(1)}m`
+        : 'waiting';
+
+    this._statusEl.textContent = `${this.state.title} · ${elapsed}/${total} · ${targetLabel} · ${pitchLabel}`;
+  }
 }
 
 export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options = {}) {
@@ -202,12 +267,12 @@ export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options 
 
   for (const target of targets) {
     if (target.type === 'rest') {
-      ctx.fillStyle = 'rgba(160, 170, 180, 0.30)';
+      ctx.fillStyle = target.active ? 'rgba(190, 198, 208, 0.50)' : 'rgba(160, 170, 180, 0.30)';
       ctx.fillRect(target.x, target.y, target.width, target.height);
       continue;
     }
 
-    ctx.fillStyle = 'rgba(83, 192, 240, 0.75)';
+    ctx.fillStyle = target.active ? 'rgba(120, 240, 173, 0.88)' : 'rgba(83, 192, 240, 0.75)';
     ctx.fillRect(target.x, target.y - target.height / 2, target.width, target.height);
     const label = target.display?.generatedGlyphName ?? target.degree;
     if (label) {
@@ -265,4 +330,11 @@ function nearestOctaveMoriaDelta(delta) {
 
 function performanceNow() {
   return globalThis.performance?.now?.() ?? Date.now();
+}
+
+function formatClock(ms) {
+  const totalSeconds = Math.max(0, Math.floor((ms ?? 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${minutes}:${seconds}`;
 }

@@ -497,6 +497,44 @@ select {
   background: #111;
 }
 
+.score-practice-layer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--ladder-w);
+  width: calc(100% - var(--ladder-w));
+  height: 100%;
+  display: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.score-practice-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  max-width: min(520px, calc(100% - var(--ladder-w) - 24px));
+  padding: 5px 8px;
+  border: 1px solid rgba(120, 240, 173, 0.32);
+  border-radius: 4px;
+  background: rgba(8, 12, 18, 0.78);
+  color: #dff8ec;
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+  display: none;
+}
+
+body.score-practice-dev .score-practice-layer,
+body.score-practice-dev .score-practice-status {
+  display: block;
+}
+
 /* ── Sung note indicator ────────────────────────────────────── */
 .note-indicator {
   position: absolute;
@@ -1297,6 +1335,16 @@ select {
   body[data-mobile-view="train"] #singscope {
     flex: 1 1 auto;
     width: 100%;
+  }
+
+  body[data-mobile-view="train"] .score-practice-layer {
+    left: 0;
+    width: 100%;
+  }
+
+  body[data-mobile-view="train"] .score-practice-status {
+    left: 8px;
+    max-width: calc(100% - 16px);
   }
 
   body[data-mobile-view="sing"] .quick-pthora-panel {

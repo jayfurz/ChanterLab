@@ -7,6 +7,11 @@ import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
 import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.2.0-alpha.0';
 import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.2.0-alpha.0';
+import { compileChantScriptExample } from './score/examples.js?v=0.2.0-alpha.0';
+import {
+  ScorePracticePrototype,
+  scorePracticeFeatureEnabled,
+} from './score/score_practice.js?v=0.2.0-alpha.0';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -49,6 +54,7 @@ const app = {
   singscope:       null,
   noteIndicator:   null,
   exercise:        null,
+  scorePractice:   null,
   engine:          null,
   keyboard:        null,
   activePresetIdx: 0,
@@ -120,6 +126,7 @@ async function main() {
   wireAudioInit();
 
   gridChanged();
+  wireScorePracticePrototype();
 }
 
 // ── Called whenever the grid state changes ────────────────────────────────────
@@ -154,6 +161,7 @@ function gridChanged() {
   stopSynthFollow();
   app.exercise?.syncReferenceNiHz(app.refNiHz);
   app.exercise?.refresh();
+  app.scorePractice?.setRowMap(app.ladder.rowMap);
 }
 
 app.gridChanged = gridChanged;
@@ -320,6 +328,7 @@ function handlePitchEvent(msg) {
 
   updateSynthFollowFromPitch(msg);
   app.exercise?.handlePitch(msg);
+  app.scorePractice?.handlePitch(msg);
 
   if (!msg.gate_open || !isValidCellId(msg.cell_id)) {
     app.ladder.setDetectedCell(null, null, 0);
@@ -336,6 +345,48 @@ function handlePitchEvent(msg) {
   }
   if (app.singscope) app.singscope.pushPitch(msg);
   recordPitchForActiveTake(msg);
+}
+
+function wireScorePracticePrototype() {
+  if (!scorePracticeFeatureEnabled()) return;
+
+  const mainView = document.getElementById('main-view');
+  if (!mainView) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const exampleId = params.get('scorePracticeExample') || 'diatonic-ladder';
+  let compiled;
+  try {
+    compiled = compileChantScriptExample(exampleId);
+  } catch (e) {
+    console.warn('Score practice example failed to compile', e);
+    return;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.id = 'score-practice-canvas';
+  canvas.className = 'score-practice-layer';
+  canvas.setAttribute('aria-hidden', 'true');
+
+  const status = document.createElement('div');
+  status.id = 'score-practice-status';
+  status.className = 'score-practice-status';
+  status.setAttribute('aria-live', 'polite');
+
+  mainView.appendChild(canvas);
+  mainView.appendChild(status);
+  mainView.classList.add('score-practice-enabled');
+  document.body.classList.add('score-practice-dev');
+
+  app.scorePractice = new ScorePracticePrototype(canvas, {
+    enabled: true,
+    statusEl: status,
+    pxPerSecond: 120,
+    lookaheadMs: 8000,
+  });
+  app.scorePractice.setCompiledScore(compiled);
+  app.scorePractice.setRowMap(app.ladder.rowMap);
+  app.scorePractice.start();
 }
 
 function isValidCellId(cellId) {
