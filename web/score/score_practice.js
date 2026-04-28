@@ -187,8 +187,8 @@ export class ScorePracticePrototype {
       this._renderStatus();
       if (this.nowMs >= this.state.totalDurationMs) {
         if (this._options.loop && this.state.totalDurationMs > 0) {
-          this._startedAt = timestamp;
-          this.nowMs = 0;
+          this.nowMs = this._initialNowMs();
+          this._startedAt = timestamp - this.nowMs / playbackRate;
         } else {
           this.stop();
         }
@@ -205,14 +205,29 @@ export class ScorePracticePrototype {
   }
 
   seek(ms) {
-    this.nowMs = Math.max(0, Math.min(ms, this.state.totalDurationMs));
+    this.nowMs = Math.max(this._initialNowMs(), Math.min(ms, this.state.totalDurationMs));
     this.paint();
     this._renderStatus();
+  }
+
+  restart() {
+    this.stop();
+    this.seek(this._initialNowMs());
+    this.start();
   }
 
   _playbackRate() {
     const rate = Number(this._options.playbackRate);
     return Number.isFinite(rate) && rate > 0 ? rate : 1;
+  }
+
+  _leadInRealMs() {
+    const leadInMs = Number(this._options.leadInMs);
+    return Number.isFinite(leadInMs) && leadInMs > 0 ? leadInMs : 0;
+  }
+
+  _initialNowMs() {
+    return -this._leadInRealMs() * this._playbackRate();
   }
 
   handlePitch(msg) {
@@ -251,6 +266,9 @@ export class ScorePracticePrototype {
     const active = activeScoreTargetAt(this.state, this.nowMs);
     const elapsed = formatClock(this.nowMs);
     const total = formatClock(this.state.totalDurationMs);
+    const countdownSeconds = this.nowMs < 0
+      ? Math.ceil((-this.nowMs / this._playbackRate()) / 1000)
+      : 0;
     const lyricLabel = active?.lyric?.kind === 'start' && active.lyric.text !== active.degree
       ? active.lyric.text
       : '';
@@ -266,7 +284,10 @@ export class ScorePracticePrototype {
         ? `${pitch.inTune ? 'in tune' : 'adjust'} ${pitch.errorMoria >= 0 ? '+' : ''}${pitch.errorMoria.toFixed(1)}m`
         : 'waiting';
 
-    this._statusEl.textContent = `${this.state.title} · ${elapsed}/${total} · ${targetLabel} · ${pitchLabel}`;
+    const clockLabel = countdownSeconds > 0
+      ? `starts in ${countdownSeconds}`
+      : `${elapsed}/${total}`;
+    this._statusEl.textContent = `${this.state.title} · ${clockLabel} · ${targetLabel} · ${pitchLabel}`;
   }
 }
 
@@ -281,6 +302,8 @@ export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options 
   ctx.moveTo(crosshairX, 0);
   ctx.lineTo(crosshairX, viewport.height);
   ctx.stroke();
+
+  paintLeadInCountdown(ctx, viewport, options);
 
   for (const target of targets) {
     if (target.type === 'rest') {
@@ -304,6 +327,49 @@ export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options 
     }
   }
   ctx.restore();
+}
+
+function paintLeadInCountdown(ctx, viewport, options) {
+  if (!(viewport.nowMs < 0)) return;
+  const rate = Number.isFinite(options.playbackRate) && options.playbackRate > 0
+    ? options.playbackRate
+    : 1;
+  const seconds = Math.ceil((-viewport.nowMs / rate) / 1000);
+  const crosshairX = viewport.width * (options.crosshairX ?? DEFAULT_CROSSHAIR_X);
+  const label = seconds > 0 ? String(seconds) : 'Go';
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(8, 12, 18, 0.72)';
+  ctx.strokeStyle = 'rgba(120, 240, 173, 0.45)';
+  ctx.lineWidth = 1;
+  const w = 58;
+  const h = 44;
+  const x = Math.max(8, Math.min(viewport.width - w - 8, crosshairX - w / 2));
+  const y = 72;
+  fillRoundedRect(ctx, x, y, w, h, 6);
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.fillStyle = '#dff8ec';
+  ctx.font = 'bold 24px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + h / 2);
+  ctx.restore();
+}
+
+function fillRoundedRect(ctx, x, y, w, h, r) {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function buildRowLookup(rowMap, cssH) {

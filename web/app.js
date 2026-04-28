@@ -1,8 +1,8 @@
 import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
-import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2c';
+import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2d';
 import { AudioEngine    } from './audio/audio_engine.js?v=0.2.0-alpha.0';
 import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
-import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2c';
+import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2d';
 import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
 import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.2.0-alpha.0';
@@ -10,11 +10,11 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase2c';
+} from './score/examples.js?v=chant-script-engine-phase2d';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase2c';
+} from './score/score_practice.js?v=chant-script-engine-phase2d';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,8 @@ const APP_VERSION = '0.2.0-alpha.0';
 const HELP_RELEASE_ID = APP_VERSION;
 const SCORE_PRACTICE_CROSSHAIR_RATIO = 0.28;
 const SCORE_PRACTICE_DEFAULT_PLAYBACK_RATE = 0.5;
+const SCORE_PRACTICE_LEAD_IN_MS = 3000;
+const SCORE_PRACTICE_SCROLL_PX_PER_SECOND = 56;
 const DETECTION_LOW_MORIA = -72;
 const DETECTION_HIGH_MORIA = 144;
 const REFERENCE_RANGE_OPTIONS = [
@@ -362,6 +364,8 @@ function wireScorePracticePrototype() {
   const params = new URLSearchParams(window.location.search);
   const exampleId = params.get('scorePracticeExample') || 'diatonic-ladder';
   const playbackRate = readScorePracticePlaybackRate(params);
+  const scrollPxPerSecond = readScorePracticeScrollSpeed(params);
+  const scorePxPerSecond = scrollPxPerSecond / playbackRate;
   let compiled;
   try {
     compiled = compileChantScriptExample(exampleId);
@@ -387,15 +391,19 @@ function wireScorePracticePrototype() {
   mainView.appendChild(controls.el);
   mainView.classList.add('score-practice-enabled');
   document.body.classList.add('score-practice-dev');
-  app.singscope?.setTraceAnchorRatio(SCORE_PRACTICE_CROSSHAIR_RATIO);
+  app.singscope?.setTraceTiming({
+    anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
+    pxPerSecond: scrollPxPerSecond,
+  });
 
   app.scorePractice = new ScorePracticePrototype(canvas, {
     enabled: true,
     statusEl: status,
-    pxPerSecond: 120,
+    pxPerSecond: scorePxPerSecond,
     lookaheadMs: 8000,
     crosshairX: SCORE_PRACTICE_CROSSHAIR_RATIO,
     playbackRate,
+    leadInMs: SCORE_PRACTICE_LEAD_IN_MS,
     loop: true,
   });
 
@@ -408,15 +416,13 @@ function wireScorePracticePrototype() {
     }
     app.scorePractice.setCompiledScore(compiled);
     app.scorePractice.setRowMap(app.ladder.rowMap);
-    app.scorePractice.seek(0);
-    app.scorePractice.start();
+    app.scorePractice.restart();
     controls.playPause.textContent = 'Pause';
   };
 
   controls.select.addEventListener('change', () => loadExample(controls.select.value));
   controls.restart.addEventListener('click', () => {
-    app.scorePractice.seek(0);
-    app.scorePractice.start();
+    app.scorePractice.restart();
     controls.playPause.textContent = 'Pause';
   });
   controls.playPause.addEventListener('click', () => {
@@ -437,6 +443,13 @@ function readScorePracticePlaybackRate(params) {
   return Number.isFinite(raw) && raw > 0
     ? Math.max(0.2, Math.min(1.5, raw))
     : SCORE_PRACTICE_DEFAULT_PLAYBACK_RATE;
+}
+
+function readScorePracticeScrollSpeed(params) {
+  const raw = Number(params.get('scorePracticeScroll') ?? params.get('score-practice-scroll'));
+  return Number.isFinite(raw) && raw > 0
+    ? Math.max(28, Math.min(140, raw))
+    : SCORE_PRACTICE_SCROLL_PX_PER_SECOND;
 }
 
 function buildScorePracticeControls(selectedExampleId) {

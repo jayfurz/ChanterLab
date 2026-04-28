@@ -10,6 +10,10 @@ function cellAxisMoria(cell) {
   return cell.moria;
 }
 
+function performanceNow() {
+  return globalThis.performance?.now?.() ?? Date.now();
+}
+
 export class Singscope {
   constructor(canvas) {
     this._canvas  = canvas;
@@ -17,9 +21,9 @@ export class Singscope {
     this._rowMap  = []; // [{cell, y, h}] — same structure as ScaleLadder._rowMap
 
     // Ring buffer of pitch points.
-    // Each entry: { moria: number|null, snapMoria: number|null, confidence: number, gateOpen: bool }
+    // Each entry: { atMs, moria, snapMoria, confidence, gateOpen }
     this._buf     = new Array(HISTORY_LEN).fill(null).map(() => ({
-      moria: null, snapMoria: null, confidence: 0, gateOpen: false,
+      atMs: null, moria: null, snapMoria: null, confidence: 0, gateOpen: false,
     }));
     this._head    = 0; // index of the next write slot (oldest data)
     this._count   = 0; // how many valid entries have been written
@@ -27,6 +31,7 @@ export class Singscope {
     this._rafId   = null;
     this._dirty   = true;
     this._traceAnchorRatio = 1;
+    this._tracePxPerSecond = null;
 
     this._ro = new ResizeObserver(() => this._onResize());
     this._ro.observe(canvas);
@@ -49,7 +54,13 @@ export class Singscope {
     const snap     = (gateOpen && hasSnap) ? snapMoria : null;
     const conf     = (typeof msg.confidence === 'number') ? msg.confidence : 0;
 
-    this._buf[this._head] = { moria, snapMoria: snap, confidence: conf, gateOpen };
+    this._buf[this._head] = {
+      atMs: performanceNow(),
+      moria,
+      snapMoria: snap,
+      confidence: conf,
+      gateOpen,
+    };
     this._head = (this._head + 1) % HISTORY_LEN;
     if (this._count < HISTORY_LEN) this._count++;
     this._dirty = true;
@@ -57,7 +68,7 @@ export class Singscope {
 
   clear() {
     for (let i = 0; i < HISTORY_LEN; i++) {
-      this._buf[i] = { moria: null, snapMoria: null, confidence: 0, gateOpen: false };
+      this._buf[i] = { atMs: null, moria: null, snapMoria: null, confidence: 0, gateOpen: false };
     }
     this._head = 0;
     this._count = 0;
@@ -74,6 +85,16 @@ export class Singscope {
     this._traceAnchorRatio = Number.isFinite(ratio)
       ? Math.max(0, Math.min(1, ratio))
       : 1;
+    this._dirty = true;
+  }
+
+  setTraceTiming({ anchorRatio = this._traceAnchorRatio, pxPerSecond = this._tracePxPerSecond } = {}) {
+    this._traceAnchorRatio = Number.isFinite(anchorRatio)
+      ? Math.max(0, Math.min(1, anchorRatio))
+      : 1;
+    this._tracePxPerSecond = Number.isFinite(pxPerSecond) && pxPerSecond > 0
+      ? pxPerSecond
+      : null;
     this._dirty = true;
   }
 
@@ -217,13 +238,17 @@ export class Singscope {
       return;
     }
 
-    // X spread: distribute N points so the newest point sits at the trace
-    // anchor. In score-practice mode this anchor matches the target crosshair.
-    const xStep = cssW / Math.max(HISTORY_LEN - 1, 1);
     const traceAnchorX = cssW * this._traceAnchorRatio;
-    const startX = traceAnchorX - (N - 1) * xStep;
-
-    const xOf = i => startX + i * xStep;
+    const latestAtMs = points[N - 1]?.atMs ?? performanceNow();
+    const xStep = cssW / Math.max(HISTORY_LEN - 1, 1);
+    const sampleStartX = traceAnchorX - (N - 1) * xStep;
+    const xOf = i => {
+      const pt = points[i];
+      if (this._tracePxPerSecond && Number.isFinite(pt?.atMs)) {
+        return traceAnchorX - ((latestAtMs - pt.atMs) / 1000) * this._tracePxPerSecond;
+      }
+      return sampleStartX + i * xStep;
+    };
 
     // 3. Snap polyline (green, stepped horizontally).
     // Draw horizontal/vertical steps only when snapMoria !== null.

@@ -89,3 +89,23 @@ test('layout maps upcoming notes to stable target bars', () => {
   assert.ok(layout[0].width > 4);
   assert.ok(layout[0].y > 0);
 });
+
+test('layout lead-in places the first note ahead of the crosshair', () => {
+  const compiled = compileChantScriptExample('diatonic-ladder');
+  const state = createScorePracticeState(compiled, { enabled: true });
+  const rowMap = [
+    { cell: { moria: 0, effective_moria: 0, enabled: true }, y: 0, h: 20 },
+  ];
+
+  const layout = layoutScorePracticeTargets(state, rowMap, {
+    width: 500,
+    height: 120,
+    nowMs: -1000,
+  }, {
+    pxPerSecond: 100,
+  });
+
+  assert.equal(activeScoreTargetAt(state, -1), undefined);
+  assert.equal(layout[0].degree, 'Ni');
+  assert.equal(layout[0].x, 500 * 0.28 + 100);
+});
