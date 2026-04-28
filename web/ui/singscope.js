@@ -1,6 +1,6 @@
 // Singscope — scrolling pitch history canvas aligned with the scale ladder.
 // Y axis: moria values, row-for-row with ScaleLadder's _rowMap.
-// X axis: time, scrolling right-to-left; newest point on the right edge.
+// X axis: time, scrolling right-to-left; newest point on a configurable anchor.
 
 const HISTORY_LEN = 600; // number of pitch points to retain
 const BG_COLOR    = '#111';
@@ -26,6 +26,7 @@ export class Singscope {
 
     this._rafId   = null;
     this._dirty   = true;
+    this._traceAnchorRatio = 1;
 
     this._ro = new ResizeObserver(() => this._onResize());
     this._ro.observe(canvas);
@@ -67,6 +68,13 @@ export class Singscope {
   setRowMap(rowMap) {
     this._rowMap = rowMap;
     this._dirty  = true;
+  }
+
+  setTraceAnchorRatio(ratio) {
+    this._traceAnchorRatio = Number.isFinite(ratio)
+      ? Math.max(0, Math.min(1, ratio))
+      : 1;
+    this._dirty = true;
   }
 
   /** Start the animation loop. */
@@ -209,12 +217,11 @@ export class Singscope {
       return;
     }
 
-    // X spread: distribute N points across cssW so the rightmost point sits at
-    // the right edge. Each step is cssW / (HISTORY_LEN - 1) so the spacing is
-    // constant regardless of how many points have accumulated.
+    // X spread: distribute N points so the newest point sits at the trace
+    // anchor. In score-practice mode this anchor matches the target crosshair.
     const xStep = cssW / Math.max(HISTORY_LEN - 1, 1);
-    // Index of the leftmost x position for the oldest point in `points`.
-    const startX = (HISTORY_LEN - N) * xStep;
+    const traceAnchorX = cssW * this._traceAnchorRatio;
+    const startX = traceAnchorX - (N - 1) * xStep;
 
     const xOf = i => startX + i * xStep;
 
@@ -279,24 +286,25 @@ export class Singscope {
       ctx.stroke();
     }
 
-    this._paintTraceStartMarker(ctx, points[N - 1], cssW, cssH);
+    this._paintTraceStartMarker(ctx, points[N - 1], traceAnchorX, cssH);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  _paintTraceStartMarker(ctx, latest, cssW, cssH) {
+  _paintTraceStartMarker(ctx, latest, traceAnchorX, cssH) {
     if (!latest?.gateOpen || latest.moria === null) return;
     const y = this._moriaToY(latest.moria, cssH, true);
     if (y === null) return;
 
     const alpha = Math.max(0.35, Math.min(1, latest.confidence || 0.75));
-    const x = Math.max(0, cssW - TRACE_START_MARK_W);
+    const x0 = Math.max(0, traceAnchorX - TRACE_START_MARK_W);
+    const x1 = Math.max(0, traceAnchorX);
     ctx.save();
     ctx.strokeStyle = `rgba(255,55,55,${alpha.toFixed(3)})`;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(cssW, y);
+    ctx.moveTo(x0, y);
+    ctx.lineTo(x1, y);
     ctx.stroke();
     ctx.restore();
   }

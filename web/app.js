@@ -1,8 +1,8 @@
 import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
-import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2';
+import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2c';
 import { AudioEngine    } from './audio/audio_engine.js?v=0.2.0-alpha.0';
 import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
-import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2';
+import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2c';
 import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
 import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.2.0-alpha.0';
@@ -10,11 +10,11 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase2';
+} from './score/examples.js?v=chant-script-engine-phase2c';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase2';
+} from './score/score_practice.js?v=chant-script-engine-phase2c';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -31,6 +31,8 @@ const PRESETS = [
 const DEFAULT_REF_NI_HZ = 130.81;
 const APP_VERSION = '0.2.0-alpha.0';
 const HELP_RELEASE_ID = APP_VERSION;
+const SCORE_PRACTICE_CROSSHAIR_RATIO = 0.28;
+const SCORE_PRACTICE_DEFAULT_PLAYBACK_RATE = 0.5;
 const DETECTION_LOW_MORIA = -72;
 const DETECTION_HIGH_MORIA = 144;
 const REFERENCE_RANGE_OPTIONS = [
@@ -359,6 +361,7 @@ function wireScorePracticePrototype() {
 
   const params = new URLSearchParams(window.location.search);
   const exampleId = params.get('scorePracticeExample') || 'diatonic-ladder';
+  const playbackRate = readScorePracticePlaybackRate(params);
   let compiled;
   try {
     compiled = compileChantScriptExample(exampleId);
@@ -384,12 +387,15 @@ function wireScorePracticePrototype() {
   mainView.appendChild(controls.el);
   mainView.classList.add('score-practice-enabled');
   document.body.classList.add('score-practice-dev');
+  app.singscope?.setTraceAnchorRatio(SCORE_PRACTICE_CROSSHAIR_RATIO);
 
   app.scorePractice = new ScorePracticePrototype(canvas, {
     enabled: true,
     statusEl: status,
     pxPerSecond: 120,
     lookaheadMs: 8000,
+    crosshairX: SCORE_PRACTICE_CROSSHAIR_RATIO,
+    playbackRate,
     loop: true,
   });
 
@@ -424,6 +430,13 @@ function wireScorePracticePrototype() {
   });
 
   loadExample(exampleId);
+}
+
+function readScorePracticePlaybackRate(params) {
+  const raw = Number(params.get('scorePracticeSpeed') ?? params.get('score-practice-speed'));
+  return Number.isFinite(raw) && raw > 0
+    ? Math.max(0.2, Math.min(1.5, raw))
+    : SCORE_PRACTICE_DEFAULT_PLAYBACK_RATE;
 }
 
 function buildScorePracticeControls(selectedExampleId) {

@@ -175,12 +175,13 @@ export class ScorePracticePrototype {
 
   start(now = performanceNow()) {
     if (!this.enabled || this._rafId !== null) return;
-    this._startedAt = now - this.nowMs;
+    const playbackRate = this._playbackRate();
+    this._startedAt = now - this.nowMs / playbackRate;
     const tick = timestamp => {
       this._rafId = requestAnimationFrame(tick);
       this.nowMs = Math.min(
         this.state.totalDurationMs,
-        Math.max(0, timestamp - this._startedAt)
+        Math.max(0, (timestamp - this._startedAt) * playbackRate)
       );
       this.paint();
       this._renderStatus();
@@ -207,6 +208,11 @@ export class ScorePracticePrototype {
     this.nowMs = Math.max(0, Math.min(ms, this.state.totalDurationMs));
     this.paint();
     this._renderStatus();
+  }
+
+  _playbackRate() {
+    const rate = Number(this._options.playbackRate);
+    return Number.isFinite(rate) && rate > 0 ? rate : 1;
   }
 
   handlePitch(msg) {
