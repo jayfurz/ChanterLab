@@ -66,6 +66,10 @@ function cellEffectiveMoria(cell) {
   return cell.moria + (cell.accidental ?? 0);
 }
 
+function cellAxisMoria(cell) {
+  return cell.moria;
+}
+
 function formatAccidental(accidental) {
   return `${accidental > 0 ? '+' : ''}${accidental}`;
 }
@@ -411,19 +415,19 @@ export class ScaleLadder {
     if (!this._rowMap.length || !Number.isFinite(moria)) return null;
 
     for (const row of this._rowMap) {
-      if (cellEffectiveMoria(row.cell) === moria) return row.y + row.h / 2;
+      if (cellAxisMoria(row.cell) === moria) return row.y + row.h / 2;
     }
 
     const top = this._rowMap[0];
     const bottom = this._rowMap[this._rowMap.length - 1];
-    if (moria >= cellEffectiveMoria(top.cell)) return top.y + top.h / 2;
-    if (moria <= cellEffectiveMoria(bottom.cell)) return bottom.y + bottom.h / 2;
+    if (moria >= cellAxisMoria(top.cell)) return top.y + top.h / 2;
+    if (moria <= cellAxisMoria(bottom.cell)) return bottom.y + bottom.h / 2;
 
     for (let i = 0; i < this._rowMap.length - 1; i++) {
       const upper = this._rowMap[i];
       const lower = this._rowMap[i + 1];
-      const upperMoria = cellEffectiveMoria(upper.cell);
-      const lowerMoria = cellEffectiveMoria(lower.cell);
+      const upperMoria = cellAxisMoria(upper.cell);
+      const lowerMoria = cellAxisMoria(lower.cell);
       if (upperMoria >= moria && moria >= lowerMoria) {
         const upperY = upper.y + upper.h / 2;
         const lowerY = lower.y + lower.h / 2;
@@ -436,7 +440,7 @@ export class ScaleLadder {
     let best = null;
     let bestDist = Infinity;
     for (const row of this._rowMap) {
-      const dist = Math.abs(cellEffectiveMoria(row.cell) - moria);
+      const dist = Math.abs(cellAxisMoria(row.cell) - moria);
       if (dist < bestDist) {
         best = row;
         bestDist = dist;

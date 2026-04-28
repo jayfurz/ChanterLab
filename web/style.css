@@ -535,6 +535,60 @@ body.score-practice-dev .score-practice-status {
   display: block;
 }
 
+.score-practice-controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  max-width: min(720px, calc(100% - var(--ladder-w) - 24px));
+  padding: 6px;
+  border: 1px solid rgba(120, 240, 173, 0.34);
+  border-radius: 6px;
+  background: rgba(8, 12, 18, 0.84);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.32);
+  pointer-events: auto;
+}
+
+body.score-practice-dev .score-practice-controls {
+  display: flex;
+}
+
+.score-practice-controls-title {
+  flex: 0 0 auto;
+  color: #dff8ec;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.score-practice-controls select {
+  min-width: 160px;
+  max-width: 260px;
+  min-height: 32px;
+  color: #e7f4fb;
+  background: #101827;
+  border: 1px solid rgba(83, 192, 240, 0.42);
+  border-radius: 4px;
+}
+
+.score-practice-controls button {
+  min-height: 32px;
+  padding: 0 10px;
+  color: #dff8ec;
+  background: #123044;
+  border: 1px solid rgba(120, 240, 173, 0.44);
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.score-practice-controls button:hover {
+  border-color: #78f0ad;
+}
+
 /* ── Sung note indicator ────────────────────────────────────── */
 .note-indicator {
   position: absolute;
@@ -1345,6 +1399,34 @@ body.score-practice-dev .score-practice-status {
   body[data-mobile-view="train"] .score-practice-status {
     left: 8px;
     max-width: calc(100% - 16px);
+  }
+
+  body.score-practice-dev .score-practice-controls {
+    top: 42px;
+    right: 8px;
+    bottom: auto;
+    left: 8px;
+    max-width: calc(100% - 16px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 6px;
+  }
+
+  .score-practice-controls-title {
+    display: none;
+  }
+
+  .score-practice-controls select {
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+    font-size: 13px;
+  }
+
+  .score-practice-controls button {
+    min-width: 64px;
+    min-height: 36px;
+    padding: 0 8px;
   }
 
   body[data-mobile-view="sing"] .quick-pthora-panel {

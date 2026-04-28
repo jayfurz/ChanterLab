@@ -6,8 +6,8 @@ const HISTORY_LEN = 600; // number of pitch points to retain
 const BG_COLOR    = '#111';
 const TRACE_START_MARK_W = 2;
 
-function cellEffectiveMoria(cell) {
-  return cell.moria + (cell.accidental ?? 0);
+function cellAxisMoria(cell) {
+  return cell.moria;
 }
 
 export class Singscope {
@@ -119,21 +119,21 @@ export class Singscope {
 
     // Exact match first.
     for (const row of this._rowMap) {
-      if (cellEffectiveMoria(row.cell) === moria) return this._rowCenterY(row, cssH);
+      if (cellAxisMoria(row.cell) === moria) return this._rowCenterY(row, cssH);
     }
 
     if (interpolate) {
       const top = this._rowMap[0];
       const bottom = this._rowMap[this._rowMap.length - 1];
 
-      if (moria >= cellEffectiveMoria(top.cell)) return this._rowCenterY(top, cssH);
-      if (moria <= cellEffectiveMoria(bottom.cell)) return this._rowCenterY(bottom, cssH);
+      if (moria >= cellAxisMoria(top.cell)) return this._rowCenterY(top, cssH);
+      if (moria <= cellAxisMoria(bottom.cell)) return this._rowCenterY(bottom, cssH);
 
       for (let i = 0; i < this._rowMap.length - 1; i++) {
         const upper = this._rowMap[i];
         const lower = this._rowMap[i + 1];
-        const upperMoria = cellEffectiveMoria(upper.cell);
-        const lowerMoria = cellEffectiveMoria(lower.cell);
+        const upperMoria = cellAxisMoria(upper.cell);
+        const lowerMoria = cellAxisMoria(lower.cell);
         if (upperMoria >= moria && moria >= lowerMoria) {
           const upperY = this._rowCenterY(upper, cssH);
           const lowerY = this._rowCenterY(lower, cssH);
@@ -150,7 +150,7 @@ export class Singscope {
     let best     = null;
     let bestDist = Infinity;
     for (const row of this._rowMap) {
-      const d = Math.abs(cellEffectiveMoria(row.cell) - moria);
+      const d = Math.abs(cellAxisMoria(row.cell) - moria);
       if (d < bestDist) { bestDist = d; best = row; }
     }
     return best ? this._rowCenterY(best, cssH) : null;

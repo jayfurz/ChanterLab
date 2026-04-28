@@ -169,6 +169,10 @@ export class ScorePracticePrototype {
     this._renderStatus();
   }
 
+  isRunning() {
+    return this._rafId !== null;
+  }
+
   start(now = performanceNow()) {
     if (!this.enabled || this._rafId !== null) return;
     this._startedAt = now - this.nowMs;
@@ -180,7 +184,14 @@ export class ScorePracticePrototype {
       );
       this.paint();
       this._renderStatus();
-      if (this.nowMs >= this.state.totalDurationMs) this.stop();
+      if (this.nowMs >= this.state.totalDurationMs) {
+        if (this._options.loop && this.state.totalDurationMs > 0) {
+          this._startedAt = timestamp;
+          this.nowMs = 0;
+        } else {
+          this.stop();
+        }
+      }
     };
     this._rafId = requestAnimationFrame(tick);
     this._renderStatus();

@@ -1,17 +1,20 @@
 import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
-import { ScaleLadder    } from './ui/scale_ladder.js?v=0.2.0-alpha.0';
+import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2';
 import { AudioEngine    } from './audio/audio_engine.js?v=0.2.0-alpha.0';
 import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
-import { Singscope      } from './ui/singscope.js?v=0.2.0-alpha.0';
+import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2';
 import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
 import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.2.0-alpha.0';
 import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.2.0-alpha.0';
-import { compileChantScriptExample } from './score/examples.js?v=0.2.0-alpha.0';
+import {
+  compileChantScriptExample,
+  listChantScriptExamples,
+} from './score/examples.js?v=chant-script-engine-phase2';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=0.2.0-alpha.0';
+} from './score/score_practice.js?v=chant-script-engine-phase2';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -352,6 +355,7 @@ function wireScorePracticePrototype() {
 
   const mainView = document.getElementById('main-view');
   if (!mainView) return;
+  openScorePracticeMobileView();
 
   const params = new URLSearchParams(window.location.search);
   const exampleId = params.get('scorePracticeExample') || 'diatonic-ladder';
@@ -373,8 +377,11 @@ function wireScorePracticePrototype() {
   status.className = 'score-practice-status';
   status.setAttribute('aria-live', 'polite');
 
+  const controls = buildScorePracticeControls(exampleId);
+
   mainView.appendChild(canvas);
   mainView.appendChild(status);
+  mainView.appendChild(controls.el);
   mainView.classList.add('score-practice-enabled');
   document.body.classList.add('score-practice-dev');
 
@@ -383,10 +390,83 @@ function wireScorePracticePrototype() {
     statusEl: status,
     pxPerSecond: 120,
     lookaheadMs: 8000,
+    loop: true,
   });
-  app.scorePractice.setCompiledScore(compiled);
-  app.scorePractice.setRowMap(app.ladder.rowMap);
-  app.scorePractice.start();
+
+  const loadExample = nextExampleId => {
+    try {
+      compiled = compileChantScriptExample(nextExampleId);
+    } catch (e) {
+      console.warn('Score practice example failed to compile', e);
+      return;
+    }
+    app.scorePractice.setCompiledScore(compiled);
+    app.scorePractice.setRowMap(app.ladder.rowMap);
+    app.scorePractice.seek(0);
+    app.scorePractice.start();
+    controls.playPause.textContent = 'Pause';
+  };
+
+  controls.select.addEventListener('change', () => loadExample(controls.select.value));
+  controls.restart.addEventListener('click', () => {
+    app.scorePractice.seek(0);
+    app.scorePractice.start();
+    controls.playPause.textContent = 'Pause';
+  });
+  controls.playPause.addEventListener('click', () => {
+    if (app.scorePractice.isRunning()) {
+      app.scorePractice.stop();
+      controls.playPause.textContent = 'Play';
+    } else {
+      app.scorePractice.start();
+      controls.playPause.textContent = 'Pause';
+    }
+  });
+
+  loadExample(exampleId);
+}
+
+function buildScorePracticeControls(selectedExampleId) {
+  const el = document.createElement('div');
+  el.id = 'score-practice-controls';
+  el.className = 'score-practice-controls';
+
+  const title = document.createElement('span');
+  title.className = 'score-practice-controls-title';
+  title.textContent = 'Score practice';
+
+  const select = document.createElement('select');
+  select.setAttribute('aria-label', 'Choose score practice fixture');
+  for (const example of listChantScriptExamples()) {
+    const option = document.createElement('option');
+    option.value = example.id;
+    option.textContent = example.title;
+    option.selected = example.id === selectedExampleId;
+    select.appendChild(option);
+  }
+
+  const restart = document.createElement('button');
+  restart.type = 'button';
+  restart.textContent = 'Restart';
+
+  const playPause = document.createElement('button');
+  playPause.type = 'button';
+  playPause.textContent = 'Pause';
+
+  el.append(title, select, restart, playPause);
+  return { el, select, restart, playPause };
+}
+
+function openScorePracticeMobileView() {
+  const mobileTabs = Array.from(document.querySelectorAll('.mobile-tab'));
+  const mobileNav = document.getElementById('mobile-tabs');
+  if (!mobileTabs.length || mobileNav?.offsetParent === null || window.location.hash) return;
+
+  const view = 'train';
+  document.body.dataset.mobileView = view;
+  mobileTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.mobileView === view));
+  history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${view}`);
+  requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
 
 function isValidCellId(cellId) {
