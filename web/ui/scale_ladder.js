@@ -62,6 +62,24 @@ function fillRoundedRect(ctx, x, y, w, h, r) {
   ctx.fill();
 }
 
+function cellEffectiveMoria(cell) {
+  return cell.moria + (cell.accidental ?? 0);
+}
+
+function formatAccidental(accidental) {
+  return `${accidental > 0 ? '+' : ''}${accidental}`;
+}
+
+function applyAlpha(hex, alpha) {
+  const normalized = hex.replace('#', '');
+  const n = Number.parseInt(normalized, 16);
+  if (!Number.isFinite(n) || normalized.length !== 6) return hex;
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha ?? 1))})`;
+}
+
 export class ScaleLadder {
   constructor(canvas, app) {
     this.canvas = canvas;
@@ -72,6 +90,8 @@ export class ScaleLadder {
     // Voice pitch detection state.
     this._detectedCell    = null; // moria or null
     this._detectedNeighbor = null; // moria or null
+    this._detectedMoria = null; // effective moria or null
+    this._detectedNeighborMoria = null; // effective moria or null
     this._detectedNeighborVel = 0; // 0..1
 
     this._ro = new ResizeObserver(() => this._onResize());
@@ -98,12 +118,16 @@ export class ScaleLadder {
 
   /**
    * Show the voice-detected pitch on the ladder.
-   * moria / neighborMoria: cell moria values, or null to clear.
+   * moria / neighborMoria: nominal cell moria values, or null to clear.
+   * effectiveMoria / neighborEffectiveMoria: actual pitch moria after
+   * accidentals, used for visual pitch placement.
    * neighborVel: proportional closeness of the neighbor (0..1).
    */
-  setDetectedCell(moria, neighborMoria, neighborVel) {
+  setDetectedCell(moria, neighborMoria, neighborVel, effectiveMoria = moria, neighborEffectiveMoria = neighborMoria) {
     this._detectedCell     = moria;
     this._detectedNeighbor = neighborMoria;
+    this._detectedMoria = effectiveMoria;
+    this._detectedNeighborMoria = neighborEffectiveMoria;
     this._detectedNeighborVel = neighborVel ?? 0;
     this._paint();
   }
@@ -173,9 +197,10 @@ export class ScaleLadder {
       }
 
       // Cell fill.
-      const isActive   = this._activeCells.has(cell.moria);
-      const isDetected = cell.moria === this._detectedCell;
-      const isNeighbor = cell.moria === this._detectedNeighbor;
+      const isAccidental = cell.accidental !== 0;
+      const isActive   = this._activeCells.has(cell.moria) && !isAccidental;
+      const isDetected = cell.moria === this._detectedCell && !isAccidental;
+      const isNeighbor = cell.moria === this._detectedNeighbor && !isAccidental;
       const rowX = 1;
       const rowY = ry + 0.75;
       const rowW = cssW - 2;
@@ -286,7 +311,7 @@ export class ScaleLadder {
       ctx.textBaseline = 'alphabetic';
 
       // Accidental badge.
-      if (cell.accidental !== 0) {
+      if (isAccidental) {
         const sign = cell.accidental > 0 ? '+' : '';
         const badge = `${sign}${cell.accidental}`;
         ctx.font = `bold ${Math.round(9 * scale)}px monospace`;
@@ -300,9 +325,124 @@ export class ScaleLadder {
       }
     }
 
+    this._paintEffectiveHighlights(ctx, cssW, scale);
     this._paintIntervals(ctx, cssW, scale);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  _paintEffectiveHighlights(ctx, cssW, scale) {
+    for (const cellId of this._activeCells) {
+      const cell = this._cells.find(c => c.moria === cellId);
+      if (cell?.accidental) {
+        this._paintFloatingPitchMarker(ctx, cssW, cellEffectiveMoria(cell), {
+          colorA: '#2e7abe',
+          colorB: '#214b7f',
+          border: '#ff6d86',
+          alpha: 1,
+          label: formatAccidental(cell.accidental),
+          scale,
+        });
+      }
+    }
+
+    if (Number.isFinite(this._detectedMoria)) {
+      const cell = this._cells.find(c => c.moria === this._detectedCell);
+      const isAccidental = Boolean(cell && cell.accidental !== 0);
+      if (isAccidental) {
+        this._paintFloatingPitchMarker(ctx, cssW, this._detectedMoria, {
+          colorA: '#9a6415',
+          colorB: '#623c08',
+          border: '#ff6d86',
+          alpha: 1,
+          label: formatAccidental(cell.accidental),
+          scale,
+        });
+      }
+    }
+
+    if (
+      Number.isFinite(this._detectedNeighborMoria) &&
+      this._detectedNeighborVel > 0
+    ) {
+      const cell = this._cells.find(c => c.moria === this._detectedNeighbor);
+      if (cell?.accidental) {
+        this._paintFloatingPitchMarker(ctx, cssW, this._detectedNeighborMoria, {
+          colorA: '#8a5200',
+          colorB: '#6a3e00',
+          border: '#ff6d86',
+          alpha: Math.max(0.18, Math.min(0.75, this._detectedNeighborVel)),
+          label: formatAccidental(cell.accidental),
+          scale,
+        });
+      }
+    }
+  }
+
+  _paintFloatingPitchMarker(ctx, cssW, moria, opts) {
+    const y = this._moriaToY(moria);
+    if (y === null) return;
+
+    const rowH = Math.max(8, Math.round(DEGREE_H * Math.min(1, opts.scale ?? 1)) - 4);
+    const rowX = 1;
+    const rowW = cssW - 2;
+    const rowY = y - rowH / 2;
+    const grad = ctx.createLinearGradient(rowX, 0, rowX + rowW, 0);
+    grad.addColorStop(0, applyAlpha(opts.colorA, opts.alpha));
+    grad.addColorStop(1, applyAlpha(opts.colorB, opts.alpha));
+    ctx.fillStyle = grad;
+    fillRoundedRect(ctx, rowX, rowY, rowW, rowH, 3);
+
+    ctx.strokeStyle = opts.border;
+    ctx.lineWidth = 1.5;
+    roundedRect(ctx, rowX + 0.75, rowY + 0.75, rowW - 1.5, rowH - 1.5, 3);
+    ctx.stroke();
+
+    if (opts.label) {
+      ctx.font = `bold ${Math.max(8, Math.round(9 * (opts.scale ?? 1)))}px monospace`;
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffd4dc';
+      ctx.fillText(opts.label, cssW / 2 + 6, y);
+      ctx.textBaseline = 'alphabetic';
+    }
+  }
+
+  _moriaToY(moria) {
+    if (!this._rowMap.length || !Number.isFinite(moria)) return null;
+
+    for (const row of this._rowMap) {
+      if (cellEffectiveMoria(row.cell) === moria) return row.y + row.h / 2;
+    }
+
+    const top = this._rowMap[0];
+    const bottom = this._rowMap[this._rowMap.length - 1];
+    if (moria >= cellEffectiveMoria(top.cell)) return top.y + top.h / 2;
+    if (moria <= cellEffectiveMoria(bottom.cell)) return bottom.y + bottom.h / 2;
+
+    for (let i = 0; i < this._rowMap.length - 1; i++) {
+      const upper = this._rowMap[i];
+      const lower = this._rowMap[i + 1];
+      const upperMoria = cellEffectiveMoria(upper.cell);
+      const lowerMoria = cellEffectiveMoria(lower.cell);
+      if (upperMoria >= moria && moria >= lowerMoria) {
+        const upperY = upper.y + upper.h / 2;
+        const lowerY = lower.y + lower.h / 2;
+        const span = upperMoria - lowerMoria;
+        const ratio = span > 0 ? (upperMoria - moria) / span : 0;
+        return upperY + (lowerY - upperY) * ratio;
+      }
+    }
+
+    let best = null;
+    let bestDist = Infinity;
+    for (const row of this._rowMap) {
+      const dist = Math.abs(cellEffectiveMoria(row.cell) - moria);
+      if (dist < bestDist) {
+        best = row;
+        bestDist = dist;
+      }
+    }
+    return best ? best.y + best.h / 2 : null;
   }
 
   /**

@@ -143,6 +143,7 @@ function gridChanged() {
     .map(c => ({
       cell_id: c.moria,
       moria: c.moria + (c.accidental ?? 0),
+      accidental: c.accidental ?? 0,
     }))
     .filter(c => Number.isFinite(c.cell_id) && Number.isFinite(c.moria))
     .sort((a, b) => a.moria - b.moria);
@@ -305,7 +306,9 @@ function handlePitchEvent(msg) {
     : null;
   if (snap) {
     msg.cell_id = snap.primary;
+    msg.snap_moria = snap.primary_moria;
     msg.neighbor_id = snap.neighbor?.cell_id ?? -1;
+    msg.neighbor_moria = snap.neighbor?.moria ?? null;
     msg.neighbor_vel = snap.neighbor?.vel ?? 0;
     app.voiceLastCellId = snap.primary;
   } else if (!msg.gate_open) {
@@ -326,6 +329,8 @@ function handlePitchEvent(msg) {
       msg.cell_id,
       isValidCellId(msg.neighbor_id) ? msg.neighbor_id : null,
       msg.neighbor_vel,
+      Number.isFinite(msg.snap_moria) ? msg.snap_moria : null,
+      Number.isFinite(msg.neighbor_moria) ? msg.neighbor_moria : null,
     );
     app.noteIndicator?.showPitch(msg);
   }
@@ -408,14 +413,15 @@ function nearestEnabledMoriaCell(rawMoria, lastCellId) {
       const a3 = Math.max(0, above.moria - rawMoria);
       const total = a2 + a3;
       neighbor = a2 <= a3
-        ? { cell_id: below.cell_id, vel: total > 0 ? a3 / total : 0.5 }
-        : { cell_id: above.cell_id, vel: total > 0 ? a2 / total : 0.5 };
+        ? { cell_id: below.cell_id, moria: below.moria, vel: total > 0 ? a3 / total : 0.5 }
+        : { cell_id: above.cell_id, moria: above.moria, vel: total > 0 ? a2 / total : 0.5 };
     } else {
-      neighbor = { cell_id: (below ?? above).cell_id, vel: 0.5 };
+      const neighborCell = below ?? above;
+      neighbor = { cell_id: neighborCell.cell_id, moria: neighborCell.moria, vel: 0.5 };
     }
   }
 
-  return { primary: primary.cell_id, neighbor };
+  return { primary: primary.cell_id, primary_moria: primary.moria, neighbor };
 }
 
 // ── Preset buttons ────────────────────────────────────────────────────────────

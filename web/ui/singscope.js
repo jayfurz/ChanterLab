@@ -6,6 +6,10 @@ const HISTORY_LEN = 600; // number of pitch points to retain
 const BG_COLOR    = '#111';
 const TRACE_START_MARK_W = 2;
 
+function cellEffectiveMoria(cell) {
+  return cell.moria + (cell.accidental ?? 0);
+}
+
 export class Singscope {
   constructor(canvas) {
     this._canvas  = canvas;
@@ -37,8 +41,11 @@ export class Singscope {
     const rawMoria = (typeof msg.raw_moria === 'number' && Number.isFinite(msg.raw_moria))
       ? msg.raw_moria
       : null;
+    const snapMoria = (typeof msg.snap_moria === 'number' && Number.isFinite(msg.snap_moria))
+      ? msg.snap_moria
+      : cellId;
     const moria    = gateOpen ? (rawMoria ?? (hasSnap ? cellId : null)) : null;
-    const snap     = (gateOpen && hasSnap) ? cellId : null;
+    const snap     = (gateOpen && hasSnap) ? snapMoria : null;
     const conf     = (typeof msg.confidence === 'number') ? msg.confidence : 0;
 
     this._buf[this._head] = { moria, snapMoria: snap, confidence: conf, gateOpen };
@@ -112,24 +119,26 @@ export class Singscope {
 
     // Exact match first.
     for (const row of this._rowMap) {
-      if (row.cell.moria === moria) return this._rowCenterY(row, cssH);
+      if (cellEffectiveMoria(row.cell) === moria) return this._rowCenterY(row, cssH);
     }
 
     if (interpolate) {
       const top = this._rowMap[0];
       const bottom = this._rowMap[this._rowMap.length - 1];
 
-      if (moria >= top.cell.moria) return this._rowCenterY(top, cssH);
-      if (moria <= bottom.cell.moria) return this._rowCenterY(bottom, cssH);
+      if (moria >= cellEffectiveMoria(top.cell)) return this._rowCenterY(top, cssH);
+      if (moria <= cellEffectiveMoria(bottom.cell)) return this._rowCenterY(bottom, cssH);
 
       for (let i = 0; i < this._rowMap.length - 1; i++) {
         const upper = this._rowMap[i];
         const lower = this._rowMap[i + 1];
-        if (upper.cell.moria >= moria && moria >= lower.cell.moria) {
+        const upperMoria = cellEffectiveMoria(upper.cell);
+        const lowerMoria = cellEffectiveMoria(lower.cell);
+        if (upperMoria >= moria && moria >= lowerMoria) {
           const upperY = this._rowCenterY(upper, cssH);
           const lowerY = this._rowCenterY(lower, cssH);
-          const span = upper.cell.moria - lower.cell.moria;
-          const ratio = span > 0 ? (upper.cell.moria - moria) / span : 0;
+          const span = upperMoria - lowerMoria;
+          const ratio = span > 0 ? (upperMoria - moria) / span : 0;
           return upperY + (lowerY - upperY) * ratio;
         }
       }
@@ -141,7 +150,7 @@ export class Singscope {
     let best     = null;
     let bestDist = Infinity;
     for (const row of this._rowMap) {
-      const d = Math.abs(row.cell.moria - moria);
+      const d = Math.abs(cellEffectiveMoria(row.cell) - moria);
       if (d < bestDist) { bestDist = d; best = row; }
     }
     return best ? this._rowCenterY(best, cssH) : null;
