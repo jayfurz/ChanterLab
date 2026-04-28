@@ -1,0 +1,25 @@
+# Engineering fixture: Phase 3 temporal rewrite rules.
+# This is synthetic test material, not an authoritative hymn transcription.
+title "Temporal Rules Fixture"
+tempo moderate bpm 120
+start Di
+scale diatonic
+drone Di
+timing symbolic
+orthography generated
+
+# Gorgon: one parent beat divided across previous/current notes.
+note same lyric "gor"
+note up 1 gorgon lyric "gon"
+
+# Digorgon: one parent beat divided across previous/current/following notes.
+note same lyric "di"
+note up 1 digorgon lyric "gor"
+note down 1 lyric "gon"
+
+# Trigorgon: one parent beat divided across previous/current/two following notes.
+note same lyric "tri"
+note up 1 trigorgon lyric "gor"
+note down 1 lyric "gon"
+note same lyric "tail"
+checkpoint Ke

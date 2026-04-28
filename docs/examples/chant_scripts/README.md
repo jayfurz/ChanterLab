@@ -12,6 +12,7 @@ Use them to test:
 - checkpoint validation,
 - lyric starts and melisma continuation,
 - generated glyph display.
+- gorgon, digorgon, and trigorgon temporal rewrite windows.
 
 The first parser should accept the strict grammar described in
 `docs/BYZANTINE_CHANT_SCORE_PROPOSAL.md`.

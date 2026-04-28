@@ -14,6 +14,7 @@ const DOC_FIXTURE_BY_ID = Object.freeze({
   'lyrics-melisma': 'lyrics_melisma.chant',
   'soft-chromatic-phrase': 'soft_chromatic_phrase.chant',
   'symbolic-timing-steal': 'symbolic_timing_steal.chant',
+  'temporal-rules': 'temporal_rules.chant',
 });
 
 function readDocFixture(name) {

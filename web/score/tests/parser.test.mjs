@@ -10,6 +10,7 @@ const FIXTURES = Object.freeze({
   lyrics: 'lyrics_melisma.chant',
   soft: 'soft_chromatic_phrase.chant',
   steal: 'symbolic_timing_steal.chant',
+  temporal: 'temporal_rules.chant',
 });
 
 function readFixture(name) {
@@ -114,6 +115,17 @@ test('note-local accidentals parse as even moria offsets', () => {
 
   assert.equal(hasErrorDiagnostics(diagnostics), false);
   assert.deepEqual(score.events.map(event => event.accidental?.moria), [4, -6, 2]);
+});
+
+test('temporal fixture parses gorgon digorgon and trigorgon signs', () => {
+  const { score, diagnostics } = parseFixture(FIXTURES.temporal);
+  const temporalSigns = score.events
+    .filter(event => event.type === 'neume')
+    .flatMap(event => event.temporal);
+
+  assert.equal(hasErrorDiagnostics(diagnostics), false);
+  assert.deepEqual(temporalSigns.map(sign => sign.sign), ['gorgon', 'digorgon', 'trigorgon']);
+  assert.deepEqual(temporalSigns.map(sign => sign.divide ?? 2), [2, 3, 4]);
 });
 
 test('unknown keywords produce line and column diagnostics', () => {

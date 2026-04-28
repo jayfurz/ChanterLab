@@ -72,6 +72,33 @@ checkpoint Ke
 # note same beats 2 + note up 1 quick -> 1.5 beats + 0.5 beat.
 `;
 
+const TEMPORAL_RULES_SCRIPT = `# Engineering fixture: Phase 3 temporal rewrite rules.
+# This is synthetic test material, not an authoritative hymn transcription.
+title "Temporal Rules Fixture"
+tempo moderate bpm 120
+start Di
+scale diatonic
+drone Di
+timing symbolic
+orthography generated
+
+# Gorgon: one parent beat divided across previous/current notes.
+note same lyric "gor"
+note up 1 gorgon lyric "gon"
+
+# Digorgon: one parent beat divided across previous/current/following notes.
+note same lyric "di"
+note up 1 digorgon lyric "gor"
+note down 1 lyric "gon"
+
+# Trigorgon: one parent beat divided across previous/current/two following notes.
+note same lyric "tri"
+note up 1 trigorgon lyric "gor"
+note down 1 lyric "gon"
+note same lyric "tail"
+checkpoint Ke
+`;
+
 export const CHANT_SCRIPT_EXAMPLES = Object.freeze([
   Object.freeze({
     id: 'diatonic-ladder',
@@ -96,6 +123,12 @@ export const CHANT_SCRIPT_EXAMPLES = Object.freeze([
     title: 'Symbolic Timing Steal Fixture',
     path: '../../docs/examples/chant_scripts/symbolic_timing_steal.chant',
     script: SYMBOLIC_TIMING_STEAL_SCRIPT,
+  }),
+  Object.freeze({
+    id: 'temporal-rules',
+    title: 'Temporal Rules Fixture',
+    path: '../../docs/examples/chant_scripts/temporal_rules.chant',
+    script: TEMPORAL_RULES_SCRIPT,
   }),
 ]);
 

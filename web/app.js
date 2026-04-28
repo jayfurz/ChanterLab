@@ -10,14 +10,14 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase2g';
+} from './score/examples.js?v=chant-script-engine-phase3a';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase2g';
+} from './score/chant_score.js?v=chant-script-engine-phase3a';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase2g';
+} from './score/score_practice.js?v=chant-script-engine-phase3a';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -361,6 +361,14 @@ function handlePitchEvent(msg) {
 
 function wireScorePracticePrototype() {
   if (!scorePracticeFeatureEnabled()) return;
+  try {
+    wireScorePracticePrototypeUnsafe();
+  } catch (e) {
+    console.error('Score practice failed to initialize', e);
+  }
+}
+
+function wireScorePracticePrototypeUnsafe() {
 
   const mainView = document.getElementById('main-view');
   if (!mainView) return;
@@ -453,27 +461,35 @@ function wireScorePracticePrototype() {
 }
 
 function applyCompiledScoreInitialTuning(compiled) {
-  const startDegree = compiled?.score?.initialMartyria?.degree ?? 'Ni';
-  const initialScale = compiled?.score?.initialScale;
-  const genus = initialScale?.genus ?? 'Diatonic';
-  const dropMoria = referenceMoriaForDegree(startDegree);
+  try {
+    const startDegree = compiled?.score?.initialMartyria?.degree ?? 'Ni';
+    const initialScale = compiled?.score?.initialScale;
+    const genus = initialScale?.genus ?? 'Diatonic';
+    const dropMoria = referenceMoriaForDegree(startDegree);
 
-  app.grid = new JsTuningGrid();
-  app.grid.refNiHz = app.refNiHz;
+    app.grid = new JsTuningGrid();
+    app.grid.refNiHz = app.refNiHz;
 
-  const drop = {
-    type: 'pthora',
-    genus,
-    degree: startDegree,
-    dropMoria,
-    dropDegree: startDegree,
-    ...(Number.isInteger(initialScale?.phase) ? { phase: initialScale.phase } : {}),
-  };
-  const ok = app.grid.applySymbolDrop(JSON.stringify(drop));
-  if (!ok) app.grid.applyPthora(dropMoria, genus, startDegree);
-  app.activePresetIdx = -1;
-  document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
-  gridChanged();
+    const drop = {
+      type: 'pthora',
+      genus,
+      degree: startDegree,
+      dropMoria,
+      dropDegree: startDegree,
+      ...(Number.isInteger(initialScale?.phase) ? { phase: initialScale.phase } : {}),
+    };
+    const ok = typeof app.grid.applySymbolDrop === 'function'
+      ? app.grid.applySymbolDrop(JSON.stringify(drop))
+      : false;
+    if (!ok && typeof app.grid.applyPthora === 'function') {
+      app.grid.applyPthora(dropMoria, genus, startDegree);
+    }
+    app.activePresetIdx = -1;
+    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+    gridChanged();
+  } catch (e) {
+    console.warn('Score practice tuning context failed to apply', e);
+  }
 }
 
 function readScorePracticePlaybackRate(params) {
