@@ -9,6 +9,7 @@ import {
   layoutScorePracticeTargets,
   scorePitchAtTime,
   scorePracticeFeatureEnabled,
+  scorePracticeLeadInScoreMs,
 } from '../score_practice.js';
 
 test('score practice feature flag is off unless explicitly enabled', () => {
@@ -108,4 +109,29 @@ test('layout lead-in places the first note ahead of the crosshair', () => {
   assert.equal(activeScoreTargetAt(state, -1), undefined);
   assert.equal(layout[0].degree, 'Ni');
   assert.equal(layout[0].x, 500 * 0.28 + 100);
+});
+
+test('fixed lead-in places the first note ahead of the crosshair', () => {
+  const compiled = compileChantScriptExample('diatonic-ladder');
+  const state = createScorePracticeState(compiled, { enabled: true });
+  const rowMap = [
+    { cell: { moria: 0, effective_moria: 0, enabled: true }, y: 0, h: 20 },
+  ];
+  const options = {
+    leadInMs: 3000,
+    playbackRate: 0.5,
+    pxPerSecond: 100,
+    crosshairX: 0.28,
+  };
+  const leadInScoreMs = scorePracticeLeadInScoreMs({ width: 500 }, options);
+
+  const layout = layoutScorePracticeTargets(state, rowMap, {
+    width: 500,
+    height: 120,
+    nowMs: -leadInScoreMs,
+  }, options);
+
+  assert.equal(leadInScoreMs, 1500);
+  assert.equal(layout[0].degree, 'Ni');
+  assert.equal(layout[0].x, 500 * 0.28 + 150);
 });

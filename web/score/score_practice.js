@@ -128,6 +128,12 @@ export function layoutScorePracticeTargets(state, rowMap, viewport, options = {}
     .filter(target => target.visible);
 }
 
+export function scorePracticeLeadInScoreMs(viewport, options = {}) {
+  const playbackRate = playbackRateFromOptions(options);
+  const leadInMs = Number(options.leadInMs);
+  return Number.isFinite(leadInMs) && leadInMs > 0 ? leadInMs * playbackRate : 0;
+}
+
 export class ScorePracticePrototype {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
@@ -150,7 +156,7 @@ export class ScorePracticePrototype {
 
   setCompiledScore(compiled) {
     this.state = createScorePracticeState(compiled, { enabled: this.enabled });
-    this.nowMs = 0;
+    this.nowMs = this._initialNowMs();
     this._lastPitchScore = null;
     this.paint();
     this._renderStatus();
@@ -179,9 +185,10 @@ export class ScorePracticePrototype {
     this._startedAt = now - this.nowMs / playbackRate;
     const tick = timestamp => {
       this._rafId = requestAnimationFrame(tick);
+      const nextScoreMs = (timestamp - this._startedAt) * playbackRate;
       this.nowMs = Math.min(
         this.state.totalDurationMs,
-        Math.max(0, (timestamp - this._startedAt) * playbackRate)
+        Math.max(this._initialNowMs(), nextScoreMs)
       );
       this.paint();
       this._renderStatus();
@@ -217,17 +224,19 @@ export class ScorePracticePrototype {
   }
 
   _playbackRate() {
-    const rate = Number(this._options.playbackRate);
-    return Number.isFinite(rate) && rate > 0 ? rate : 1;
+    return playbackRateFromOptions(this._options);
   }
 
-  _leadInRealMs() {
-    const leadInMs = Number(this._options.leadInMs);
-    return Number.isFinite(leadInMs) && leadInMs > 0 ? leadInMs : 0;
+  _viewportWidth() {
+    const dpr = globalThis.devicePixelRatio || 1;
+    const rect = this.canvas?.getBoundingClientRect?.();
+    if (Number.isFinite(rect?.width) && rect.width > 0) return rect.width;
+    if (Number.isFinite(this.canvas?.width) && this.canvas.width > 0) return this.canvas.width / dpr;
+    return 1;
   }
 
   _initialNowMs() {
-    return -this._leadInRealMs() * this._playbackRate();
+    return -scorePracticeLeadInScoreMs({ width: this._viewportWidth() }, this._options);
   }
 
   handlePitch(msg) {
@@ -409,6 +418,15 @@ function nearestOctaveMoriaDelta(delta) {
   while (delta > 36) delta -= 72;
   while (delta < -36) delta += 72;
   return delta;
+}
+
+function positiveNumberOr(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function playbackRateFromOptions(options) {
+  return positiveNumberOr(options?.playbackRate, 1);
 }
 
 function performanceNow() {

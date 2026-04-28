@@ -1,8 +1,8 @@
 import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
-import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2d';
+import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2f';
 import { AudioEngine    } from './audio/audio_engine.js?v=0.2.0-alpha.0';
 import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
-import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2d';
+import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2f';
 import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
 import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.2.0-alpha.0';
@@ -10,11 +10,11 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase2d';
+} from './score/examples.js?v=chant-script-engine-phase2f';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase2d';
+} from './score/score_practice.js?v=chant-script-engine-phase2f';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
