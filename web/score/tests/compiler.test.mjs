@@ -48,6 +48,7 @@ test('compiler carries soft chromatic scale context and rests', () => {
 
   assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
   assert.deepEqual(compiled.notes.map(note => note.degree), ['Di', 'Ke', 'Di', 'Di', 'Ke']);
+  assert.deepEqual(compiled.notes.map(note => note.moria), [42, 50, 42, 42, 50]);
   assert.deepEqual(compiled.notes.map(note => note.scale.scale), [
     'soft-chromatic',
     'soft-chromatic',

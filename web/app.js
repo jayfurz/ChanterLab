@@ -10,11 +10,14 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase2f';
+} from './score/examples.js?v=chant-script-engine-phase2g';
+import {
+  referenceMoriaForDegree,
+} from './score/chant_score.js?v=chant-script-engine-phase2g';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase2f';
+} from './score/score_practice.js?v=chant-script-engine-phase2g';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -32,7 +35,9 @@ const DEFAULT_REF_NI_HZ = 130.81;
 const APP_VERSION = '0.2.0-alpha.0';
 const HELP_RELEASE_ID = APP_VERSION;
 const SCORE_PRACTICE_CROSSHAIR_RATIO = 0.28;
-const SCORE_PRACTICE_DEFAULT_PLAYBACK_RATE = 0.5;
+const SCORE_PRACTICE_DEFAULT_PLAYBACK_RATE = 0.35;
+const SCORE_PRACTICE_MIN_PLAYBACK_RATE = 0.15;
+const SCORE_PRACTICE_MAX_PLAYBACK_RATE = 1.25;
 const SCORE_PRACTICE_LEAD_IN_MS = 3000;
 const SCORE_PRACTICE_SCROLL_PX_PER_SECOND = 56;
 const DETECTION_LOW_MORIA = -72;
@@ -384,7 +389,7 @@ function wireScorePracticePrototype() {
   status.className = 'score-practice-status';
   status.setAttribute('aria-live', 'polite');
 
-  const controls = buildScorePracticeControls(exampleId);
+  const controls = buildScorePracticeControls(exampleId, playbackRate);
 
   mainView.appendChild(canvas);
   mainView.appendChild(status);
@@ -414,6 +419,7 @@ function wireScorePracticePrototype() {
       console.warn('Score practice example failed to compile', e);
       return;
     }
+    applyCompiledScoreInitialTuning(compiled);
     app.scorePractice.setCompiledScore(compiled);
     app.scorePractice.setRowMap(app.ladder.rowMap);
     app.scorePractice.restart();
@@ -434,14 +440,46 @@ function wireScorePracticePrototype() {
       controls.playPause.textContent = 'Pause';
     }
   });
+  controls.speed.addEventListener('input', () => {
+    const nextRate = clampScorePracticePlaybackRate(Number(controls.speed.value));
+    controls.speedReadout.textContent = formatPlaybackRate(nextRate);
+    app.scorePractice.setTiming({
+      playbackRate: nextRate,
+      pxPerSecond: scrollPxPerSecond / nextRate,
+    });
+  });
 
   loadExample(exampleId);
+}
+
+function applyCompiledScoreInitialTuning(compiled) {
+  const startDegree = compiled?.score?.initialMartyria?.degree ?? 'Ni';
+  const initialScale = compiled?.score?.initialScale;
+  const genus = initialScale?.genus ?? 'Diatonic';
+  const dropMoria = referenceMoriaForDegree(startDegree);
+
+  app.grid = new JsTuningGrid();
+  app.grid.refNiHz = app.refNiHz;
+
+  const drop = {
+    type: 'pthora',
+    genus,
+    degree: startDegree,
+    dropMoria,
+    dropDegree: startDegree,
+    ...(Number.isInteger(initialScale?.phase) ? { phase: initialScale.phase } : {}),
+  };
+  const ok = app.grid.applySymbolDrop(JSON.stringify(drop));
+  if (!ok) app.grid.applyPthora(dropMoria, genus, startDegree);
+  app.activePresetIdx = -1;
+  document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+  gridChanged();
 }
 
 function readScorePracticePlaybackRate(params) {
   const raw = Number(params.get('scorePracticeSpeed') ?? params.get('score-practice-speed'));
   return Number.isFinite(raw) && raw > 0
-    ? Math.max(0.2, Math.min(1.5, raw))
+    ? clampScorePracticePlaybackRate(raw)
     : SCORE_PRACTICE_DEFAULT_PLAYBACK_RATE;
 }
 
@@ -452,7 +490,17 @@ function readScorePracticeScrollSpeed(params) {
     : SCORE_PRACTICE_SCROLL_PX_PER_SECOND;
 }
 
-function buildScorePracticeControls(selectedExampleId) {
+function clampScorePracticePlaybackRate(rate) {
+  return Number.isFinite(rate)
+    ? Math.max(SCORE_PRACTICE_MIN_PLAYBACK_RATE, Math.min(SCORE_PRACTICE_MAX_PLAYBACK_RATE, rate))
+    : SCORE_PRACTICE_DEFAULT_PLAYBACK_RATE;
+}
+
+function formatPlaybackRate(rate) {
+  return `${Math.round(rate * 100)}%`;
+}
+
+function buildScorePracticeControls(selectedExampleId, playbackRate) {
   const el = document.createElement('div');
   el.id = 'score-practice-controls';
   el.className = 'score-practice-controls';
@@ -479,8 +527,23 @@ function buildScorePracticeControls(selectedExampleId) {
   playPause.type = 'button';
   playPause.textContent = 'Pause';
 
-  el.append(title, select, restart, playPause);
-  return { el, select, restart, playPause };
+  const speedWrap = document.createElement('label');
+  speedWrap.className = 'score-practice-speed';
+  const speedText = document.createElement('span');
+  speedText.textContent = 'Speed';
+  const speed = document.createElement('input');
+  speed.type = 'range';
+  speed.min = String(SCORE_PRACTICE_MIN_PLAYBACK_RATE);
+  speed.max = String(SCORE_PRACTICE_MAX_PLAYBACK_RATE);
+  speed.step = '0.05';
+  speed.value = String(clampScorePracticePlaybackRate(playbackRate));
+  const speedReadout = document.createElement('span');
+  speedReadout.className = 'score-practice-speed-readout';
+  speedReadout.textContent = formatPlaybackRate(Number(speed.value));
+  speedWrap.append(speedText, speed, speedReadout);
+
+  el.append(title, select, speedWrap, restart, playPause);
+  return { el, select, restart, playPause, speed, speedReadout };
 }
 
 function openScorePracticeMobileView() {

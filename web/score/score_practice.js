@@ -175,6 +175,20 @@ export class ScorePracticePrototype {
     this._renderStatus();
   }
 
+  setTiming(options = {}) {
+    const wasRunning = this.isRunning();
+    const now = performanceNow();
+    this._options = {
+      ...this._options,
+      ...options,
+    };
+    if (wasRunning) {
+      this._startedAt = now - this.nowMs / this._playbackRate();
+    }
+    this.paint();
+    this._renderStatus();
+  }
+
   isRunning() {
     return this._rafId !== null;
   }

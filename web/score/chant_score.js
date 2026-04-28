@@ -1,6 +1,15 @@
 export const DEGREE_NAMES = Object.freeze(['Ni', 'Pa', 'Vou', 'Ga', 'Di', 'Ke', 'Zo']);
 
 const DEGREE_LOOKUP = new Map(DEGREE_NAMES.map(name => [name.toLowerCase(), name]));
+const REFERENCE_DIATONIC_MORIA = Object.freeze({
+  Ni: 0,
+  Pa: 12,
+  Vou: 22,
+  Ga: 30,
+  Di: 42,
+  Ke: 54,
+  Zo: 64,
+});
 
 export const SCALE_DEFINITIONS = Object.freeze({
   diatonic: Object.freeze({
@@ -185,6 +194,11 @@ export function degreeIndex(degree) {
 
 export function degreeFromLinearIndex(linearIndex) {
   return DEGREE_NAMES[positiveModulo(linearIndex, DEGREE_NAMES.length)];
+}
+
+export function referenceMoriaForDegree(degree) {
+  const normalized = normalizeDegree(degree);
+  return normalized ? REFERENCE_DIATONIC_MORIA[normalized] : 0;
 }
 
 export function registerFromLinearIndex(linearIndex) {

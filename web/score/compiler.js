@@ -4,6 +4,7 @@ import {
   degreeIndex,
   normalizeScaleName,
   positiveModulo,
+  referenceMoriaForDegree,
   registerFromLinearIndex,
   scaleDefinition,
 } from './chant_score.js';
@@ -33,7 +34,7 @@ export function compileChantScore(score, options = {}) {
     });
   }
 
-  let currentMoria = 0;
+  let currentMoria = referenceMoriaForDegree(startDegree);
   let activeScale = createScaleContext(score.initialScale, currentLinear);
   const sequenceItems = [];
 
