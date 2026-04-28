@@ -1,12 +1,12 @@
 import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
-import { ScaleLadder    } from './ui/scale_ladder.js';
-import { AudioEngine    } from './audio/audio_engine.js';
-import { VKeyboard      } from './ui/vkeyboard.js';
-import { Singscope      } from './ui/singscope.js';
-import { NoteIndicator  } from './ui/note_indicator.js?v=0.1.0-alpha.6';
-import { ExerciseMode   } from './ui/exercise_mode.js?v=0.1.0-alpha.6';
-import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.1.0-alpha.6';
-import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.1.0-alpha.6';
+import { ScaleLadder    } from './ui/scale_ladder.js?v=0.2.0-alpha.0';
+import { AudioEngine    } from './audio/audio_engine.js?v=0.2.0-alpha.0';
+import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
+import { Singscope      } from './ui/singscope.js?v=0.2.0-alpha.0';
+import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
+import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
+import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.2.0-alpha.0';
+import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.2.0-alpha.0';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ const PRESETS = [
 ];
 
 const DEFAULT_REF_NI_HZ = 130.81;
-const APP_VERSION = '0.1.0-alpha.6';
+const APP_VERSION = '0.2.0-alpha.0';
 const HELP_RELEASE_ID = APP_VERSION;
 const DETECTION_LOW_MORIA = -72;
 const DETECTION_HIGH_MORIA = 144;
@@ -34,6 +34,14 @@ const REFERENCE_RANGE_OPTIONS = [
   { value: '311.13', label: 'Female high - Ni Eb4' },
   { value: 'custom', label: 'Custom' },
 ];
+const RECORDING_MIME_CANDIDATES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4',
+  'audio/aac',
+];
+const RECORDING_TARGET_PEAK = 0.9;
+const RECORDING_MAX_GAIN = 8;
 
 const app = {
   grid:            null,
@@ -65,6 +73,17 @@ const app = {
   setReferenceNiHz:   null,
   selectedPalettePayload: null,
   selectedPaletteEl:      null,
+  ensureAudio:       null,
+  ensureVoice:       null,
+  recorder:          null,
+  recordingChunks:   [],
+  recordingPitchEvents: [],
+  recordingStartedAt: 0,
+  recordingTimerId:  null,
+  recordingAudioGraph: null,
+  recordingCounter:  0,
+  recordings:        [],
+  activeRecordingPlayback: null,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -94,6 +113,7 @@ async function main() {
   wireIsonControls();
   wireCorrectionControls();
   wireSynthFollowControls();
+  wireRecordingControls();
   wireMobileTabs();
   syncAppVersionText();
   wireHelpDialog();
@@ -230,6 +250,9 @@ function wireAudioInit() {
   }
 
   // Both click and first keydown trigger audio context creation.
+  app.ensureAudio = ensureAudio;
+  app.ensureVoice = ensureVoice;
+
   document.addEventListener('click', ensureAudio, { once: true });
   document.addEventListener('keydown', ensureAudio, { once: true });
 
@@ -307,6 +330,7 @@ function handlePitchEvent(msg) {
     app.noteIndicator?.showPitch(msg);
   }
   if (app.singscope) app.singscope.pushPitch(msg);
+  recordPitchForActiveTake(msg);
 }
 
 function isValidCellId(cellId) {
@@ -522,7 +546,7 @@ function wireControls() {
     setReferenceNiHz(midiToHz(nextMidiFromHz(app.refNiHz, -1)));
   });
 
-  document.getElementById('reset-btn').addEventListener('click', () => {
+  const resetScale = () => {
     app.grid = new JsTuningGrid();
     app.grid.refNiHz = app.refNiHz;
     app.activePresetIdx = 0;
@@ -530,7 +554,9 @@ function wireControls() {
       b.classList.toggle('active', i === 0);
     });
     gridChanged();
-  });
+  };
+  document.getElementById('reset-btn')?.addEventListener('click', resetScale);
+  document.getElementById('scale-reset-btn')?.addEventListener('click', resetScale);
 }
 
 // ── Palettes ──────────────────────────────────────────────────────────────────
@@ -733,7 +759,31 @@ function wireIsonControls() {
       updateIsonVoice(JSON.parse(app.grid.cellsJson()));
     }
   });
+
+  syncIsonControls();
 }
+
+function syncIsonControls() {
+  const toggleBtn = document.getElementById('ison-toggle-btn');
+  const degreeSelect = document.getElementById('ison-degree-select');
+  const octaveSelect = document.getElementById('ison-octave-select');
+  const volSlider = document.getElementById('ison-volume-slider');
+  if (toggleBtn) {
+    toggleBtn.textContent = app.isonEnabled ? 'On' : 'Off';
+    toggleBtn.classList.toggle('active', app.isonEnabled);
+  }
+  if (degreeSelect) degreeSelect.value = app.isonDegree;
+  if (octaveSelect) octaveSelect.value = String(app.isonOctave);
+  if (volSlider) volSlider.value = String(app.isonVolume);
+}
+
+app.setIsonDrone = function({ degree = app.isonDegree, octave = app.isonOctave, enabled = true } = {}) {
+  app.isonDegree = degree;
+  app.isonOctave = octave;
+  app.isonEnabled = enabled;
+  syncIsonControls();
+  updateIsonVoice(JSON.parse(app.grid.cellsJson()));
+};
 
 function updateIsonVoice(cells) {
   if (!app.isonEnabled) {
@@ -800,6 +850,572 @@ function wireSynthFollowControls() {
       stopSynthFollow();
     }
   });
+}
+
+// ── Recording / playback ─────────────────────────────────────────────────────
+
+function wireRecordingControls() {
+  document.getElementById('record-toggle-btn')?.addEventListener('click', () => {
+    if (app.recorder?.state === 'recording') stopRecording();
+    else startRecording();
+  });
+
+  document.getElementById('record-stop-playback-btn')?.addEventListener('click', () => {
+    stopRecordingPlayback();
+  });
+
+  renderRecordings();
+  updateRecordingControls();
+}
+
+async function startRecording() {
+  if (app.recorder?.state === 'recording') return;
+  stopRecordingPlayback();
+
+  if (!window.MediaRecorder) {
+    setRecordingStatus('Recording is not supported in this browser.');
+    return;
+  }
+
+  await app.ensureVoice?.();
+  const micStream = app.engine?.micStream;
+  if (!micStream) {
+    setRecordingStatus('Mic is not ready. Allow microphone access, then try again.');
+    return;
+  }
+
+  let recorder;
+  let audioGraph = null;
+  try {
+    audioGraph = createStereoRecordingStream(micStream);
+    recorder = createMediaRecorder(audioGraph.stream);
+  } catch (e) {
+    console.error('Failed to create MediaRecorder', e);
+    audioGraph?.cleanup?.();
+    setRecordingStatus('Could not start the recorder for this mic stream.');
+    return;
+  }
+
+  app.recordingChunks = [];
+  app.recordingPitchEvents = [];
+  app.recordingStartedAt = performance.now();
+  app.recordingAudioGraph = audioGraph;
+  app.recorder = recorder;
+
+  recorder.addEventListener('dataavailable', event => {
+    if (event.data?.size > 0) app.recordingChunks.push(event.data);
+  });
+  recorder.addEventListener('error', event => {
+    console.error('Recording error', event.error || event);
+    setRecordingStatus('Recording stopped because of an audio capture error.');
+  });
+  recorder.addEventListener('stop', () => {
+    finalizeRecording().catch(e => {
+      console.error('Failed to finalize recording', e);
+      setRecordingStatus('Could not save the recording.');
+      updateRecordingControls();
+    });
+  });
+
+  try {
+    recorder.start(250);
+  } catch (e) {
+    console.error('Failed to start MediaRecorder', e);
+    audioGraph?.cleanup?.();
+    app.recordingAudioGraph = null;
+    app.recorder = null;
+    setRecordingStatus('Could not start recording.');
+    updateRecordingControls();
+    return;
+  }
+
+  app.recordingTimerId = setInterval(updateRecordingControls, 250);
+  setRecordingStatus('Recording 0:00');
+  updateRecordingControls();
+}
+
+function stopRecording() {
+  if (!app.recorder || app.recorder.state !== 'recording') return;
+  setRecordingStatus('Saving recording...');
+  app.recorder.requestData?.();
+  app.recorder.stop();
+  updateRecordingControls();
+}
+
+async function finalizeRecording() {
+  if (app.recordingTimerId !== null) {
+    clearInterval(app.recordingTimerId);
+    app.recordingTimerId = null;
+  }
+
+  const recorder = app.recorder;
+  const chunks = app.recordingChunks;
+  const durationMs = Math.max(0, performance.now() - app.recordingStartedAt);
+  const pitchEvents = app.recordingPitchEvents.slice();
+  app.recordingAudioGraph?.cleanup?.();
+  app.recorder = null;
+  app.recordingAudioGraph = null;
+  app.recordingChunks = [];
+  app.recordingPitchEvents = [];
+
+  if (!chunks.length) {
+    setRecordingStatus('No audio was captured.');
+    updateRecordingControls();
+    return;
+  }
+
+  const mimeType = recorder?.mimeType || chunks[0]?.type || 'audio/webm';
+  const sourceBlob = new Blob(chunks, { type: mimeType });
+  setRecordingStatus('Normalizing recording...');
+  const normalized = await normalizeRecordingBlob(sourceBlob, mimeType);
+  const id = `rec-${Date.now()}-${app.recordingCounter++}`;
+  const recording = {
+    id,
+    name: makeRecordingName(),
+    blob: normalized.blob,
+    url: URL.createObjectURL(normalized.blob),
+    mimeType: normalized.mimeType,
+    extension: normalized.extension,
+    normalized: normalized.normalized,
+    gain: normalized.gain,
+    durationMs,
+    pitchEvents,
+    createdAt: new Date(),
+  };
+
+  app.recordings.unshift(recording);
+  setRecordingStatus(`Saved ${formatDuration(durationMs)} recording.`);
+  renderRecordings();
+  updateRecordingControls();
+}
+
+function createMediaRecorder(stream) {
+  for (const mimeType of RECORDING_MIME_CANDIDATES) {
+    if (MediaRecorder.isTypeSupported?.(mimeType)) {
+      return new MediaRecorder(stream, { mimeType });
+    }
+  }
+  return new MediaRecorder(stream);
+}
+
+async function normalizeRecordingBlob(blob, fallbackMimeType) {
+  const ctx = app.engine?.audioContext;
+  if (!ctx) {
+    return {
+      blob,
+      mimeType: fallbackMimeType,
+      extension: extensionForMimeType(fallbackMimeType),
+      normalized: false,
+      gain: 1,
+    };
+  }
+
+  try {
+    const decoded = await decodeAudioDataCompat(ctx, await blob.arrayBuffer());
+    const mono = downmixToMono(decoded);
+    const peak = peakAbs(mono);
+    if (peak < 0.00001) {
+      return {
+        blob,
+        mimeType: fallbackMimeType,
+        extension: extensionForMimeType(fallbackMimeType),
+        normalized: false,
+        gain: 1,
+      };
+    }
+
+    const gain = Math.min(RECORDING_MAX_GAIN, RECORDING_TARGET_PEAK / peak);
+    const wav = encodeStereoWav(mono, decoded.sampleRate, gain);
+    return {
+      blob: wav,
+      mimeType: 'audio/wav',
+      extension: 'wav',
+      normalized: true,
+      gain,
+    };
+  } catch (e) {
+    console.warn('Recording normalization failed; keeping original encoded audio.', e);
+    return {
+      blob,
+      mimeType: fallbackMimeType,
+      extension: extensionForMimeType(fallbackMimeType),
+      normalized: false,
+      gain: 1,
+    };
+  }
+}
+
+function decodeAudioDataCompat(ctx, arrayBuffer) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = value => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
+    };
+    const fail = error => {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    };
+
+    try {
+      const maybePromise = ctx.decodeAudioData(arrayBuffer.slice(0), done, fail);
+      if (maybePromise?.then) maybePromise.then(done, fail);
+    } catch (e) {
+      fail(e);
+    }
+  });
+}
+
+function downmixToMono(buffer) {
+  const mono = new Float32Array(buffer.length);
+  const channelCount = Math.max(1, buffer.numberOfChannels);
+  for (let ch = 0; ch < channelCount; ch++) {
+    const data = buffer.getChannelData(ch);
+    for (let i = 0; i < mono.length; i++) {
+      mono[i] += data[i] / channelCount;
+    }
+  }
+  return mono;
+}
+
+function peakAbs(samples) {
+  let peak = 0;
+  for (const sample of samples) {
+    peak = Math.max(peak, Math.abs(sample));
+  }
+  return peak;
+}
+
+function encodeStereoWav(mono, sampleRate, gain) {
+  const bytesPerSample = 2;
+  const channels = 2;
+  const dataBytes = mono.length * channels * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+
+  writeAscii(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataBytes, true);
+  writeAscii(view, 8, 'WAVE');
+  writeAscii(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * bytesPerSample, true);
+  view.setUint16(32, channels * bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  writeAscii(view, 36, 'data');
+  view.setUint32(40, dataBytes, true);
+
+  let offset = 44;
+  for (const sample of mono) {
+    const scaled = Math.max(-1, Math.min(1, sample * gain));
+    const pcm = scaled < 0 ? Math.round(scaled * 0x8000) : Math.round(scaled * 0x7fff);
+    view.setInt16(offset, pcm, true);
+    view.setInt16(offset + 2, pcm, true);
+    offset += 4;
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function writeAscii(view, offset, text) {
+  for (let i = 0; i < text.length; i++) {
+    view.setUint8(offset + i, text.charCodeAt(i));
+  }
+}
+
+function createStereoRecordingStream(micStream) {
+  const ctx = app.engine?.audioContext;
+  if (!ctx) return { stream: micStream, cleanup: () => {} };
+
+  let source = null;
+  let merger = null;
+  try {
+    source = ctx.createMediaStreamSource(micStream);
+    merger = ctx.createChannelMerger(2);
+    const dest = ctx.createMediaStreamDestination();
+
+    source.connect(merger, 0, 0);
+    source.connect(merger, 0, 1);
+    merger.connect(dest);
+
+    return {
+      stream: dest.stream,
+      cleanup: () => {
+        try { source.disconnect(); } catch {}
+        try { merger.disconnect(); } catch {}
+      },
+    };
+  } catch (e) {
+    console.warn('Stereo recording routing unavailable; recording the raw mic stream.', e);
+    try { source?.disconnect(); } catch {}
+    try { merger?.disconnect(); } catch {}
+    return { stream: micStream, cleanup: () => {} };
+  }
+}
+
+function recordPitchForActiveTake(msg) {
+  if (app.recorder?.state !== 'recording') return;
+  app.recordingPitchEvents.push({
+    t: Math.max(0, performance.now() - app.recordingStartedAt),
+    msg: {
+      type: 'pitch',
+      detected_hz: Number.isFinite(msg.detected_hz) ? msg.detected_hz : null,
+      raw_moria: Number.isFinite(msg.raw_moria) ? msg.raw_moria : null,
+      cell_id: isValidCellId(msg.cell_id) ? msg.cell_id : -1,
+      neighbor_id: isValidCellId(msg.neighbor_id) ? msg.neighbor_id : -1,
+      neighbor_vel: Number.isFinite(msg.neighbor_vel) ? msg.neighbor_vel : 0,
+      confidence: Number.isFinite(msg.confidence) ? msg.confidence : 0,
+      gate_open: Boolean(msg.gate_open),
+    },
+  });
+}
+
+function renderRecordings() {
+  const list = document.getElementById('recordings-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (!app.recordings.length) {
+    const empty = document.createElement('div');
+    empty.className = 'recordings-empty';
+    empty.textContent = 'No recordings yet.';
+    list.appendChild(empty);
+    return;
+  }
+
+  for (const recording of app.recordings) {
+    const row = document.createElement('div');
+    row.className = 'recording-item';
+
+    const meta = document.createElement('div');
+    meta.className = 'recording-meta';
+    const name = document.createElement('span');
+    name.className = 'recording-name';
+    name.textContent = recording.name;
+    const details = document.createElement('span');
+    details.className = 'recording-details';
+    details.textContent = [
+      formatDuration(recording.durationMs),
+      recording.normalized ? 'normalized' : recording.extension,
+      `${recording.pitchEvents.length} pitch points`,
+    ].join(' · ');
+    meta.appendChild(name);
+    meta.appendChild(details);
+
+    const actions = document.createElement('div');
+    actions.className = 'recording-item-actions';
+
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.textContent = app.activeRecordingPlayback?.id === recording.id ? 'Stop' : 'Play';
+    playBtn.addEventListener('click', () => {
+      if (app.activeRecordingPlayback?.id === recording.id) stopRecordingPlayback();
+      else playRecording(recording);
+    });
+
+    const download = document.createElement('a');
+    download.className = 'recording-download';
+    download.href = recording.url;
+    download.download = `${recording.name}.${recording.extension}`;
+    download.textContent = 'Download';
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'recording-delete';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => deleteRecording(recording.id));
+
+    actions.appendChild(playBtn);
+    actions.appendChild(download);
+    actions.appendChild(deleteBtn);
+    row.appendChild(meta);
+    row.appendChild(actions);
+    list.appendChild(row);
+  }
+}
+
+async function playRecording(recording) {
+  if (app.recorder?.state === 'recording') {
+    setRecordingStatus('Stop recording before playback.');
+    return;
+  }
+  stopRecordingPlayback();
+  app.singscope?.clear();
+  showSingView();
+  await app.ensureAudio?.();
+  await ensureRecordingNormalized(recording);
+
+  const audio = new Audio(recording.url);
+  const stereoGraph = createStereoPlaybackGraph(audio);
+  let idx = 0;
+  let rafId = null;
+
+  const pushDuePitch = () => {
+    const t = audio.currentTime * 1000;
+    while (idx < recording.pitchEvents.length && recording.pitchEvents[idx].t <= t) {
+      app.singscope?.pushPitch(recording.pitchEvents[idx].msg);
+      idx++;
+    }
+  };
+
+  const tick = () => {
+    pushDuePitch();
+    if (!audio.paused && !audio.ended) {
+      rafId = requestAnimationFrame(tick);
+      if (app.activeRecordingPlayback) app.activeRecordingPlayback.rafId = rafId;
+    }
+  };
+
+  const cleanup = () => {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    stereoGraph?.cleanup?.();
+    if (app.activeRecordingPlayback?.audio === audio) {
+      app.activeRecordingPlayback = null;
+      setRecordingStatus('Playback finished.');
+      renderRecordings();
+      updateRecordingControls();
+    }
+  };
+
+  audio.addEventListener('play', () => {
+    setRecordingStatus(`Playing ${recording.name}.`);
+    rafId = requestAnimationFrame(tick);
+  });
+  audio.addEventListener('ended', () => {
+    pushDuePitch();
+    cleanup();
+  });
+  audio.addEventListener('pause', () => {
+    if (!audio.ended && app.activeRecordingPlayback?.audio === audio) cleanup();
+  });
+
+  app.activeRecordingPlayback = { id: recording.id, audio, rafId: null, stereoGraph };
+  renderRecordings();
+  updateRecordingControls();
+  audio.play().catch(e => {
+    console.error('Recording playback failed', e);
+    setRecordingStatus('Could not play this recording.');
+    cleanup();
+  });
+}
+
+async function ensureRecordingNormalized(recording) {
+  if (recording.normalized) return;
+  setRecordingStatus('Normalizing recording...');
+  const normalized = await normalizeRecordingBlob(recording.blob, recording.mimeType);
+  if (!normalized.normalized) return;
+
+  URL.revokeObjectURL(recording.url);
+  recording.blob = normalized.blob;
+  recording.url = URL.createObjectURL(normalized.blob);
+  recording.mimeType = normalized.mimeType;
+  recording.extension = normalized.extension;
+  recording.normalized = true;
+  recording.gain = normalized.gain;
+  renderRecordings();
+}
+
+function createStereoPlaybackGraph(audio) {
+  const ctx = app.engine?.audioContext;
+  if (!ctx) return null;
+
+  try {
+    const source = ctx.createMediaElementSource(audio);
+    const merger = ctx.createChannelMerger(2);
+    source.connect(merger, 0, 0);
+    source.connect(merger, 0, 1);
+    merger.connect(ctx.destination);
+    return {
+      cleanup: () => {
+        try { source.disconnect(); } catch {}
+        try { merger.disconnect(); } catch {}
+      },
+    };
+  } catch (e) {
+    console.warn('Stereo recording playback routing unavailable; using direct element output.', e);
+    return null;
+  }
+}
+
+function stopRecordingPlayback() {
+  const playback = app.activeRecordingPlayback;
+  if (!playback) return;
+  if (playback.rafId !== null) cancelAnimationFrame(playback.rafId);
+  playback.stereoGraph?.cleanup?.();
+  playback.audio.pause();
+  playback.audio.currentTime = 0;
+  app.activeRecordingPlayback = null;
+  setRecordingStatus('Playback stopped.');
+  renderRecordings();
+  updateRecordingControls();
+}
+
+function deleteRecording(id) {
+  const idx = app.recordings.findIndex(recording => recording.id === id);
+  if (idx === -1) return;
+  if (app.activeRecordingPlayback?.id === id) stopRecordingPlayback();
+  const [recording] = app.recordings.splice(idx, 1);
+  URL.revokeObjectURL(recording.url);
+  setRecordingStatus(app.recordings.length ? 'Recording deleted.' : 'No recordings yet.');
+  renderRecordings();
+  updateRecordingControls();
+}
+
+function updateRecordingControls() {
+  const recordBtn = document.getElementById('record-toggle-btn');
+  const stopPlaybackBtn = document.getElementById('record-stop-playback-btn');
+  const isRecording = app.recorder?.state === 'recording';
+  if (recordBtn) {
+    recordBtn.textContent = isRecording ? 'Stop Recording' : 'Record';
+    recordBtn.classList.toggle('recording', isRecording);
+  }
+  if (stopPlaybackBtn) {
+    stopPlaybackBtn.disabled = !app.activeRecordingPlayback;
+  }
+  if (isRecording) {
+    setRecordingStatus(`Recording ${formatDuration(performance.now() - app.recordingStartedAt)}`);
+  }
+}
+
+function setRecordingStatus(text) {
+  const status = document.getElementById('recording-status');
+  if (status) status.textContent = text;
+}
+
+function makeRecordingName() {
+  const stamp = new Date().toISOString()
+    .replace(/\.\d+Z$/, '')
+    .replace(/[:-]/g, '')
+    .replace('T', '-');
+  return `chant-${stamp}`;
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function extensionForMimeType(mimeType) {
+  if (mimeType.includes('mp4')) return 'm4a';
+  if (mimeType.includes('aac')) return 'aac';
+  if (mimeType.includes('ogg')) return 'ogg';
+  if (mimeType.includes('wav')) return 'wav';
+  return 'webm';
+}
+
+function showSingView() {
+  if (document.getElementById('mobile-tabs')?.offsetParent === null) return;
+  if (location.hash === '#sing') return;
+  history.replaceState(null, '', '#sing');
+  window.dispatchEvent(new Event('hashchange'));
 }
 
 // ── Preset save/load ──────────────────────────────────────────────────────────

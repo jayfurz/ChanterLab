@@ -1,0 +1,15 @@
+# Engineering fixture: lyric alignment with a melisma.
+title "Lyrics Melisma Fixture"
+language en
+lyrics "Amen"
+tempo moderate bpm 132
+start Di
+scale diatonic
+drone Di
+timing symbolic
+orthography generated
+
+note same lyric "A-"
+note up 1 lyric continue
+note down 1 quick lyric "men"
+checkpoint Di

@@ -1,0 +1,15 @@
+# Engineering fixture: basic symbolic gorgon-style timing rewrite.
+title "Symbolic Timing Steal Fixture"
+tempo moderate bpm 132
+start Di
+scale diatonic
+drone Di
+timing symbolic
+orthography generated
+
+note same beats 2 lyric "A"
+note up 1 quick lyric "men"
+checkpoint Ke
+
+# Expected symbolic timing:
+# note same beats 2 + note up 1 quick -> 1.5 beats + 0.5 beat.

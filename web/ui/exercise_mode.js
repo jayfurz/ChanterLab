@@ -5,6 +5,7 @@ const EXERCISES = [
     id: 'match-ni',
     title: 'Match Ni',
     presetIdx: 0,
+    isonDegree: 'Ni',
     tolerance: 4,
     steps: [
       { label: 'Hold Ni', degree: 'Ni', octave: 0, holdMs: 4000 },
@@ -14,6 +15,7 @@ const EXERCISES = [
     id: 'diatonic-ascent',
     title: 'Diatonic Ascent',
     presetIdx: 0,
+    isonDegree: 'Ni',
     tolerance: 4,
     steps: [
       { label: 'Ni',  degree: 'Ni',  octave: 0, holdMs: 1400 },
@@ -30,6 +32,7 @@ const EXERCISES = [
     id: 'diatonic-descent',
     title: 'Diatonic Descent',
     presetIdx: 0,
+    isonDegree: 'Ni',
     tolerance: 4,
     steps: [
       { label: "Ni'", degree: 'Ni',  octave: 1, holdMs: 1400 },
@@ -46,6 +49,7 @@ const EXERCISES = [
     id: 'hard-chromatic-pa',
     title: 'Hard Chromatic Pa',
     presetIdx: 1,
+    isonDegree: 'Pa',
     tolerance: 4,
     steps: [
       { label: 'Pa',  degree: 'Pa',  octave: 0, holdMs: 1800 },
@@ -251,6 +255,11 @@ export class ExerciseMode {
       this._selectPreset(this.exercise.presetIdx);
     }
     this._applySelectedRange();
+    this.app.setIsonDrone?.({
+      degree: this.exercise.isonDegree || 'Ni',
+      octave: 0,
+      enabled: true,
+    });
     this.running = true;
     this.started = true;
     this.finished = false;

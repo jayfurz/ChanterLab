@@ -1,0 +1,17 @@
+# Engineering fixture: simple diatonic movement.
+title "Diatonic Ladder Fixture"
+tempo moderate bpm 132
+start Ni
+scale diatonic
+drone Ni
+timing symbolic
+orthography generated
+
+note same lyric "Ni"
+note up 1 lyric "Pa"
+note up 1 lyric "Vou"
+note up 1 lyric "Ga"
+note down 1 lyric "Vou"
+note down 1 lyric "Pa"
+note down 1 lyric "Ni"
+checkpoint Ni

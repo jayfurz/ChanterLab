@@ -59,8 +59,8 @@ const ROWS = [
     phases: [
       { phase: 0, label: '0 Di', glyph: CP.SOFT_DI },
       { phase: 1, label: '1 Ke', glyph: CP.SOFT_KE },
-      { phase: 2, label: '2 Di', glyph: CP.SOFT_DI },
-      { phase: 3, label: '3 Ke', glyph: CP.SOFT_KE },
+      { phase: 2, label: '2 Zo', glyph: CP.SOFT_DI },
+      { phase: 3, label: '3 Ni', glyph: CP.SOFT_KE },
     ],
   },
   {
@@ -69,8 +69,8 @@ const ROWS = [
     kind: 'phase',
     phases: [
       { phase: 0, label: '0 Pa', glyph: CP.HARD_PA },
-      { phase: 1, label: '1 Di', glyph: CP.HARD_DI },
-      { phase: 2, label: '2 Pa', glyph: CP.HARD_PA },
+      { phase: 1, label: '1 Vou', glyph: CP.HARD_DI },
+      { phase: 2, label: '2 Ga', glyph: CP.HARD_PA },
       { phase: 3, label: '3 Di', glyph: CP.HARD_DI },
     ],
   },

@@ -35,6 +35,8 @@ export class AudioEngine {
 
   get ready() { return this._ready; }
   get voiceReady() { return this._voiceReady; }
+  get micStream() { return this._micStream; }
+  get audioContext() { return this._ctx; }
 
   // Idempotent — safe to call multiple times; only the first call does work.
   async init() {

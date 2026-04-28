@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChanterLab</title>
-  <link rel="stylesheet" href="style.css?v=0.1.0-alpha.6">
+  <link rel="stylesheet" href="style.css?v=0.2.0-alpha.0">
 </head>
 <body>
 
 <header id="app-header">
   <h1>ChanterLab</h1>
-  <span class="app-version">v0.1.0-alpha.6</span>
+  <span class="app-version">v0.2.0-alpha.0</span>
   <span id="audio-status" class="audio-status audio-off" title="Click or press a key to start audio">&#9654; Audio off</span>
   <div class="header-actions">
     <a id="source-link" class="header-btn" href="https://github.com/jayfurz/ChanterLab" target="_blank" rel="noopener">Source</a>
@@ -128,6 +128,16 @@
       <input type="range" id="synth-follow-volume-slider" min="0" max="1" step="0.01" value="0.5">
     </div>
 
+    <div class="control-group mobile-more" id="recording-controls">
+      <h2>Recordings</h2>
+      <div class="recording-actions">
+        <button id="record-toggle-btn" class="record-btn" type="button">Record</button>
+        <button id="record-stop-playback-btn" type="button" disabled>Stop</button>
+      </div>
+      <div id="recording-status" class="recording-status">Record your mic, then play it back on the singscope.</div>
+      <div id="recordings-list" class="recordings-list" aria-label="Saved recordings"></div>
+    </div>
+
     <div class="control-group mobile-more">
       <h2>Save Preset</h2>
       <input type="text" id="preset-name-input" placeholder="preset name…">
@@ -200,7 +210,10 @@
     <!-- Pthora + shading palettes -->
     <div id="palettes">
       <div class="palette-section">
-        <h3>Pthora</h3>
+        <div class="palette-section-header">
+          <h3>Pthora</h3>
+          <button id="scale-reset-btn" class="scale-reset-btn" type="button">Reset Scale</button>
+        </div>
         <div id="pthora-palette"></div>
       </div>
       <div class="palette-section">
@@ -228,7 +241,7 @@
     <div class="help-dialog-header">
       <div>
         <h2>Welcome to ChanterLab</h2>
-        <div class="help-version">Version <span class="app-version-text">0.1.0-alpha.6</span></div>
+        <div class="help-version">Version <span class="app-version-text">0.2.0-alpha.0</span></div>
         <p>Free Byzantine chanting practice software by Justin Fursov, a chanter at Holy Resurrection Orthodox Church in Tucson, AZ.</p>
       </div>
       <button id="help-close-btn" class="help-close-btn" type="button" aria-label="Close help">×</button>
@@ -272,6 +285,7 @@
           <li>Mobile Scale keeps all labeled pthora targets and the ladder visible together.</li>
           <li>Soft and hard chromatic tuning now use repeating four-phase chromatic cycles.</li>
           <li>The ladder now shows one octave below Reference Ni through two octaves above it.</li>
+          <li>Recordings can be played back with their saved pitch trace on the singscope or downloaded.</li>
           <li>Reference Ni now stays synced when presets are loaded or changed outside the slider.</li>
           <li>Practice scoring now folds octave-equivalent pitch error, so C3 can match Ni when Reference Ni is C4.</li>
           <li>Bundled Neanes font support for Byzantine symbols.</li>
@@ -307,6 +321,6 @@
   </div>
 </dialog>
 
-<script type="module" src="app.js?v=0.1.0-alpha.6"></script>
+<script type="module" src="app.js?v=0.2.0-alpha.0"></script>
 </body>
 </html>

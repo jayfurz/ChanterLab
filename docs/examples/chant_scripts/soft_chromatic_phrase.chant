@@ -1,0 +1,16 @@
+# Engineering fixture: soft chromatic context with a checkpoint.
+title "Soft Chromatic Phrase Fixture"
+tempo moderate bpm 132
+start Di
+scale soft-chromatic phase 0
+drone Di
+timing symbolic
+orthography generated
+
+note same lyric "Di"
+note up 1 lyric "Ke"
+note down 1 quick lyric "Di"
+rest duration 0.5
+note same beats 2 lyric "Di"
+note up 1 beats 3 lyric "Ke"
+checkpoint Ke

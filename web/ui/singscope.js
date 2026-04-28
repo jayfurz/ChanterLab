@@ -4,6 +4,7 @@
 
 const HISTORY_LEN = 600; // number of pitch points to retain
 const BG_COLOR    = '#111';
+const TRACE_START_MARK_W = 2;
 
 export class Singscope {
   constructor(canvas) {
@@ -43,6 +44,15 @@ export class Singscope {
     this._buf[this._head] = { moria, snapMoria: snap, confidence: conf, gateOpen };
     this._head = (this._head + 1) % HISTORY_LEN;
     if (this._count < HISTORY_LEN) this._count++;
+    this._dirty = true;
+  }
+
+  clear() {
+    for (let i = 0; i < HISTORY_LEN; i++) {
+      this._buf[i] = { moria: null, snapMoria: null, confidence: 0, gateOpen: false };
+    }
+    this._head = 0;
+    this._count = 0;
     this._dirty = true;
   }
 
@@ -260,6 +270,25 @@ export class Singscope {
       ctx.stroke();
     }
 
+    this._paintTraceStartMarker(ctx, points[N - 1], cssW, cssH);
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  _paintTraceStartMarker(ctx, latest, cssW, cssH) {
+    if (!latest?.gateOpen || latest.moria === null) return;
+    const y = this._moriaToY(latest.moria, cssH, true);
+    if (y === null) return;
+
+    const alpha = Math.max(0.35, Math.min(1, latest.confidence || 0.75));
+    const x = Math.max(0, cssW - TRACE_START_MARK_W);
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,55,55,${alpha.toFixed(3)})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(cssW, y);
+    ctx.stroke();
+    ctx.restore();
   }
 }

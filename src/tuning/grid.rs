@@ -588,12 +588,6 @@ impl TuningGrid {
             }
 
             let anchor_degree = drop_degree.shifted_by(-(phase as i32));
-            if let Some(anchor_moria) =
-                self.related_degree_moria(region_idx, moria, drop_degree, -(phase as i32))
-            {
-                return (anchor_moria, anchor_degree);
-            }
-
             return (
                 moria - Self::generator_offset_to_phase(new_genus, phase),
                 anchor_degree,
@@ -1743,7 +1737,7 @@ mod tests {
     }
 
     #[test]
-    fn soft_chromatic_phase_one_on_ke_moves_drop() {
+    fn soft_chromatic_phase_one_on_ke_preserves_dropped_pitch() {
         let mut g = TuningGrid::with_preset(261.63, 0, 72, Genus::Diatonic, Degree::Ni);
         g.apply_symbol_drop(SymbolDrop::Pthora {
             drop_moria: 54,
@@ -1753,17 +1747,51 @@ mod tests {
             target_phase: Some(1),
         });
         let r = &g.regions()[0];
-        assert_eq!(r.anchor_moria, 42);
+        assert_eq!(r.anchor_moria, 46);
         assert_eq!(r.anchor_degree, Degree::Di);
 
         let cells = g.cells();
-        let di = cells.iter().find(|c| c.moria == 42).unwrap();
+        let di = cells.iter().find(|c| c.moria == 46).unwrap();
         assert_eq!(di.degree, Some(Degree::Di));
         assert_eq!(di.chromatic_phase, Some(0));
-        let ke = cells.iter().find(|c| c.moria == 50).unwrap();
+        let ke = cells.iter().find(|c| c.moria == 54).unwrap();
         assert_eq!(ke.degree, Some(Degree::Ke));
         assert_eq!(ke.chromatic_phase, Some(1));
-        assert_eq!(cells.iter().find(|c| c.moria == 54).unwrap().degree, None);
+    }
+
+    #[test]
+    fn chromatic_phase_drops_preserve_dropped_degree_name() {
+        let cases = [
+            (Genus::SoftChromatic, Degree::Zo, 64, 2, 42, Degree::Di),
+            (Genus::SoftChromatic, Degree::Ni, 72, 3, 42, Degree::Di),
+            (Genus::HardChromatic, Degree::Vou, 54, 1, 48, Degree::Pa),
+            (Genus::HardChromatic, Degree::Ga, 64, 2, 38, Degree::Pa),
+            (Genus::HardChromatic, Degree::Di, 72, 3, 42, Degree::Pa),
+        ];
+
+        for (genus, drop_degree, drop_moria, phase, anchor_moria, anchor_degree) in cases {
+            let mut g = TuningGrid::with_preset(261.63, 0, 96, Genus::Diatonic, Degree::Ni);
+            g.apply_symbol_drop(SymbolDrop::Pthora {
+                drop_moria,
+                drop_degree,
+                genus: genus.clone(),
+                target_degree: drop_degree,
+                target_phase: Some(phase),
+            });
+
+            let r = &g.regions()[0];
+            assert_eq!(r.anchor_moria, anchor_moria, "{genus:?} phase {phase}");
+            assert_eq!(r.anchor_degree, anchor_degree, "{genus:?} phase {phase}");
+
+            let cells = g.cells();
+            let dropped = cells.iter().find(|c| c.moria == drop_moria).unwrap();
+            assert_eq!(dropped.degree, Some(drop_degree), "{genus:?} phase {phase}");
+            assert_eq!(
+                dropped.chromatic_phase,
+                Some(phase),
+                "{genus:?} phase {phase}"
+            );
+        }
     }
 
     #[test]

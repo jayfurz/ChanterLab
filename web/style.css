@@ -317,6 +317,103 @@ select {
   grid-column: 1 / -1;
 }
 
+/* ── Recordings ──────────────────────────────────────────────── */
+.recording-actions {
+  display: grid;
+  grid-template-columns: 1fr 0.8fr;
+  gap: 4px;
+}
+
+.recording-actions button,
+.recording-item-actions button,
+.recording-download {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px 5px;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.record-btn {
+  border-color: rgba(255, 96, 96, 0.75);
+  color: #ff8c8c;
+}
+
+.record-btn.recording {
+  background: rgba(190, 40, 40, 0.36);
+  border-color: #ff8c8c;
+  color: #ffd0d0;
+}
+
+.recording-actions button:hover:not(:disabled),
+.recording-item-actions button:hover,
+.recording-download:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+.recording-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.recording-status,
+.recordings-empty {
+  color: #c8d7e5;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.recordings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recording-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+.recording-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.recording-name {
+  color: var(--text);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-details {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.recording-item-actions {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr 0.8fr;
+  gap: 4px;
+}
+
+.recording-delete {
+  color: #ff8c8c;
+}
+
 /* ── Preset save/load ────────────────────────────────────────── */
 #preset-name-input {
   background: var(--bg);
@@ -771,6 +868,28 @@ select {
 }
 
 .palette-section { display: flex; flex-direction: column; gap: 4px; }
+
+.palette-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.scale-reset-btn {
+  border-color: rgba(255, 96, 96, 0.75);
+  background: rgba(160, 32, 32, 0.22);
+  color: #ff8c8c;
+  font-size: 10px;
+  padding: 3px 7px;
+  min-height: 0;
+}
+
+.scale-reset-btn:hover {
+  border-color: #ff8c8c;
+  background: rgba(190, 40, 40, 0.34);
+  color: #ffd0d0;
+}
 
 /* Column header row above the 3×8 pthora grid — degree names. */
 .pthora-column-labels,
