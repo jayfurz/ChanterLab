@@ -12,6 +12,11 @@ import {
   listChantScriptExamples,
 } from './score/examples.js?v=chant-script-engine-phase5j';
 import {
+  compileGlyphText,
+  compileSbmuflGlyphText,
+  compileUnicodeByzantineText,
+} from './score/glyph_import.js?v=chant-script-engine-phase6c';
+import {
   referenceMoriaForDegree,
 } from './score/chant_score.js?v=chant-script-engine-phase5j';
 import {
@@ -402,7 +407,9 @@ function wireScorePracticePrototypeUnsafe() {
   status.className = 'score-practice-status';
   status.setAttribute('aria-live', 'polite');
 
-  const controls = buildScorePracticeControls(exampleId, playbackRate);
+  const controls = buildScorePracticeControls(exampleId, playbackRate, {
+    importEnabled: scorePracticeImportEnabled(params),
+  });
 
   mainView.appendChild(canvas);
   mainView.appendChild(status);
@@ -427,14 +434,7 @@ function wireScorePracticePrototypeUnsafe() {
     onIsonChange: applyScorePracticeIson,
   });
 
-  const loadExample = nextExampleId => {
-    let rawCompiled;
-    try {
-      rawCompiled = compileChantScriptExample(nextExampleId);
-    } catch (e) {
-      console.warn('Score practice example failed to compile', e);
-      return;
-    }
+  const loadCompiledScore = rawCompiled => {
     applyCompiledScoreInitialTuning(rawCompiled);
     compiled = retuneCompiledScore(rawCompiled);
     app.scorePractice.setCompiledScore(compiled);
@@ -443,7 +443,41 @@ function wireScorePracticePrototypeUnsafe() {
     controls.playPause.textContent = 'Pause';
   };
 
+  const loadExample = nextExampleId => {
+    let rawCompiled;
+    try {
+      rawCompiled = compileChantScriptExample(nextExampleId);
+    } catch (e) {
+      console.warn('Score practice example failed to compile', e);
+      return;
+    }
+    loadCompiledScore(rawCompiled);
+  };
+
   controls.select.addEventListener('change', () => loadExample(controls.select.value));
+  controls.importApply?.addEventListener('click', () => {
+    const text = controls.importText.value.trim();
+    if (!text) {
+      controls.importStatus.textContent = 'empty';
+      return;
+    }
+    let rawCompiled;
+    try {
+      rawCompiled = compileScorePracticeGlyphText(text, controls.importSource.value, params);
+    } catch (e) {
+      console.warn('Score practice glyph import failed', e);
+      controls.importStatus.textContent = 'failed';
+      return;
+    }
+    const errors = (rawCompiled.diagnostics ?? []).filter(diagnostic => diagnostic.severity === 'error');
+    if (errors.length) {
+      console.warn('Score practice glyph import diagnostics', rawCompiled.diagnostics);
+      controls.importStatus.textContent = `${errors.length} error${errors.length === 1 ? '' : 's'}`;
+      return;
+    }
+    loadCompiledScore(rawCompiled);
+    controls.importStatus.textContent = 'loaded';
+  });
   controls.restart.addEventListener('click', () => {
     app.scorePractice.restart();
     controls.playPause.textContent = 'Pause';
@@ -542,6 +576,22 @@ function readScorePracticeScrollSpeed(params) {
     : SCORE_PRACTICE_SCROLL_PX_PER_SECOND;
 }
 
+function scorePracticeImportEnabled(params) {
+  const raw = params.get('scoreImport') ?? params.get('score-import');
+  return raw !== null && ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
+}
+
+function compileScorePracticeGlyphText(text, source, params) {
+  const options = {
+    title: 'Imported Glyph Score',
+    startDegree: params.get('scoreImportStart') ?? params.get('score-import-start') ?? 'Ni',
+    bpm: Number(params.get('scoreImportBpm') ?? params.get('score-import-bpm') ?? 120),
+  };
+  if (source === 'sbmufl') return compileSbmuflGlyphText(text, options);
+  if (source === 'unicode') return compileUnicodeByzantineText(text, options);
+  return compileGlyphText(text, options);
+}
+
 function clampScorePracticePlaybackRate(rate) {
   return Number.isFinite(rate)
     ? Math.max(SCORE_PRACTICE_MIN_PLAYBACK_RATE, Math.min(SCORE_PRACTICE_MAX_PLAYBACK_RATE, rate))
@@ -552,10 +602,11 @@ function formatPlaybackRate(rate) {
   return `${Math.round(rate * 100)}%`;
 }
 
-function buildScorePracticeControls(selectedExampleId, playbackRate) {
+function buildScorePracticeControls(selectedExampleId, playbackRate, options = {}) {
   const el = document.createElement('div');
   el.id = 'score-practice-controls';
   el.className = 'score-practice-controls';
+  if (options.importEnabled) el.classList.add('has-import');
 
   const title = document.createElement('span');
   title.className = 'score-practice-controls-title';
@@ -595,7 +646,45 @@ function buildScorePracticeControls(selectedExampleId, playbackRate) {
   speedWrap.append(speedText, speed, speedReadout);
 
   el.append(title, select, speedWrap, restart, playPause);
-  return { el, select, restart, playPause, speed, speedReadout };
+
+  const controls = { el, select, restart, playPause, speed, speedReadout };
+  if (options.importEnabled) {
+    const importPanel = document.createElement('div');
+    importPanel.className = 'score-practice-import';
+
+    const importSource = document.createElement('select');
+    importSource.setAttribute('aria-label', 'Glyph import source');
+    for (const [value, label] of [
+      ['glyph', 'Glyph names'],
+      ['sbmufl', 'SBMuFL/Neanes'],
+      ['unicode', 'Unicode'],
+    ]) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      importSource.appendChild(option);
+    }
+
+    const importText = document.createElement('textarea');
+    importText.setAttribute('aria-label', 'Glyph import text');
+    importText.rows = 2;
+    importText.spellcheck = false;
+    importText.value = 'ison oligon oligon apostrofos gorgonAbove leimma2';
+
+    const importApply = document.createElement('button');
+    importApply.type = 'button';
+    importApply.textContent = 'Load';
+
+    const importStatus = document.createElement('span');
+    importStatus.className = 'score-practice-import-status';
+    importStatus.textContent = 'import';
+
+    importPanel.append(importSource, importText, importApply, importStatus);
+    el.appendChild(importPanel);
+    Object.assign(controls, { importSource, importText, importApply, importStatus });
+  }
+
+  return controls;
 }
 
 function isValidCellId(cellId) {

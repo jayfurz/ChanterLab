@@ -556,6 +556,11 @@ body.score-practice-active .score-practice-controls {
   display: flex;
 }
 
+.score-practice-controls.has-import {
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
 .score-practice-speed {
   display: flex;
   align-items: center;
@@ -611,6 +616,33 @@ body.score-practice-active .score-practice-controls {
 
 .score-practice-controls button:hover {
   border-color: #78f0ad;
+}
+
+.score-practice-import {
+  flex: 1 0 100%;
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(220px, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  width: min(680px, calc(100vw - var(--ladder-w) - 24px));
+}
+
+.score-practice-import textarea {
+  min-height: 34px;
+  max-height: 72px;
+  resize: vertical;
+  color: #e7f4fb;
+  background: #101827;
+  border: 1px solid rgba(83, 192, 240, 0.42);
+  border-radius: 4px;
+  font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.score-practice-import-status {
+  min-width: 48px;
+  color: #c8d7e5;
+  font-size: 11px;
+  text-align: right;
 }
 
 /* ── Sung note indicator ────────────────────────────────────── */
@@ -1469,6 +1501,16 @@ body.score-practice-active .score-practice-controls {
     flex: 1 1 auto;
     width: auto;
     min-width: 80px;
+  }
+
+  .score-practice-import {
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+  }
+
+  .score-practice-import textarea,
+  .score-practice-import-status {
+    grid-column: 1 / -1;
   }
 
   body[data-mobile-view="sing"] .quick-pthora-panel {
