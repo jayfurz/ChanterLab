@@ -5,3 +5,4 @@ await import('./tuning_context.test.mjs');
 await import('./examples.test.mjs');
 await import('./score_practice.test.mjs');
 await import('./glyph_import.test.mjs');
+await import('./glyph_render.test.mjs');

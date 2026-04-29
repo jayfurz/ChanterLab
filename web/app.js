@@ -23,6 +23,10 @@ import {
   listGlyphImportSampleFixtures,
 } from './score/glyph_import_samples.js?v=chant-script-engine-phase6d';
 import {
+  glyphPreviewFromText,
+  glyphPreviewSourceKind,
+} from './score/glyph_render.js?v=chant-script-engine-phase6f';
+import {
   referenceMoriaForDegree,
 } from './score/chant_score.js?v=chant-script-engine-phase5j';
 import {
@@ -481,6 +485,18 @@ function wireScorePracticePrototypeUnsafe() {
     const sample = findGlyphImportSampleFixture(controls.importSample.value);
     if (!sample) return;
     applyScorePracticeImportSample(controls, sample);
+    renderScorePracticeGlyphPreview(controls);
+  });
+  controls.importSource?.addEventListener('change', () => renderScorePracticeGlyphPreview(controls));
+  controls.importText?.addEventListener('input', () => renderScorePracticeGlyphPreview(controls));
+  controls.importPreview?.addEventListener('click', event => {
+    const cluster = event.target.closest('[data-source-start][data-source-end]');
+    if (!cluster) return;
+    const start = Number(cluster.dataset.sourceStart);
+    const end = Number(cluster.dataset.sourceEnd);
+    if (!Number.isInteger(start) || !Number.isInteger(end)) return;
+    controls.importText.focus();
+    controls.importText.setSelectionRange(start, end);
   });
   controls.importKeyboard?.addEventListener('click', event => {
     const button = event.target.closest('[data-glyph-name]');
@@ -491,6 +507,7 @@ function wireScorePracticePrototypeUnsafe() {
     );
     controls.importStatus.textContent = 'edited';
     renderScorePracticeImportDiagnostics(controls.importDiagnostics, []);
+    renderScorePracticeGlyphPreview(controls);
   });
   controls.importApply?.addEventListener('click', () => {
     const text = controls.importText.value.trim();
@@ -554,6 +571,7 @@ function wireScorePracticePrototypeUnsafe() {
   });
 
   loadExample(exampleId);
+  renderScorePracticeGlyphPreview(controls);
 }
 
 function retuneCompiledScore(compiled) {
@@ -786,6 +804,10 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
     importText.spellcheck = false;
     importText.value = selectedSample?.text ?? 'ison oligon oligon apostrofos gorgonAbove leimma2';
 
+    const importPreview = document.createElement('div');
+    importPreview.className = 'score-practice-glyph-preview';
+    importPreview.setAttribute('aria-label', 'Glyph preview');
+
     const importKeyboard = buildScorePracticeGlyphKeyboard();
 
     const importApply = document.createElement('button');
@@ -805,6 +827,7 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
       importSample,
       importStart,
       importBpm,
+      importPreview,
       importText,
       importKeyboard,
       importApply,
@@ -819,6 +842,7 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
       importSample,
       importStart,
       importBpm,
+      importPreview,
       importText,
       importKeyboard,
       importApply,
@@ -870,6 +894,100 @@ function applyScorePracticeImportSample(controls, sample) {
   controls.importText.value = sample.text ?? '';
   controls.importStatus.textContent = 'sample';
   renderScorePracticeImportDiagnostics(controls.importDiagnostics, []);
+}
+
+function renderScorePracticeGlyphPreview(controls) {
+  if (!controls?.importPreview || !controls?.importText) return;
+  const previewEl = controls.importPreview;
+  previewEl.innerHTML = '';
+
+  const sourceText = controls.importText.value;
+  const preview = glyphPreviewFromText(sourceText, {
+    source: glyphPreviewSourceKind(controls.importSource?.value ?? 'glyph'),
+  });
+
+  const strip = document.createElement('div');
+  strip.className = 'score-practice-glyph-preview-strip';
+  if (!preview.clusters.length) {
+    const empty = document.createElement('span');
+    empty.className = 'score-practice-glyph-preview-empty';
+    empty.textContent = 'No glyphs';
+    strip.appendChild(empty);
+  }
+
+  for (const cluster of preview.clusters) {
+    const clusterEl = document.createElement('button');
+    clusterEl.type = 'button';
+    clusterEl.className = `score-practice-glyph-cluster ${cluster.kind}`;
+    clusterEl.title = cluster.label;
+    const span = codePointSpanToStringSpan(sourceText, cluster.sourceSpan);
+    if (span) {
+      clusterEl.dataset.sourceStart = String(span.start);
+      clusterEl.dataset.sourceEnd = String(span.end);
+    }
+
+    appendGlyphPreviewSlot(clusterEl, 'above', cluster.slots.above);
+    appendGlyphPreviewSlot(clusterEl, 'main', cluster.slots.main, cluster.slots.right);
+    appendGlyphPreviewSlot(clusterEl, 'below', cluster.slots.below);
+
+    const label = document.createElement('span');
+    label.className = 'score-practice-glyph-cluster-label';
+    label.textContent = compactGlyphPreviewLabel(cluster.label);
+    clusterEl.appendChild(label);
+    strip.appendChild(clusterEl);
+  }
+
+  const summary = document.createElement('div');
+  summary.className = 'score-practice-glyph-preview-summary';
+  const errors = preview.diagnostics.filter(diagnostic => diagnostic.severity === 'error').length;
+  const warnings = preview.diagnostics.filter(diagnostic => diagnostic.severity === 'warning').length;
+  summary.textContent = [
+    `${preview.clusters.length} group${preview.clusters.length === 1 ? '' : 's'}`,
+    errors ? `${errors} error${errors === 1 ? '' : 's'}` : '',
+    warnings ? `${warnings} warning${warnings === 1 ? '' : 's'}` : '',
+  ].filter(Boolean).join(' · ');
+
+  previewEl.append(strip, summary);
+  previewEl.classList.toggle('has-errors', errors > 0);
+}
+
+function appendGlyphPreviewSlot(clusterEl, slotName, items, sideItems = []) {
+  const row = document.createElement('span');
+  row.className = `score-practice-glyph-slot ${slotName}`;
+  for (const item of items ?? []) {
+    row.appendChild(glyphPreviewItemElement(item));
+  }
+  for (const item of sideItems ?? []) {
+    const side = glyphPreviewItemElement(item);
+    side.classList.add('side');
+    row.appendChild(side);
+  }
+  clusterEl.appendChild(row);
+}
+
+function glyphPreviewItemElement(item) {
+  const el = document.createElement('span');
+  el.className = `score-practice-glyph-preview-item ${item.kind ?? 'unknown'}`;
+  el.textContent = item.text || '?';
+  el.title = item.label ?? item.glyphName ?? item.raw ?? '';
+  return el;
+}
+
+function compactGlyphPreviewLabel(label) {
+  return String(label ?? '')
+    .replaceAll('fthora', '')
+    .replaceAll('Chromatic', 'Chr')
+    .replaceAll('Above', '')
+    .replaceAll('gorgon', 'gor')
+    .slice(0, 28);
+}
+
+function codePointSpanToStringSpan(text, span) {
+  if (!Number.isInteger(span?.start) || !Number.isInteger(span?.end)) return undefined;
+  const chars = Array.from(text ?? '');
+  const start = chars.slice(0, span.start).join('').length;
+  const end = chars.slice(0, span.end).join('').length;
+  return { start, end };
 }
 
 function setScorePracticeImportCollapsed(controls, collapsed) {
