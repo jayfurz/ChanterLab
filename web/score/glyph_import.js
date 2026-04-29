@@ -15,6 +15,7 @@ const UNICODE_BYZANTINE_START = 0x1D000;
 const UNICODE_BYZANTINE_END = 0x1D0FF;
 const PUA_START = 0xE000;
 const PUA_END = 0xF8FF;
+const GLYPH_TEXT_GROUP_SEPARATORS = new Set(['|']);
 
 const GLYPH_METADATA = Object.freeze({
   ison: quantity('ison', 'U+E000', 'U+1D046', 'same', 0),
@@ -184,8 +185,56 @@ export function normalizeGlyphSourceToken(input, options = {}) {
     ...(metadataByName?.alternateCodepoint || metadataByCodepoint?.alternateCodepoint
       ? { alternateCodepoint: metadataByName?.alternateCodepoint ?? metadataByCodepoint?.alternateCodepoint }
       : {}),
-    ...(Number.isInteger(options.index) ? { span: { start: options.index, end: options.index + 1 } } : {}),
+    ...(input?.span
+      ? { span: input.span }
+      : Number.isInteger(options.index) ? { span: { start: options.index, end: options.index + 1 } } : {}),
   };
+}
+
+export function sourceTokensFromGlyphText(text, options = {}) {
+  const diagnostics = options.diagnostics ?? [];
+  if (typeof text !== 'string') {
+    pushDiagnostic(diagnostics, {
+      severity: DIAGNOSTIC_SEVERITY.ERROR,
+      code: 'glyph-text-invalid',
+      message: 'Glyph text import requires a string input.',
+    });
+    return [];
+  }
+
+  return tokenizeGlyphText(text)
+    .filter(token => token.type === 'glyph')
+    .map((token, index) => normalizeGlyphSourceToken({
+      raw: token.raw,
+      ...(options.source ? { source: options.source } : {}),
+      span: token.span,
+    }, { index }));
+}
+
+export function semanticTokenGroupsFromGlyphText(text, options = {}) {
+  const diagnostics = options.diagnostics ?? [];
+  const items = tokenizeGlyphText(text);
+  const semanticItems = [];
+  let glyphIndex = 0;
+
+  for (const item of items) {
+    if (item.type === 'separator') {
+      semanticItems.push({ kind: 'separator', source: item });
+      continue;
+    }
+    if (item.type !== 'glyph') continue;
+    semanticItems.push(semanticTokenFromGlyph({
+      raw: item.raw,
+      ...(options.source ? { source: options.source } : {}),
+      span: item.span,
+    }, {
+      diagnostics,
+      index: glyphIndex,
+    }));
+    glyphIndex += 1;
+  }
+
+  return groupSemanticGlyphTokens(semanticItems, diagnostics);
 }
 
 export function chantScoreFromGlyphGroups(groups, options = {}) {
@@ -254,6 +303,32 @@ export function compileGlyphGroups(groups, options = {}) {
     ...compiled,
     imported,
   };
+}
+
+export function compileGlyphText(text, options = {}) {
+  const diagnostics = options.diagnostics ?? [];
+  const semanticGroups = semanticTokenGroupsFromGlyphText(text, {
+    ...options,
+    diagnostics,
+  });
+  return compileGlyphGroups(semanticGroups, {
+    ...options,
+    diagnostics,
+  });
+}
+
+export function compileSbmuflGlyphText(text, options = {}) {
+  return compileGlyphText(text, {
+    ...options,
+    source: options.source ?? 'sbmufl-pua',
+  });
+}
+
+export function compileUnicodeByzantineText(text, options = {}) {
+  return compileGlyphText(text, {
+    ...options,
+    source: options.source ?? 'unicode-byzantine',
+  });
 }
 
 function scoreEventFromSemanticGroup(group, context) {
@@ -414,6 +489,119 @@ function normalizeGlyphGroups(groups, diagnostics) {
       const inputs = Array.isArray(group) ? group : [group];
       return semanticTokensFromGlyphs(inputs, { diagnostics });
     });
+}
+
+function groupSemanticGlyphTokens(tokens, diagnostics) {
+  const groups = [];
+  let current = [];
+  let pending = [];
+
+  const flushCurrent = () => {
+    if (current.length) groups.push(current);
+    current = [];
+  };
+
+  for (const token of tokens) {
+    if (token.kind === 'separator') {
+      flushCurrent();
+      if (pending.length) {
+        groups.push(pending);
+        pending = [];
+      }
+      continue;
+    }
+
+    if (isGroupAnchor(token)) {
+      flushCurrent();
+      current = [...pending, token];
+      pending = [];
+      continue;
+    }
+
+    if (isGroupModifier(token)) {
+      if (current.length && current.some(isGroupAnchor)) current.push(token);
+      else pending.push(token);
+      continue;
+    }
+
+    flushCurrent();
+    groups.push([...pending, token]);
+    pending = [];
+  }
+
+  flushCurrent();
+  if (pending.length) {
+    pushDiagnostic(diagnostics, {
+      severity: DIAGNOSTIC_SEVERITY.ERROR,
+      code: 'glyph-import-unattached-modifier',
+      message: 'Glyph modifiers without a quantity or rest sign cannot be imported unambiguously.',
+      source: groupSource(pending),
+    });
+    groups.push(pending);
+  }
+
+  return groups;
+}
+
+function isGroupAnchor(token) {
+  return token?.kind === 'quantity' || token?.kind === 'rest' || token?.kind === 'tempo';
+}
+
+function isGroupModifier(token) {
+  return token?.kind === 'temporal'
+    || token?.kind === 'duration'
+    || token?.kind === 'pthora'
+    || token?.kind === 'qualitative';
+}
+
+function tokenizeGlyphText(text) {
+  const chars = Array.from(text ?? '');
+  const tokens = [];
+  let cursor = 0;
+
+  const pushWord = start => {
+    let end = start;
+    while (end < chars.length && isWordGlyphChar(chars[end])) end += 1;
+    tokens.push({
+      type: 'glyph',
+      raw: chars.slice(start, end).join(''),
+      span: { start, end },
+    });
+    return end;
+  };
+
+  while (cursor < chars.length) {
+    const char = chars[cursor];
+    if (char === '\n' || char === '\r' || GLYPH_TEXT_GROUP_SEPARATORS.has(char)) {
+      tokens.push({ type: 'separator', raw: char, span: { start: cursor, end: cursor + 1 } });
+      cursor += 1;
+      continue;
+    }
+    if (/\s|,/.test(char)) {
+      cursor += 1;
+      continue;
+    }
+    if (isGlyphTextWordStart(char)) {
+      cursor = pushWord(cursor);
+      continue;
+    }
+    tokens.push({
+      type: 'glyph',
+      raw: char,
+      span: { start: cursor, end: cursor + 1 },
+    });
+    cursor += 1;
+  }
+
+  return tokens;
+}
+
+function isGlyphTextWordStart(char) {
+  return /[A-Za-z_]/.test(char);
+}
+
+function isWordGlyphChar(char) {
+  return /[A-Za-z0-9_+\-]/.test(char);
 }
 
 function glyphMetadataForSource(sourceToken) {
