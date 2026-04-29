@@ -621,13 +621,24 @@ body.score-practice-active .score-practice-controls {
 .score-practice-import {
   flex: 1 0 100%;
   display: grid;
-  grid-template-columns: minmax(120px, 0.35fr) minmax(220px, 1fr) auto auto;
+  grid-template-columns: minmax(118px, 0.45fr) minmax(150px, 0.7fr) minmax(72px, auto) minmax(58px, auto) auto auto;
   gap: 6px;
   align-items: center;
-  width: min(680px, calc(100vw - var(--ladder-w) - 24px));
+  width: min(840px, calc(100vw - var(--ladder-w) - 24px));
+}
+
+.score-practice-import input[type="number"] {
+  min-height: 32px;
+  width: 64px;
+  color: #e7f4fb;
+  background: #101827;
+  border: 1px solid rgba(83, 192, 240, 0.42);
+  border-radius: 4px;
+  text-align: center;
 }
 
 .score-practice-import textarea {
+  grid-column: 1 / -1;
   min-height: 34px;
   max-height: 72px;
   resize: vertical;
@@ -638,11 +649,60 @@ body.score-practice-active .score-practice-controls {
   font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+.score-practice-glyph-keyboard {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 1px 0 3px;
+  scrollbar-width: thin;
+}
+
+.score-practice-glyph-keyboard-group {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.score-practice-glyph-keyboard-label {
+  color: #7da0b7;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.score-practice-controls .score-practice-glyph-key {
+  min-height: 28px;
+  min-width: 0;
+  padding: 0 7px;
+  color: #dceaf5;
+  background: #172033;
+  border-color: rgba(83, 192, 240, 0.34);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .score-practice-import-status {
   min-width: 48px;
   color: #c8d7e5;
   font-size: 11px;
   text-align: right;
+}
+
+.score-practice-import-diagnostics {
+  grid-column: 1 / -1;
+  max-height: 72px;
+  margin: 0;
+  padding: 6px 8px;
+  overflow: auto;
+  color: #ffd6a6;
+  background: rgba(24, 16, 10, 0.82);
+  border: 1px solid rgba(255, 172, 82, 0.36);
+  border-radius: 4px;
+  font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
 }
 
 /* ── Sung note indicator ────────────────────────────────────── */
@@ -1504,13 +1564,25 @@ body.score-practice-active .score-practice-controls {
   }
 
   .score-practice-import {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
     width: 100%;
   }
 
+  .score-practice-import-source,
+  .score-practice-import-sample,
   .score-practice-import textarea,
+  .score-practice-glyph-keyboard,
+  .score-practice-import-diagnostics,
   .score-practice-import-status {
     grid-column: 1 / -1;
+  }
+
+  .score-practice-import input[type="number"] {
+    width: 100%;
+  }
+
+  .score-practice-glyph-keyboard {
+    gap: 8px;
   }
 
   body[data-mobile-view="sing"] .quick-pthora-panel {

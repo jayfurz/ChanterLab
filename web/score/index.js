@@ -3,6 +3,7 @@ export * from './compiler.js';
 export * from './diagnostics.js';
 export * from './examples.js';
 export * from './glyph_import.js';
+export * from './glyph_import_samples.js';
 export * from './glyph_defaults.js';
 export * from './parser.js';
 export * from './score_practice.js';

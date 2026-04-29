@@ -2,14 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  compileGlyphText,
   compileGlyphGroups,
   compileSbmuflGlyphText,
   compileUnicodeByzantineText,
   inferPthoraPhase,
+  listMinimalGlyphImportTokens,
   semanticTokensFromGlyphs,
   semanticTokenGroupsFromGlyphText,
   sourceTokensFromGlyphText,
 } from '../glyph_import.js';
+import { listGlyphImportSampleFixtures } from '../glyph_import_samples.js';
 import { hasErrorDiagnostics } from '../diagnostics.js';
 
 test('glyph import classifies minimal Unicode and SBMuFL source tokens', () => {
@@ -170,4 +173,40 @@ test('glyph text source token adapter preserves spans and explicit source mode',
     { start: 5, end: 11 },
     { start: 12, end: 13 },
   ]);
+});
+
+test('minimal glyph import token list exposes keyboard-safe metadata', () => {
+  const tokens = listMinimalGlyphImportTokens();
+  const oligon = tokens.find(token => token.glyphName === 'oligon');
+  const softDi = tokens.find(token => token.glyphName === 'fthoraSoftChromaticDiAbove');
+
+  assert.ok(tokens.length >= 20);
+  assert.deepEqual(oligon.movement, { direction: 'up', steps: 1 });
+  assert.equal(oligon.role, 'quantity');
+  assert.equal(oligon.codepoint, 'U+E001');
+  assert.equal(oligon.alternateCodepoint, 'U+1D047');
+  assert.equal(softDi.role, 'pthora');
+  assert.equal(softDi.scale, 'soft-chromatic');
+  assert.equal(softDi.glyphDegree, 'Di');
+});
+
+test('glyph import sample fixtures compile without errors', () => {
+  const samples = listGlyphImportSampleFixtures();
+  assert.ok(samples.length >= 5);
+
+  for (const sample of samples) {
+    const options = {
+      title: sample.title,
+      startDegree: sample.startDegree,
+      bpm: sample.bpm,
+    };
+    const compiled = sample.source === 'sbmufl'
+      ? compileSbmuflGlyphText(sample.text, options)
+      : sample.source === 'unicode'
+        ? compileUnicodeByzantineText(sample.text, options)
+        : compileGlyphText(sample.text, options);
+
+    assert.equal(hasErrorDiagnostics(compiled.diagnostics), false, sample.id);
+    assert.ok(compiled.notes.length > 0, sample.id);
+  }
 });

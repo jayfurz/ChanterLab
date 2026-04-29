@@ -331,6 +331,10 @@ export function compileUnicodeByzantineText(text, options = {}) {
   });
 }
 
+export function listMinimalGlyphImportTokens() {
+  return Object.values(GLYPH_METADATA).map(publicGlyphImportToken);
+}
+
 function scoreEventFromSemanticGroup(group, context) {
   const diagnostics = context.diagnostics;
   const quantityTokens = group.filter(token => token.kind === 'quantity');
@@ -739,6 +743,22 @@ function inferSourceKind(codepoint) {
 function numericCodepoint(codepoint) {
   const normalized = normalizeCodepoint(codepoint);
   return normalized ? Number.parseInt(normalized.slice(2), 16) : NaN;
+}
+
+function publicGlyphImportToken(metadata) {
+  return {
+    glyphName: metadata.glyphName,
+    role: metadata.role,
+    ...(metadata.codepoint ? { codepoint: metadata.codepoint } : {}),
+    ...(metadata.alternateCodepoint ? { alternateCodepoint: metadata.alternateCodepoint } : {}),
+    ...(metadata.movement ? { movement: { ...metadata.movement } } : {}),
+    ...(Number.isFinite(metadata.beats) ? { beats: metadata.beats } : {}),
+    ...(metadata.temporal ? { temporal: { ...metadata.temporal } } : {}),
+    ...(metadata.tempoName ? { tempoName: metadata.tempoName } : {}),
+    ...(metadata.scale ? { scale: metadata.scale } : {}),
+    ...(metadata.glyphDegree ? { glyphDegree: metadata.glyphDegree } : {}),
+    ...(metadata.quality ? { quality: metadata.quality } : {}),
+  };
 }
 
 export const MINIMAL_GLYPH_IMPORT_METADATA = GLYPH_METADATA;

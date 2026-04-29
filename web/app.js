@@ -15,7 +15,13 @@ import {
   compileGlyphText,
   compileSbmuflGlyphText,
   compileUnicodeByzantineText,
-} from './score/glyph_import.js?v=chant-script-engine-phase6c';
+  listMinimalGlyphImportTokens,
+} from './score/glyph_import.js?v=chant-script-engine-phase6d';
+import { formatDiagnostic } from './score/diagnostics.js?v=chant-script-engine-phase6d';
+import {
+  findGlyphImportSampleFixture,
+  listGlyphImportSampleFixtures,
+} from './score/glyph_import_samples.js?v=chant-script-engine-phase6d';
 import {
   referenceMoriaForDegree,
 } from './score/chant_score.js?v=chant-script-engine-phase5j';
@@ -50,6 +56,17 @@ const SCORE_PRACTICE_MIN_PLAYBACK_RATE = 0.15;
 const SCORE_PRACTICE_MAX_PLAYBACK_RATE = 1.25;
 const SCORE_PRACTICE_LEAD_IN_MS = 3000;
 const SCORE_PRACTICE_SCROLL_PX_PER_SECOND = 56;
+const SCORE_GLYPH_IMPORT_TOKENS = listMinimalGlyphImportTokens();
+const SCORE_IMPORT_DEGREES = ['Ni', 'Pa', 'Vou', 'Ga', 'Di', 'Ke', 'Zo'];
+const SCORE_GLYPH_KEYBOARD_ROLES = [
+  { role: 'quantity', label: 'Quantity' },
+  { role: 'rest', label: 'Rest' },
+  { role: 'temporal', label: 'Timing' },
+  { role: 'duration', label: 'Beats' },
+  { role: 'pthora', label: 'Pthora' },
+  { role: 'qualitative', label: 'Chroa' },
+  { role: 'tempo', label: 'Tempo' },
+];
 const DETECTION_LOW_MORIA = -72;
 const DETECTION_HIGH_MORIA = 144;
 const REFERENCE_RANGE_OPTIONS = [
@@ -389,6 +406,7 @@ function wireScorePracticePrototypeUnsafe() {
   const exampleId = params.get('scorePracticeExample') || 'diatonic-ladder';
   const playbackRate = readScorePracticePlaybackRate(params);
   const scrollPxPerSecond = readScorePracticeScrollSpeed(params);
+  const importOptions = readScorePracticeImportOptions(params);
   let compiled;
   try {
     compiled = compileChantScriptExample(exampleId);
@@ -409,6 +427,7 @@ function wireScorePracticePrototypeUnsafe() {
 
   const controls = buildScorePracticeControls(exampleId, playbackRate, {
     importEnabled: scorePracticeImportEnabled(params),
+    importOptions,
   });
 
   mainView.appendChild(canvas);
@@ -455,28 +474,54 @@ function wireScorePracticePrototypeUnsafe() {
   };
 
   controls.select.addEventListener('change', () => loadExample(controls.select.value));
+  controls.importSample?.addEventListener('change', () => {
+    const sample = findGlyphImportSampleFixture(controls.importSample.value);
+    if (!sample) return;
+    applyScorePracticeImportSample(controls, sample);
+  });
+  controls.importKeyboard?.addEventListener('click', event => {
+    const button = event.target.closest('[data-glyph-name]');
+    if (!button) return;
+    insertScorePracticeImportToken(
+      controls.importText,
+      scorePracticeGlyphTokenText(button.dataset.glyphName, controls.importSource.value)
+    );
+    controls.importStatus.textContent = 'edited';
+    renderScorePracticeImportDiagnostics(controls.importDiagnostics, []);
+  });
   controls.importApply?.addEventListener('click', () => {
     const text = controls.importText.value.trim();
     if (!text) {
       controls.importStatus.textContent = 'empty';
+      renderScorePracticeImportDiagnostics(controls.importDiagnostics, []);
       return;
     }
     let rawCompiled;
     try {
-      rawCompiled = compileScorePracticeGlyphText(text, controls.importSource.value, params);
+      rawCompiled = compileScorePracticeGlyphText(text, controls.importSource.value, {
+        startDegree: controls.importStart?.value,
+        bpm: Number(controls.importBpm?.value),
+      });
     } catch (e) {
       console.warn('Score practice glyph import failed', e);
       controls.importStatus.textContent = 'failed';
+      renderScorePracticeImportDiagnostics(controls.importDiagnostics, [{
+        severity: 'error',
+        code: 'glyph-import-exception',
+        message: e?.message ?? String(e),
+      }]);
       return;
     }
     const errors = (rawCompiled.diagnostics ?? []).filter(diagnostic => diagnostic.severity === 'error');
+    renderScorePracticeImportDiagnostics(controls.importDiagnostics, rawCompiled.diagnostics ?? []);
     if (errors.length) {
       console.warn('Score practice glyph import diagnostics', rawCompiled.diagnostics);
       controls.importStatus.textContent = `${errors.length} error${errors.length === 1 ? '' : 's'}`;
       return;
     }
     loadCompiledScore(rawCompiled);
-    controls.importStatus.textContent = 'loaded';
+    const warnings = (rawCompiled.diagnostics ?? []).filter(diagnostic => diagnostic.severity === 'warning').length;
+    controls.importStatus.textContent = `loaded ${rawCompiled.notes?.length ?? 0} notes${warnings ? `, ${warnings} warn` : ''}`;
   });
   controls.restart.addEventListener('click', () => {
     app.scorePractice.restart();
@@ -581,15 +626,30 @@ function scorePracticeImportEnabled(params) {
   return raw !== null && ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
 }
 
-function compileScorePracticeGlyphText(text, source, params) {
-  const options = {
-    title: 'Imported Glyph Score',
-    startDegree: params.get('scoreImportStart') ?? params.get('score-import-start') ?? 'Ni',
-    bpm: Number(params.get('scoreImportBpm') ?? params.get('score-import-bpm') ?? 120),
+function readScorePracticeImportOptions(params) {
+  const samples = listGlyphImportSampleFixtures();
+  const requestedSampleId = params.get('scoreImportSample') ?? params.get('score-import-sample');
+  const sample = findGlyphImportSampleFixture(requestedSampleId) ?? samples[0];
+  const startDegree = params.get('scoreImportStart') ?? params.get('score-import-start') ?? sample?.startDegree ?? 'Ni';
+  const bpm = Number(params.get('scoreImportBpm') ?? params.get('score-import-bpm') ?? sample?.bpm ?? 120);
+  const source = params.get('scoreImportSource') ?? params.get('score-import-source') ?? sample?.source ?? 'glyph';
+  return {
+    sampleId: sample?.id,
+    source,
+    startDegree,
+    bpm: Number.isFinite(bpm) && bpm > 0 ? bpm : 120,
   };
-  if (source === 'sbmufl') return compileSbmuflGlyphText(text, options);
-  if (source === 'unicode') return compileUnicodeByzantineText(text, options);
-  return compileGlyphText(text, options);
+}
+
+function compileScorePracticeGlyphText(text, source, options = {}) {
+  const compileOptions = {
+    title: 'Imported Glyph Score',
+    startDegree: options.startDegree ?? 'Ni',
+    bpm: Number.isFinite(options.bpm) && options.bpm > 0 ? options.bpm : 120,
+  };
+  if (source === 'sbmufl') return compileSbmuflGlyphText(text, compileOptions);
+  if (source === 'unicode') return compileUnicodeByzantineText(text, compileOptions);
+  return compileGlyphText(text, compileOptions);
 }
 
 function clampScorePracticePlaybackRate(rate) {
@@ -649,10 +709,15 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
 
   const controls = { el, select, restart, playPause, speed, speedReadout };
   if (options.importEnabled) {
+    const importOptions = options.importOptions ?? {};
+    const samples = listGlyphImportSampleFixtures();
+    const selectedSample = findGlyphImportSampleFixture(importOptions.sampleId) ?? samples[0];
+
     const importPanel = document.createElement('div');
     importPanel.className = 'score-practice-import';
 
     const importSource = document.createElement('select');
+    importSource.className = 'score-practice-import-source';
     importSource.setAttribute('aria-label', 'Glyph import source');
     for (const [value, label] of [
       ['glyph', 'Glyph names'],
@@ -664,12 +729,51 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
       option.textContent = label;
       importSource.appendChild(option);
     }
+    importSource.value = importOptions.source ?? selectedSample?.source ?? 'glyph';
+
+    const importSample = document.createElement('select');
+    importSample.className = 'score-practice-import-sample';
+    importSample.setAttribute('aria-label', 'Glyph import sample');
+    for (const sample of samples) {
+      const option = document.createElement('option');
+      option.value = sample.id;
+      option.textContent = sample.title;
+      option.selected = sample.id === selectedSample?.id;
+      importSample.appendChild(option);
+    }
+
+    const importStart = document.createElement('select');
+    importStart.className = 'score-practice-import-start';
+    importStart.setAttribute('aria-label', 'Glyph import start degree');
+    importStart.title = 'Start degree';
+    for (const degree of SCORE_IMPORT_DEGREES) {
+      const option = document.createElement('option');
+      option.value = degree;
+      option.textContent = degree;
+      importStart.appendChild(option);
+    }
+    importStart.value = SCORE_IMPORT_DEGREES.includes(importOptions.startDegree)
+      ? importOptions.startDegree
+      : selectedSample?.startDegree ?? 'Ni';
+
+    const importBpm = document.createElement('input');
+    importBpm.className = 'score-practice-import-bpm';
+    importBpm.type = 'number';
+    importBpm.min = '30';
+    importBpm.max = '240';
+    importBpm.step = '1';
+    importBpm.inputMode = 'numeric';
+    importBpm.setAttribute('aria-label', 'Glyph import BPM');
+    importBpm.title = 'BPM';
+    importBpm.value = String(importOptions.bpm ?? selectedSample?.bpm ?? 120);
 
     const importText = document.createElement('textarea');
     importText.setAttribute('aria-label', 'Glyph import text');
     importText.rows = 2;
     importText.spellcheck = false;
-    importText.value = 'ison oligon oligon apostrofos gorgonAbove leimma2';
+    importText.value = selectedSample?.text ?? 'ison oligon oligon apostrofos gorgonAbove leimma2';
+
+    const importKeyboard = buildScorePracticeGlyphKeyboard();
 
     const importApply = document.createElement('button');
     importApply.type = 'button';
@@ -679,12 +783,171 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
     importStatus.className = 'score-practice-import-status';
     importStatus.textContent = 'import';
 
-    importPanel.append(importSource, importText, importApply, importStatus);
+    const importDiagnostics = document.createElement('pre');
+    importDiagnostics.className = 'score-practice-import-diagnostics';
+    importDiagnostics.hidden = true;
+
+    importPanel.append(
+      importSource,
+      importSample,
+      importStart,
+      importBpm,
+      importText,
+      importKeyboard,
+      importApply,
+      importStatus,
+      importDiagnostics
+    );
     el.appendChild(importPanel);
-    Object.assign(controls, { importSource, importText, importApply, importStatus });
+    Object.assign(controls, {
+      importSource,
+      importSample,
+      importStart,
+      importBpm,
+      importText,
+      importKeyboard,
+      importApply,
+      importStatus,
+      importDiagnostics,
+    });
   }
 
   return controls;
+}
+
+function buildScorePracticeGlyphKeyboard() {
+  const keyboard = document.createElement('div');
+  keyboard.className = 'score-practice-glyph-keyboard';
+  keyboard.setAttribute('aria-label', 'Glyph token keyboard');
+
+  for (const group of SCORE_GLYPH_KEYBOARD_ROLES) {
+    const tokens = SCORE_GLYPH_IMPORT_TOKENS.filter(token => token.role === group.role);
+    if (!tokens.length) continue;
+
+    const groupEl = document.createElement('div');
+    groupEl.className = 'score-practice-glyph-keyboard-group';
+
+    const label = document.createElement('span');
+    label.className = 'score-practice-glyph-keyboard-label';
+    label.textContent = group.label;
+    groupEl.appendChild(label);
+
+    for (const token of tokens) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'score-practice-glyph-key';
+      button.dataset.glyphName = token.glyphName;
+      button.textContent = scoreGlyphTokenLabel(token);
+      button.title = token.glyphName;
+      groupEl.appendChild(button);
+    }
+
+    keyboard.appendChild(groupEl);
+  }
+
+  return keyboard;
+}
+
+function applyScorePracticeImportSample(controls, sample) {
+  controls.importSource.value = sample.source ?? 'glyph';
+  controls.importStart.value = sample.startDegree ?? 'Ni';
+  controls.importBpm.value = String(sample.bpm ?? 120);
+  controls.importText.value = sample.text ?? '';
+  controls.importStatus.textContent = 'sample';
+  renderScorePracticeImportDiagnostics(controls.importDiagnostics, []);
+}
+
+function insertScorePracticeImportToken(textarea, tokenText) {
+  if (!textarea || !tokenText) return;
+  const value = textarea.value;
+  const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : value.length;
+  const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
+  const before = value.slice(0, start);
+  const after = value.slice(end);
+  const prefix = before && !/\s$/.test(before) ? ' ' : '';
+  const suffix = after && !/^\s/.test(after) ? ' ' : '';
+  const insert = `${prefix}${tokenText}${suffix}`;
+  textarea.value = `${before}${insert}${after}`;
+  const cursor = start + prefix.length + tokenText.length;
+  textarea.focus();
+  textarea.setSelectionRange(cursor, cursor);
+}
+
+function scorePracticeGlyphTokenText(glyphName, source) {
+  const token = SCORE_GLYPH_IMPORT_TOKENS.find(item => item.glyphName === glyphName);
+  if (!token) return glyphName;
+  if (source === 'sbmufl') return characterForCodepoint(token.codepoint) ?? token.glyphName;
+  if (source === 'unicode') return characterForCodepoint(token.alternateCodepoint) ?? token.glyphName;
+  return token.glyphName;
+}
+
+function characterForCodepoint(codepoint) {
+  if (typeof codepoint !== 'string') return undefined;
+  const match = /^U\+([0-9A-F]{4,6})$/i.exec(codepoint.trim());
+  if (!match) return undefined;
+  return String.fromCodePoint(Number.parseInt(match[1], 16));
+}
+
+function scoreGlyphTokenLabel(token) {
+  const labels = {
+    ison: 'Ison',
+    oligon: 'Oligon',
+    apostrofos: 'Apost.',
+    yporroi: 'Yporroi',
+    elafron: 'Elafron',
+    chamili: 'Chamili',
+    leimma1: 'Rest 1',
+    leimma2: 'Rest 2',
+    leimma3: 'Rest 3',
+    leimma4: 'Rest 4',
+    gorgonAbove: 'Gorgon',
+    digorgon: 'Digorgon',
+    trigorgon: 'Trigorgon',
+    argon: 'Argon',
+    apli: 'Apli',
+    klasma: 'Klasma',
+    dipli: 'Dipli',
+    tripli: 'Tripli',
+    agogiMetria: 'Metria',
+    agogiGorgi: 'Gorgi',
+    fthoraHardChromaticPaAbove: 'Hard Pa',
+    fthoraHardChromaticDiAbove: 'Hard Di',
+    fthoraSoftChromaticDiAbove: 'Soft Di',
+    fthoraSoftChromaticKeAbove: 'Soft Ke',
+    chroaZygosAbove: 'Zygos',
+    chroaKlitonAbove: 'Kliton',
+    chroaSpathiAbove: 'Spathi',
+  };
+  return labels[token.glyphName] ?? token.glyphName.replace(/([A-Z])/g, ' $1');
+}
+
+function renderScorePracticeImportDiagnostics(el, diagnostics) {
+  if (!el) return;
+  const visible = (diagnostics ?? []).filter(Boolean);
+  if (!visible.length) {
+    el.hidden = true;
+    el.textContent = '';
+    return;
+  }
+
+  el.hidden = false;
+  el.textContent = visible.slice(0, 8).map(formatScorePracticeImportDiagnostic).join('\n');
+}
+
+function formatScorePracticeImportDiagnostic(diagnostic) {
+  const tokenLabel = scorePracticeDiagnosticTokenLabel(diagnostic);
+  return tokenLabel
+    ? `${formatDiagnostic(diagnostic)} (${tokenLabel})`
+    : formatDiagnostic(diagnostic);
+}
+
+function scorePracticeDiagnosticTokenLabel(diagnostic) {
+  const source = diagnostic?.source?.source;
+  const tokens = Array.isArray(source?.tokens) ? source.tokens : [];
+  const rawTokens = tokens.map(token => token.raw).filter(Boolean);
+  if (rawTokens.length) return `tokens: ${rawTokens.join(' ')}`;
+  const raw = diagnostic?.source?.raw;
+  return raw ? `token: ${raw}` : '';
 }
 
 function isValidCellId(cellId) {
