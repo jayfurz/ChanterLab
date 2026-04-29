@@ -124,14 +124,22 @@ export function layoutScorePracticeTargets(state, rowMap, viewport, options = {}
   const nowMs = viewport?.nowMs ?? 0;
   const lookaheadMs = options.lookaheadMs ?? DEFAULT_LOOKAHEAD_MS;
   const pxPerSecond = options.pxPerSecond ?? DEFAULT_PX_PER_SECOND;
+  const playbackRate = playbackRateFromOptions(options);
+  const lookaheadScoreMs = lookaheadMs * playbackRate;
   const crosshairX = cssW * (options.crosshairX ?? DEFAULT_CROSSHAIR_X);
   const rowLookup = buildRowLookup(rowMap, cssH);
 
   return state.targets
-    .filter(target => target.endMs >= nowMs && target.startMs <= nowMs + lookaheadMs)
+    .filter(target => target.endMs >= nowMs && target.startMs <= nowMs + lookaheadScoreMs)
     .map(target => {
-      const x = crosshairX + ((target.startMs - nowMs) / 1000) * pxPerSecond;
-      const width = Math.max(4, (target.durationMs / 1000) * pxPerSecond);
+      const x = crosshairX + scoreDeltaMsToPixels(target.startMs - nowMs, {
+        pxPerSecond,
+        playbackRate,
+      });
+      const width = Math.max(4, scoreDeltaMsToPixels(target.durationMs, {
+        pxPerSecond,
+        playbackRate,
+      }));
       const row = target.type === 'note' ? rowLookup(target.moria) : undefined;
       const y = target.type === 'note' ? row?.centerY ?? cssH / 2 : cssH - 16;
       const height = target.type === 'note' ? Math.max(6, Math.min(row?.height ?? 12, 18)) : 8;
@@ -154,17 +162,23 @@ export function layoutScorePracticeMarkers(state, viewport, options = {}) {
   const nowMs = viewport?.nowMs ?? 0;
   const lookaheadMs = options.lookaheadMs ?? DEFAULT_LOOKAHEAD_MS;
   const pxPerSecond = options.pxPerSecond ?? DEFAULT_PX_PER_SECOND;
+  const playbackRate = playbackRateFromOptions(options);
+  const lookaheadScoreMs = lookaheadMs * playbackRate;
   const crosshairX = cssW * (options.crosshairX ?? DEFAULT_CROSSHAIR_X);
   const events = [
     ...(state?.pthoraEvents ?? []).map(event => ({ ...event, markerType: 'pthora' })),
+    ...(state?.isonEvents ?? []).map(event => ({ ...event, markerType: 'ison' })),
     ...(state?.checkpoints ?? []).map(event => ({ ...event, markerType: 'martyria' })),
   ];
 
   return events
     .filter(event => Number.isFinite(event.atMs))
-    .filter(event => event.atMs >= nowMs && event.atMs <= nowMs + lookaheadMs)
+    .filter(event => event.atMs >= nowMs && event.atMs <= nowMs + lookaheadScoreMs)
     .map(event => {
-      const x = crosshairX + ((event.atMs - nowMs) / 1000) * pxPerSecond;
+      const x = crosshairX + scoreDeltaMsToPixels(event.atMs - nowMs, {
+        pxPerSecond,
+        playbackRate,
+      });
       return {
         ...event,
         x,
@@ -367,7 +381,8 @@ export class ScorePracticePrototype {
         ? 'Rest'
         : 'Ready';
     const ison = activeScoreIsonAt(this.state, this.nowMs);
-    const isonLabel = ison?.degree ? `Ison ${ison.degree}` : 'No ison';
+    const isonMoria = displayMoria(ison?.targetMoria ?? ison?.engineMoria ?? ison?.moria);
+    const isonLabel = ison?.degree ? `Ison ${ison.degree}${isonMoria ? ` ${isonMoria}` : ''}` : 'No ison';
     const pitch = this._lastPitchScore;
     const pitchLabel = pitch?.expectedSilence
       ? (pitch.voiced ? 'singing through rest' : 'silent')
@@ -414,6 +429,9 @@ export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options 
     if (marker.markerType === 'pthora') {
       ctx.strokeStyle = 'rgba(195, 165, 255, 0.58)';
       ctx.fillStyle = 'rgba(195, 165, 255, 0.92)';
+    } else if (marker.markerType === 'ison') {
+      ctx.strokeStyle = 'rgba(120, 240, 173, 0.54)';
+      ctx.fillStyle = 'rgba(120, 240, 173, 0.92)';
     } else {
       ctx.strokeStyle = 'rgba(255, 202, 111, 0.58)';
       ctx.fillStyle = 'rgba(255, 202, 111, 0.92)';
@@ -423,12 +441,6 @@ export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options 
     ctx.moveTo(marker.x, 0);
     ctx.lineTo(marker.x, viewport.height);
     ctx.stroke();
-
-    const label = marker.markerType === 'pthora'
-      ? `${marker.scale ?? 'pthora'} ${marker.degree ?? ''}`.trim()
-      : `martyria ${marker.degree ?? ''}`.trim();
-    ctx.font = '10px system-ui, sans-serif';
-    ctx.fillText(label, marker.x + 3, marker.markerType === 'pthora' ? 26 : 40);
   }
 
   for (const target of targets) {
@@ -451,6 +463,9 @@ export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options 
       ctx.font = '11px system-ui, sans-serif';
       ctx.fillText(target.lyric.text, target.x, Math.min(viewport.height - 4, target.y + 18));
     }
+  }
+  for (const marker of markers) {
+    paintMarkerBadge(ctx, marker, viewport);
   }
   ctx.restore();
 }
@@ -496,6 +511,60 @@ function fillRoundedRect(ctx, x, y, w, h, r) {
   ctx.quadraticCurveTo(x, y, x + radius, y);
   ctx.closePath();
   ctx.fill();
+}
+
+function paintMarkerBadge(ctx, marker, viewport) {
+  const label = markerLabel(marker);
+  if (!label) return;
+  const yByType = {
+    pthora: viewport.height - 58,
+    ison: viewport.height - 40,
+    martyria: viewport.height - 22,
+  };
+  const fillByType = {
+    pthora: 'rgba(31, 22, 48, 0.82)',
+    ison: 'rgba(13, 42, 30, 0.82)',
+    martyria: 'rgba(48, 34, 12, 0.82)',
+  };
+  const strokeByType = {
+    pthora: 'rgba(195, 165, 255, 0.72)',
+    ison: 'rgba(120, 240, 173, 0.72)',
+    martyria: 'rgba(255, 202, 111, 0.72)',
+  };
+  const textByType = {
+    pthora: 'rgba(239, 231, 255, 0.96)',
+    ison: 'rgba(223, 248, 236, 0.96)',
+    martyria: 'rgba(255, 238, 202, 0.96)',
+  };
+
+  ctx.save();
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  const paddingX = 5;
+  const badgeH = 15;
+  const measured = ctx.measureText(label).width;
+  const badgeW = Math.min(Math.max(28, measured + paddingX * 2), Math.max(28, viewport.width - 8));
+  const x = Math.max(4, Math.min(viewport.width - badgeW - 4, marker.x + 4));
+  const y = Math.max(8, Math.min(viewport.height - badgeH - 4, yByType[marker.markerType] ?? 8));
+  ctx.fillStyle = fillByType[marker.markerType] ?? 'rgba(8, 12, 18, 0.82)';
+  fillRoundedRect(ctx, x, y, badgeW, badgeH, 4);
+  ctx.strokeStyle = strokeByType[marker.markerType] ?? 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, badgeW - 1, badgeH - 1);
+  ctx.fillStyle = textByType[marker.markerType] ?? 'rgba(238, 246, 250, 0.96)';
+  ctx.fillText(label, x + paddingX, y + badgeH / 2);
+  ctx.restore();
+}
+
+function markerLabel(marker) {
+  if (marker.markerType === 'pthora') {
+    return `${marker.scale ?? marker.genus ?? 'pthora'} ${marker.degree ?? ''}`.trim();
+  }
+  if (marker.markerType === 'ison') {
+    const moria = displayMoria(marker.targetMoria ?? marker.engineMoria ?? marker.moria);
+    return `ison ${marker.degree ?? ''}${moria ? ` ${moria}` : ''}`.trim();
+  }
+  return `martyria ${marker.degree ?? ''}`.trim();
 }
 
 function buildRowLookup(rowMap, cssH) {
@@ -546,6 +615,10 @@ function playbackRateFromOptions(options) {
   return positiveNumberOr(options?.playbackRate, 1);
 }
 
+function scoreDeltaMsToPixels(scoreDeltaMs, { pxPerSecond, playbackRate }) {
+  return (scoreDeltaMs / playbackRate / 1000) * pxPerSecond;
+}
+
 function performanceNow() {
   return globalThis.performance?.now?.() ?? Date.now();
 }
@@ -555,4 +628,9 @@ function formatClock(ms) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = String(totalSeconds % 60).padStart(2, '0');
   return `${minutes}:${seconds}`;
+}
+
+function displayMoria(moria) {
+  if (!Number.isFinite(moria)) return '';
+  return `${Number.isInteger(moria) ? moria : moria.toFixed(1)}m`;
 }

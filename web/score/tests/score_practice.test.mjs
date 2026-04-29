@@ -91,10 +91,11 @@ test('score practice targets prefer engine retuned moria when present', () => {
   assert.equal(scorePitchAtTime(state, { gate_open: true, raw_moria: 50 }, 10).inTune, true);
 });
 
-test('layout exposes pthora and martyria markers for score practice rendering', () => {
+test('layout exposes pthora, ison, and martyria markers for score practice rendering', () => {
   const state = createScorePracticeState({
     timeline: [],
     pthoraEvents: [{ type: 'pthora', atMs: 500, scale: 'soft-chromatic', degree: 'Di' }],
+    isonEvents: [{ type: 'ison', atMs: 750, degree: 'Di', targetMoria: 42 }],
     checkpoints: [{ type: 'martyria', atMs: 1000, degree: 'Ke' }],
     totalDurationMs: 1500,
   });
@@ -107,8 +108,12 @@ test('layout exposes pthora and martyria markers for score practice rendering', 
     pxPerSecond: 100,
   });
 
-  assert.deepEqual(markers.map(marker => marker.markerType), ['pthora', 'martyria']);
-  assert.deepEqual(markers.map(marker => marker.x), [500 * 0.28 + 50, 500 * 0.28 + 100]);
+  assert.deepEqual(markers.map(marker => marker.markerType), ['pthora', 'ison', 'martyria']);
+  assert.deepEqual(markers.map(marker => marker.x), [
+    500 * 0.28 + 50,
+    500 * 0.28 + 75,
+    500 * 0.28 + 100,
+  ]);
 });
 
 test('score practice includes explicit initial non-diatonic pthora marker', () => {
@@ -200,6 +205,47 @@ test('layout lead-in places the first note ahead of the crosshair', () => {
   assert.equal(layout[0].x, 500 * 0.28 + 100);
 });
 
+test('layout keeps visual scroll fixed while playback rate changes target length', () => {
+  const state = createScorePracticeState({
+    timeline: [{
+      type: 'note',
+      degree: 'Ni',
+      moria: 0,
+      effectiveMoria: 0,
+      startMs: 0,
+      durationMs: 1000,
+      durationBeats: 1,
+      sourceEventIndex: 0,
+    }],
+    totalDurationMs: 1000,
+  }, { enabled: true });
+  const rowMap = [
+    { cell: { moria: 0, effective_moria: 0, enabled: true }, y: 0, h: 20 },
+  ];
+
+  const fast = layoutScorePracticeTargets(state, rowMap, {
+    width: 500,
+    height: 120,
+    nowMs: -1000,
+  }, {
+    pxPerSecond: 100,
+    playbackRate: 2,
+  });
+  const slow = layoutScorePracticeTargets(state, rowMap, {
+    width: 500,
+    height: 120,
+    nowMs: -1000,
+  }, {
+    pxPerSecond: 100,
+    playbackRate: 0.5,
+  });
+
+  assert.equal(fast[0].x, 500 * 0.28 + 50);
+  assert.equal(fast[0].width, 50);
+  assert.equal(slow[0].x, 500 * 0.28 + 200);
+  assert.equal(slow[0].width, 200);
+});
+
 test('fixed lead-in places the first note ahead of the crosshair', () => {
   const compiled = compileChantScriptExample('diatonic-ladder');
   const state = createScorePracticeState(compiled, { enabled: true });
@@ -222,5 +268,5 @@ test('fixed lead-in places the first note ahead of the crosshair', () => {
 
   assert.equal(leadInScoreMs, 1500);
   assert.equal(layout[0].degree, 'Ni');
-  assert.equal(layout[0].x, 500 * 0.28 + 150);
+  assert.equal(layout[0].x, 500 * 0.28 + 300);
 });

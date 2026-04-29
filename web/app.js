@@ -10,17 +10,17 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase5a';
+} from './score/examples.js?v=chant-script-engine-phase5b';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase5a';
+} from './score/chant_score.js?v=chant-script-engine-phase5b';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase5a';
+} from './score/score_practice.js?v=chant-script-engine-phase5b';
 import {
   retuneCompiledScoreWithGrid,
-} from './score/tuning_context.js?v=chant-script-engine-phase5a';
+} from './score/tuning_context.js?v=chant-script-engine-phase5b';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -383,7 +383,6 @@ function wireScorePracticePrototypeUnsafe() {
   const exampleId = params.get('scorePracticeExample') || 'diatonic-ladder';
   const playbackRate = readScorePracticePlaybackRate(params);
   const scrollPxPerSecond = readScorePracticeScrollSpeed(params);
-  const scorePxPerSecond = scrollPxPerSecond / playbackRate;
   let compiled;
   try {
     compiled = compileChantScriptExample(exampleId);
@@ -417,7 +416,7 @@ function wireScorePracticePrototypeUnsafe() {
   app.scorePractice = new ScorePracticePrototype(canvas, {
     enabled: true,
     statusEl: status,
-    pxPerSecond: scorePxPerSecond,
+    pxPerSecond: scrollPxPerSecond,
     lookaheadMs: 8000,
     crosshairX: SCORE_PRACTICE_CROSSHAIR_RATIO,
     playbackRate,
@@ -461,7 +460,7 @@ function wireScorePracticePrototypeUnsafe() {
     controls.speedReadout.textContent = formatPlaybackRate(nextRate);
     app.scorePractice.setTiming({
       playbackRate: nextRate,
-      pxPerSecond: scrollPxPerSecond / nextRate,
+      pxPerSecond: scrollPxPerSecond,
     });
   });
 

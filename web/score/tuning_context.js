@@ -194,7 +194,8 @@ export function validateMartyriaWithGrid(checkpoint, grid, diagnostics = []) {
 }
 
 export function retuneIsonWithGrid(ison, grid, diagnostics = []) {
-  const match = findDegreeCell(grid, ison.degree, ison.moria);
+  const expectedMoria = expectedMoriaForIson(ison);
+  const match = findDegreeCell(grid, ison.degree, expectedMoria);
   if (!match) {
     pushDiagnostic(diagnostics, {
       severity: DIAGNOSTIC_SEVERITY.ERROR,
@@ -241,6 +242,11 @@ function findDegreeCellForNote(grid, note) {
     ? note.moria
     : referenceMoriaForDegree(note?.degree) + (note?.register ?? 0) * 72;
   return findDegreeCell(grid, note?.degree, expectedMoria);
+}
+
+function expectedMoriaForIson(ison) {
+  if (Number.isFinite(ison?.moria)) return ison.moria;
+  return referenceMoriaForDegree(ison?.degree) + (ison?.register ?? 0) * 72;
 }
 
 function findDegreeCell(grid, degree, expectedMoria) {

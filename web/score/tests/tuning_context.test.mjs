@@ -116,6 +116,19 @@ test('ison events are retuned through the active tuning grid', () => {
   assert.equal(tuned.timeline.filter(event => event.type === 'ison')[1].targetMoria, 50);
 });
 
+test('ison retuning defaults to the central degree register when context is missing', () => {
+  const tuned = retuneCompiledScoreWithGrid({
+    diagnostics: [],
+    timeline: [{ type: 'ison', atMs: 0, degree: 'Di', sourceEventIndex: 0 }],
+    isonEvents: [{ type: 'ison', atMs: 0, degree: 'Di', sourceEventIndex: 0 }],
+    totalDurationMs: 0,
+  }, { grid: new FakeTuningGrid() });
+
+  assert.equal(hasErrorDiagnostics(tuned.diagnostics), false);
+  assert.equal(tuned.isonEvents[0].targetMoria, 42);
+  assert.equal(tuned.isonEvents[0].tuning.cellMoria, 42);
+});
+
 test('note-attached ison changes retune after note-attached pthora is applied', () => {
   const compiled = compileChantScript([
     'title "Attached Ison Retune Fixture"',
@@ -156,6 +169,7 @@ test('initial tuning helper anchors scale at martyria degree instead of first no
 
 function diatonicCells() {
   return [
+    cell('Di', -30),
     cell('Ni', 0),
     cell('Pa', 12),
     cell('Vou', 22),
@@ -168,6 +182,7 @@ function diatonicCells() {
 
 function softChromaticDiCells() {
   return [
+    cell('Di', -30),
     cell('Ni', 0),
     cell('Pa', 12),
     cell('Vou', 22),

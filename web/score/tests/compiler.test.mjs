@@ -86,6 +86,7 @@ test('compiler attaches pthora and ison changes without changing movement semant
   assert.equal(compiled.pthoraEvents[0].degree, 'Di');
   assert.equal(compiled.pthoraEvents[0].dropMoria, 42);
   assert.equal(compiled.isonEvents.length, 1);
+  assert.equal(compiled.isonEvents[0].moria, 42);
   assert.equal(compiled.timeline.some(event => event.type === 'ison' && event.degree === 'Di'), true);
 });
 
@@ -105,10 +106,10 @@ test('compiler emits default and explicit ison timeline events', () => {
   const compiled = compileChantScript(script);
 
   assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
-  assert.deepEqual(compiled.isonEvents.map(event => [event.degree, event.atMs, event.kind]), [
-    ['Ni', 0, 'default'],
-    ['Pa', 500, 'explicit'],
-    ['Vou', 1000, 'note'],
+  assert.deepEqual(compiled.isonEvents.map(event => [event.degree, event.atMs, event.kind, event.moria]), [
+    ['Ni', 0, 'default', 0],
+    ['Pa', 500, 'explicit', 12],
+    ['Vou', 1000, 'note', 22],
   ]);
   assert.deepEqual(
     compiled.timeline.filter(event => event.type === 'ison').map(event => event.degree),
