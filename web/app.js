@@ -10,17 +10,17 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase4a';
+} from './score/examples.js?v=chant-script-engine-phase5a';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase4a';
+} from './score/chant_score.js?v=chant-script-engine-phase5a';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase4a';
+} from './score/score_practice.js?v=chant-script-engine-phase5a';
 import {
   retuneCompiledScoreWithGrid,
-} from './score/tuning_context.js?v=chant-script-engine-phase4a';
+} from './score/tuning_context.js?v=chant-script-engine-phase5a';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -80,6 +80,8 @@ const app = {
   isonDegree:     'Ni',
   isonOctave:     0,
   isonVolume:     0.5,
+  scorePracticeIsonOverride: null,
+  scorePracticeManualIsonState: null,
   // Mic / PSOLA correction state. Off by default — chanters should hear
   // their own voice first and opt in to correction as a training aid.
   correctionEnabled: false,
@@ -421,6 +423,7 @@ function wireScorePracticePrototypeUnsafe() {
     playbackRate,
     leadInMs: SCORE_PRACTICE_LEAD_IN_MS,
     loop: true,
+    onIsonChange: applyScorePracticeIson,
   });
 
   const loadExample = nextExampleId => {
@@ -1032,6 +1035,7 @@ function syncIsonControls() {
 }
 
 app.setIsonDrone = function({ degree = app.isonDegree, octave = app.isonOctave, enabled = true } = {}) {
+  releaseScorePracticeIson();
   app.isonDegree = degree;
   app.isonOctave = octave;
   app.isonEnabled = enabled;
@@ -1039,7 +1043,60 @@ app.setIsonDrone = function({ degree = app.isonDegree, octave = app.isonOctave, 
   updateIsonVoice(JSON.parse(app.grid.cellsJson()));
 };
 
+function applyScorePracticeIson(ison) {
+  if (!ison) {
+    releaseScorePracticeIson();
+    return;
+  }
+
+  if (!app.scorePracticeManualIsonState) {
+    app.scorePracticeManualIsonState = {
+      enabled: app.isonEnabled,
+      degree: app.isonDegree,
+      octave: app.isonOctave,
+    };
+  }
+
+  app.scorePracticeIsonOverride = {
+    degree: ison.degree,
+    cellId: scoreIsonCellId(ison),
+  };
+  app.isonEnabled = true;
+  app.isonDegree = ison.degree;
+  app.isonOctave = Number.isFinite(app.scorePracticeIsonOverride.cellId)
+    ? Math.floor(app.scorePracticeIsonOverride.cellId / 72)
+    : app.isonOctave;
+  syncIsonControls();
+  updateIsonVoice(JSON.parse(app.grid.cellsJson()));
+}
+
+function releaseScorePracticeIson() {
+  if (!app.scorePracticeManualIsonState && !app.scorePracticeIsonOverride) return;
+  const manual = app.scorePracticeManualIsonState;
+  app.scorePracticeIsonOverride = null;
+  app.scorePracticeManualIsonState = null;
+  if (manual) {
+    app.isonEnabled = manual.enabled;
+    app.isonDegree = manual.degree;
+    app.isonOctave = manual.octave;
+  }
+  syncIsonControls();
+  updateIsonVoice(JSON.parse(app.grid.cellsJson()));
+}
+
+function scoreIsonCellId(ison) {
+  const cellId = ison?.tuning?.cellMoria ?? ison?.targetMoria ?? ison?.engineMoria;
+  return Number.isFinite(cellId) ? cellId : null;
+}
+
 function updateIsonVoice(cells) {
+  if (app.scorePracticeIsonOverride) {
+    const cellId = app.scorePracticeIsonOverride.cellId;
+    if (Number.isFinite(cellId)) {
+      app.engine.setIson(cellId, app.isonVolume);
+      return;
+    }
+  }
   if (!app.isonEnabled) {
     app.engine.setIson(null, 0);
     return;

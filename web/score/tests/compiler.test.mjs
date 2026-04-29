@@ -86,6 +86,34 @@ test('compiler attaches pthora and ison changes without changing movement semant
   assert.equal(compiled.pthoraEvents[0].degree, 'Di');
   assert.equal(compiled.pthoraEvents[0].dropMoria, 42);
   assert.equal(compiled.isonEvents.length, 1);
+  assert.equal(compiled.timeline.some(event => event.type === 'ison' && event.degree === 'Di'), true);
+});
+
+test('compiler emits default and explicit ison timeline events', () => {
+  const script = [
+    'title "Ison Fixture"',
+    'tempo moderate bpm 120',
+    'start Ni',
+    'scale diatonic',
+    'drone Ni',
+    'note same',
+    'ison Pa',
+    'note up 1',
+    'note up 1 drone Vou',
+  ].join('\n');
+
+  const compiled = compileChantScript(script);
+
+  assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
+  assert.deepEqual(compiled.isonEvents.map(event => [event.degree, event.atMs, event.kind]), [
+    ['Ni', 0, 'default'],
+    ['Pa', 500, 'explicit'],
+    ['Vou', 1000, 'note'],
+  ]);
+  assert.deepEqual(
+    compiled.timeline.filter(event => event.type === 'ison').map(event => event.degree),
+    ['Ni', 'Pa', 'Vou']
+  );
 });
 
 test('compiler promotes note-local martyria checkpoints into compiled checkpoint events', () => {

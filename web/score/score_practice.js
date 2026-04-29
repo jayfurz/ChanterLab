@@ -61,7 +61,7 @@ export function createScorePracticeState(compiled, options = {}) {
     tempoChanges: compiled?.tempoChanges ?? [],
     checkpoints: compiled?.checkpoints ?? [],
     phraseBreaks: compiled?.phraseBreaks ?? [],
-    isonEvents: compiled?.isonEvents ?? [],
+    isonEvents: normalizedIsonEvents(compiled?.isonEvents),
     pthoraEvents: [...initialPthoraEvents, ...(compiled?.pthoraEvents ?? [])],
     diagnostics: compiled?.diagnostics ?? [],
   };
@@ -70,6 +70,18 @@ export function createScorePracticeState(compiled, options = {}) {
 export function activeScoreTargetAt(state, atMs) {
   if (!state || !Number.isFinite(atMs)) return undefined;
   return state.targets.find(target => target.startMs <= atMs && atMs < target.endMs);
+}
+
+export function activeScoreIsonAt(state, atMs) {
+  if (!state || !Number.isFinite(atMs)) return undefined;
+  const lookupMs = Math.max(0, atMs);
+  let active;
+  for (const event of state.isonEvents ?? []) {
+    if (!Number.isFinite(event.atMs)) continue;
+    if (event.atMs <= lookupMs) active = event;
+    else break;
+  }
+  return active;
 }
 
 export function scorePitchAtTime(state, pitchEvent, atMs, options = {}) {
@@ -181,6 +193,7 @@ export class ScorePracticePrototype {
     this._options = options;
     this._statusEl = options.statusEl ?? null;
     this._lastPitchScore = null;
+    this._lastIsonKey = null;
     this._ro = null;
     if (this.canvas && typeof ResizeObserver !== 'undefined') {
       this._ro = new ResizeObserver(() => this.paint());
@@ -192,7 +205,9 @@ export class ScorePracticePrototype {
     this.state = createScorePracticeState(compiled, { enabled: this.enabled });
     this.nowMs = this._initialNowMs();
     this._lastPitchScore = null;
+    this._lastIsonKey = null;
     this.paint();
+    this._syncIson();
     this._renderStatus();
   }
 
@@ -219,6 +234,7 @@ export class ScorePracticePrototype {
     if (wasRunning) {
       this._startedAt = now - this.nowMs / this._playbackRate();
     }
+    this._syncIson();
     this.paint();
     this._renderStatus();
   }
@@ -238,18 +254,22 @@ export class ScorePracticePrototype {
         this.state.totalDurationMs,
         Math.max(this._initialNowMs(), nextScoreMs)
       );
+      this._syncIson();
       this.paint();
       this._renderStatus();
       if (this.nowMs >= this.state.totalDurationMs) {
         if (this._options.loop && this.state.totalDurationMs > 0) {
           this.nowMs = this._initialNowMs();
           this._startedAt = timestamp - this.nowMs / playbackRate;
+          this._lastIsonKey = null;
+          this._syncIson();
         } else {
           this.stop();
         }
       }
     };
     this._rafId = requestAnimationFrame(tick);
+    this._syncIson();
     this._renderStatus();
   }
 
@@ -257,10 +277,13 @@ export class ScorePracticePrototype {
     if (this._rafId === null) return;
     cancelAnimationFrame(this._rafId);
     this._rafId = null;
+    this._lastIsonKey = null;
+    this._options.onIsonChange?.(null, { reason: 'stop' });
   }
 
   seek(ms) {
     this.nowMs = Math.max(this._initialNowMs(), Math.min(ms, this.state.totalDurationMs));
+    this._syncIson();
     this.paint();
     this._renderStatus();
   }
@@ -294,6 +317,15 @@ export class ScorePracticePrototype {
     });
     this._renderStatus();
     return this._lastPitchScore;
+  }
+
+  _syncIson() {
+    if (!this.enabled || typeof this._options.onIsonChange !== 'function') return;
+    const ison = activeScoreIsonAt(this.state, this.nowMs);
+    const key = isonKey(ison);
+    if (key === this._lastIsonKey) return;
+    this._lastIsonKey = key;
+    this._options.onIsonChange(ison ?? null, { nowMs: this.nowMs });
   }
 
   paint() {
@@ -334,6 +366,8 @@ export class ScorePracticePrototype {
       : active?.type === 'rest'
         ? 'Rest'
         : 'Ready';
+    const ison = activeScoreIsonAt(this.state, this.nowMs);
+    const isonLabel = ison?.degree ? `Ison ${ison.degree}` : 'No ison';
     const pitch = this._lastPitchScore;
     const pitchLabel = pitch?.expectedSilence
       ? (pitch.voiced ? 'singing through rest' : 'silent')
@@ -344,8 +378,21 @@ export class ScorePracticePrototype {
     const clockLabel = countdownSeconds > 0
       ? `starts in ${countdownSeconds}`
       : `${elapsed}/${total}`;
-    this._statusEl.textContent = `${this.state.title} · ${clockLabel} · ${targetLabel} · ${pitchLabel}`;
+    this._statusEl.textContent = `${this.state.title} · ${clockLabel} · ${targetLabel} · ${isonLabel} · ${pitchLabel}`;
   }
+}
+
+function normalizedIsonEvents(events) {
+  return (Array.isArray(events) ? events : [])
+    .filter(event => event?.type === 'ison' && event.degree)
+    .map(event => ({ ...event }))
+    .sort((a, b) => (a.atMs ?? 0) - (b.atMs ?? 0));
+}
+
+function isonKey(ison) {
+  if (!ison) return 'off';
+  const cell = ison.tuning?.cellMoria ?? ison.targetMoria ?? ison.engineMoria ?? '';
+  return `${ison.degree}:${ison.atMs ?? 0}:${cell}`;
 }
 
 export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options = {}) {

@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { compileChantScriptExample } from '../examples.js';
 import {
   SCORE_PRACTICE_ENABLED_DEFAULT,
+  ScorePracticePrototype,
+  activeScoreIsonAt,
   activeScoreTargetAt,
   createScorePracticeState,
   layoutScorePracticeMarkers,
@@ -116,6 +118,41 @@ test('score practice includes explicit initial non-diatonic pthora marker', () =
   assert.equal(state.pthoraEvents[0].scale, 'soft-chromatic');
   assert.equal(state.pthoraEvents[0].degree, 'Di');
   assert.equal(state.pthoraEvents[0].dropMoria, 42);
+});
+
+test('active score ison persists until the next score ison event', () => {
+  const state = createScorePracticeState({
+    timeline: [],
+    isonEvents: [
+      { type: 'ison', atMs: 1000, degree: 'Pa', targetMoria: 12 },
+      { type: 'ison', atMs: 0, degree: 'Ni', targetMoria: 0 },
+      { type: 'ison', atMs: 2000, degree: 'Vou', targetMoria: 22 },
+    ],
+    totalDurationMs: 3000,
+  });
+
+  assert.equal(activeScoreIsonAt(state, -500).degree, 'Ni');
+  assert.equal(activeScoreIsonAt(state, 1500).degree, 'Pa');
+  assert.equal(activeScoreIsonAt(state, 2500).degree, 'Vou');
+});
+
+test('score practice notifies ison changes on load and seek', () => {
+  const changes = [];
+  const practice = new ScorePracticePrototype(null, {
+    enabled: true,
+    onIsonChange: ison => changes.push(ison?.degree ?? null),
+  });
+  practice.setCompiledScore({
+    timeline: [],
+    isonEvents: [
+      { type: 'ison', atMs: 0, degree: 'Ni', targetMoria: 0 },
+      { type: 'ison', atMs: 1000, degree: 'Pa', targetMoria: 12 },
+    ],
+    totalDurationMs: 2000,
+  });
+  practice.seek(1200);
+
+  assert.deepEqual(changes, ['Ni', 'Pa']);
 });
 
 test('layout maps upcoming notes to stable target bars', () => {

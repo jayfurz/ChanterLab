@@ -228,6 +228,16 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
   };
   timeline.push(initialTempo);
   tempoChanges.push(initialTempo);
+  if (score.defaultDrone) {
+    const initialIson = createIsonEvent({
+      degree: score.defaultDrone,
+      atMs: 0,
+      sourceEventIndex: -1,
+      kind: 'default',
+    });
+    timeline.push(initialIson);
+    isonEvents.push(initialIson);
+  }
 
   for (const item of timedItems) {
     if (item.kind === 'tempo') {
@@ -264,12 +274,14 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
     }
 
     if (item.kind === 'ison') {
-      isonEvents.push({
-        type: 'ison',
-        atMs: currentMs,
+      const isonEvent = createIsonEvent({
         degree: item.event.degree,
+        atMs: currentMs,
         sourceEventIndex: item.sourceEventIndex,
+        kind: 'explicit',
       });
+      timeline.push(isonEvent);
+      isonEvents.push(isonEvent);
       continue;
     }
 
@@ -318,6 +330,21 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
         timeline.push(pthoraEvent);
         pthoraEvents.push(pthoraEvent);
       }
+      if (item.resolved.drone) {
+        const isonEvent = createIsonEvent({
+          degree: item.resolved.drone.degree,
+          atMs: currentMs,
+          sourceEventIndex: item.sourceEventIndex,
+          kind: 'note',
+        });
+        timeline.push(isonEvent);
+        isonEvents.push(isonEvent);
+        item.resolved.drone = {
+          ...item.resolved.drone,
+          atMs: currentMs,
+          sourceEventIndex: item.sourceEventIndex,
+        };
+      }
       const compiled = {
         ...item.resolved,
         startMs: currentMs,
@@ -327,14 +354,6 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
       };
       timeline.push(compiled);
       notes.push(compiled);
-      if (compiled.drone) {
-        isonEvents.push({
-          type: 'ison',
-          atMs: currentMs,
-          degree: compiled.drone.degree,
-          sourceEventIndex: item.sourceEventIndex,
-        });
-      }
       if (compiled.pthora) {
         compiled.pthora = {
           ...compiled.pthora,
@@ -370,6 +389,16 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
     initialTuning: createInitialTuning(score),
     diagnostics,
     totalDurationMs: currentMs,
+  };
+}
+
+function createIsonEvent({ degree, atMs, sourceEventIndex, kind }) {
+  return {
+    type: 'ison',
+    atMs,
+    degree,
+    sourceEventIndex,
+    ...(kind ? { kind } : {}),
   };
 }
 

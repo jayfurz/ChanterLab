@@ -29,6 +29,7 @@ export function retuneCompiledScoreWithGrid(compiled, options = {}) {
   const retunedNotes = [];
   const retunedPthoraEvents = [];
   const retunedCheckpoints = [];
+  const retunedIsonEvents = [];
 
   for (const event of timeline) {
     if (event?.type === 'pthora') {
@@ -53,6 +54,13 @@ export function retuneCompiledScoreWithGrid(compiled, options = {}) {
       continue;
     }
 
+    if (event?.type === 'ison') {
+      const retuned = retuneIsonWithGrid(event, grid, diagnostics);
+      retunedTimeline.push(retuned);
+      retunedIsonEvents.push(retuned);
+      continue;
+    }
+
     retunedTimeline.push(event);
   }
 
@@ -62,6 +70,7 @@ export function retuneCompiledScoreWithGrid(compiled, options = {}) {
     notes: retunedNotes.length ? retunedNotes : (compiled?.notes ?? []),
     pthoraEvents: retunedPthoraEvents.length ? retunedPthoraEvents : (compiled?.pthoraEvents ?? []),
     checkpoints: retunedCheckpoints.length ? retunedCheckpoints : (compiled?.checkpoints ?? []),
+    isonEvents: retunedIsonEvents.length ? retunedIsonEvents : (compiled?.isonEvents ?? []),
     diagnostics,
     tuningSource: 'engine',
   };
@@ -181,6 +190,33 @@ export function validateMartyriaWithGrid(checkpoint, grid, diagnostics = []) {
     ...checkpoint,
     gridMatches: true,
     targetMoria: cellEffectiveMoria(match.cell),
+  };
+}
+
+export function retuneIsonWithGrid(ison, grid, diagnostics = []) {
+  const match = findDegreeCell(grid, ison.degree, ison.moria);
+  if (!match) {
+    pushDiagnostic(diagnostics, {
+      severity: DIAGNOSTIC_SEVERITY.ERROR,
+      code: 'ison-target-cell-missing',
+      message: `No tuning-grid cell was found for ison ${ison.degree}.`,
+      ...ison.source,
+    });
+    return ison;
+  }
+
+  const targetMoria = cellEffectiveMoria(match.cell);
+  return {
+    ...ison,
+    targetMoria,
+    engineMoria: targetMoria,
+    tuning: {
+      source: 'engine',
+      cellMoria: match.cell.moria,
+      cellEffectiveMoria: targetMoria,
+      expectedMoria: match.expectedMoria,
+      distanceMoria: match.distanceMoria,
+    },
   };
 }
 

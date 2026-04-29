@@ -95,6 +95,43 @@ test('score-local accidentals move only the retuned target note', () => {
   assert.deepEqual(tuned.notes.map(note => note.targetMoria), [42, 44, 42]);
 });
 
+test('ison events are retuned through the active tuning grid', () => {
+  const compiled = compileChantScript([
+    'title "Retuned Ison Fixture"',
+    'tempo bpm 120',
+    'start Di',
+    'scale soft-chromatic phase 0',
+    'drone Di',
+    'note same',
+    'ison Ke',
+    'note up 1',
+  ].join('\n'));
+  const tuned = retuneCompiledScoreWithGrid(compiled, { grid: new FakeTuningGrid() });
+
+  assert.equal(hasErrorDiagnostics(tuned.diagnostics), false);
+  assert.deepEqual(tuned.isonEvents.map(event => [event.degree, event.targetMoria, event.tuning.cellMoria]), [
+    ['Di', 42, 42],
+    ['Ke', 50, 50],
+  ]);
+  assert.equal(tuned.timeline.filter(event => event.type === 'ison')[1].targetMoria, 50);
+});
+
+test('note-attached ison changes retune after note-attached pthora is applied', () => {
+  const compiled = compileChantScript([
+    'title "Attached Ison Retune Fixture"',
+    'tempo bpm 120',
+    'start Di',
+    'scale diatonic',
+    'note same pthora soft-chromatic phase 0 drone Ke',
+    'note up 1',
+  ].join('\n'));
+  const tuned = retuneCompiledScoreWithGrid(compiled, { grid: new FakeTuningGrid() });
+
+  assert.equal(hasErrorDiagnostics(tuned.diagnostics), false);
+  assert.equal(tuned.isonEvents[0].degree, 'Ke');
+  assert.equal(tuned.isonEvents[0].targetMoria, 50);
+});
+
 test('initial tuning helper anchors scale at martyria degree instead of first note', () => {
   const compiled = compileChantScript([
     'title "Initial Anchor Fixture"',
