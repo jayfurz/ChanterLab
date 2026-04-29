@@ -10,19 +10,19 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase5i';
+} from './score/examples.js?v=chant-script-engine-phase5j';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase5i';
+} from './score/chant_score.js?v=chant-script-engine-phase5j';
 import {
   ScorePracticePrototype,
   scorePracticeExplicitlyDisabled,
   scorePracticeIsonControlState,
-} from './score/score_practice.js?v=chant-script-engine-phase5i';
+} from './score/score_practice.js?v=chant-script-engine-phase5j';
 import {
   applyPthoraDrop,
   retuneCompiledScoreWithGrid,
-} from './score/tuning_context.js?v=chant-script-engine-phase5i';
+} from './score/tuning_context.js?v=chant-script-engine-phase5j';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -379,7 +379,6 @@ function wireScorePracticePrototypeUnsafe() {
 
   const mainView = document.getElementById('main-view');
   if (!mainView) return;
-  openScorePracticeMobileView();
 
   const params = new URLSearchParams(window.location.search);
   const exampleId = params.get('scorePracticeExample') || 'diatonic-ladder';
@@ -597,18 +596,6 @@ function buildScorePracticeControls(selectedExampleId, playbackRate) {
 
   el.append(title, select, speedWrap, restart, playPause);
   return { el, select, restart, playPause, speed, speedReadout };
-}
-
-function openScorePracticeMobileView() {
-  const mobileTabs = Array.from(document.querySelectorAll('.mobile-tab'));
-  const mobileNav = document.getElementById('mobile-tabs');
-  if (!mobileTabs.length || mobileNav?.offsetParent === null || window.location.hash) return;
-
-  const view = 'train';
-  document.body.dataset.mobileView = view;
-  mobileTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.mobileView === view));
-  history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${view}`);
-  requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
 
 function isValidCellId(cellId) {
