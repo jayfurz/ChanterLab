@@ -10,18 +10,19 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase5d';
+} from './score/examples.js?v=chant-script-engine-phase5h';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase5d';
+} from './score/chant_score.js?v=chant-script-engine-phase5h';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase5d';
+  scorePracticeIsonControlState,
+} from './score/score_practice.js?v=chant-script-engine-phase5h';
 import {
   applyPthoraDrop,
   retuneCompiledScoreWithGrid,
-} from './score/tuning_context.js?v=chant-script-engine-phase5d';
+} from './score/tuning_context.js?v=chant-script-engine-phase5h';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -1051,7 +1052,13 @@ function syncIsonControls() {
     toggleBtn.classList.toggle('active', app.isonEnabled);
   }
   if (degreeSelect) degreeSelect.value = app.isonDegree;
-  if (octaveSelect) octaveSelect.value = String(app.isonOctave);
+  if (octaveSelect) {
+    const octaveValue = String(app.isonOctave);
+    octaveSelect.value = octaveValue;
+    for (const option of octaveSelect.options) {
+      option.selected = option.value === octaveValue;
+    }
+  }
   if (volSlider) volSlider.value = String(app.isonVolume);
 }
 
@@ -1078,14 +1085,21 @@ function applyScorePracticeIson(ison) {
     };
   }
 
+  const resolved = scorePracticeIsonControlState(ison);
+  if (!resolved) {
+    releaseScorePracticeIson();
+    return;
+  }
+
   app.scorePracticeIsonOverride = {
-    degree: ison.degree,
-    cellId: scoreIsonCellId(ison),
+    degree: resolved.degree,
+    cellId: resolved.cellId,
+    octave: resolved.octave,
   };
   app.isonEnabled = true;
-  app.isonDegree = ison.degree;
-  app.isonOctave = Number.isFinite(app.scorePracticeIsonOverride.cellId)
-    ? Math.floor(app.scorePracticeIsonOverride.cellId / 72)
+  app.isonDegree = resolved.degree;
+  app.isonOctave = Number.isFinite(resolved.octave)
+    ? resolved.octave
     : app.isonOctave;
   syncIsonControls();
   updateIsonVoice(JSON.parse(app.grid.cellsJson()));
@@ -1105,14 +1119,20 @@ function releaseScorePracticeIson() {
   updateIsonVoice(JSON.parse(app.grid.cellsJson()));
 }
 
-function scoreIsonCellId(ison) {
-  const cellId = ison?.tuning?.cellMoria ?? ison?.targetMoria ?? ison?.engineMoria;
-  return Number.isFinite(cellId) ? cellId : null;
-}
-
 function updateIsonVoice(cells) {
   if (app.scorePracticeIsonOverride) {
-    const cellId = app.scorePracticeIsonOverride.cellId;
+    const override = app.scorePracticeIsonOverride;
+    const overrideCell = cells.find(cell => (
+      cell.degree === override.degree
+      && Number.isFinite(override.octave)
+      && Math.floor(cell.moria / 72) === override.octave
+      && cell.enabled
+    ));
+    if (overrideCell) {
+      app.engine.setIson(overrideCell.moria, app.isonVolume);
+      return;
+    }
+    const cellId = override.cellId;
     if (Number.isFinite(cellId)) {
       app.engine.setIson(cellId, app.isonVolume);
       return;

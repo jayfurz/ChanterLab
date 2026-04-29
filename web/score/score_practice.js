@@ -426,9 +426,12 @@ export class ScorePracticePrototype {
       : active?.type === 'rest'
         ? 'Rest'
         : 'Ready';
-    const ison = activeScoreIsonAt(this.state, this.nowMs);
-    const isonMoria = displayMoria(ison?.targetMoria ?? ison?.engineMoria ?? ison?.moria);
-    const isonLabel = ison?.degree ? `Ison ${ison.degree}${isonMoria ? ` ${isonMoria}` : ''}` : 'No ison';
+    const isonState = scorePracticeIsonControlState(activeScoreIsonAt(this.state, this.nowMs));
+    const isonMoria = displayMoria(isonState?.displayMoria);
+    const octave = scorePracticeIsonOctaveLabel(isonState);
+    const isonLabel = isonState?.degree
+      ? `Ison ${isonState.degree}${octave ? ` ${octave}` : ''}${isonMoria ? ` ${isonMoria}` : ''}`
+      : 'No ison';
     const pitch = this._lastPitchScore;
     const pitchLabel = pitch?.expectedSilence
       ? (pitch.voiced ? 'singing through rest' : 'silent')
@@ -452,8 +455,13 @@ function normalizedIsonEvents(events) {
 
 function isonKey(ison) {
   if (!ison) return 'off';
-  const cell = ison.tuning?.cellMoria ?? ison.targetMoria ?? ison.engineMoria ?? '';
-  return `${ison.degree}:${ison.atMs ?? 0}:${cell}`;
+  const resolved = scorePracticeIsonControlState(ison);
+  return [
+    resolved?.degree ?? '',
+    ison.atMs ?? 0,
+    resolved?.cellId ?? '',
+    resolved?.octave ?? '',
+  ].join(':');
 }
 
 export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options = {}) {
@@ -607,8 +615,10 @@ function markerLabel(marker) {
     return `${marker.scale ?? marker.genus ?? 'pthora'} ${marker.degree ?? ''}`.trim();
   }
   if (marker.markerType === 'ison') {
-    const moria = displayMoria(marker.targetMoria ?? marker.engineMoria ?? marker.moria);
-    return `ison ${marker.degree ?? ''}${moria ? ` ${moria}` : ''}`.trim();
+    const ison = scorePracticeIsonControlState(marker);
+    const octave = scorePracticeIsonOctaveLabel(ison);
+    const moria = displayMoria(ison?.displayMoria);
+    return `ison ${ison?.degree ?? ''}${octave ? ` ${octave}` : ''}${moria ? ` ${moria}` : ''}`.trim();
   }
   return `martyria ${marker.degree ?? ''}`.trim();
 }
@@ -679,6 +689,70 @@ function formatClock(ms) {
 function displayMoria(moria) {
   if (!Number.isFinite(moria)) return '';
   return `${Number.isInteger(moria) ? moria : moria.toFixed(1)}m`;
+}
+
+export function scorePracticeIsonMoria(ison) {
+  return scorePracticeIsonControlState(ison)?.displayMoria;
+}
+
+export function scorePracticeIsonControlState(ison) {
+  if (!ison?.degree) return undefined;
+
+  const scriptedMoria = finiteNumberOrUndefined(ison.moria);
+  const explicitOctave = Number.isInteger(ison.register) ? ison.register : undefined;
+  const expectedOctave = Number.isInteger(explicitOctave)
+    ? explicitOctave
+    : octaveForMoria(scriptedMoria);
+  const inExpectedOctave = value => (
+    !Number.isInteger(expectedOctave)
+    || !Number.isFinite(value)
+    || octaveForMoria(value) === expectedOctave
+  );
+  const firstInExpectedOctave = values => {
+    for (const value of values) {
+      if (Number.isFinite(value) && inExpectedOctave(value)) return value;
+    }
+    return finiteNumberOrUndefined(values.find(Number.isFinite));
+  };
+
+  const cellId = firstInExpectedOctave([
+    finiteNumberOrUndefined(ison.tuning?.cellMoria),
+    finiteNumberOrUndefined(ison.targetMoria),
+    finiteNumberOrUndefined(ison.engineMoria),
+    scriptedMoria,
+  ]);
+  const displayMoria = firstInExpectedOctave([
+    finiteNumberOrUndefined(ison.targetMoria),
+    finiteNumberOrUndefined(ison.engineMoria),
+    scriptedMoria,
+    cellId,
+  ]);
+  const octave = Number.isInteger(explicitOctave)
+    ? explicitOctave
+    : octaveForMoria(displayMoria ?? cellId);
+
+  return {
+    degree: ison.degree,
+    cellId,
+    displayMoria,
+    octave,
+    source: ison,
+  };
+}
+
+function scorePracticeIsonOctaveLabel(isonState) {
+  return Number.isInteger(isonState?.octave) && isonState.octave !== 0
+    ? `o${isonState.octave}`
+    : '';
+}
+
+function finiteNumberOrUndefined(value) {
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function octaveForMoria(moria) {
+  if (!Number.isFinite(moria)) return undefined;
+  return Math.floor(moria / 72);
 }
 
 function tuningKey(tuning) {

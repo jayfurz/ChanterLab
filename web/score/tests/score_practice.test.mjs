@@ -13,6 +13,8 @@ import {
   layoutScorePracticeTargets,
   scorePitchAtTime,
   scorePracticeFeatureEnabled,
+  scorePracticeIsonControlState,
+  scorePracticeIsonMoria,
   scorePracticeLeadInScoreMs,
 } from '../score_practice.js';
 
@@ -140,6 +142,79 @@ test('active score ison persists until the next score ison event', () => {
   assert.equal(activeScoreIsonAt(state, -500).degree, 'Ni');
   assert.equal(activeScoreIsonAt(state, 1500).degree, 'Pa');
   assert.equal(activeScoreIsonAt(state, 2500).degree, 'Vou');
+});
+
+test('score practice resolves explicit ison octaves before central retune fallbacks', () => {
+  const lower = scorePracticeIsonControlState({
+    type: 'ison',
+    degree: 'Di',
+    register: -1,
+    moria: -30,
+    targetMoria: 42,
+    engineMoria: 42,
+    tuning: { cellMoria: 42 },
+  });
+  assert.deepEqual({
+    degree: lower.degree,
+    octave: lower.octave,
+    cellId: lower.cellId,
+    displayMoria: lower.displayMoria,
+  }, {
+    degree: 'Di',
+    octave: -1,
+    cellId: -30,
+    displayMoria: -30,
+  });
+  assert.equal(scorePracticeIsonMoria(lower.source), -30);
+
+  const retunedLower = scorePracticeIsonControlState({
+    type: 'ison',
+    degree: 'Di',
+    register: -1,
+    moria: -30,
+    targetMoria: -32,
+    engineMoria: -32,
+    tuning: { cellMoria: -32 },
+  });
+  assert.equal(retunedLower.cellId, -32);
+  assert.equal(retunedLower.displayMoria, -32);
+
+  const retunedCentral = scorePracticeIsonControlState({
+    type: 'ison',
+    degree: 'Ke',
+    register: 0,
+    moria: 54,
+    targetMoria: 50,
+    engineMoria: 50,
+    tuning: { cellMoria: 50 },
+  });
+  assert.equal(retunedCentral.octave, 0);
+  assert.equal(retunedCentral.cellId, 50);
+  assert.equal(retunedCentral.displayMoria, 50);
+
+  assert.equal(scorePracticeIsonMoria({
+    type: 'ison',
+    degree: 'Di',
+    register: 0,
+    moria: 42,
+    targetMoria: 42,
+  }), 42);
+});
+
+test('plagal-four score practice callback reaches the late lower-octave Di ison', () => {
+  const changes = [];
+  const practice = new ScorePracticePrototype(null, {
+    enabled: true,
+    onIsonChange: ison => changes.push(scorePracticeIsonControlState(ison)),
+  });
+  practice.setCompiledScore(compileChantScriptExample('plagal-four-soft-chromatic'));
+  practice.seek(11000);
+
+  const lowerDi = changes.at(-1);
+  assert.equal(lowerDi.degree, 'Di');
+  assert.equal(lowerDi.octave, -1);
+  assert.equal(lowerDi.cellId, -30);
+  assert.equal(lowerDi.displayMoria, -30);
 });
 
 test('score practice notifies ison changes on load and seek', () => {
