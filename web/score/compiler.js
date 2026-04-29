@@ -113,12 +113,18 @@ export function compileChantScore(score, options = {}) {
     }
 
     if (event.type === 'pthora') {
+      const drop = createPthoraDrop(event, {
+        degree: degreeFromLinearIndex(currentLinear),
+        linearDegree: currentLinear,
+        moria: currentMoria,
+      });
       activeScale = createScaleContext(event, currentLinear);
       sequenceItems.push({
         kind: 'pthora',
         event,
         sourceEventIndex: eventIndex,
         scale: activeScale,
+        pthora: drop,
       });
       continue;
     }
@@ -174,6 +180,9 @@ function resolveNeume(event, context) {
   const moria = context.currentMoria + moriaDelta;
   const degree = degreeFromLinearIndex(linearDegree);
   const accidentalMoria = event.accidental?.moria ?? 0;
+  const pthora = event.pthora
+    ? createPthoraDrop(event.pthora, { degree, linearDegree, moria })
+    : undefined;
 
   return {
     type: 'note',
@@ -185,7 +194,7 @@ function resolveNeume(event, context) {
     sourceEventIndex: context.eventIndex,
     movement: { ...movement },
     lyric: event.lyric ?? { kind: 'none' },
-    pthora: event.pthora,
+    pthora,
     drone: event.drone,
     accidental: event.accidental,
     qualitative: [...(event.qualitative ?? [])],
@@ -265,14 +274,14 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
     }
 
     if (item.kind === 'pthora') {
-      pthoraEvents.push({
+      const pthoraEvent = {
+        ...item.pthora,
         type: 'pthora',
         atMs: currentMs,
-        scale: item.event.scale,
-        genus: item.event.genus,
-        phase: item.event.phase,
         sourceEventIndex: item.sourceEventIndex,
-      });
+      };
+      timeline.push(pthoraEvent);
+      pthoraEvents.push(pthoraEvent);
       continue;
     }
 
@@ -291,6 +300,24 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
     }
 
     if (item.kind === 'note') {
+      if (item.resolved.martyriaCheckpoint) {
+        const checkpoint = {
+          ...item.resolved.martyriaCheckpoint,
+          atMs: currentMs,
+          sourceEventIndex: item.sourceEventIndex,
+        };
+        timeline.push(checkpoint);
+        checkpoints.push(checkpoint);
+      }
+      if (item.resolved.pthora) {
+        const pthoraEvent = {
+          ...item.resolved.pthora,
+          atMs: currentMs,
+          sourceEventIndex: item.sourceEventIndex,
+        };
+        timeline.push(pthoraEvent);
+        pthoraEvents.push(pthoraEvent);
+      }
       const compiled = {
         ...item.resolved,
         startMs: currentMs,
@@ -309,14 +336,11 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
         });
       }
       if (compiled.pthora) {
-        pthoraEvents.push({
-          type: 'pthora',
+        compiled.pthora = {
+          ...compiled.pthora,
           atMs: currentMs,
-          scale: compiled.pthora.scale,
-          genus: compiled.pthora.genus,
-          phase: compiled.pthora.phase,
           sourceEventIndex: item.sourceEventIndex,
-        });
+        };
       }
     } else {
       const compiled = {
@@ -343,6 +367,7 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
     phraseBreaks,
     isonEvents,
     pthoraEvents,
+    initialTuning: createInitialTuning(score),
     diagnostics,
     totalDurationMs: currentMs,
   };
@@ -362,7 +387,44 @@ function validateCheckpoint(checkpoint, currentLinear, diagnostics) {
   return {
     ...checkpoint,
     actualDegree,
+    linearDegree: currentLinear,
+    register: registerFromLinearIndex(currentLinear),
     matches,
+  };
+}
+
+function createPthoraDrop(spec, context) {
+  if (!spec) return undefined;
+  const degree = context.degree;
+  return {
+    type: 'pthora',
+    scale: spec.scale,
+    genus: spec.genus,
+    degree,
+    dropDegree: degree,
+    dropMoria: context.moria,
+    linearDegree: context.linearDegree,
+    ...(Number.isInteger(spec.phase) ? { phase: spec.phase } : {}),
+    ...(spec.source ? { source: spec.source } : {}),
+  };
+}
+
+function createInitialTuning(score) {
+  const startDegree = score.initialMartyria?.degree ?? 'Ni';
+  const initialScale = score.initialScale;
+  if (!initialScale) return undefined;
+  return {
+    type: 'pthora',
+    scale: initialScale.scale,
+    genus: initialScale.genus,
+    degree: startDegree,
+    dropDegree: startDegree,
+    dropMoria: referenceMoriaForDegree(startDegree),
+    linearDegree: degreeIndex(startDegree),
+    atMs: 0,
+    sourceEventIndex: -1,
+    ...(Number.isInteger(initialScale.phase) ? { phase: initialScale.phase } : {}),
+    ...(initialScale.source ? { source: initialScale.source } : {}),
   };
 }
 

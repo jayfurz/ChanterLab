@@ -1,5 +1,6 @@
 await import('./parser.test.mjs');
 await import('./compiler.test.mjs');
 await import('./timing.test.mjs');
+await import('./tuning_context.test.mjs');
 await import('./examples.test.mjs');
 await import('./score_practice.test.mjs');

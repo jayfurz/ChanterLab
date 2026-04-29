@@ -6,3 +6,4 @@ export * from './glyph_defaults.js';
 export * from './parser.js';
 export * from './score_practice.js';
 export * from './timing.js';
+export * from './tuning_context.js';

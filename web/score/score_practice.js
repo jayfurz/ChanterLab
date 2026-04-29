@@ -37,12 +37,21 @@ export function createScorePracticeState(compiled, options = {}) {
       ...(event.type === 'note'
         ? {
             degree: event.degree,
-            moria: event.effectiveMoria ?? event.moria,
+            moria: event.targetMoria ?? event.effectiveMoria ?? event.moria,
+            symbolicMoria: event.moria,
+            engineMoria: event.engineMoria,
             lyric: event.lyric,
             display: event.display,
+            tuning: event.tuning,
           }
         : {}),
     }));
+
+  const initialPthoraEvents = compiled?.initialTuning && (
+    compiled.initialTuning.source || compiled.initialTuning.scale !== 'diatonic'
+  )
+    ? [compiled.initialTuning]
+    : [];
 
   return {
     enabled: options.enabled ?? SCORE_PRACTICE_ENABLED_DEFAULT,
@@ -53,7 +62,7 @@ export function createScorePracticeState(compiled, options = {}) {
     checkpoints: compiled?.checkpoints ?? [],
     phraseBreaks: compiled?.phraseBreaks ?? [],
     isonEvents: compiled?.isonEvents ?? [],
-    pthoraEvents: compiled?.pthoraEvents ?? [],
+    pthoraEvents: [...initialPthoraEvents, ...(compiled?.pthoraEvents ?? [])],
     diagnostics: compiled?.diagnostics ?? [],
   };
 }
@@ -126,6 +135,31 @@ export function layoutScorePracticeTargets(state, rowMap, viewport, options = {}
       };
     })
     .filter(target => target.visible);
+}
+
+export function layoutScorePracticeMarkers(state, viewport, options = {}) {
+  const cssW = Math.max(1, viewport?.width ?? 1);
+  const nowMs = viewport?.nowMs ?? 0;
+  const lookaheadMs = options.lookaheadMs ?? DEFAULT_LOOKAHEAD_MS;
+  const pxPerSecond = options.pxPerSecond ?? DEFAULT_PX_PER_SECOND;
+  const crosshairX = cssW * (options.crosshairX ?? DEFAULT_CROSSHAIR_X);
+  const events = [
+    ...(state?.pthoraEvents ?? []).map(event => ({ ...event, markerType: 'pthora' })),
+    ...(state?.checkpoints ?? []).map(event => ({ ...event, markerType: 'martyria' })),
+  ];
+
+  return events
+    .filter(event => Number.isFinite(event.atMs))
+    .filter(event => event.atMs >= nowMs && event.atMs <= nowMs + lookaheadMs)
+    .map(event => {
+      const x = crosshairX + ((event.atMs - nowMs) / 1000) * pxPerSecond;
+      return {
+        ...event,
+        x,
+        visible: x >= 0 && x <= cssW,
+      };
+    })
+    .filter(event => event.visible);
 }
 
 export function scorePracticeLeadInScoreMs(viewport, options = {}) {
@@ -316,6 +350,7 @@ export class ScorePracticePrototype {
 
 export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options = {}) {
   const targets = layoutScorePracticeTargets(state, rowMap, viewport, options);
+  const markers = layoutScorePracticeMarkers(state, viewport, options);
   const crosshairX = viewport.width * (options.crosshairX ?? DEFAULT_CROSSHAIR_X);
 
   ctx.save();
@@ -327,6 +362,27 @@ export function paintScorePracticeTargets(ctx, state, rowMap, viewport, options 
   ctx.stroke();
 
   paintLeadInCountdown(ctx, viewport, options);
+
+  for (const marker of markers) {
+    if (marker.markerType === 'pthora') {
+      ctx.strokeStyle = 'rgba(195, 165, 255, 0.58)';
+      ctx.fillStyle = 'rgba(195, 165, 255, 0.92)';
+    } else {
+      ctx.strokeStyle = 'rgba(255, 202, 111, 0.58)';
+      ctx.fillStyle = 'rgba(255, 202, 111, 0.92)';
+    }
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marker.x, 0);
+    ctx.lineTo(marker.x, viewport.height);
+    ctx.stroke();
+
+    const label = marker.markerType === 'pthora'
+      ? `${marker.scale ?? 'pthora'} ${marker.degree ?? ''}`.trim()
+      : `martyria ${marker.degree ?? ''}`.trim();
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText(label, marker.x + 3, marker.markerType === 'pthora' ? 26 : 40);
+  }
 
   for (const target of targets) {
     if (target.type === 'rest') {

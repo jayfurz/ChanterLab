@@ -78,10 +78,34 @@ test('compiler attaches pthora and ison changes without changing movement semant
   assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
   assert.equal(compiled.notes[0].degree, 'Di');
   assert.equal(compiled.notes[0].pthora.scale, 'soft-chromatic');
+  assert.equal(compiled.notes[0].pthora.dropDegree, 'Di');
+  assert.equal(compiled.notes[0].pthora.dropMoria, 42);
   assert.equal(compiled.notes[1].degree, 'Ke');
   assert.equal(compiled.notes[1].scale.scale, 'soft-chromatic');
   assert.equal(compiled.pthoraEvents.length, 1);
+  assert.equal(compiled.pthoraEvents[0].degree, 'Di');
+  assert.equal(compiled.pthoraEvents[0].dropMoria, 42);
   assert.equal(compiled.isonEvents.length, 1);
+});
+
+test('compiler promotes note-local martyria checkpoints into compiled checkpoint events', () => {
+  const script = [
+    'title "Note Checkpoint Fixture"',
+    'tempo moderate bpm 132',
+    'start Di',
+    'scale diatonic',
+    'note same checkpoint Di',
+    'note up 1',
+  ].join('\n');
+
+  const compiled = compileChantScript(script);
+
+  assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
+  assert.equal(compiled.checkpoints.length, 1);
+  assert.equal(compiled.checkpoints[0].degree, 'Di');
+  assert.equal(compiled.checkpoints[0].actualDegree, 'Di');
+  assert.equal(compiled.checkpoints[0].atMs, 0);
+  assert.equal(compiled.timeline[1].type, 'martyria');
 });
 
 test('compiler applies accidentals only to the compiled note target', () => {

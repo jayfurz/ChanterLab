@@ -10,14 +10,17 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase3a';
+} from './score/examples.js?v=chant-script-engine-phase4a';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase3a';
+} from './score/chant_score.js?v=chant-script-engine-phase4a';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase3a';
+} from './score/score_practice.js?v=chant-script-engine-phase4a';
+import {
+  retuneCompiledScoreWithGrid,
+} from './score/tuning_context.js?v=chant-script-engine-phase4a';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -421,13 +424,15 @@ function wireScorePracticePrototypeUnsafe() {
   });
 
   const loadExample = nextExampleId => {
+    let rawCompiled;
     try {
-      compiled = compileChantScriptExample(nextExampleId);
+      rawCompiled = compileChantScriptExample(nextExampleId);
     } catch (e) {
       console.warn('Score practice example failed to compile', e);
       return;
     }
-    applyCompiledScoreInitialTuning(compiled);
+    applyCompiledScoreInitialTuning(rawCompiled);
+    compiled = retuneCompiledScore(rawCompiled);
     app.scorePractice.setCompiledScore(compiled);
     app.scorePractice.setRowMap(app.ladder.rowMap);
     app.scorePractice.restart();
@@ -458,6 +463,13 @@ function wireScorePracticePrototypeUnsafe() {
   });
 
   loadExample(exampleId);
+}
+
+function retuneCompiledScore(compiled) {
+  return retuneCompiledScoreWithGrid(compiled, {
+    createGrid: () => new JsTuningGrid(),
+    refNiHz: app.refNiHz,
+  });
 }
 
 function applyCompiledScoreInitialTuning(compiled) {

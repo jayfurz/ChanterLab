@@ -6,6 +6,7 @@ import {
   SCORE_PRACTICE_ENABLED_DEFAULT,
   activeScoreTargetAt,
   createScorePracticeState,
+  layoutScorePracticeMarkers,
   layoutScorePracticeTargets,
   scorePitchAtTime,
   scorePracticeFeatureEnabled,
@@ -64,6 +65,57 @@ test('pitch scoring reports in-tune notes and expected silence', () => {
     totalDurationMs: 500,
   });
   assert.equal(scorePitchAtTime(restState, { gate_open: false }, 10).expectedSilence, true);
+});
+
+test('score practice targets prefer engine retuned moria when present', () => {
+  const state = createScorePracticeState({
+    timeline: [{
+      type: 'note',
+      degree: 'Ke',
+      moria: 54,
+      effectiveMoria: 54,
+      targetMoria: 50,
+      engineMoria: 50,
+      startMs: 0,
+      durationMs: 500,
+      durationBeats: 1,
+      sourceEventIndex: 0,
+    }],
+    totalDurationMs: 500,
+  });
+
+  assert.equal(state.targets[0].moria, 50);
+  assert.equal(state.targets[0].symbolicMoria, 54);
+  assert.equal(scorePitchAtTime(state, { gate_open: true, raw_moria: 50 }, 10).inTune, true);
+});
+
+test('layout exposes pthora and martyria markers for score practice rendering', () => {
+  const state = createScorePracticeState({
+    timeline: [],
+    pthoraEvents: [{ type: 'pthora', atMs: 500, scale: 'soft-chromatic', degree: 'Di' }],
+    checkpoints: [{ type: 'martyria', atMs: 1000, degree: 'Ke' }],
+    totalDurationMs: 1500,
+  });
+
+  const markers = layoutScorePracticeMarkers(state, {
+    width: 500,
+    height: 120,
+    nowMs: 0,
+  }, {
+    pxPerSecond: 100,
+  });
+
+  assert.deepEqual(markers.map(marker => marker.markerType), ['pthora', 'martyria']);
+  assert.deepEqual(markers.map(marker => marker.x), [500 * 0.28 + 50, 500 * 0.28 + 100]);
+});
+
+test('score practice includes explicit initial non-diatonic pthora marker', () => {
+  const compiled = compileChantScriptExample('soft-chromatic-phrase');
+  const state = createScorePracticeState(compiled);
+
+  assert.equal(state.pthoraEvents[0].scale, 'soft-chromatic');
+  assert.equal(state.pthoraEvents[0].degree, 'Di');
+  assert.equal(state.pthoraEvents[0].dropMoria, 42);
 });
 
 test('layout maps upcoming notes to stable target bars', () => {
