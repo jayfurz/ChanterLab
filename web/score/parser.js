@@ -366,16 +366,15 @@ function parseTopLevelScale(score, tokens, diagnostics, asEvent, markTimelineEve
 }
 
 function parseDrone(score, tokens, diagnostics, asEvent, markTimelineEvent) {
-  if (!expectArity(tokens, diagnostics, 2, `${tokens[0].value} requires one degree.`)) return;
-  const degree = parseDegreeToken(tokens[1], diagnostics);
-  if (!degree) return;
-  const event = {
-    type: 'ison',
-    degree,
-    source: makeSourceLocation(tokens[0]),
-  };
-  if (asEvent) markTimelineEvent(event);
-  else score.defaultDrone = degree;
+  const parsed = parseIsonSpec(tokens, diagnostics, 1, tokens[0]);
+  if (!parsed.spec) return;
+  expectEnd(tokens, diagnostics, parsed.nextIndex);
+  if (asEvent) {
+    markTimelineEvent(parsed.spec);
+  } else {
+    score.defaultDrone = parsed.spec.degree;
+    score.defaultDroneRegister = parsed.spec.register;
+  }
 }
 
 function parseCheckpoint(tokens, diagnostics, degreeIndex = 1) {
@@ -583,10 +582,10 @@ function parseNoteModifiers(note, tokens, diagnostics, startIndex) {
       }
       case 'drone':
       case 'ison': {
-        const degree = parseDegreeToken(tokens[cursor + 1], diagnostics);
-        if (!degree) return;
-        note.drone = { type: 'ison', degree, source: makeSourceLocation(tokens[cursor]) };
-        cursor += 2;
+        const parsed = parseIsonSpec(tokens, diagnostics, cursor + 1, tokens[cursor]);
+        if (!parsed.spec) return;
+        note.drone = parsed.spec;
+        cursor = parsed.nextIndex;
         break;
       }
       case 'checkpoint':
@@ -787,6 +786,38 @@ function parseScaleSpec(tokens, diagnostics, startIndex) {
   };
 }
 
+function parseIsonSpec(tokens, diagnostics, startIndex, sourceToken) {
+  const degree = parseDegreeToken(tokens[startIndex], diagnostics);
+  if (!degree) return {};
+
+  let cursor = startIndex + 1;
+  let register;
+  if (cursor < tokens.length) {
+    const word = lower(tokens[cursor]);
+    if (word === 'octave' || word === 'register') {
+      register = parseSignedInteger(tokens[cursor + 1], diagnostics, word);
+      if (register === undefined) return {};
+      cursor += 2;
+    } else if (word?.startsWith('octave=') || word?.startsWith('register=')) {
+      const label = word.startsWith('octave=') ? 'octave' : 'register';
+      const value = tokens[cursor].value.slice(tokens[cursor].value.indexOf('=') + 1);
+      register = parseInlineSignedInteger(value, tokens[cursor], diagnostics, label);
+      if (register === undefined) return {};
+      cursor += 1;
+    }
+  }
+
+  return {
+    spec: {
+      type: 'ison',
+      degree,
+      ...(Number.isInteger(register) ? { register } : {}),
+      source: makeSourceLocation(sourceToken),
+    },
+    nextIndex: cursor,
+  };
+}
+
 function parseDegreeToken(token, diagnostics) {
   const degree = normalizeDegree(token?.value);
   if (!degree) {
@@ -862,6 +893,22 @@ function parseInteger(token, diagnostics, label) {
 function parseInlineInteger(value, token, diagnostics, label) {
   if (!/^\d+$/.test(value)) {
     diagAt(diagnostics, token, `invalid-${label}`, `${label} requires an integer.`);
+    return undefined;
+  }
+  return Number(value);
+}
+
+function parseSignedInteger(token, diagnostics, label) {
+  if (!token || token.type === 'string') {
+    diagAt(diagnostics, token, `invalid-${label}`, `${label} requires a signed integer.`);
+    return undefined;
+  }
+  return parseInlineSignedInteger(token.value, token, diagnostics, label);
+}
+
+function parseInlineSignedInteger(value, token, diagnostics, label) {
+  if (!/^[+-]?\d+$/.test(value)) {
+    diagAt(diagnostics, token, `invalid-${label}`, `${label} requires a signed integer.`);
     return undefined;
   }
   return Number(value);

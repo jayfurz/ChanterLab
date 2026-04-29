@@ -15,6 +15,7 @@ const DOC_FIXTURE_BY_ID = Object.freeze({
   'soft-chromatic-phrase': 'soft_chromatic_phrase.chant',
   'symbolic-timing-steal': 'symbolic_timing_steal.chant',
   'temporal-rules': 'temporal_rules.chant',
+  'plagal-four-soft-chromatic': 'plagal_four_soft_chromatic.chant',
 });
 
 function readDocFixture(name) {

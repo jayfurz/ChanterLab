@@ -637,7 +637,7 @@ orthography none
 start <degree>
 start <degree> scale <scale-name> [phase <number>]
 scale <scale-name> [phase <number>]
-drone <degree>
+drone <degree> [octave <integer>]
 ```
 
 Supported tempo names should be:
@@ -676,7 +676,7 @@ quick
 divide <number>
 duration <number>
 scale <scale-name> [phase <number>]
-drone <degree>
+drone <degree> [octave <integer>]
 checkpoint <degree>
 style <name>
 quality <name>
@@ -776,7 +776,7 @@ Recommended aliases:
 | `silence N` | `rest duration N` |
 | `text "Text"` | `lyric "Text"` |
 | `_` | `lyric continue` when used as a note modifier |
-| `ison <degree>` | `drone <degree>` |
+| `ison <degree> [octave <integer>]` | `drone <degree> [octave <integer>]` |
 | `martyria <degree>` | `checkpoint <degree>` unless used at the top before notes, where it is `start <degree>` |
 | `pthora <scale-name> phase=N` | `scale <scale-name> phase <N>` |
 | `gorgon` | `quick` |

@@ -99,6 +99,56 @@ note same lyric "tail"
 checkpoint Ke
 `;
 
+const PLAGAL_FOUR_SOFT_CHROMATIC_SCRIPT = `# Engineering fixture: synthetic plagal-four style phrase with multiple pthora and ison changes.
+# This is not an authoritative hymn transcription.
+title "Plagal Four Soft Chromatic Fixture"
+tempo moderate bpm 120
+start Ni
+scale diatonic
+drone Ni
+timing symbolic
+orthography generated
+
+# Diatonic ascent from Ni to Di.
+note same lyric "Ni"
+note up 1 lyric "Pa"
+note up 1 lyric "Vou"
+note up 1 lyric "Ga"
+note up 1 lyric "Di"
+
+# Drop a third in one neume, then move the ison in unison back to Di.
+note down 2 ison Vou lyric "Vou"
+note up 1 ison Ga lyric "Ga"
+note up 1 ison Di lyric "Di"
+
+# Soft chromatic tetrachord at Di.
+pthora soft-chromatic phase 0
+note up 1 lyric "Ke"
+note down 1 quick lyric "Di"
+note up 1 lyric "Ke"
+note up 1 lyric "Zo"
+note up 1 quick lyric "Ni"
+note down 1 lyric "Zo"
+note down 1 quick lyric "Ke"
+note up 1 lyric "Zo"
+note up 1 beats 2 lyric "Ni"
+
+# Return to diatonic at Di and test lower-octave ison.
+note down 3 pthora diatonic ison Ni beats 2 lyric "Di"
+note up 1 lyric "Ke"
+note down 1 lyric "Di"
+note down 1 lyric "Ga"
+note down 1 lyric "Vou"
+note down 1 ison Di octave -1 beats 2 lyric "Pa"
+note up 1 ison Ni octave 0 lyric "Vou"
+note down 1 lyric "Pa"
+note down 1 lyric "Ni"
+note down 1 sharp 2 lyric "Zo"
+note up 1 beats 3 lyric "Ni"
+
+checkpoint Ni
+`;
+
 export const CHANT_SCRIPT_EXAMPLES = Object.freeze([
   Object.freeze({
     id: 'diatonic-ladder',
@@ -129,6 +179,12 @@ export const CHANT_SCRIPT_EXAMPLES = Object.freeze([
     title: 'Temporal Rules Fixture',
     path: '../../docs/examples/chant_scripts/temporal_rules.chant',
     script: TEMPORAL_RULES_SCRIPT,
+  }),
+  Object.freeze({
+    id: 'plagal-four-soft-chromatic',
+    title: 'Plagal Four Soft Chromatic Fixture',
+    path: '../../docs/examples/chant_scripts/plagal_four_soft_chromatic.chant',
+    script: PLAGAL_FOUR_SOFT_CHROMATIC_SCRIPT,
   }),
 ]);
 

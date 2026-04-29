@@ -132,14 +132,8 @@ export function layoutScorePracticeTargets(state, rowMap, viewport, options = {}
   return state.targets
     .filter(target => target.endMs >= nowMs && target.startMs <= nowMs + lookaheadScoreMs)
     .map(target => {
-      const x = crosshairX + scoreDeltaMsToPixels(target.startMs - nowMs, {
-        pxPerSecond,
-        playbackRate,
-      });
-      const width = Math.max(4, scoreDeltaMsToPixels(target.durationMs, {
-        pxPerSecond,
-        playbackRate,
-      }));
+      const x = crosshairX + scoreDeltaMsToPixels(target.startMs - nowMs, pxPerSecond);
+      const width = Math.max(4, scoreDeltaMsToPixels(target.durationMs, pxPerSecond));
       const row = target.type === 'note' ? rowLookup(target.moria) : undefined;
       const y = target.type === 'note' ? row?.centerY ?? cssH / 2 : cssH - 16;
       const height = target.type === 'note' ? Math.max(6, Math.min(row?.height ?? 12, 18)) : 8;
@@ -175,10 +169,7 @@ export function layoutScorePracticeMarkers(state, viewport, options = {}) {
     .filter(event => Number.isFinite(event.atMs))
     .filter(event => event.atMs >= nowMs && event.atMs <= nowMs + lookaheadScoreMs)
     .map(event => {
-      const x = crosshairX + scoreDeltaMsToPixels(event.atMs - nowMs, {
-        pxPerSecond,
-        playbackRate,
-      });
+      const x = crosshairX + scoreDeltaMsToPixels(event.atMs - nowMs, pxPerSecond);
       return {
         ...event,
         x,
@@ -615,8 +606,8 @@ function playbackRateFromOptions(options) {
   return positiveNumberOr(options?.playbackRate, 1);
 }
 
-function scoreDeltaMsToPixels(scoreDeltaMs, { pxPerSecond, playbackRate }) {
-  return (scoreDeltaMs / playbackRate / 1000) * pxPerSecond;
+function scoreDeltaMsToPixels(scoreDeltaMs, pxPerSecond) {
+  return (scoreDeltaMs / 1000) * pxPerSecond;
 }
 
 function performanceNow() {

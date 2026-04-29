@@ -178,6 +178,7 @@ export function createChantScore() {
     initialMartyria: undefined,
     initialScale: undefined,
     defaultDrone: undefined,
+    defaultDroneRegister: undefined,
     events: [],
   };
 }

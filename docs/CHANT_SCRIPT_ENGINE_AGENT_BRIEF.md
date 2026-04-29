@@ -141,7 +141,7 @@ orthography none
 start <degree>
 start <degree> scale <scale-name> [phase <number>]
 scale <scale-name> [phase <number>]
-drone <degree>
+drone <degree> [octave <integer>]
 ```
 
 Required note forms:
@@ -160,7 +160,7 @@ quick
 divide <number>
 duration <number>
 scale <scale-name> [phase <number>]
-drone <degree>
+drone <degree> [octave <integer>]
 checkpoint <degree>
 style <name>
 quality <name>
@@ -229,7 +229,7 @@ hold N -> note same beats N
 silence N -> rest duration N
 text "Text" -> lyric "Text"
 _ -> lyric continue when used as a note modifier
-ison <degree> -> drone <degree>
+ison <degree> [octave <integer>] -> drone <degree> [octave <integer>]
 martyria <degree> -> checkpoint <degree>, or start <degree> before notes
 pthora <scale-name> phase=N -> scale <scale-name> phase <N>
 gorgon -> quick

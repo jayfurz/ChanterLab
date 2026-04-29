@@ -11,6 +11,7 @@ const FIXTURES = Object.freeze({
   soft: 'soft_chromatic_phrase.chant',
   steal: 'symbolic_timing_steal.chant',
   temporal: 'temporal_rules.chant',
+  plagalFour: 'plagal_four_soft_chromatic.chant',
 });
 
 function readFixture(name) {
@@ -98,6 +99,25 @@ test('parser handles aliases and case-insensitive names', () => {
   assert.equal(score.events[2].baseBeats, 2);
   assert.equal(score.events[3].durationBeats, 0.5);
   assert.equal(score.events[4].checkpoint.degree, 'Ke');
+});
+
+test('parser accepts explicit ison octaves on default and note-local drones', () => {
+  const script = [
+    'title "Ison Octave Fixture"',
+    'tempo moderate',
+    'start Ni',
+    'scale diatonic',
+    'drone Ni octave 0',
+    'note same ison Di octave -1',
+  ].join('\n');
+
+  const { score, diagnostics } = parseChantScript(script);
+
+  assert.equal(hasErrorDiagnostics(diagnostics), false);
+  assert.equal(score.defaultDrone, 'Ni');
+  assert.equal(score.defaultDroneRegister, 0);
+  assert.equal(score.events[0].drone.degree, 'Di');
+  assert.equal(score.events[0].drone.register, -1);
 });
 
 test('note-local accidentals parse as even moria offsets', () => {

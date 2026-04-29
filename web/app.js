@@ -10,17 +10,17 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase5b';
+} from './score/examples.js?v=chant-script-engine-phase5c';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase5b';
+} from './score/chant_score.js?v=chant-script-engine-phase5c';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase5b';
+} from './score/score_practice.js?v=chant-script-engine-phase5c';
 import {
   retuneCompiledScoreWithGrid,
-} from './score/tuning_context.js?v=chant-script-engine-phase5b';
+} from './score/tuning_context.js?v=chant-script-engine-phase5c';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -410,7 +410,7 @@ function wireScorePracticePrototypeUnsafe() {
   document.body.classList.add('score-practice-dev');
   app.singscope?.setTraceTiming({
     anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
-    pxPerSecond: scrollPxPerSecond,
+    pxPerSecond: scrollPxPerSecond * playbackRate,
   });
 
   app.scorePractice = new ScorePracticePrototype(canvas, {
@@ -458,6 +458,10 @@ function wireScorePracticePrototypeUnsafe() {
   controls.speed.addEventListener('input', () => {
     const nextRate = clampScorePracticePlaybackRate(Number(controls.speed.value));
     controls.speedReadout.textContent = formatPlaybackRate(nextRate);
+    app.singscope?.setTraceTiming({
+      anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
+      pxPerSecond: scrollPxPerSecond * nextRate,
+    });
     app.scorePractice.setTiming({
       playbackRate: nextRate,
       pxPerSecond: scrollPxPerSecond,

@@ -13,6 +13,7 @@ Use them to test:
 - lyric starts and melisma continuation,
 - generated glyph display.
 - gorgon, digorgon, and trigorgon temporal rewrite windows.
+- repeated pthora and ison changes, including explicit ison octave/register.
 
 The first parser should accept the strict grammar described in
 `docs/BYZANTINE_CHANT_SCORE_PROPOSAL.md`.

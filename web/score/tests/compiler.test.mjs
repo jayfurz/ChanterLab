@@ -62,6 +62,36 @@ test('compiler carries soft chromatic scale context and rests', () => {
   assert.equal(compiled.checkpoints[0].matches, true);
 });
 
+test('compiler handles plagal-four fixture with repeated pthora and ison changes', () => {
+  const compiled = compileChantScript(readFixture('plagal_four_soft_chromatic.chant'));
+
+  assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
+  assert.deepEqual(compiled.notes.slice(0, 8).map(note => note.degree), [
+    'Ni', 'Pa', 'Vou', 'Ga', 'Di', 'Vou', 'Ga', 'Di',
+  ]);
+  assert.equal(compiled.notes[5].movement.steps, 2);
+  assert.deepEqual(compiled.pthoraEvents.map(event => [event.scale, event.degree, event.dropMoria]), [
+    ['soft-chromatic', 'Di', 42],
+    ['diatonic', 'Di', 42],
+  ]);
+  assert.deepEqual(
+    compiled.isonEvents.map(event => [event.degree, event.register, event.moria]),
+    [
+      ['Ni', 0, 0],
+      ['Vou', 0, 22],
+      ['Ga', 0, 30],
+      ['Di', 0, 42],
+      ['Ni', 0, 0],
+      ['Di', -1, -30],
+      ['Ni', 0, 0],
+    ]
+  );
+  assert.equal(compiled.notes.at(-2).accidental.moria, 2);
+  assert.equal(compiled.notes.at(-1).degree, 'Ni');
+  assert.equal(compiled.notes.at(-1).durationBeats, 3);
+  assert.equal(compiled.checkpoints.at(-1).matches, true);
+});
+
 test('compiler attaches pthora and ison changes without changing movement semantics', () => {
   const script = [
     'title "Pthora Fixture"',
@@ -115,6 +145,27 @@ test('compiler emits default and explicit ison timeline events', () => {
     compiled.timeline.filter(event => event.type === 'ison').map(event => event.degree),
     ['Ni', 'Pa', 'Vou']
   );
+});
+
+test('compiler preserves explicit ison octave registers', () => {
+  const script = [
+    'title "Ison Octave Compile Fixture"',
+    'tempo moderate bpm 120',
+    'start Ni',
+    'scale diatonic',
+    'drone Ni octave 0',
+    'note same ison Di octave -1',
+    'note up 1 ison Ni',
+  ].join('\n');
+
+  const compiled = compileChantScript(script);
+
+  assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
+  assert.deepEqual(compiled.isonEvents.map(event => [event.degree, event.register, event.moria]), [
+    ['Ni', 0, 0],
+    ['Di', -1, -30],
+    ['Ni', 0, 0],
+  ]);
 });
 
 test('compiler promotes note-local martyria checkpoints into compiled checkpoint events', () => {

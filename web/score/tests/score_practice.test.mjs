@@ -205,7 +205,7 @@ test('layout lead-in places the first note ahead of the crosshair', () => {
   assert.equal(layout[0].x, 500 * 0.28 + 100);
 });
 
-test('layout keeps visual scroll fixed while playback rate changes target length', () => {
+test('layout keeps score-length bars while playback rate changes lead-in distance', () => {
   const state = createScorePracticeState({
     timeline: [{
       type: 'note',
@@ -223,27 +223,34 @@ test('layout keeps visual scroll fixed while playback rate changes target length
     { cell: { moria: 0, effective_moria: 0, enabled: true }, y: 0, h: 20 },
   ];
 
-  const fast = layoutScorePracticeTargets(state, rowMap, {
-    width: 500,
-    height: 120,
-    nowMs: -1000,
-  }, {
+  const fastOptions = {
+    leadInMs: 3000,
     pxPerSecond: 100,
     playbackRate: 2,
-  });
-  const slow = layoutScorePracticeTargets(state, rowMap, {
-    width: 500,
-    height: 120,
-    nowMs: -1000,
-  }, {
+  };
+  const slowOptions = {
+    leadInMs: 3000,
     pxPerSecond: 100,
     playbackRate: 0.5,
-  });
+  };
+  const fastLeadIn = scorePracticeLeadInScoreMs({ width: 1000 }, fastOptions);
+  const slowLeadIn = scorePracticeLeadInScoreMs({ width: 1000 }, slowOptions);
 
-  assert.equal(fast[0].x, 500 * 0.28 + 50);
-  assert.equal(fast[0].width, 50);
-  assert.equal(slow[0].x, 500 * 0.28 + 200);
-  assert.equal(slow[0].width, 200);
+  const fast = layoutScorePracticeTargets(state, rowMap, {
+    width: 1000,
+    height: 120,
+    nowMs: -fastLeadIn,
+  }, fastOptions);
+  const slow = layoutScorePracticeTargets(state, rowMap, {
+    width: 1000,
+    height: 120,
+    nowMs: -slowLeadIn,
+  }, slowOptions);
+
+  assert.equal(fast[0].x, 1000 * 0.28 + 600);
+  assert.equal(fast[0].width, 100);
+  assert.equal(slow[0].x, 1000 * 0.28 + 150);
+  assert.equal(slow[0].width, 100);
 });
 
 test('fixed lead-in places the first note ahead of the crosshair', () => {
@@ -268,5 +275,5 @@ test('fixed lead-in places the first note ahead of the crosshair', () => {
 
   assert.equal(leadInScoreMs, 1500);
   assert.equal(layout[0].degree, 'Ni');
-  assert.equal(layout[0].x, 500 * 0.28 + 300);
+  assert.equal(layout[0].x, 500 * 0.28 + 150);
 });

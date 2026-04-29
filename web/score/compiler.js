@@ -134,7 +134,7 @@ export function compileChantScore(score, options = {}) {
         kind: 'ison',
         event,
         sourceEventIndex: eventIndex,
-        isonContext: createIsonContext(event.degree, currentLinear, currentMoria),
+        isonContext: createIsonContext(event.degree, event.register),
       });
       continue;
     }
@@ -230,17 +230,12 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
   timeline.push(initialTempo);
   tempoChanges.push(initialTempo);
   if (score.defaultDrone) {
-    const startDegree = score.initialMartyria?.degree ?? 'Ni';
     const initialIson = createIsonEvent({
       degree: score.defaultDrone,
       atMs: 0,
       sourceEventIndex: -1,
       kind: 'default',
-      context: createIsonContext(
-        score.defaultDrone,
-        degreeIndex(startDegree),
-        referenceMoriaForDegree(startDegree)
-      ),
+      context: createIsonContext(score.defaultDrone, score.defaultDroneRegister),
     });
     timeline.push(initialIson);
     isonEvents.push(initialIson);
@@ -344,11 +339,7 @@ function buildMillisecondTimeline(score, timedItems, diagnostics) {
           atMs: currentMs,
           sourceEventIndex: item.sourceEventIndex,
           kind: 'note',
-          context: createIsonContext(
-            item.resolved.drone.degree,
-            item.resolved.linearDegree,
-            item.resolved.moria
-          ),
+          context: createIsonContext(item.resolved.drone.degree, item.resolved.drone.register),
         });
         timeline.push(isonEvent);
         isonEvents.push(isonEvent);
@@ -418,35 +409,15 @@ function createIsonEvent({ degree, atMs, sourceEventIndex, kind, context }) {
   };
 }
 
-function createIsonContext(degree, referenceLinear, referenceMoria) {
+function createIsonContext(degree, register = 0) {
   const baseLinear = degreeIndex(degree);
   if (baseLinear < 0) return {};
-
-  const anchorMoria = Number.isFinite(referenceMoria)
-    ? referenceMoria
-    : referenceMoriaForDegree(degree);
-  const anchorRegister = Number.isFinite(referenceLinear)
-    ? Math.round((referenceLinear - baseLinear) / 7)
-    : 0;
-  let bestRegister = anchorRegister;
-  let bestMoria = referenceMoriaForDegree(degree) + bestRegister * 72;
-  let bestDistance = Math.abs(bestMoria - anchorMoria);
-
-  for (let offset = -1; offset <= 1; offset += 1) {
-    const register = anchorRegister + offset;
-    const moria = referenceMoriaForDegree(degree) + register * 72;
-    const distance = Math.abs(moria - anchorMoria);
-    if (distance < bestDistance) {
-      bestRegister = register;
-      bestMoria = moria;
-      bestDistance = distance;
-    }
-  }
+  const resolvedRegister = Number.isInteger(register) ? register : 0;
 
   return {
-    linearDegree: baseLinear + bestRegister * 7,
-    register: bestRegister,
-    moria: bestMoria,
+    linearDegree: baseLinear + resolvedRegister * 7,
+    register: resolvedRegister,
+    moria: referenceMoriaForDegree(degree) + resolvedRegister * 72,
   };
 }
 
