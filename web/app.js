@@ -474,6 +474,9 @@ function wireScorePracticePrototypeUnsafe() {
   };
 
   controls.select.addEventListener('change', () => loadExample(controls.select.value));
+  controls.importToggle?.addEventListener('click', () => {
+    setScorePracticeImportCollapsed(controls, !controls.el.classList.contains('import-collapsed'));
+  });
   controls.importSample?.addEventListener('change', () => {
     const sample = findGlyphImportSampleFixture(controls.importSample.value);
     if (!sample) return;
@@ -522,6 +525,7 @@ function wireScorePracticePrototypeUnsafe() {
     loadCompiledScore(rawCompiled);
     const warnings = (rawCompiled.diagnostics ?? []).filter(diagnostic => diagnostic.severity === 'warning').length;
     controls.importStatus.textContent = `loaded ${rawCompiled.notes?.length ?? 0} notes${warnings ? `, ${warnings} warn` : ''}`;
+    setScorePracticeImportCollapsed(controls, true);
   });
   controls.restart.addEventListener('click', () => {
     app.scorePractice.restart();
@@ -684,10 +688,12 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
 
   const restart = document.createElement('button');
   restart.type = 'button';
+  restart.className = 'score-practice-restart';
   restart.textContent = 'Restart';
 
   const playPause = document.createElement('button');
   playPause.type = 'button';
+  playPause.className = 'score-practice-play';
   playPause.textContent = 'Pause';
 
   const speedWrap = document.createElement('label');
@@ -709,9 +715,16 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
 
   const controls = { el, select, restart, playPause, speed, speedReadout };
   if (options.importEnabled) {
+    el.classList.add('import-collapsed');
     const importOptions = options.importOptions ?? {};
     const samples = listGlyphImportSampleFixtures();
     const selectedSample = findGlyphImportSampleFixture(importOptions.sampleId) ?? samples[0];
+
+    const importToggle = document.createElement('button');
+    importToggle.type = 'button';
+    importToggle.className = 'score-practice-import-toggle';
+    importToggle.textContent = 'Import';
+    importToggle.setAttribute('aria-expanded', 'false');
 
     const importPanel = document.createElement('div');
     importPanel.className = 'score-practice-import';
@@ -798,8 +811,10 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
       importStatus,
       importDiagnostics
     );
+    el.appendChild(importToggle);
     el.appendChild(importPanel);
     Object.assign(controls, {
+      importToggle,
       importSource,
       importSample,
       importStart,
@@ -855,6 +870,13 @@ function applyScorePracticeImportSample(controls, sample) {
   controls.importText.value = sample.text ?? '';
   controls.importStatus.textContent = 'sample';
   renderScorePracticeImportDiagnostics(controls.importDiagnostics, []);
+}
+
+function setScorePracticeImportCollapsed(controls, collapsed) {
+  if (!controls?.el || !controls?.importToggle) return;
+  controls.el.classList.toggle('import-collapsed', collapsed);
+  controls.importToggle.textContent = collapsed ? 'Import' : 'Hide';
+  controls.importToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
 }
 
 function insertScorePracticeImportToken(textarea, tokenText) {

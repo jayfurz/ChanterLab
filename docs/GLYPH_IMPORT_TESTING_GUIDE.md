@@ -29,7 +29,7 @@ Do not use port `8765` for this workflow.
 
 ## What To Test
 
-The hidden panel appears under the Score Practice controls.
+The hidden panel appears under the Score Practice controls. On mobile it starts collapsed; tap `Import` to open it and `Hide` to return to the practice view.
 
 1. Choose a sample, then press `Load`.
 2. Confirm the target bars restart and align with the singscope crosshair.

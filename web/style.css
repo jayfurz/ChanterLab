@@ -561,6 +561,10 @@ body.score-practice-active .score-practice-controls {
   align-items: stretch;
 }
 
+.score-practice-controls.import-collapsed .score-practice-import {
+  display: none;
+}
+
 .score-practice-speed {
   display: flex;
   align-items: center;
@@ -616,6 +620,10 @@ body.score-practice-active .score-practice-controls {
 
 .score-practice-controls button:hover {
   border-color: #78f0ad;
+}
+
+.score-practice-import-toggle {
+  flex: 0 0 auto;
 }
 
 .score-practice-import {
@@ -1455,6 +1463,10 @@ body.score-practice-active .score-practice-controls {
     border-bottom: 0;
   }
 
+  body.score-practice-active[data-mobile-view="train"] #controls-panel {
+    display: none;
+  }
+
   body[data-mobile-view="sing"] #controls-panel {
     display: none;
   }
@@ -1518,14 +1530,16 @@ body.score-practice-active .score-practice-controls {
   }
 
   body.score-practice-active .score-practice-controls {
-    top: 42px;
-    right: 8px;
+    top: 38px;
+    right: 6px;
     bottom: auto;
-    left: 8px;
-    max-width: calc(100% - 16px);
+    left: 6px;
+    max-width: calc(100% - 12px);
+    width: calc(100vw - 12px);
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    padding: 5px;
   }
 
   body.score-practice-active:not([data-mobile-view="train"]) .score-practice-layer,
@@ -1542,30 +1556,70 @@ body.score-practice-active .score-practice-controls {
     min-width: 0;
     width: 100%;
     max-width: none;
-    font-size: 13px;
+    min-height: 30px;
+    font-size: 12px;
+  }
+
+  body.score-practice-active .score-practice-controls > select {
+    grid-column: 1 / -1;
+    grid-row: 1;
   }
 
   .score-practice-controls button {
-    min-width: 64px;
-    min-height: 36px;
-    padding: 0 8px;
+    min-width: 52px;
+    min-height: 30px;
+    padding: 0 7px;
+    font-size: 12px;
+  }
+
+  .score-practice-restart {
+    display: none;
+  }
+
+  .score-practice-play {
+    grid-column: 1;
+    grid-row: 3;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .score-practice-import-toggle {
+    grid-column: 2;
+    grid-row: 3;
+    width: 100%;
+    min-width: 0;
   }
 
   .score-practice-speed {
     grid-column: 1 / -1;
+    grid-row: 2;
     min-width: 0;
-    width: 100%;
+    width: auto;
+    gap: 5px;
+    font-size: 11px;
   }
 
   .score-practice-speed input {
     flex: 1 1 auto;
     width: auto;
-    min-width: 80px;
+    min-width: 72px;
+  }
+
+  .score-practice-speed-readout {
+    min-width: 30px;
+    font-size: 10px;
   }
 
   .score-practice-import {
+    grid-column: 1 / -1;
+    grid-row: 4;
     grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
+    gap: 4px;
     width: 100%;
+    max-height: min(42vh, 260px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-top: 2px;
   }
 
   .score-practice-import-source,
@@ -1578,11 +1632,39 @@ body.score-practice-active .score-practice-controls {
   }
 
   .score-practice-import input[type="number"] {
+    min-height: 30px;
     width: 100%;
+  }
+
+  .score-practice-import textarea {
+    min-height: 46px;
+    max-height: 72px;
+    font-size: 11px;
   }
 
   .score-practice-glyph-keyboard {
     gap: 8px;
+    padding-bottom: 4px;
+  }
+
+  .score-practice-controls .score-practice-glyph-key {
+    min-height: 26px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  .score-practice-glyph-keyboard-label {
+    font-size: 9px;
+  }
+
+  .score-practice-import-status {
+    text-align: left;
+    font-size: 10px;
+  }
+
+  .score-practice-import-diagnostics {
+    max-height: 56px;
+    font-size: 10px;
   }
 
   body[data-mobile-view="sing"] .quick-pthora-panel {
