@@ -763,12 +763,13 @@ body.score-practice-active .score-practice-controls {
 }
 
 .score-practice-glyph-preview-item.duration {
-  font-size: 17px;
+  transform: translateY(5px);
+  font-size: 19px;
 }
 
 .score-practice-glyph-preview-item.temporal {
-  transform: translateY(7px);
-  font-size: 22px;
+  transform: translateY(12px);
+  font-size: 23px;
 }
 
 .score-practice-glyph-preview-item.unknown {
@@ -1868,12 +1869,13 @@ body.score-practice-active .score-practice-controls {
   }
 
   .score-practice-glyph-preview-item.duration {
-    font-size: 15px;
+    transform: translateY(7px);
+    font-size: 17px;
   }
 
   .score-practice-glyph-preview-item.temporal {
-    transform: translateY(9px);
-    font-size: 21px;
+    transform: translateY(15px);
+    font-size: 22px;
   }
 
   .score-practice-glyph-cluster-label {

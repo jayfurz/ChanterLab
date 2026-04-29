@@ -16,16 +16,19 @@ import {
   compileSbmuflGlyphText,
   compileUnicodeByzantineText,
   listMinimalGlyphImportTokens,
-} from './score/glyph_import.js?v=chant-script-engine-phase6d';
+} from './score/glyph_import.js?v=chant-script-engine-phase6h';
 import { formatDiagnostic } from './score/diagnostics.js?v=chant-script-engine-phase6d';
+import {
+  editGlyphImportText,
+} from './score/glyph_editor.js?v=chant-script-engine-phase6h';
 import {
   findGlyphImportSampleFixture,
   listGlyphImportSampleFixtures,
-} from './score/glyph_import_samples.js?v=chant-script-engine-phase6d';
+} from './score/glyph_import_samples.js?v=chant-script-engine-phase6h';
 import {
   glyphPreviewFromText,
   glyphPreviewSourceKind,
-} from './score/glyph_render.js?v=chant-script-engine-phase6f';
+} from './score/glyph_render.js?v=chant-script-engine-phase6h';
 import {
   referenceMoriaForDegree,
 } from './score/chant_score.js?v=chant-script-engine-phase5j';
@@ -504,7 +507,8 @@ function wireScorePracticePrototypeUnsafe() {
     if (!button) return;
     insertScorePracticeImportToken(
       controls.importText,
-      scorePracticeGlyphTokenText(button.dataset.glyphName, controls.importSource.value)
+      button.dataset.glyphName,
+      controls.importSource.value
     );
     controls.importStatus.textContent = 'edited';
     renderScorePracticeImportDiagnostics(controls.importDiagnostics, []);
@@ -1006,35 +1010,17 @@ function setScorePracticeImportCollapsed(controls, collapsed) {
   controls.importToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
 }
 
-function insertScorePracticeImportToken(textarea, tokenText) {
-  if (!textarea || !tokenText) return;
-  const value = textarea.value;
-  const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : value.length;
-  const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
-  const before = value.slice(0, start);
-  const after = value.slice(end);
-  const prefix = before && !/\s$/.test(before) ? ' ' : '';
-  const suffix = after && !/^\s/.test(after) ? ' ' : '';
-  const insert = `${prefix}${tokenText}${suffix}`;
-  textarea.value = `${before}${insert}${after}`;
-  const cursor = start + prefix.length + tokenText.length;
+function insertScorePracticeImportToken(textarea, glyphName, source) {
+  if (!textarea || !glyphName) return;
+  const edit = editGlyphImportText(textarea.value, {
+    glyphName,
+    source,
+    selectionStart: textarea.selectionStart,
+    selectionEnd: textarea.selectionEnd,
+  });
+  textarea.value = edit.text;
   textarea.focus();
-  textarea.setSelectionRange(cursor, cursor);
-}
-
-function scorePracticeGlyphTokenText(glyphName, source) {
-  const token = SCORE_GLYPH_IMPORT_TOKENS.find(item => item.glyphName === glyphName);
-  if (!token) return glyphName;
-  if (source === 'sbmufl') return characterForCodepoint(token.codepoint) ?? token.glyphName;
-  if (source === 'unicode') return characterForCodepoint(token.alternateCodepoint) ?? token.glyphName;
-  return token.glyphName;
-}
-
-function characterForCodepoint(codepoint) {
-  if (typeof codepoint !== 'string') return undefined;
-  const match = /^U\+([0-9A-F]{4,6})$/i.exec(codepoint.trim());
-  if (!match) return undefined;
-  return String.fromCodePoint(Number.parseInt(match[1], 16));
+  textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd);
 }
 
 function scoreGlyphTokenLabel(token) {
