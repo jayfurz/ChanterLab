@@ -7,6 +7,7 @@ import {
   ScorePracticePrototype,
   activeScoreIsonAt,
   activeScoreTargetAt,
+  activeScoreTuningAt,
   createScorePracticeState,
   layoutScorePracticeMarkers,
   layoutScorePracticeTargets,
@@ -160,6 +161,91 @@ test('score practice notifies ison changes on load and seek', () => {
   assert.deepEqual(changes, ['Ni', 'Pa']);
 });
 
+test('active tuning state includes elapsed pthora events and active accidentals', () => {
+  const state = createScorePracticeState({
+    timeline: [{
+      type: 'note',
+      degree: 'Zo',
+      moria: -8,
+      effectiveMoria: -6,
+      targetMoria: -6,
+      engineMoria: -8,
+      accidental: { moria: 2 },
+      tuning: { cellMoria: -8 },
+      startMs: 1000,
+      durationMs: 500,
+      durationBeats: 1,
+      sourceEventIndex: 2,
+    }],
+    pthoraEvents: [
+      { type: 'pthora', atMs: 500, genus: 'SoftChromatic', degree: 'Di', dropMoria: 42, sourceEventIndex: 1 },
+      { type: 'pthora', atMs: 1600, genus: 'Diatonic', degree: 'Di', dropMoria: 42, sourceEventIndex: 3 },
+    ],
+    totalDurationMs: 2000,
+  });
+
+  assert.deepEqual(activeScoreTuningAt(state, 1200), {
+    pthoraEvents: [
+      { type: 'pthora', atMs: 500, genus: 'SoftChromatic', degree: 'Di', dropMoria: 42, sourceEventIndex: 1 },
+    ],
+    accidental: {
+      degree: 'Zo',
+      cellMoria: -8,
+      accidentalMoria: 2,
+      sourceEventIndex: 2,
+    },
+  });
+  assert.equal(activeScoreTuningAt(state, 1700).accidental, undefined);
+  assert.equal(activeScoreTuningAt(state, 1700).pthoraEvents.length, 2);
+});
+
+test('running score practice uses updated playback rate on the next frame', () => {
+  const originalRaf = globalThis.requestAnimationFrame;
+  const originalCancel = globalThis.cancelAnimationFrame;
+  const originalPerformance = globalThis.performance;
+  const callbacks = [];
+  let now = 0;
+  globalThis.requestAnimationFrame = callback => {
+    callbacks.push(callback);
+    return callbacks.length;
+  };
+  globalThis.cancelAnimationFrame = () => {};
+  Object.defineProperty(globalThis, 'performance', {
+    configurable: true,
+    value: { now: () => now },
+  });
+
+  try {
+    const practice = new ScorePracticePrototype(null, {
+      enabled: true,
+      leadInMs: 0,
+      playbackRate: 1,
+    });
+    practice.setCompiledScore({
+      timeline: [],
+      totalDurationMs: 10000,
+    });
+    practice.start(0);
+    callbacks.shift()(100);
+    assert.equal(practice.nowMs, 100);
+
+    now = 100;
+    practice.setTiming({ playbackRate: 2 });
+    callbacks.shift()(200);
+    assert.equal(practice.nowMs, 300);
+    practice.stop();
+  } finally {
+    if (originalRaf) globalThis.requestAnimationFrame = originalRaf;
+    else delete globalThis.requestAnimationFrame;
+    if (originalCancel) globalThis.cancelAnimationFrame = originalCancel;
+    else delete globalThis.cancelAnimationFrame;
+    Object.defineProperty(globalThis, 'performance', {
+      configurable: true,
+      value: originalPerformance,
+    });
+  }
+});
+
 test('layout maps upcoming notes to stable target bars', () => {
   const compiled = compileChantScriptExample('diatonic-ladder');
   const state = createScorePracticeState(compiled, { enabled: true });
@@ -205,7 +291,7 @@ test('layout lead-in places the first note ahead of the crosshair', () => {
   assert.equal(layout[0].x, 500 * 0.28 + 100);
 });
 
-test('layout keeps score-length bars while playback rate changes lead-in distance', () => {
+test('layout keeps visual scroll fixed while playback rate changes target length', () => {
   const state = createScorePracticeState({
     timeline: [{
       type: 'note',
@@ -247,10 +333,10 @@ test('layout keeps score-length bars while playback rate changes lead-in distanc
     nowMs: -slowLeadIn,
   }, slowOptions);
 
-  assert.equal(fast[0].x, 1000 * 0.28 + 600);
-  assert.equal(fast[0].width, 100);
-  assert.equal(slow[0].x, 1000 * 0.28 + 150);
-  assert.equal(slow[0].width, 100);
+  assert.equal(fast[0].x, 1000 * 0.28 + 300);
+  assert.equal(fast[0].width, 50);
+  assert.equal(slow[0].x, 1000 * 0.28 + 300);
+  assert.equal(slow[0].width, 200);
 });
 
 test('fixed lead-in places the first note ahead of the crosshair', () => {
@@ -275,5 +361,5 @@ test('fixed lead-in places the first note ahead of the crosshair', () => {
 
   assert.equal(leadInScoreMs, 1500);
   assert.equal(layout[0].degree, 'Ni');
-  assert.equal(layout[0].x, 500 * 0.28 + 150);
+  assert.equal(layout[0].x, 500 * 0.28 + 300);
 });

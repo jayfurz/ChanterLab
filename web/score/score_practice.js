@@ -41,6 +41,7 @@ export function createScorePracticeState(compiled, options = {}) {
             symbolicMoria: event.moria,
             engineMoria: event.engineMoria,
             lyric: event.lyric,
+            accidental: event.accidental,
             display: event.display,
             tuning: event.tuning,
           }
@@ -82,6 +83,32 @@ export function activeScoreIsonAt(state, atMs) {
     else break;
   }
   return active;
+}
+
+export function activeScoreTuningAt(state, atMs) {
+  const lookupMs = Math.max(0, Number.isFinite(atMs) ? atMs : 0);
+  const pthoraEvents = (state?.pthoraEvents ?? [])
+    .filter(event => Number.isFinite(event?.atMs))
+    .filter(event => event.atMs <= lookupMs);
+  const target = activeScoreTargetAt(state, atMs);
+  const accidentalMoria = target?.accidental?.moria;
+  const cellMoria = target?.tuning?.cellMoria ?? target?.engineMoria ?? target?.symbolicMoria;
+  const accidental = target?.type === 'note'
+    && Number.isFinite(accidentalMoria)
+    && accidentalMoria !== 0
+    && Number.isFinite(cellMoria)
+    ? {
+        degree: target.degree,
+        cellMoria,
+        accidentalMoria,
+        sourceEventIndex: target.sourceEventIndex,
+      }
+    : undefined;
+
+  return {
+    pthoraEvents,
+    ...(accidental ? { accidental } : {}),
+  };
 }
 
 export function scorePitchAtTime(state, pitchEvent, atMs, options = {}) {
@@ -132,8 +159,14 @@ export function layoutScorePracticeTargets(state, rowMap, viewport, options = {}
   return state.targets
     .filter(target => target.endMs >= nowMs && target.startMs <= nowMs + lookaheadScoreMs)
     .map(target => {
-      const x = crosshairX + scoreDeltaMsToPixels(target.startMs - nowMs, pxPerSecond);
-      const width = Math.max(4, scoreDeltaMsToPixels(target.durationMs, pxPerSecond));
+      const x = crosshairX + scoreDeltaMsToPixels(target.startMs - nowMs, {
+        pxPerSecond,
+        playbackRate,
+      });
+      const width = Math.max(4, scoreDeltaMsToPixels(target.durationMs, {
+        pxPerSecond,
+        playbackRate,
+      }));
       const row = target.type === 'note' ? rowLookup(target.moria) : undefined;
       const y = target.type === 'note' ? row?.centerY ?? cssH / 2 : cssH - 16;
       const height = target.type === 'note' ? Math.max(6, Math.min(row?.height ?? 12, 18)) : 8;
@@ -169,7 +202,10 @@ export function layoutScorePracticeMarkers(state, viewport, options = {}) {
     .filter(event => Number.isFinite(event.atMs))
     .filter(event => event.atMs >= nowMs && event.atMs <= nowMs + lookaheadScoreMs)
     .map(event => {
-      const x = crosshairX + scoreDeltaMsToPixels(event.atMs - nowMs, pxPerSecond);
+      const x = crosshairX + scoreDeltaMsToPixels(event.atMs - nowMs, {
+        pxPerSecond,
+        playbackRate,
+      });
       return {
         ...event,
         x,
@@ -199,6 +235,7 @@ export class ScorePracticePrototype {
     this._statusEl = options.statusEl ?? null;
     this._lastPitchScore = null;
     this._lastIsonKey = null;
+    this._lastTuningKey = null;
     this._ro = null;
     if (this.canvas && typeof ResizeObserver !== 'undefined') {
       this._ro = new ResizeObserver(() => this.paint());
@@ -211,7 +248,9 @@ export class ScorePracticePrototype {
     this.nowMs = this._initialNowMs();
     this._lastPitchScore = null;
     this._lastIsonKey = null;
+    this._lastTuningKey = null;
     this.paint();
+    this._syncTuning();
     this._syncIson();
     this._renderStatus();
   }
@@ -239,6 +278,7 @@ export class ScorePracticePrototype {
     if (wasRunning) {
       this._startedAt = now - this.nowMs / this._playbackRate();
     }
+    this._syncTuning();
     this._syncIson();
     this.paint();
     this._renderStatus();
@@ -254,19 +294,23 @@ export class ScorePracticePrototype {
     this._startedAt = now - this.nowMs / playbackRate;
     const tick = timestamp => {
       this._rafId = requestAnimationFrame(tick);
-      const nextScoreMs = (timestamp - this._startedAt) * playbackRate;
+      const currentPlaybackRate = this._playbackRate();
+      const nextScoreMs = (timestamp - this._startedAt) * currentPlaybackRate;
       this.nowMs = Math.min(
         this.state.totalDurationMs,
         Math.max(this._initialNowMs(), nextScoreMs)
       );
+      this._syncTuning();
       this._syncIson();
       this.paint();
       this._renderStatus();
       if (this.nowMs >= this.state.totalDurationMs) {
         if (this._options.loop && this.state.totalDurationMs > 0) {
           this.nowMs = this._initialNowMs();
-          this._startedAt = timestamp - this.nowMs / playbackRate;
+          this._startedAt = timestamp - this.nowMs / currentPlaybackRate;
+          this._lastTuningKey = null;
           this._lastIsonKey = null;
+          this._syncTuning();
           this._syncIson();
         } else {
           this.stop();
@@ -274,6 +318,7 @@ export class ScorePracticePrototype {
       }
     };
     this._rafId = requestAnimationFrame(tick);
+    this._syncTuning();
     this._syncIson();
     this._renderStatus();
   }
@@ -288,6 +333,7 @@ export class ScorePracticePrototype {
 
   seek(ms) {
     this.nowMs = Math.max(this._initialNowMs(), Math.min(ms, this.state.totalDurationMs));
+    this._syncTuning();
     this._syncIson();
     this.paint();
     this._renderStatus();
@@ -331,6 +377,15 @@ export class ScorePracticePrototype {
     if (key === this._lastIsonKey) return;
     this._lastIsonKey = key;
     this._options.onIsonChange(ison ?? null, { nowMs: this.nowMs });
+  }
+
+  _syncTuning() {
+    if (!this.enabled || typeof this._options.onTuningChange !== 'function') return;
+    const tuning = activeScoreTuningAt(this.state, this.nowMs);
+    const key = tuningKey(tuning);
+    if (key === this._lastTuningKey) return;
+    this._lastTuningKey = key;
+    this._options.onTuningChange(tuning, { nowMs: this.nowMs });
   }
 
   paint() {
@@ -606,8 +661,8 @@ function playbackRateFromOptions(options) {
   return positiveNumberOr(options?.playbackRate, 1);
 }
 
-function scoreDeltaMsToPixels(scoreDeltaMs, pxPerSecond) {
-  return (scoreDeltaMs / 1000) * pxPerSecond;
+function scoreDeltaMsToPixels(scoreDeltaMs, { pxPerSecond, playbackRate }) {
+  return (scoreDeltaMs / playbackRate / 1000) * pxPerSecond;
 }
 
 function performanceNow() {
@@ -624,4 +679,22 @@ function formatClock(ms) {
 function displayMoria(moria) {
   if (!Number.isFinite(moria)) return '';
   return `${Number.isInteger(moria) ? moria : moria.toFixed(1)}m`;
+}
+
+function tuningKey(tuning) {
+  const pthoraKey = (tuning?.pthoraEvents ?? [])
+    .map(event => [
+      event.sourceEventIndex ?? '',
+      event.atMs ?? '',
+      event.genus ?? '',
+      event.dropDegree ?? event.degree ?? '',
+      event.dropMoria ?? '',
+      event.phase ?? '',
+    ].join(':'))
+    .join('|');
+  const accidental = tuning?.accidental;
+  const accidentalKey = accidental
+    ? `${accidental.sourceEventIndex ?? ''}:${accidental.cellMoria}:${accidental.accidentalMoria}`
+    : '';
+  return `${pthoraKey}::${accidentalKey}`;
 }

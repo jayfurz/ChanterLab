@@ -10,17 +10,18 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase5c';
+} from './score/examples.js?v=chant-script-engine-phase5d';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase5c';
+} from './score/chant_score.js?v=chant-script-engine-phase5d';
 import {
   ScorePracticePrototype,
   scorePracticeFeatureEnabled,
-} from './score/score_practice.js?v=chant-script-engine-phase5c';
+} from './score/score_practice.js?v=chant-script-engine-phase5d';
 import {
+  applyPthoraDrop,
   retuneCompiledScoreWithGrid,
-} from './score/tuning_context.js?v=chant-script-engine-phase5c';
+} from './score/tuning_context.js?v=chant-script-engine-phase5d';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -410,7 +411,7 @@ function wireScorePracticePrototypeUnsafe() {
   document.body.classList.add('score-practice-dev');
   app.singscope?.setTraceTiming({
     anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
-    pxPerSecond: scrollPxPerSecond * playbackRate,
+    pxPerSecond: scrollPxPerSecond,
   });
 
   app.scorePractice = new ScorePracticePrototype(canvas, {
@@ -422,6 +423,7 @@ function wireScorePracticePrototypeUnsafe() {
     playbackRate,
     leadInMs: SCORE_PRACTICE_LEAD_IN_MS,
     loop: true,
+    onTuningChange: tuning => applyScorePracticeTuning(compiled, tuning),
     onIsonChange: applyScorePracticeIson,
   });
 
@@ -460,7 +462,7 @@ function wireScorePracticePrototypeUnsafe() {
     controls.speedReadout.textContent = formatPlaybackRate(nextRate);
     app.singscope?.setTraceTiming({
       anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
-      pxPerSecond: scrollPxPerSecond * nextRate,
+      pxPerSecond: scrollPxPerSecond,
     });
     app.scorePractice.setTiming({
       playbackRate: nextRate,
@@ -480,34 +482,50 @@ function retuneCompiledScore(compiled) {
 
 function applyCompiledScoreInitialTuning(compiled) {
   try {
-    const startDegree = compiled?.score?.initialMartyria?.degree ?? 'Ni';
-    const initialScale = compiled?.score?.initialScale;
-    const genus = initialScale?.genus ?? 'Diatonic';
-    const dropMoria = referenceMoriaForDegree(startDegree);
-
-    app.grid = new JsTuningGrid();
-    app.grid.refNiHz = app.refNiHz;
-
-    const drop = {
-      type: 'pthora',
-      genus,
-      degree: startDegree,
-      dropMoria,
-      dropDegree: startDegree,
-      ...(Number.isInteger(initialScale?.phase) ? { phase: initialScale.phase } : {}),
-    };
-    const ok = typeof app.grid.applySymbolDrop === 'function'
-      ? app.grid.applySymbolDrop(JSON.stringify(drop))
-      : false;
-    if (!ok && typeof app.grid.applyPthora === 'function') {
-      app.grid.applyPthora(dropMoria, genus, startDegree);
-    }
-    app.activePresetIdx = -1;
-    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
-    gridChanged();
+    rebuildGridForCompiledScore(compiled);
   } catch (e) {
     console.warn('Score practice tuning context failed to apply', e);
   }
+}
+
+function applyScorePracticeTuning(compiled, tuning) {
+  if (!compiled) return;
+  try {
+    rebuildGridForCompiledScore(compiled, tuning);
+  } catch (e) {
+    console.warn('Score practice tuning event failed to apply', e);
+  }
+}
+
+function rebuildGridForCompiledScore(compiled, tuning = {}) {
+  const startDegree = compiled?.score?.initialMartyria?.degree ?? 'Ni';
+  const initialScale = compiled?.score?.initialScale;
+  const initialDrop = {
+    type: 'pthora',
+    genus: initialScale?.genus ?? 'Diatonic',
+    degree: startDegree,
+    dropMoria: referenceMoriaForDegree(startDegree),
+    dropDegree: startDegree,
+    ...(Number.isInteger(initialScale?.phase) ? { phase: initialScale.phase } : {}),
+  };
+
+  app.grid = new JsTuningGrid();
+  app.grid.refNiHz = app.refNiHz;
+  applyPthoraDrop(app.grid, initialDrop);
+
+  for (const event of tuning?.pthoraEvents ?? []) {
+    if (event?.sourceEventIndex === -1) continue;
+    applyPthoraDrop(app.grid, event);
+  }
+
+  const accidental = tuning?.accidental;
+  if (Number.isFinite(accidental?.cellMoria) && Number.isFinite(accidental?.accidentalMoria)) {
+    app.grid.setAccidental(accidental.cellMoria, accidental.accidentalMoria);
+  }
+
+  app.activePresetIdx = -1;
+  document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+  gridChanged();
 }
 
 function readScorePracticePlaybackRate(params) {

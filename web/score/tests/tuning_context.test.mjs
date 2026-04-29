@@ -129,6 +129,24 @@ test('ison retuning defaults to the central degree register when context is miss
   assert.equal(tuned.isonEvents[0].tuning.cellMoria, 42);
 });
 
+test('ison retuning preserves explicit lower octave register', () => {
+  const compiled = compileChantScript([
+    'title "Lower Ison Retune Fixture"',
+    'tempo bpm 120',
+    'start Ni',
+    'scale diatonic',
+    'drone Ni',
+    'note same ison Di octave -1',
+  ].join('\n'));
+  const tuned = retuneCompiledScoreWithGrid(compiled, { grid: new FakeTuningGrid() });
+
+  assert.equal(hasErrorDiagnostics(tuned.diagnostics), false);
+  assert.deepEqual(tuned.isonEvents.map(event => [event.degree, event.register, event.targetMoria, event.tuning.cellMoria]), [
+    ['Ni', 0, 0, 0],
+    ['Di', -1, -30, -30],
+  ]);
+});
+
 test('note-attached ison changes retune after note-attached pthora is applied', () => {
   const compiled = compileChantScript([
     'title "Attached Ison Retune Fixture"',
