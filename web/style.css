@@ -721,7 +721,7 @@ body.score-practice-active .score-practice-controls {
 
 .score-practice-glyph-slot.above {
   gap: 1px;
-  top: 8px;
+  top: 13px;
   left: 50%;
   transform: translateX(-50%);
   min-width: 24px;
@@ -737,15 +737,6 @@ body.score-practice-active .score-practice-controls {
   min-width: 34px;
   height: 28px;
   z-index: 1;
-}
-
-.score-practice-glyph-slot.right {
-  top: 26px;
-  left: calc(50% + 13px);
-  min-width: 16px;
-  height: 22px;
-  justify-content: flex-start;
-  z-index: 3;
 }
 
 .score-practice-glyph-slot.below {
@@ -766,15 +757,18 @@ body.score-practice-active .score-practice-controls {
   min-width: 18px;
 }
 
-.score-practice-glyph-preview-item.temporal,
-.score-practice-glyph-preview-item.duration,
 .score-practice-glyph-preview-item.pthora,
 .score-practice-glyph-preview-item.qualitative {
   font-size: 18px;
 }
 
-.score-practice-glyph-slot.right .score-practice-glyph-preview-item {
+.score-practice-glyph-preview-item.duration {
   font-size: 17px;
+}
+
+.score-practice-glyph-preview-item.temporal {
+  transform: translateY(7px);
+  font-size: 22px;
 }
 
 .score-practice-glyph-preview-item.unknown {
@@ -1850,20 +1844,13 @@ body.score-practice-active .score-practice-controls {
   }
 
   .score-practice-glyph-slot.above {
-    top: 6px;
+    top: 9px;
     height: 16px;
   }
 
   .score-practice-glyph-slot.main {
     top: 23px;
     height: 24px;
-  }
-
-  .score-practice-glyph-slot.right {
-    top: 22px;
-    left: calc(50% + 12px);
-    min-width: 14px;
-    height: 20px;
   }
 
   .score-practice-glyph-slot.below {
@@ -1875,15 +1862,18 @@ body.score-practice-active .score-practice-controls {
     font-size: 26px;
   }
 
-  .score-practice-glyph-preview-item.temporal,
-  .score-practice-glyph-preview-item.duration,
   .score-practice-glyph-preview-item.pthora,
   .score-practice-glyph-preview-item.qualitative {
     font-size: 14px;
   }
 
-  .score-practice-glyph-slot.right .score-practice-glyph-preview-item {
+  .score-practice-glyph-preview-item.duration {
     font-size: 15px;
+  }
+
+  .score-practice-glyph-preview-item.temporal {
+    transform: translateY(9px);
+    font-size: 21px;
   }
 
   .score-practice-glyph-cluster-label {

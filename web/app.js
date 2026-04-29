@@ -924,13 +924,13 @@ function renderScorePracticeGlyphPreview(controls) {
   }
 
   for (const cluster of preview.clusters) {
+    const aboveItems = [...cluster.slots.above, ...cluster.slots.right];
     const clusterEl = document.createElement('button');
     clusterEl.type = 'button';
     clusterEl.className = [
       'score-practice-glyph-cluster',
       cluster.kind,
-      cluster.slots.above.length ? 'has-above' : '',
-      cluster.slots.right.length ? 'has-right' : '',
+      aboveItems.length ? 'has-above' : '',
       cluster.slots.below.length ? 'has-below' : '',
     ].filter(Boolean).join(' ');
     clusterEl.title = cluster.label;
@@ -940,9 +940,8 @@ function renderScorePracticeGlyphPreview(controls) {
       clusterEl.dataset.sourceEnd = String(span.end);
     }
 
-    appendGlyphPreviewSlot(clusterEl, 'above', cluster.slots.above);
+    appendGlyphPreviewSlot(clusterEl, 'above', aboveItems);
     appendGlyphPreviewSlot(clusterEl, 'main', cluster.slots.main);
-    appendGlyphPreviewSlot(clusterEl, 'right', cluster.slots.right);
     appendGlyphPreviewSlot(clusterEl, 'below', cluster.slots.below);
 
     const label = document.createElement('span');
