@@ -431,6 +431,7 @@ function wireScorePracticePrototypeUnsafe() {
 
   const controls = buildScorePracticeControls(exampleId, playbackRate, {
     importEnabled: scorePracticeImportEnabled(params),
+    importOpen: scorePracticeImportOpen(params),
     importOptions,
   });
 
@@ -648,6 +649,11 @@ function scorePracticeImportEnabled(params) {
   return raw !== null && ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
 }
 
+function scorePracticeImportOpen(params) {
+  const raw = params.get('scoreImportOpen') ?? params.get('score-import-open');
+  return raw !== null && ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
+}
+
 function readScorePracticeImportOptions(params) {
   const samples = listGlyphImportSampleFixtures();
   const requestedSampleId = params.get('scoreImportSample') ?? params.get('score-import-sample');
@@ -733,7 +739,8 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
 
   const controls = { el, select, restart, playPause, speed, speedReadout };
   if (options.importEnabled) {
-    el.classList.add('import-collapsed');
+    const importCollapsed = !options.importOpen;
+    el.classList.toggle('import-collapsed', importCollapsed);
     const importOptions = options.importOptions ?? {};
     const samples = listGlyphImportSampleFixtures();
     const selectedSample = findGlyphImportSampleFixture(importOptions.sampleId) ?? samples[0];
@@ -741,8 +748,8 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
     const importToggle = document.createElement('button');
     importToggle.type = 'button';
     importToggle.className = 'score-practice-import-toggle';
-    importToggle.textContent = 'Import';
-    importToggle.setAttribute('aria-expanded', 'false');
+    importToggle.textContent = importCollapsed ? 'Import' : 'Hide';
+    importToggle.setAttribute('aria-expanded', importCollapsed ? 'false' : 'true');
 
     const importPanel = document.createElement('div');
     importPanel.className = 'score-practice-import';
@@ -812,6 +819,7 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
 
     const importApply = document.createElement('button');
     importApply.type = 'button';
+    importApply.className = 'score-practice-import-apply';
     importApply.textContent = 'Load';
 
     const importStatus = document.createElement('span');
@@ -918,7 +926,13 @@ function renderScorePracticeGlyphPreview(controls) {
   for (const cluster of preview.clusters) {
     const clusterEl = document.createElement('button');
     clusterEl.type = 'button';
-    clusterEl.className = `score-practice-glyph-cluster ${cluster.kind}`;
+    clusterEl.className = [
+      'score-practice-glyph-cluster',
+      cluster.kind,
+      cluster.slots.above.length ? 'has-above' : '',
+      cluster.slots.right.length ? 'has-right' : '',
+      cluster.slots.below.length ? 'has-below' : '',
+    ].filter(Boolean).join(' ');
     clusterEl.title = cluster.label;
     const span = codePointSpanToStringSpan(sourceText, cluster.sourceSpan);
     if (span) {
@@ -927,7 +941,8 @@ function renderScorePracticeGlyphPreview(controls) {
     }
 
     appendGlyphPreviewSlot(clusterEl, 'above', cluster.slots.above);
-    appendGlyphPreviewSlot(clusterEl, 'main', cluster.slots.main, cluster.slots.right);
+    appendGlyphPreviewSlot(clusterEl, 'main', cluster.slots.main);
+    appendGlyphPreviewSlot(clusterEl, 'right', cluster.slots.right);
     appendGlyphPreviewSlot(clusterEl, 'below', cluster.slots.below);
 
     const label = document.createElement('span');
@@ -951,16 +966,11 @@ function renderScorePracticeGlyphPreview(controls) {
   previewEl.classList.toggle('has-errors', errors > 0);
 }
 
-function appendGlyphPreviewSlot(clusterEl, slotName, items, sideItems = []) {
+function appendGlyphPreviewSlot(clusterEl, slotName, items) {
   const row = document.createElement('span');
   row.className = `score-practice-glyph-slot ${slotName}`;
   for (const item of items ?? []) {
     row.appendChild(glyphPreviewItemElement(item));
-  }
-  for (const item of sideItems ?? []) {
-    const side = glyphPreviewItemElement(item);
-    side.classList.add('side');
-    row.appendChild(side);
   }
   clusterEl.appendChild(row);
 }

@@ -54,6 +54,20 @@ test('glyph preview keeps pthora attached above the rendered quantity', () => {
   assert.equal(preview.clusters[0].sourceSpan.end, 31);
 });
 
+test('glyph preview renders duration signs as Neanes glyphs instead of raw words', () => {
+  const preview = glyphPreviewFromText('ison apli oligon klasma apostrofos dipli leimma1 tripli');
+
+  assert.equal(hasErrorDiagnostics(preview.diagnostics), false);
+  assert.equal(preview.clusters[0].slots.right[0].glyphName, 'apli');
+  assert.equal(preview.clusters[0].slots.right[0].text, '\uE0D2');
+  assert.equal(preview.clusters[1].slots.right[0].glyphName, 'klasma');
+  assert.equal(preview.clusters[1].slots.right[0].text, '\uE0D0');
+  assert.equal(preview.clusters[2].slots.right[0].glyphName, 'dipli');
+  assert.equal(preview.clusters[2].slots.right[0].text, '\uE0D3');
+  assert.equal(preview.clusters[3].slots.right[0].glyphName, 'tripli');
+  assert.equal(preview.clusters[3].slots.right[0].text, '\uE0D4');
+});
+
 test('glyph preview reports unknown tokens and renders a placeholder cluster', () => {
   const preview = glyphPreviewFromText('ison notAGlyph oligon');
 

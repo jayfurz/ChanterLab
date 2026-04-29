@@ -35,10 +35,10 @@ const GLYPH_METADATA = Object.freeze({
   trigorgon: temporal('trigorgon', 'U+E0F8', 'U+1D096', { type: 'divide', divide: 4, sign: 'trigorgon' }),
   argon: temporal('argon', 'U+E0FC', 'U+1D097', { type: 'unsupported', sign: 'argon' }),
 
-  apli: duration('apli', undefined, undefined, 2),
-  klasma: duration('klasma', undefined, undefined, 2),
-  dipli: duration('dipli', undefined, undefined, 3),
-  tripli: duration('tripli', undefined, undefined, 4),
+  apli: duration('apli', 'U+E0D2', 'U+1D085', 2),
+  klasma: duration('klasma', 'U+E0D0', 'U+1D07F', 2),
+  dipli: duration('dipli', 'U+E0D3', 'U+1D086', 3),
+  tripli: duration('tripli', 'U+E0D4', undefined, 4),
 
   agogiMetria: tempo('agogiMetria', 'U+E123', 'U+1D09D', 'moderate'),
   agogiGorgi: tempo('agogiGorgi', 'U+E125', 'U+1D09F', 'swift'),

@@ -23,6 +23,7 @@ scoreImportSample=soft-chromatic-di
 scoreImportSource=glyph
 scoreImportStart=Di
 scoreImportBpm=84
+scoreImportOpen=1
 ```
 
 Do not use port `8765` for this workflow.
@@ -45,6 +46,7 @@ The hidden panel appears under the Score Practice controls. On mobile it starts 
 - `basic-ladder`: glyph-name text with quantity, gorgon, and rest tokens.
 - `soft-chromatic-di`: prefix soft chromatic pthora attached to Di.
 - `hard-chromatic-pa`: prefix hard chromatic pthora attached to Pa.
+- `duration-signs`: apli, klasma, dipli, and tripli attached to notes/rests.
 - `sbmufl-basic`: private-use SBMuFL/Neanes codepoint text.
 - `unicode-basic`: Unicode Byzantine Musical Symbols text.
 

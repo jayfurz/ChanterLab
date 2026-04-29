@@ -179,6 +179,8 @@ test('minimal glyph import token list exposes keyboard-safe metadata', () => {
   const tokens = listMinimalGlyphImportTokens();
   const oligon = tokens.find(token => token.glyphName === 'oligon');
   const softDi = tokens.find(token => token.glyphName === 'fthoraSoftChromaticDiAbove');
+  const apli = tokens.find(token => token.glyphName === 'apli');
+  const klasma = tokens.find(token => token.glyphName === 'klasma');
 
   assert.ok(tokens.length >= 20);
   assert.deepEqual(oligon.movement, { direction: 'up', steps: 1 });
@@ -188,6 +190,10 @@ test('minimal glyph import token list exposes keyboard-safe metadata', () => {
   assert.equal(softDi.role, 'pthora');
   assert.equal(softDi.scale, 'soft-chromatic');
   assert.equal(softDi.glyphDegree, 'Di');
+  assert.equal(apli.codepoint, 'U+E0D2');
+  assert.equal(apli.alternateCodepoint, 'U+1D085');
+  assert.equal(klasma.codepoint, 'U+E0D0');
+  assert.equal(klasma.alternateCodepoint, 'U+1D07F');
 });
 
 test('glyph import sample fixtures compile without errors', () => {

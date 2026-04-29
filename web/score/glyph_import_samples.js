@@ -39,6 +39,14 @@ export const GLYPH_IMPORT_SAMPLE_FIXTURES = Object.freeze([
     ].join(' '),
   }),
   Object.freeze({
+    id: 'duration-signs',
+    title: 'Duration Signs',
+    source: 'glyph',
+    startDegree: 'Ni',
+    bpm: 72,
+    text: 'ison apli oligon klasma apostrofos dipli leimma1 tripli',
+  }),
+  Object.freeze({
     id: 'sbmufl-basic',
     title: 'SBMuFL Basic',
     source: 'sbmufl',
