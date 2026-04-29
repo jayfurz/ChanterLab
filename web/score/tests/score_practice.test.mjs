@@ -12,37 +12,33 @@ import {
   layoutScorePracticeMarkers,
   layoutScorePracticeTargets,
   scorePitchAtTime,
-  scorePracticeFeatureEnabled,
+  scorePracticeExplicitlyDisabled,
   scorePracticeIsonControlState,
   scorePracticeIsonMoria,
   scorePracticeLeadInScoreMs,
 } from '../score_practice.js';
 
-test('score practice feature flag is off unless explicitly enabled', () => {
-  assert.equal(scorePracticeFeatureEnabled({
+test('score practice is default-on with an explicit URL opt-out', () => {
+  assert.equal(scorePracticeExplicitlyDisabled({
     location: { search: '' },
-    storage: { getItem: () => null },
   }), false);
-  assert.equal(scorePracticeFeatureEnabled({
+  assert.equal(scorePracticeExplicitlyDisabled({
     location: { search: '?scorePractice=1' },
-    storage: { getItem: () => null },
-  }), true);
-  assert.equal(scorePracticeFeatureEnabled({
-    location: { search: '?scorePractice=0' },
-    storage: { getItem: () => '1' },
   }), false);
-  assert.equal(scorePracticeFeatureEnabled({
-    location: { search: '' },
-    storage: { getItem: key => key === 'chanterlab_score_practice_enabled' ? 'true' : null },
+  assert.equal(scorePracticeExplicitlyDisabled({
+    location: { search: '?scorePractice=0' },
+  }), true);
+  assert.equal(scorePracticeExplicitlyDisabled({
+    location: { search: '?score-practice=off' },
   }), true);
 });
 
-test('score practice state is disabled by default', () => {
+test('score practice state is enabled by default', () => {
   const compiled = compileChantScriptExample('symbolic-timing-steal');
   const state = createScorePracticeState(compiled);
 
-  assert.equal(SCORE_PRACTICE_ENABLED_DEFAULT, false);
-  assert.equal(state.enabled, false);
+  assert.equal(SCORE_PRACTICE_ENABLED_DEFAULT, true);
+  assert.equal(state.enabled, true);
   assert.equal(state.targets.length, 2);
   assert.deepEqual(state.targets.map(target => target.durationBeats), [1.5, 0.5]);
 });

@@ -1,26 +1,16 @@
-export const SCORE_PRACTICE_ENABLED_DEFAULT = false;
+export const SCORE_PRACTICE_ENABLED_DEFAULT = true;
 
 const DEFAULT_LOOKAHEAD_MS = 6000;
 const DEFAULT_PX_PER_SECOND = 90;
 const DEFAULT_CROSSHAIR_X = 0.28;
 const DEFAULT_TOLERANCE_MORIA = 4;
-const FEATURE_STORAGE_KEY = 'chanterlab_score_practice_enabled';
 
-export function scorePracticeFeatureEnabled({
+export function scorePracticeExplicitlyDisabled({
   location = globalThis.location,
-  storage = globalThis.localStorage,
 } = {}) {
   const params = new URLSearchParams(location?.search ?? '');
   const queryValue = params.get('scorePractice') ?? params.get('score-practice');
-  if (queryValue !== null) return ['1', 'true', 'yes', 'on'].includes(queryValue.toLowerCase());
-
-  try {
-    return ['1', 'true', 'yes', 'on'].includes(
-      String(storage?.getItem?.(FEATURE_STORAGE_KEY) ?? '').toLowerCase()
-    );
-  } catch {
-    return false;
-  }
+  return queryValue !== null && ['0', 'false', 'no', 'off'].includes(queryValue.toLowerCase());
 }
 
 export function createScorePracticeState(compiled, options = {}) {

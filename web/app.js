@@ -10,19 +10,19 @@ import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.
 import {
   compileChantScriptExample,
   listChantScriptExamples,
-} from './score/examples.js?v=chant-script-engine-phase5h';
+} from './score/examples.js?v=chant-script-engine-phase5i';
 import {
   referenceMoriaForDegree,
-} from './score/chant_score.js?v=chant-script-engine-phase5h';
+} from './score/chant_score.js?v=chant-script-engine-phase5i';
 import {
   ScorePracticePrototype,
-  scorePracticeFeatureEnabled,
+  scorePracticeExplicitlyDisabled,
   scorePracticeIsonControlState,
-} from './score/score_practice.js?v=chant-script-engine-phase5h';
+} from './score/score_practice.js?v=chant-script-engine-phase5i';
 import {
   applyPthoraDrop,
   retuneCompiledScoreWithGrid,
-} from './score/tuning_context.js?v=chant-script-engine-phase5h';
+} from './score/tuning_context.js?v=chant-script-engine-phase5i';
 
 // ── App state ────────────────────────────────────────────────────────────────
 
@@ -367,7 +367,7 @@ function handlePitchEvent(msg) {
 }
 
 function wireScorePracticePrototype() {
-  if (!scorePracticeFeatureEnabled()) return;
+  if (scorePracticeExplicitlyDisabled()) return;
   try {
     wireScorePracticePrototypeUnsafe();
   } catch (e) {
@@ -409,7 +409,7 @@ function wireScorePracticePrototypeUnsafe() {
   mainView.appendChild(status);
   mainView.appendChild(controls.el);
   mainView.classList.add('score-practice-enabled');
-  document.body.classList.add('score-practice-dev');
+  document.body.classList.add('score-practice-active');
   app.singscope?.setTraceTiming({
     anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
     pxPerSecond: scrollPxPerSecond,

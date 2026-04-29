@@ -530,8 +530,8 @@ select {
   display: none;
 }
 
-body.score-practice-dev .score-practice-layer,
-body.score-practice-dev .score-practice-status {
+body.score-practice-active .score-practice-layer,
+body.score-practice-active .score-practice-status {
   display: block;
 }
 
@@ -552,7 +552,7 @@ body.score-practice-dev .score-practice-status {
   pointer-events: auto;
 }
 
-body.score-practice-dev .score-practice-controls {
+body.score-practice-active .score-practice-controls {
   display: flex;
 }
 
@@ -1425,7 +1425,7 @@ body.score-practice-dev .score-practice-controls {
     max-width: calc(100% - 16px);
   }
 
-  body.score-practice-dev .score-practice-controls {
+  body.score-practice-active .score-practice-controls {
     top: 42px;
     right: 8px;
     bottom: auto;
@@ -1436,9 +1436,9 @@ body.score-practice-dev .score-practice-controls {
     gap: 6px;
   }
 
-  body.score-practice-dev:not([data-mobile-view="train"]) .score-practice-layer,
-  body.score-practice-dev:not([data-mobile-view="train"]) .score-practice-status,
-  body.score-practice-dev:not([data-mobile-view="train"]) .score-practice-controls {
+  body.score-practice-active:not([data-mobile-view="train"]) .score-practice-layer,
+  body.score-practice-active:not([data-mobile-view="train"]) .score-practice-status,
+  body.score-practice-active:not([data-mobile-view="train"]) .score-practice-controls {
     display: none;
   }
 
