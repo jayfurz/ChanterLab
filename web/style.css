@@ -100,6 +100,11 @@ body {
   text-decoration: none;
   touch-action: manipulation;
 }
+.desktop-practice-toggle.active {
+  border-color: var(--accent2);
+  background: var(--surface2);
+  color: var(--accent2);
+}
 .header-btn:hover { background: rgba(83, 192, 240, 0.16); }
 
 button,
@@ -1531,6 +1536,10 @@ body.score-practice-active .score-practice-controls {
 
   .header-actions {
     gap: 4px;
+  }
+
+  .desktop-practice-toggle {
+    display: none;
   }
 
   .header-btn {

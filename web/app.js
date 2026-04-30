@@ -27,7 +27,7 @@ import {
 } from './score/glyph_import_samples.js?v=chant-script-engine-phase6h';
 import {
   renderGlyphPreview,
-} from './score/glyph_preview_dom.js?v=chant-script-engine-phase6s';
+} from './score/glyph_preview_dom.js?v=chant-script-engine-phase6t';
 import {
   referenceMoriaForDegree,
 } from './score/chant_score.js?v=chant-script-engine-phase5j';
@@ -100,6 +100,10 @@ const app = {
   noteIndicator:   null,
   exercise:        null,
   scorePractice:   null,
+  scorePracticeModeVisible: false,
+  scorePracticeGridSnapshot: null,
+  setScorePracticeMode: null,
+  onScorePracticeModeChange: null,
   engine:          null,
   keyboard:        null,
   activePresetIdx: 0,
@@ -394,8 +398,29 @@ function handlePitchEvent(msg) {
   recordPitchForActiveTake(msg);
 }
 
+function setScorePracticeModeVisible(visible) {
+  const nextVisible = !!visible;
+  app.scorePracticeModeVisible = nextVisible;
+  document.body.classList.toggle('score-practice-active', nextVisible);
+  const button = document.getElementById('score-practice-mode-btn');
+  if (button) {
+    button.classList.toggle('active', nextVisible);
+    button.setAttribute('aria-pressed', nextVisible ? 'true' : 'false');
+    button.textContent = nextVisible ? 'Practice On' : 'Practice';
+  }
+  app.onScorePracticeModeChange?.(nextVisible);
+  requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+}
+
 function wireScorePracticePrototype() {
-  if (scorePracticeExplicitlyDisabled()) return;
+  const modeButton = document.getElementById('score-practice-mode-btn');
+  if (scorePracticeExplicitlyDisabled()) {
+    if (modeButton) modeButton.hidden = true;
+    return;
+  }
+  modeButton?.addEventListener('click', () => {
+    setScorePracticeModeVisible(!app.scorePracticeModeVisible);
+  });
   try {
     wireScorePracticePrototypeUnsafe();
   } catch (e) {
@@ -413,9 +438,12 @@ function wireScorePracticePrototypeUnsafe() {
   const playbackRate = readScorePracticePlaybackRate(params);
   const scrollPxPerSecond = readScorePracticeScrollSpeed(params);
   const importOptions = readScorePracticeImportOptions(params);
-  let compiled;
+  if (scorePracticeExplicitlyRequested(params)) setScorePracticeModeVisible(true);
+  let rawLoadedCompiled = null;
+  let activeRawCompiled = null;
+  let compiled = null;
   try {
-    compiled = compileChantScriptExample(exampleId);
+    rawLoadedCompiled = compileChantScriptExample(exampleId);
   } catch (e) {
     console.warn('Score practice example failed to compile', e);
     return;
@@ -441,14 +469,14 @@ function wireScorePracticePrototypeUnsafe() {
   mainView.appendChild(status);
   mainView.appendChild(controls.el);
   mainView.classList.add('score-practice-enabled');
-  document.body.classList.add('score-practice-active');
+  document.body.classList.toggle('score-practice-active', app.scorePracticeModeVisible);
   app.singscope?.setTraceTiming({
     anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
     pxPerSecond: scrollPxPerSecond,
   });
 
   app.scorePractice = new ScorePracticePrototype(canvas, {
-    enabled: true,
+    enabled: app.scorePracticeModeVisible,
     statusEl: status,
     pxPerSecond: scrollPxPerSecond,
     lookaheadMs: 8000,
@@ -460,13 +488,61 @@ function wireScorePracticePrototypeUnsafe() {
     onIsonChange: applyScorePracticeIson,
   });
 
-  const loadCompiledScore = rawCompiled => {
-    applyCompiledScoreInitialTuning(rawCompiled);
-    compiled = retuneCompiledScore(rawCompiled);
+  const updatePlayPauseLabel = () => {
+    controls.playPause.textContent = app.scorePractice?.isRunning() ? 'Pause' : 'Play';
+  };
+
+  const restoreRegularSingTuning = () => {
+    if (!app.scorePracticeGridSnapshot) return;
+    try {
+      app.grid = JsTuningGrid.fromJson(app.scorePracticeGridSnapshot);
+      app.scorePracticeGridSnapshot = null;
+      gridChanged();
+    } catch (e) {
+      console.warn('Unable to restore pre-practice tuning grid', e);
+      app.scorePracticeGridSnapshot = null;
+    }
+  };
+
+  const activateLoadedScore = () => {
+    if (!rawLoadedCompiled) return;
+    if (!app.scorePracticeGridSnapshot) {
+      try {
+        app.scorePracticeGridSnapshot = app.grid.toJson();
+      } catch (e) {
+        console.warn('Unable to snapshot pre-practice tuning grid', e);
+      }
+    }
+    applyCompiledScoreInitialTuning(rawLoadedCompiled);
+    compiled = retuneCompiledScore(rawLoadedCompiled);
+    activeRawCompiled = rawLoadedCompiled;
     app.scorePractice.setCompiledScore(compiled);
     app.scorePractice.setRowMap(app.ladder.rowMap);
-    app.scorePractice.restart();
-    controls.playPause.textContent = 'Pause';
+    app.scorePractice.seek(app.scorePractice.nowMs);
+    updatePlayPauseLabel();
+  };
+
+  app.onScorePracticeModeChange = visible => {
+    if (!app.scorePractice) return;
+    if (visible) {
+      app.scorePractice.setEnabled(true);
+      activateLoadedScore();
+    } else {
+      app.scorePractice.setEnabled(false);
+      restoreRegularSingTuning();
+      updatePlayPauseLabel();
+    }
+  };
+
+  const loadCompiledScore = rawCompiled => {
+    rawLoadedCompiled = rawCompiled;
+    activeRawCompiled = null;
+    compiled = rawCompiled;
+    app.scorePractice.stop();
+    app.scorePractice.setCompiledScore(rawCompiled);
+    app.scorePractice.setRowMap(app.ladder.rowMap);
+    if (app.scorePracticeModeVisible) activateLoadedScore();
+    updatePlayPauseLabel();
   };
 
   const loadExample = nextExampleId => {
@@ -549,16 +625,18 @@ function wireScorePracticePrototypeUnsafe() {
     setScorePracticeImportCollapsed(controls, true);
   });
   controls.restart.addEventListener('click', () => {
+    if (app.scorePracticeModeVisible) activateLoadedScore();
     app.scorePractice.restart();
-    controls.playPause.textContent = 'Pause';
+    updatePlayPauseLabel();
   });
   controls.playPause.addEventListener('click', () => {
     if (app.scorePractice.isRunning()) {
       app.scorePractice.stop();
-      controls.playPause.textContent = 'Play';
+      updatePlayPauseLabel();
     } else {
+      if (app.scorePracticeModeVisible && activeRawCompiled !== rawLoadedCompiled) activateLoadedScore();
       app.scorePractice.start();
-      controls.playPause.textContent = 'Pause';
+      updatePlayPauseLabel();
     }
   });
   controls.speed.addEventListener('input', () => {
@@ -576,6 +654,8 @@ function wireScorePracticePrototypeUnsafe() {
 
   loadExample(exampleId);
   renderScorePracticeGlyphPreview(controls);
+  updatePlayPauseLabel();
+  app.onScorePracticeModeChange(app.scorePracticeModeVisible);
 }
 
 function retuneCompiledScore(compiled) {
@@ -631,6 +711,11 @@ function rebuildGridForCompiledScore(compiled, tuning = {}) {
   app.activePresetIdx = -1;
   document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
   gridChanged();
+}
+
+function scorePracticeExplicitlyRequested(params) {
+  const queryValue = params.get('scorePractice') ?? params.get('score-practice');
+  return queryValue !== null && ['1', 'true', 'yes', 'on'].includes(queryValue.toLowerCase());
 }
 
 function readScorePracticePlaybackRate(params) {
@@ -721,7 +806,7 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
   const playPause = document.createElement('button');
   playPause.type = 'button';
   playPause.className = 'score-practice-play';
-  playPause.textContent = 'Pause';
+  playPause.textContent = 'Play';
 
   const speedWrap = document.createElement('label');
   speedWrap.className = 'score-practice-speed';
@@ -1323,6 +1408,7 @@ function wireMobileTabs() {
     if (!views.has(view)) view = 'sing';
     document.body.dataset.mobileView = view;
     tabs.forEach(btn => btn.classList.toggle('active', btn.dataset.mobileView === view));
+    setScorePracticeModeVisible(view === 'train');
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   };
 
