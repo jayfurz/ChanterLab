@@ -245,8 +245,29 @@ h1 {
 }
 
 .glyph-cluster-render.has-main .glyph-cluster-render-slot.above {
-  top: 2px;
-  height: 42px;
+  top: 16px;
+  height: 30px;
+}
+
+.glyph-cluster-render.has-main.has-above .glyph-cluster-render-slot.main {
+  top: 30px;
+}
+
+.glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.temporal {
+  transform: translateY(33px);
+  font-size: 46px;
+}
+
+.glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.duration {
+  transform: translateY(29px);
+  font-size: 42px;
+}
+
+.glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.pthora,
+.glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.qualitative,
+.glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.martyria-sign {
+  transform: translateY(28px);
+  font-size: 38px;
 }
 
 .glyph-cluster-render.modifier-only .glyph-cluster-render-item {

@@ -12,13 +12,13 @@ http://127.0.0.1:8432/glyph-atlas.html
 If a mobile browser appears stale, add a cache-busting query:
 
 ```text
-http://127.0.0.1:8432/glyph-atlas.html?v=phase6n
+http://127.0.0.1:8432/glyph-atlas.html?v=phase6o
 ```
 
 Filter to one atlas group with `category`, for example:
 
 ```text
-http://127.0.0.1:8432/glyph-atlas.html?v=phase6n&category=Timing%20Signs
+http://127.0.0.1:8432/glyph-atlas.html?v=phase6o&category=Timing%20Signs
 ```
 
 Do not use port `8765` for this workflow.
