@@ -232,6 +232,25 @@ test('score practice notifies ison changes on load and seek', () => {
   assert.deepEqual(changes, ['Ni', 'Pa']);
 });
 
+test('disabling score practice clears active score ison even when playback is stopped', () => {
+  const changes = [];
+  const practice = new ScorePracticePrototype(null, {
+    enabled: true,
+    onIsonChange: ison => changes.push(ison?.degree ?? null),
+  });
+  practice.setCompiledScore({
+    timeline: [],
+    isonEvents: [
+      { type: 'ison', atMs: 0, degree: 'Ni', targetMoria: 0 },
+    ],
+    totalDurationMs: 2000,
+  });
+
+  practice.setEnabled(false);
+
+  assert.deepEqual(changes, ['Ni', null]);
+});
+
 test('active tuning state includes elapsed pthora events and active accidentals', () => {
   const state = createScorePracticeState({
     timeline: [{

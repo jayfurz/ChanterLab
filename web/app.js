@@ -534,6 +534,7 @@ function wireScorePracticePrototypeUnsafe() {
       activateLoadedScore();
     } else {
       app.scorePractice.setEnabled(false);
+      releaseScorePracticeIson();
       restoreRegularSingTuning();
       updatePlayPauseLabel();
     }

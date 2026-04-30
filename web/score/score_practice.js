@@ -314,11 +314,11 @@ export class ScorePracticePrototype {
   }
 
   stop() {
-    if (this._rafId === null) return;
-    cancelAnimationFrame(this._rafId);
-    this._rafId = null;
-    this._lastIsonKey = null;
-    this._options.onIsonChange?.(null, { reason: 'stop' });
+    if (this._rafId !== null) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
+    }
+    this._clearIson('stop');
   }
 
   seek(ms) {
@@ -367,6 +367,13 @@ export class ScorePracticePrototype {
     if (key === this._lastIsonKey) return;
     this._lastIsonKey = key;
     this._options.onIsonChange(ison ?? null, { nowMs: this.nowMs });
+  }
+
+  _clearIson(reason) {
+    if (typeof this._options.onIsonChange !== 'function') return;
+    if (this._lastIsonKey === 'off') return;
+    this._lastIsonKey = 'off';
+    this._options.onIsonChange(null, { reason });
   }
 
   _syncTuning() {
