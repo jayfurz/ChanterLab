@@ -9,6 +9,12 @@ Open it from this worktree server:
 http://127.0.0.1:8432/glyph-atlas.html
 ```
 
+Filter to one atlas group with `category`, for example:
+
+```text
+http://127.0.0.1:8432/glyph-atlas.html?category=Timing%20Signs
+```
+
 Do not use port `8765` for this workflow.
 
 ## What To Inspect

@@ -10,7 +10,11 @@ import {
 
 const root = document.getElementById('glyph-atlas-root');
 const summary = document.getElementById('glyph-atlas-summary');
-const clusters = listGlyphClusterCatalog();
+const params = new URLSearchParams(window.location.search);
+const categoryFilter = params.get('category')?.trim().toLowerCase();
+const clusters = categoryFilter
+  ? listGlyphClusterCatalog().filter(cluster => cluster.category.toLowerCase() === categoryFilter)
+  : listGlyphClusterCatalog();
 const groups = groupByCategory(clusters);
 
 for (const [category, items] of groups) {

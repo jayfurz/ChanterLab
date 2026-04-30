@@ -198,6 +198,12 @@ h1 {
   z-index: 0;
 }
 
+.glyph-cluster-render.modifier-only .glyph-cluster-render-slot.above,
+.glyph-cluster-render.modifier-only .glyph-cluster-render-slot.below {
+  top: 25px;
+  height: 42px;
+}
+
 .glyph-cluster-render-item {
   display: inline-flex;
   align-items: center;
@@ -229,6 +235,15 @@ h1 {
 .glyph-cluster-render-item.qualitative,
 .glyph-cluster-render-item.martyria-sign {
   font-size: 25px;
+}
+
+.glyph-cluster-render.modifier-only .glyph-cluster-render-item.temporal,
+.glyph-cluster-render.modifier-only .glyph-cluster-render-item.duration,
+.glyph-cluster-render.modifier-only .glyph-cluster-render-item.pthora,
+.glyph-cluster-render.modifier-only .glyph-cluster-render-item.qualitative,
+.glyph-cluster-render.modifier-only .glyph-cluster-render-item.martyria-sign {
+  transform: none;
+  font-size: 44px;
 }
 
 @media (max-width: 640px) {

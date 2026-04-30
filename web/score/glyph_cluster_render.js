@@ -30,6 +30,7 @@ export function glyphClusterRenderModel(cluster) {
     semantic: cluster?.semantic,
     slots,
     missing,
+    modifierOnly: !slots.main.length && (slots.above.length > 0 || slots.below.length > 0),
   };
 }
 
@@ -39,6 +40,7 @@ export function createGlyphClusterElement(cluster, documentRef = globalThis.docu
   const shell = documentRef.createElement('div');
   shell.className = 'glyph-cluster-render';
   shell.dataset.clusterId = model.id ?? '';
+  if (model.modifierOnly) shell.classList.add('modifier-only');
 
   for (const slotName of CLUSTER_SLOTS) {
     const slot = documentRef.createElement('span');

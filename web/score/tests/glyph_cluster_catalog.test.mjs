@@ -42,6 +42,15 @@ test('glyph cluster render models expose all declared slots without missing glyp
   }
 });
 
+test('standalone modifier atlas cells are marked for centered rendering', () => {
+  const modifierOnly = new Set(['Duration Signs', 'Timing Signs', 'Pthora And Chroa']);
+
+  for (const cluster of listGlyphClusterCatalog().filter(cluster => modifierOnly.has(cluster.category))) {
+    const model = glyphClusterRenderModel(cluster);
+    assert.equal(model.modifierOnly, true, cluster.id);
+  }
+});
+
 test('dotted gorgon timing weights are normalized-ready positive ratios', () => {
   const timingClusters = listGlyphClusterCatalog()
     .filter(cluster => cluster.semantic?.kind === 'temporal');
