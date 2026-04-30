@@ -1,0 +1,255 @@
+@font-face {
+  font-family: 'Neanes';
+  src: url('fonts/neanes/Neanes.otf') format('opentype');
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+  --bg: #0a0f16;
+  --panel: #101827;
+  --panel-2: #121f31;
+  --line: rgba(110, 190, 230, 0.35);
+  --line-strong: rgba(120, 240, 173, 0.58);
+  --text: #e7f4fb;
+  --muted: #94a9bb;
+  --accent: #78f0ad;
+  --warn: #ffd6a6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.glyph-atlas-shell {
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.glyph-atlas-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.glyph-atlas-eyebrow {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 26px;
+}
+
+.glyph-atlas-summary {
+  max-width: 52ch;
+  color: var(--muted);
+  font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-align: right;
+}
+
+.glyph-atlas-summary.has-warnings {
+  color: var(--warn);
+}
+
+.glyph-atlas-root {
+  display: grid;
+  gap: 22px;
+}
+
+.glyph-atlas-section {
+  display: grid;
+  gap: 10px;
+}
+
+.glyph-atlas-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.glyph-atlas-section-header h2 {
+  font-size: 15px;
+}
+
+.glyph-atlas-section-header span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.glyph-atlas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  gap: 8px;
+}
+
+.glyph-atlas-cell {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  padding: 8px;
+}
+
+.glyph-atlas-cell.has-warnings {
+  border-color: rgba(255, 214, 166, 0.7);
+}
+
+.glyph-atlas-visual {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: 100%;
+  min-height: 96px;
+  margin-bottom: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  background:
+    linear-gradient(to right, transparent 49%, rgba(120, 240, 173, 0.18) 49%, rgba(120, 240, 173, 0.18) 51%, transparent 51%),
+    linear-gradient(to bottom, transparent 49%, rgba(120, 240, 173, 0.12) 49%, rgba(120, 240, 173, 0.12) 51%, transparent 51%),
+    var(--panel-2);
+}
+
+.glyph-atlas-cell h3 {
+  min-height: 2.4em;
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.glyph-atlas-id,
+.glyph-atlas-semantic,
+.glyph-atlas-codepoints {
+  color: var(--muted);
+  font: 10px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.glyph-atlas-semantic {
+  margin-top: 5px;
+  color: #bfd2df;
+}
+
+.glyph-atlas-codepoints {
+  margin-top: 5px;
+}
+
+.glyph-cluster-render {
+  position: relative;
+  width: 78px;
+  height: 86px;
+  color: #eafff4;
+}
+
+.glyph-cluster-render-slot {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.glyph-cluster-render-slot.above {
+  top: 6px;
+  height: 28px;
+  z-index: 2;
+}
+
+.glyph-cluster-render-slot.main {
+  top: 31px;
+  height: 38px;
+  z-index: 1;
+}
+
+.glyph-cluster-render-slot.below {
+  top: 59px;
+  height: 24px;
+  z-index: 0;
+}
+
+.glyph-cluster-render-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  font-family: 'Neanes', serif;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.glyph-cluster-render-item.precomposed-quantity,
+.glyph-cluster-render-item.quantity,
+.glyph-cluster-render-item.rest,
+.glyph-cluster-render-item.martyria-note {
+  font-size: 42px;
+}
+
+.glyph-cluster-render-item.temporal {
+  transform: translateY(11px);
+  font-size: 30px;
+}
+
+.glyph-cluster-render-item.duration {
+  transform: translateY(6px);
+  font-size: 24px;
+}
+
+.glyph-cluster-render-item.pthora,
+.glyph-cluster-render-item.qualitative,
+.glyph-cluster-render-item.martyria-sign {
+  font-size: 25px;
+}
+
+@media (max-width: 640px) {
+  .glyph-atlas-shell {
+    padding: 10px;
+  }
+
+  .glyph-atlas-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .glyph-atlas-summary {
+    text-align: left;
+  }
+
+  .glyph-atlas-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .glyph-atlas-cell {
+    padding: 6px;
+  }
+}
