@@ -324,21 +324,18 @@ function modeSignClusters() {
 function martyriaClusters() {
   return [
     cluster('martyria-di-diatonic', 'Martyria Checkpoints', 'Di diatonic martyria', [
-      above('martyriaDeltaAbove', 'martyria-sign'),
       main('martyriaNoteDi', 'martyria-note'),
       below('martyriaDeltaBelow', 'martyria-sign'),
     ], {
       semantic: { kind: 'martyria', degree: 'Di', scale: 'diatonic' },
     }),
     cluster('martyria-di-soft-chromatic', 'Martyria Checkpoints', 'Di soft chromatic martyria', [
-      above('martyriaSoftChromaticDiAbove', 'martyria-sign'),
       main('martyriaNoteDi', 'martyria-note'),
       below('martyriaSoftChromaticDiBelow', 'martyria-sign'),
     ], {
       semantic: { kind: 'martyria', degree: 'Di', scale: 'soft-chromatic' },
     }),
     cluster('martyria-pa-hard-chromatic', 'Martyria Checkpoints', 'Pa hard chromatic martyria', [
-      above('martyriaHardChromaticPaAbove', 'martyria-sign'),
       main('martyriaNotePa', 'martyria-note'),
       below('martyriaHardChromaticPaBelow', 'martyria-sign'),
     ], {

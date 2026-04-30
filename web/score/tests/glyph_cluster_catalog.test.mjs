@@ -55,6 +55,22 @@ test('standalone modifier atlas cells are marked for centered rendering', () => 
   }
 });
 
+test('martyria checkpoint atlas clusters render only the note and lower sign', () => {
+  const martyriaClusters = listGlyphClusterCatalog()
+    .filter(cluster => cluster.category === 'Martyria Checkpoints');
+
+  assert.ok(martyriaClusters.length > 0);
+  for (const cluster of martyriaClusters) {
+    const model = glyphClusterRenderModel(cluster);
+
+    assert.deepEqual(model.slots.above, [], cluster.id);
+    assert.equal(model.slots.main.length, 1, cluster.id);
+    assert.equal(model.slots.main[0].role, 'martyria-note', cluster.id);
+    assert.equal(model.slots.below.length, 1, cluster.id);
+    assert.equal(model.slots.below[0].role, 'martyria-sign', cluster.id);
+  }
+});
+
 test('glyph cluster elements expose stable semantic classes for atlas tuning', () => {
   const cluster = listGlyphClusterCatalog()
     .find(cluster => cluster.id === 'martyria-di-diatonic');
