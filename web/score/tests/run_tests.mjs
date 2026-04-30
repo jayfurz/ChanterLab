@@ -6,5 +6,6 @@ await import('./examples.test.mjs');
 await import('./score_practice.test.mjs');
 await import('./glyph_import.test.mjs');
 await import('./glyph_render.test.mjs');
+await import('./glyph_preview_dom.test.mjs');
 await import('./glyph_editor.test.mjs');
 await import('./glyph_cluster_catalog.test.mjs');
