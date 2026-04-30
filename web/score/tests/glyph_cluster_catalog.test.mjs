@@ -38,6 +38,9 @@ test('glyph cluster render models expose all declared slots without missing glyp
     assert.ok(Array.isArray(model.slots.main), cluster.id);
     assert.ok(Array.isArray(model.slots.below), cluster.id);
     assert.deepEqual(model.missing, [], cluster.id);
+    assert.equal(model.hasAbove, model.slots.above.length > 0, cluster.id);
+    assert.equal(model.hasMain, model.slots.main.length > 0, cluster.id);
+    assert.equal(model.hasBelow, model.slots.below.length > 0, cluster.id);
     assert.ok(formatGlyphClusterSemantic(cluster.semantic).length > 0, cluster.id);
   }
 });

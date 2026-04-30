@@ -30,6 +30,9 @@ export function glyphClusterRenderModel(cluster) {
     semantic: cluster?.semantic,
     slots,
     missing,
+    hasAbove: slots.above.length > 0,
+    hasMain: slots.main.length > 0,
+    hasBelow: slots.below.length > 0,
     modifierOnly: !slots.main.length && (slots.above.length > 0 || slots.below.length > 0),
   };
 }
@@ -40,6 +43,9 @@ export function createGlyphClusterElement(cluster, documentRef = globalThis.docu
   const shell = documentRef.createElement('div');
   shell.className = 'glyph-cluster-render';
   shell.dataset.clusterId = model.id ?? '';
+  if (model.hasAbove) shell.classList.add('has-above');
+  if (model.hasMain) shell.classList.add('has-main');
+  if (model.hasBelow) shell.classList.add('has-below');
   if (model.modifierOnly) shell.classList.add('modifier-only');
 
   for (const slotName of CLUSTER_SLOTS) {
