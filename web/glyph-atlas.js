@@ -1,15 +1,18 @@
 import {
   glyphCodepoint,
   listGlyphClusterCatalog,
-} from './score/glyph_cluster_catalog.js';
+} from './score/glyph_cluster_catalog.js?v=chant-script-engine-phase6m';
 import {
   createGlyphClusterElement,
   formatGlyphClusterSemantic,
   glyphClusterRenderModel,
-} from './score/glyph_cluster_render.js';
+} from './score/glyph_cluster_render.js?v=chant-script-engine-phase6m';
 
+const GLYPH_ATLAS_RUNTIME_BUILD = 'phase6m renderer-module-cache-bust';
 const root = document.getElementById('glyph-atlas-root');
 const summary = document.getElementById('glyph-atlas-summary');
+const build = document.querySelector('.glyph-atlas-build');
+if (build) build.textContent = `${build.textContent} | ${GLYPH_ATLAS_RUNTIME_BUILD}`;
 const params = new URLSearchParams(window.location.search);
 const categoryFilter = params.get('category')?.trim().toLowerCase();
 const clusters = categoryFilter
