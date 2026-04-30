@@ -10,7 +10,7 @@ import {
 } from './chant_score.js';
 import { DIAGNOSTIC_SEVERITY, pushDiagnostic } from './diagnostics.js';
 import { displayForNeume } from './glyph_defaults.js';
-import { assignBeatDurations, beatsToMilliseconds } from './timing.js';
+import { assignBeatDurations, beatsToMilliseconds } from './timing.js?v=chant-script-engine-phase6w';
 import { parseChantScript } from './parser.js';
 
 export function compileChantScript(text, options = {}) {
@@ -167,11 +167,11 @@ function resolveNeume(event, context) {
     });
   }
 
-  if (Math.abs(delta) > 4) {
+  if (Math.abs(delta) > 9) {
     pushDiagnostic(context.diagnostics, {
       severity: DIAGNOSTIC_SEVERITY.ERROR,
       code: 'unsupported-movement',
-      message: 'v0 supports relative movement of 1 through 4 steps.',
+      message: 'The score compiler supports relative movement of up to 9 steps.',
       ...event.source,
     });
   }

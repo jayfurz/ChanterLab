@@ -89,6 +89,75 @@ test('glyph import infers chromatic pthora phase from attached note placement', 
   assert.deepEqual(compiled.notes.map(note => note.moria), [42, 50]);
 });
 
+test('glyph import maps precomposed quantity glyphs to semantic movement', () => {
+  const diagnostics = [];
+  const tokens = semanticTokensFromGlyphs([
+    'petastiKentima',
+    'oligonYpsiliLeft',
+    'petastiDoubleChamiliApostrofos',
+  ], { diagnostics });
+
+  assert.equal(hasErrorDiagnostics(diagnostics), false);
+  assert.deepEqual(tokens.map(token => token.value.movement), [
+    { direction: 'up', steps: 3 },
+    { direction: 'up', steps: 5 },
+    { direction: 'down', steps: 9 },
+  ]);
+  assert.deepEqual(tokens.map(token => token.value.quality), [
+    'petasti-kentima',
+    'ypsili',
+    'petasti',
+  ]);
+
+  const compiled = compileGlyphGroups([
+    ['ison'],
+    ['petastiKentima'],
+    ['petastiDoubleChamiliApostrofos'],
+  ], { startDegree: 'Ni', bpm: 120 });
+
+  assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
+  assert.deepEqual(compiled.notes.map(note => note.degree), ['Ni', 'Ga', 'Pa']);
+});
+
+test('glyph import maps dotted timing glyphs to weighted symbolic durations', () => {
+  const gorgon = compileGlyphGroups([
+    ['ison'],
+    ['oligon', 'gorgonDottedLeft'],
+  ], { startDegree: 'Ni', bpm: 120 });
+
+  assert.equal(hasErrorDiagnostics(gorgon.diagnostics), false);
+  assert.deepEqual(
+    gorgon.notes.map(note => Number(note.durationBeats.toFixed(6))),
+    [0.666667, 0.333333]
+  );
+
+  const digorgon = compileGlyphGroups([
+    ['ison'],
+    ['oligon', 'digorgonDottedLeftBelow'],
+    ['oligon'],
+  ], { startDegree: 'Ni', bpm: 120 });
+
+  assert.equal(hasErrorDiagnostics(digorgon.diagnostics), false);
+  assert.deepEqual(
+    digorgon.notes.map(note => Number(note.durationBeats.toFixed(6))),
+    [0.5, 0.25, 0.25]
+  );
+});
+
+test('glyph import maps martyria glyph groups to checkpoints', () => {
+  const compiled = compileGlyphGroups([
+    ['martyriaNoteDi', 'martyriaSoftChromaticDiBelow'],
+  ], {
+    startDegree: 'Di',
+    bpm: 120,
+  });
+
+  assert.equal(hasErrorDiagnostics(compiled.diagnostics), false);
+  assert.equal(compiled.checkpoints.length, 1);
+  assert.equal(compiled.checkpoints[0].degree, 'Di');
+  assert.equal(compiled.score.events[0].pthora.scale, 'soft-chromatic');
+});
+
 test('glyph import reports unknown and ambiguous groups without guessing', () => {
   const unknown = compileGlyphGroups([
     ['notAGlyph'],

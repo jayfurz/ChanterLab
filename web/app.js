@@ -15,8 +15,9 @@ import {
   compileGlyphText,
   compileSbmuflGlyphText,
   compileUnicodeByzantineText,
+  listGlyphImportTokens,
   listMinimalGlyphImportTokens,
-} from './score/glyph_import.js?v=chant-script-engine-phase6h';
+} from './score/glyph_import.js?v=chant-script-engine-phase6w';
 import { formatDiagnostic } from './score/diagnostics.js?v=chant-script-engine-phase6d';
 import {
   editGlyphImportText,
@@ -44,7 +45,7 @@ import {
   glyphScoreGroupLabel,
   removeGlyphScoreGroup,
   serializeGlyphScoreEditorState,
-} from './score/glyph_score_editor.js?v=chant-script-engine-phase6v';
+} from './score/glyph_score_editor.js?v=chant-script-engine-phase6w';
 import {
   referenceMoriaForDegree,
 } from './score/chant_score.js?v=chant-script-engine-phase5j';
@@ -80,6 +81,8 @@ const SCORE_PRACTICE_MAX_PLAYBACK_RATE = 1.25;
 const SCORE_PRACTICE_LEAD_IN_MS = 3000;
 const SCORE_PRACTICE_SCROLL_PX_PER_SECOND = 56;
 const SCORE_GLYPH_IMPORT_TOKENS = listMinimalGlyphImportTokens();
+const SCORE_GLYPH_ALL_IMPORT_TOKENS = listGlyphImportTokens();
+const SCORE_GLYPH_IMPORT_TOKEN_BY_NAME = new Map(SCORE_GLYPH_ALL_IMPORT_TOKENS.map(token => [token.glyphName, token]));
 const SCORE_GLYPH_CLUSTER_CATALOG = listGlyphClusterCatalog();
 const SCORE_GLYPH_CLUSTER_BY_ID = new Map(SCORE_GLYPH_CLUSTER_CATALOG.map(cluster => [cluster.id, cluster]));
 const SCORE_GLYPH_CLUSTER_CATEGORIES = [
@@ -103,6 +106,8 @@ const SCORE_GLYPH_KEYBOARD_ROLES = [
   { role: 'pthora', label: 'Pthora' },
   { role: 'qualitative', label: 'Chroa' },
   { role: 'tempo', label: 'Tempo' },
+  { role: 'martyria-note', label: 'Martyria Note' },
+  { role: 'martyria-sign', label: 'Martyria Sign' },
 ];
 const DETECTION_LOW_MORIA = -72;
 const DETECTION_HIGH_MORIA = 144;
@@ -1392,13 +1397,19 @@ function glyphScoreClusterFromGroup(group, index) {
 }
 
 function glyphScoreTokenSlot(glyphName) {
-  const token = SCORE_GLYPH_IMPORT_TOKENS.find(item => item.glyphName === glyphName);
-  if (token?.role === 'quantity' || token?.role === 'rest' || token?.role === 'tempo') return 'main';
+  const token = SCORE_GLYPH_IMPORT_TOKEN_BY_NAME.get(glyphName);
+  if (token?.role === 'quantity'
+    || token?.role === 'rest'
+    || token?.role === 'tempo'
+    || token?.role === 'martyria-note') {
+    return 'main';
+  }
+  if (token?.role === 'martyria-sign') return 'below';
   return 'above';
 }
 
 function glyphScoreTokenRole(glyphName) {
-  const token = SCORE_GLYPH_IMPORT_TOKENS.find(item => item.glyphName === glyphName);
+  const token = SCORE_GLYPH_IMPORT_TOKEN_BY_NAME.get(glyphName);
   return token?.role ?? 'unknown';
 }
 

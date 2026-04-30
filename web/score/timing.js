@@ -289,11 +289,11 @@ function temporalRuleForEvent(event, diagnostics, options = {}) {
 }
 
 function temporalRuleForSign(sign, diagnostics, options = {}) {
-  if (sign.type === 'quick') return TEMPORAL_RULES.gorgon;
+  if (sign.type === 'quick') return ruleWithTemporalWeights(TEMPORAL_RULES.gorgon, sign);
   if (sign.type !== 'divide') return undefined;
 
   const rule = TEMPORAL_RULES_BY_DIVIDE.get(sign.divide);
-  if (rule) return rule;
+  if (rule) return ruleWithTemporalWeights(rule, sign);
 
   if (options.reportUnsupported) {
     pushDiagnostic(diagnostics, {
@@ -304,6 +304,21 @@ function temporalRuleForSign(sign, diagnostics, options = {}) {
     });
   }
   return undefined;
+}
+
+function ruleWithTemporalWeights(rule, sign) {
+  if (!Array.isArray(sign?.weights) || sign.weights.length !== rule.divide) {
+    return rule;
+  }
+  const sum = sign.weights.reduce((total, weight) => total + weight, 0);
+  if (!Number.isFinite(sum) || sum <= 0 || sign.weights.some(weight => !Number.isFinite(weight) || weight <= 0)) {
+    return rule;
+  }
+  return {
+    ...rule,
+    sign: sign.sign ?? rule.sign,
+    outputFractions: Object.freeze(sign.weights.map(weight => weight / sum)),
+  };
 }
 
 function hasTemporal(event, type) {

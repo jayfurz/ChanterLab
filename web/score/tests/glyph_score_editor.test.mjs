@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { compileGlyphText } from '../glyph_import.js';
+import { compileGlyphText, listGlyphImportTokens } from '../glyph_import.js';
 import { listGlyphClusterCatalog } from '../glyph_cluster_catalog.js';
 import {
   applyGlyphScoreCluster,
@@ -19,7 +19,7 @@ function cluster(id) {
   return found;
 }
 
-test('glyph score editor marks minimal semantic clusters as importable', () => {
+test('glyph score editor marks atlas semantic clusters as importable', () => {
   const oligon = glyphScoreClusterInfo(cluster('quantity-oligon'));
   const gorgon = glyphScoreClusterInfo(cluster('timing-gorgonAbove'));
   const compound = glyphScoreClusterInfo(cluster('oligon-compounds-oligonKentimaMiddle'));
@@ -28,8 +28,21 @@ test('glyph score editor marks minimal semantic clusters as importable', () => {
   assert.equal(oligon.insertion, 'group');
   assert.equal(gorgon.importable, true);
   assert.equal(gorgon.insertion, 'modifier');
-  assert.equal(compound.importable, false);
-  assert.match(compound.reason, /not mapped/i);
+  assert.equal(compound.importable, true);
+  assert.deepEqual(compound.tokenNames, ['oligonKentimaMiddle']);
+});
+
+test('glyph score editor can import every atlas cluster', () => {
+  const importTokenNames = new Set(listGlyphImportTokens().map(token => token.glyphName));
+  const missingGlyphs = [...new Set(CATALOG.flatMap(item => item.components.map(component => component.glyphName)))]
+    .filter(glyphName => !importTokenNames.has(glyphName));
+  const blockedClusters = CATALOG
+    .map(item => [item.id, glyphScoreClusterInfo(item)])
+    .filter(([, info]) => !info.importable)
+    .map(([id, info]) => `${id}: ${info.reason}`);
+
+  assert.deepEqual(missingGlyphs, []);
+  assert.deepEqual(blockedClusters, []);
 });
 
 test('glyph score editor appends quantity groups and attaches modifiers to the selected group', () => {
@@ -84,13 +97,23 @@ test('glyph score editor serializes SBMuFL source text for importable groups', (
   assert.equal(compiled.notes.length, 2);
 });
 
-test('glyph score editor leaves state unchanged for visual-only atlas clusters', () => {
+test('glyph score editor imports martyria checkpoints as score groups', () => {
   const state = createGlyphScoreEditorState();
   const next = applyGlyphScoreCluster(state, cluster('martyria-di-diatonic'));
 
-  assert.equal(next.changed, false);
-  assert.equal(next.groups.length, 0);
-  assert.match(next.status, /visual-only/i);
+  assert.equal(next.changed, true);
+  assert.equal(serializeGlyphScoreEditorState(next), 'martyriaNoteDi martyriaDeltaBelow');
+
+  const compiled = compileGlyphText(serializeGlyphScoreEditorState(next), {
+    startDegree: 'Di',
+    bpm: 120,
+  });
+  assert.deepEqual(
+    compiled.diagnostics.filter(diagnostic => diagnostic.severity === 'error'),
+    []
+  );
+  assert.equal(compiled.checkpoints.length, 1);
+  assert.equal(compiled.checkpoints[0].degree, 'Di');
 });
 
 test('glyph score editor removes selected groups and keeps selection valid', () => {

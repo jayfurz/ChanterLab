@@ -1,15 +1,16 @@
 import { glyphImportTokenText } from './glyph_editor.js';
-import { listMinimalGlyphImportTokens } from './glyph_import.js';
+import { listGlyphImportTokens } from './glyph_import.js';
 
-const IMPORT_TOKENS = listMinimalGlyphImportTokens();
+const IMPORT_TOKENS = listGlyphImportTokens();
 const TOKEN_BY_NAME = new Map(IMPORT_TOKENS.map(token => [token.glyphName, token]));
-const ANCHOR_ROLES = new Set(['quantity', 'rest', 'tempo']);
-const MODIFIER_ROLES = new Set(['temporal', 'duration', 'pthora', 'qualitative']);
+const ANCHOR_ROLES = new Set(['quantity', 'rest', 'tempo', 'martyria-note']);
+const MODIFIER_ROLES = new Set(['temporal', 'duration', 'pthora', 'qualitative', 'martyria-sign']);
 const EXCLUSIVE_ROLE_GROUP = Object.freeze({
   temporal: 'temporal',
   duration: 'duration',
   pthora: 'mode-sign',
   qualitative: 'mode-sign',
+  'martyria-sign': 'martyria-sign',
 });
 
 export function createGlyphScoreEditorState(options = {}) {
@@ -211,7 +212,10 @@ function modifierCanAttachToGroup(glyphName, group) {
     return anchorRole === 'quantity' || anchorRole === 'rest';
   }
   if (role === 'pthora' || role === 'qualitative') {
-    return anchorRole === 'quantity';
+    return anchorRole === 'quantity' || anchorRole === 'martyria-note';
+  }
+  if (role === 'martyria-sign') {
+    return anchorRole === 'martyria-note';
   }
   return false;
 }
