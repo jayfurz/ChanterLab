@@ -245,8 +245,8 @@ h1 {
 }
 
 .glyph-cluster-render.has-main .glyph-cluster-render-slot.above {
-  top: 44px;
-  height: 44px;
+  top: 16px;
+  height: 30px;
 }
 
 .glyph-cluster-render.has-main.has-above .glyph-cluster-render-slot.main {
@@ -254,20 +254,20 @@ h1 {
 }
 
 .glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.temporal {
-  transform: none;
-  font-size: 46px;
+  transform: translateY(26px);
+  font-size: 40px;
 }
 
 .glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.duration {
-  transform: none;
-  font-size: 42px;
+  transform: translateY(25px);
+  font-size: 38px;
 }
 
 .glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.pthora,
 .glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.qualitative,
 .glyph-cluster-render.has-main.has-above .glyph-cluster-render-item.martyria-sign {
-  transform: none;
-  font-size: 38px;
+  transform: translateY(24px);
+  font-size: 36px;
 }
 
 .glyph-cluster-render.kind-martyria .glyph-cluster-render-slot.above {
@@ -290,6 +290,7 @@ h1 {
 }
 
 .glyph-cluster-render.kind-martyria .glyph-cluster-render-item.martyria-sign {
+  transform: none;
   font-size: 35px;
 }
 
