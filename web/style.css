@@ -721,7 +721,7 @@ body.score-practice-active .score-practice-controls {
 
 .score-practice-glyph-slot.above {
   gap: 1px;
-  top: 13px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
   min-width: 24px;
@@ -763,7 +763,7 @@ body.score-practice-active .score-practice-controls {
 }
 
 .score-practice-glyph-preview-item.duration {
-  transform: translateY(5px);
+  transform: translateY(9px);
   font-size: 19px;
 }
 
