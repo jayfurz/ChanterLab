@@ -1,14 +1,14 @@
 import {
   glyphCodepoint,
   listGlyphClusterCatalog,
-} from './score/glyph_cluster_catalog.js?v=chant-script-engine-phase6o';
+} from './score/glyph_cluster_catalog.js?v=chant-script-engine-phase6p';
 import {
   createGlyphClusterElement,
   formatGlyphClusterSemantic,
   glyphClusterRenderModel,
-} from './score/glyph_cluster_render.js?v=chant-script-engine-phase6o';
+} from './score/glyph_cluster_render.js?v=chant-script-engine-phase6p';
 
-const GLYPH_ATLAS_RUNTIME_BUILD = 'phase6o renderer-module-cache-bust';
+const GLYPH_ATLAS_RUNTIME_BUILD = 'phase6p renderer-module-cache-bust';
 const root = document.getElementById('glyph-atlas-root');
 const summary = document.getElementById('glyph-atlas-summary');
 const build = document.querySelector('.glyph-atlas-build');

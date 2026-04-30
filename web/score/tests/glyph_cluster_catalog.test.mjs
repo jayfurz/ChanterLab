@@ -7,6 +7,7 @@ import {
   listGlyphClusterCatalog,
 } from '../glyph_cluster_catalog.js';
 import {
+  createGlyphClusterElement,
   formatGlyphClusterSemantic,
   glyphClusterRenderModel,
 } from '../glyph_cluster_render.js';
@@ -52,6 +53,37 @@ test('standalone modifier atlas cells are marked for centered rendering', () => 
     const model = glyphClusterRenderModel(cluster);
     assert.equal(model.modifierOnly, true, cluster.id);
   }
+});
+
+test('glyph cluster elements expose stable semantic classes for atlas tuning', () => {
+  const cluster = listGlyphClusterCatalog()
+    .find(cluster => cluster.id === 'martyria-di-diatonic');
+  const created = [];
+  const classList = new Set();
+  const documentRef = {
+    createElement(tagName) {
+      const el = {
+        tagName,
+        children: [],
+        dataset: {},
+        className: '',
+        classList: { add: value => classList.add(value) },
+        appendChild(child) {
+          this.children.push(child);
+        },
+      };
+      created.push(el);
+      return el;
+    },
+  };
+
+  const shell = createGlyphClusterElement(cluster, documentRef);
+
+  assert.equal(shell, created[0]);
+  assert.equal(shell.className, 'glyph-cluster-render');
+  assert.equal(shell.dataset.clusterId, 'martyria-di-diatonic');
+  assert.equal(classList.has('kind-martyria'), true);
+  assert.equal(classList.has('category-martyria-checkpoints'), true);
 });
 
 test('dotted gorgon timing weights are normalized-ready positive ratios', () => {

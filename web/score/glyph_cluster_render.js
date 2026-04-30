@@ -43,6 +43,8 @@ export function createGlyphClusterElement(cluster, documentRef = globalThis.docu
   const shell = documentRef.createElement('div');
   shell.className = 'glyph-cluster-render';
   shell.dataset.clusterId = model.id ?? '';
+  if (model.semantic?.kind) shell.classList.add(`kind-${cssClassToken(model.semantic.kind)}`);
+  if (model.category) shell.classList.add(`category-${cssClassToken(model.category)}`);
   if (model.hasAbove) shell.classList.add('has-above');
   if (model.hasMain) shell.classList.add('has-main');
   if (model.hasBelow) shell.classList.add('has-below');
@@ -92,4 +94,12 @@ export function formatGlyphClusterSemantic(semantic) {
 
 function timingWeightsLabel(weights) {
   return Array.isArray(weights) ? `weights ${weights.join(':')}` : 'weights pending';
+}
+
+function cssClassToken(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'unknown';
 }
