@@ -48,9 +48,9 @@ const PRESETS = [
   { label: 'Hard Chromatic',genus: 'HardChromatic',  degree: 'Pa'  },
   { label: 'Soft Chromatic',genus: 'SoftChromatic',  degree: 'Ni'  },
   { label: 'Western',       genus: 'Western',       degree: 'Ni'  },
-  { label: 'Grave Diatonic',genus: 'GraveDiatonic',  degree: 'Ga'  },
-  { label: 'Enharmonic Zo', genus: 'EnharmonicZo',   degree: 'Zo'  },
-  { label: 'Enharmonic Ga', genus: 'EnharmonicGa',   degree: 'Ga'  },
+  // { label: 'Grave Diatonic',genus: 'GraveDiatonic',  degree: 'Ga'  },
+  // { label: 'Enharmonic Zo', genus: 'EnharmonicZo',   degree: 'Zo'  },
+  // { label: 'Enharmonic Ga', genus: 'EnharmonicGa',   degree: 'Ga'  },
 ];
 
 const DEFAULT_REF_NI_HZ = 130.81;
