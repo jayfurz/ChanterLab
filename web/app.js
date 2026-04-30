@@ -30,6 +30,22 @@ import {
   glyphPreviewSourceKind,
 } from './score/glyph_render.js?v=chant-script-engine-phase6h';
 import {
+  listGlyphClusterCatalog,
+} from './score/glyph_cluster_catalog.js?v=chant-script-engine-phase6v';
+import {
+  createGlyphClusterElement,
+  formatGlyphClusterSemantic,
+} from './score/glyph_cluster_render.js?v=chant-script-engine-phase6v';
+import {
+  applyGlyphScoreCluster,
+  clearGlyphScoreEditorState,
+  createGlyphScoreEditorState,
+  glyphScoreClusterInfo,
+  glyphScoreGroupLabel,
+  removeGlyphScoreGroup,
+  serializeGlyphScoreEditorState,
+} from './score/glyph_score_editor.js?v=chant-script-engine-phase6v';
+import {
   referenceMoriaForDegree,
 } from './score/chant_score.js?v=chant-script-engine-phase5j';
 import {
@@ -64,6 +80,20 @@ const SCORE_PRACTICE_MAX_PLAYBACK_RATE = 1.25;
 const SCORE_PRACTICE_LEAD_IN_MS = 3000;
 const SCORE_PRACTICE_SCROLL_PX_PER_SECOND = 56;
 const SCORE_GLYPH_IMPORT_TOKENS = listMinimalGlyphImportTokens();
+const SCORE_GLYPH_CLUSTER_CATALOG = listGlyphClusterCatalog();
+const SCORE_GLYPH_CLUSTER_BY_ID = new Map(SCORE_GLYPH_CLUSTER_CATALOG.map(cluster => [cluster.id, cluster]));
+const SCORE_GLYPH_CLUSTER_CATEGORIES = [
+  'Basic Quantities',
+  'Attachment Examples',
+  'Rests',
+  'Duration Signs',
+  'Timing Signs',
+  'Pthora And Chroa',
+  'Oligon Compounds',
+  'Petasti Compounds',
+  'Kentimata Compounds',
+  'Martyria Checkpoints',
+].filter(category => SCORE_GLYPH_CLUSTER_CATALOG.some(cluster => cluster.category === category));
 const SCORE_IMPORT_DEGREES = ['Ni', 'Pa', 'Vou', 'Ga', 'Di', 'Ke', 'Zo'];
 const SCORE_GLYPH_KEYBOARD_ROLES = [
   { role: 'quantity', label: 'Quantity' },
@@ -595,6 +625,9 @@ function wireScorePracticePrototypeUnsafe() {
     renderScorePracticeImportDiagnostics(controls.importDiagnostics, []);
     renderScorePracticeGlyphPreview(controls);
   });
+  controls.importEditorOpen?.addEventListener('click', () => {
+    openGlyphScoreEditor(controls);
+  });
   controls.importApply?.addEventListener('click', () => {
     const text = controls.importText.value.trim();
     if (!text) {
@@ -908,6 +941,11 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
 
     const importKeyboard = buildScorePracticeGlyphKeyboard();
 
+    const importEditorOpen = document.createElement('button');
+    importEditorOpen.type = 'button';
+    importEditorOpen.className = 'score-practice-glyph-editor-open';
+    importEditorOpen.textContent = 'Compose';
+
     const importApply = document.createElement('button');
     importApply.type = 'button';
     importApply.className = 'score-practice-import-apply';
@@ -929,6 +967,7 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
       importPreview,
       importText,
       importKeyboard,
+      importEditorOpen,
       importApply,
       importStatus,
       importDiagnostics
@@ -944,6 +983,7 @@ function buildScorePracticeControls(selectedExampleId, playbackRate, options = {
       importPreview,
       importText,
       importKeyboard,
+      importEditorOpen,
       importApply,
       importStatus,
       importDiagnostics,
@@ -1108,6 +1148,258 @@ function insertScorePracticeImportToken(textarea, glyphName, source) {
   textarea.value = edit.text;
   textarea.focus();
   textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+}
+
+function openGlyphScoreEditor(controls) {
+  const editor = ensureGlyphScoreEditor(controls);
+  renderGlyphScoreEditor(editor);
+  if (typeof editor.dialog.showModal === 'function' && !editor.dialog.open) {
+    editor.dialog.showModal();
+  } else {
+    editor.dialog.hidden = false;
+    editor.dialog.setAttribute('open', '');
+  }
+}
+
+function ensureGlyphScoreEditor(controls) {
+  if (controls.glyphScoreEditor) return controls.glyphScoreEditor;
+
+  const dialog = document.createElement('dialog');
+  dialog.className = 'glyph-score-editor-dialog';
+  dialog.setAttribute('aria-label', 'Glyph score editor');
+
+  const shell = document.createElement('div');
+  shell.className = 'glyph-score-editor-shell';
+
+  const header = document.createElement('div');
+  header.className = 'glyph-score-editor-header';
+  const headingWrap = document.createElement('div');
+  const title = document.createElement('h2');
+  title.textContent = 'Glyph Score Editor';
+  headingWrap.appendChild(title);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'glyph-score-editor-close';
+  close.setAttribute('aria-label', 'Close glyph score editor');
+  close.textContent = 'X';
+  header.append(headingWrap, close);
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'glyph-score-editor-toolbar';
+  const category = document.createElement('select');
+  category.className = 'glyph-score-editor-category';
+  category.setAttribute('aria-label', 'Glyph category');
+  for (const categoryName of SCORE_GLYPH_CLUSTER_CATEGORIES) {
+    const option = document.createElement('option');
+    option.value = categoryName;
+    option.textContent = categoryName;
+    category.appendChild(option);
+  }
+  const status = document.createElement('div');
+  status.className = 'glyph-score-editor-status';
+  status.textContent = 'Ready';
+  toolbar.append(category, status);
+
+  const composer = document.createElement('div');
+  composer.className = 'glyph-score-editor-composer';
+  composer.setAttribute('aria-label', 'Composed glyph score');
+
+  const grid = document.createElement('div');
+  grid.className = 'glyph-score-editor-grid';
+  grid.setAttribute('aria-label', 'Glyph catalog');
+
+  const footer = document.createElement('div');
+  footer.className = 'glyph-score-editor-footer';
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'glyph-score-editor-clear';
+  clear.textContent = 'Clear';
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'glyph-score-editor-remove';
+  remove.textContent = 'Remove Selected';
+  const use = document.createElement('button');
+  use.type = 'button';
+  use.className = 'glyph-score-editor-use';
+  use.textContent = 'Use in Import';
+  footer.append(clear, remove, use);
+
+  shell.append(header, toolbar, composer, grid, footer);
+  dialog.appendChild(shell);
+  document.body.appendChild(dialog);
+
+  const editor = {
+    controls,
+    dialog,
+    category,
+    status,
+    composer,
+    grid,
+    clear,
+    remove,
+    use,
+    state: createGlyphScoreEditorState(),
+  };
+
+  close.addEventListener('click', () => closeGlyphScoreEditor(editor));
+  category.addEventListener('change', () => renderGlyphScoreEditorCatalog(editor));
+  clear.addEventListener('click', () => {
+    editor.state = clearGlyphScoreEditorState();
+    renderGlyphScoreEditor(editor);
+  });
+  remove.addEventListener('click', () => {
+    editor.state = removeGlyphScoreGroup(editor.state, editor.state.selectedIndex);
+    renderGlyphScoreEditor(editor);
+  });
+  use.addEventListener('click', () => {
+    const text = serializeGlyphScoreEditorState(editor.state, {
+      source: editor.controls.importSource?.value ?? 'glyph',
+    });
+    if (!text) {
+      editor.status.textContent = 'Add at least one importable glyph first.';
+      return;
+    }
+    editor.controls.importText.value = text;
+    editor.controls.importStatus.textContent = 'composed';
+    renderScorePracticeImportDiagnostics(editor.controls.importDiagnostics, []);
+    renderScorePracticeGlyphPreview(editor.controls);
+    closeGlyphScoreEditor(editor);
+  });
+  composer.addEventListener('click', event => {
+    const removeButton = event.target.closest('[data-remove-group-index]');
+    if (removeButton) {
+      editor.state = removeGlyphScoreGroup(editor.state, Number(removeButton.dataset.removeGroupIndex));
+      renderGlyphScoreEditor(editor);
+      return;
+    }
+    const groupButton = event.target.closest('[data-group-index]');
+    if (!groupButton) return;
+    editor.state = createGlyphScoreEditorState({
+      ...editor.state,
+      selectedIndex: Number(groupButton.dataset.groupIndex),
+    });
+    renderGlyphScoreEditor(editor);
+  });
+  grid.addEventListener('click', event => {
+    const button = event.target.closest('[data-cluster-id]');
+    if (!button) return;
+    const cluster = SCORE_GLYPH_CLUSTER_BY_ID.get(button.dataset.clusterId);
+    if (!cluster) return;
+    editor.state = applyGlyphScoreCluster(editor.state, cluster);
+    renderGlyphScoreEditor(editor);
+  });
+
+  controls.glyphScoreEditor = editor;
+  return editor;
+}
+
+function closeGlyphScoreEditor(editor) {
+  if (typeof editor.dialog.close === 'function' && editor.dialog.open) {
+    editor.dialog.close();
+  } else {
+    editor.dialog.hidden = true;
+    editor.dialog.removeAttribute('open');
+  }
+}
+
+function renderGlyphScoreEditor(editor) {
+  renderGlyphScoreEditorComposer(editor);
+  renderGlyphScoreEditorCatalog(editor);
+  editor.status.textContent = editor.state.status || (
+    editor.state.groups.length
+      ? `${editor.state.groups.length} group${editor.state.groups.length === 1 ? '' : 's'}`
+      : 'Choose a quantity to start'
+  );
+}
+
+function renderGlyphScoreEditorComposer(editor) {
+  editor.composer.innerHTML = '';
+  if (!editor.state.groups.length) {
+    const empty = document.createElement('div');
+    empty.className = 'glyph-score-editor-empty';
+    empty.textContent = 'No glyphs yet';
+    editor.composer.appendChild(empty);
+    editor.remove.disabled = true;
+    editor.use.disabled = true;
+    return;
+  }
+
+  editor.remove.disabled = false;
+  editor.use.disabled = false;
+  editor.state.groups.forEach((group, index) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'glyph-score-editor-group';
+    if (index === editor.state.selectedIndex) item.classList.add('selected');
+    item.dataset.groupIndex = String(index);
+    item.title = glyphScoreGroupLabel(group);
+
+    const cluster = glyphScoreClusterFromGroup(group, index);
+    const visual = document.createElement('span');
+    visual.className = 'glyph-score-editor-group-visual';
+    visual.appendChild(createGlyphClusterElement(cluster, document));
+    const label = document.createElement('span');
+    label.className = 'glyph-score-editor-group-label';
+    label.textContent = String(index + 1);
+    item.append(visual, label);
+    editor.composer.appendChild(item);
+  });
+}
+
+function renderGlyphScoreEditorCatalog(editor) {
+  editor.grid.innerHTML = '';
+  const categoryName = editor.category.value || SCORE_GLYPH_CLUSTER_CATEGORIES[0];
+  const clusters = SCORE_GLYPH_CLUSTER_CATALOG.filter(cluster => cluster.category === categoryName);
+  for (const cluster of clusters) {
+    const info = glyphScoreClusterInfo(cluster);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'glyph-score-editor-catalog-item';
+    button.classList.toggle('visual-only', !info.importable);
+    button.dataset.clusterId = cluster.id;
+    button.title = info.importable
+      ? formatGlyphClusterSemantic(cluster.semantic)
+      : info.reason;
+
+    const visual = document.createElement('span');
+    visual.className = 'glyph-score-editor-catalog-visual';
+    visual.appendChild(createGlyphClusterElement(cluster, document));
+    const label = document.createElement('span');
+    label.className = 'glyph-score-editor-catalog-label';
+    label.textContent = cluster.label;
+    const semantic = document.createElement('span');
+    semantic.className = 'glyph-score-editor-catalog-semantic';
+    semantic.textContent = info.importable
+      ? (info.insertion === 'modifier' ? 'attach' : 'add')
+      : 'visual only';
+    button.append(visual, label, semantic);
+    editor.grid.appendChild(button);
+  }
+}
+
+function glyphScoreClusterFromGroup(group, index) {
+  return {
+    id: `composed-${index}`,
+    category: 'Composed',
+    label: glyphScoreGroupLabel(group),
+    semantic: { kind: 'neume' },
+    components: group.tokenNames.map(glyphName => ({
+      glyphName,
+      slot: glyphScoreTokenSlot(glyphName),
+      role: glyphScoreTokenRole(glyphName),
+    })),
+  };
+}
+
+function glyphScoreTokenSlot(glyphName) {
+  const token = SCORE_GLYPH_IMPORT_TOKENS.find(item => item.glyphName === glyphName);
+  if (token?.role === 'quantity' || token?.role === 'rest' || token?.role === 'tempo') return 'main';
+  return 'above';
+}
+
+function glyphScoreTokenRole(glyphName) {
+  const token = SCORE_GLYPH_IMPORT_TOKENS.find(item => item.glyphName === glyphName);
+  return token?.role ?? 'unknown';
 }
 
 function scoreGlyphTokenLabel(token) {
