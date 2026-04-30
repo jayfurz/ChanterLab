@@ -26,8 +26,9 @@ import {
   listGlyphImportSampleFixtures,
 } from './score/glyph_import_samples.js?v=chant-script-engine-phase6h';
 import {
-  renderGlyphPreview,
-} from './score/glyph_preview_dom.js?v=chant-script-engine-phase6t';
+  glyphPreviewFromText,
+  glyphPreviewSourceKind,
+} from './score/glyph_render.js?v=chant-script-engine-phase6h';
 import {
   referenceMoriaForDegree,
 } from './score/chant_score.js?v=chant-script-engine-phase5j';
@@ -994,10 +995,97 @@ function applyScorePracticeImportSample(controls, sample) {
 
 function renderScorePracticeGlyphPreview(controls) {
   if (!controls?.importPreview || !controls?.importText) return;
-  renderGlyphPreview(controls.importPreview, {
-    text: controls.importText.value,
-    source: controls.importSource?.value ?? 'glyph',
+  const previewEl = controls.importPreview;
+  previewEl.innerHTML = '';
+
+  const sourceText = controls.importText.value;
+  const preview = glyphPreviewFromText(sourceText, {
+    source: glyphPreviewSourceKind(controls.importSource?.value ?? 'glyph'),
   });
+
+  const strip = document.createElement('div');
+  strip.className = 'score-practice-glyph-preview-strip';
+  if (!preview.clusters.length) {
+    const empty = document.createElement('span');
+    empty.className = 'score-practice-glyph-preview-empty';
+    empty.textContent = 'No glyphs';
+    strip.appendChild(empty);
+  }
+
+  for (const cluster of preview.clusters) {
+    const aboveItems = [...cluster.slots.above, ...cluster.slots.right];
+    const clusterEl = document.createElement('button');
+    clusterEl.type = 'button';
+    clusterEl.className = [
+      'score-practice-glyph-cluster',
+      cluster.kind,
+      aboveItems.length ? 'has-above' : '',
+      cluster.slots.below.length ? 'has-below' : '',
+    ].filter(Boolean).join(' ');
+    clusterEl.title = cluster.label;
+    const span = codePointSpanToStringSpan(sourceText, cluster.sourceSpan);
+    if (span) {
+      clusterEl.dataset.sourceStart = String(span.start);
+      clusterEl.dataset.sourceEnd = String(span.end);
+    }
+
+    appendGlyphPreviewSlot(clusterEl, 'above', aboveItems);
+    appendGlyphPreviewSlot(clusterEl, 'main', cluster.slots.main);
+    appendGlyphPreviewSlot(clusterEl, 'below', cluster.slots.below);
+
+    const label = document.createElement('span');
+    label.className = 'score-practice-glyph-cluster-label';
+    label.textContent = compactGlyphPreviewLabel(cluster.label);
+    clusterEl.appendChild(label);
+    strip.appendChild(clusterEl);
+  }
+
+  const summary = document.createElement('div');
+  summary.className = 'score-practice-glyph-preview-summary';
+  const errors = preview.diagnostics.filter(diagnostic => diagnostic.severity === 'error').length;
+  const warnings = preview.diagnostics.filter(diagnostic => diagnostic.severity === 'warning').length;
+  summary.textContent = [
+    `${preview.clusters.length} group${preview.clusters.length === 1 ? '' : 's'}`,
+    errors ? `${errors} error${errors === 1 ? '' : 's'}` : '',
+    warnings ? `${warnings} warning${warnings === 1 ? '' : 's'}` : '',
+  ].filter(Boolean).join(' · ');
+
+  previewEl.append(strip, summary);
+  previewEl.classList.toggle('has-errors', errors > 0);
+}
+
+function appendGlyphPreviewSlot(clusterEl, slotName, items) {
+  const row = document.createElement('span');
+  row.className = `score-practice-glyph-slot ${slotName}`;
+  for (const item of items ?? []) {
+    row.appendChild(glyphPreviewItemElement(item));
+  }
+  clusterEl.appendChild(row);
+}
+
+function glyphPreviewItemElement(item) {
+  const el = document.createElement('span');
+  el.className = `score-practice-glyph-preview-item ${item.kind ?? 'unknown'}`;
+  el.textContent = item.text || '?';
+  el.title = item.label ?? item.glyphName ?? item.raw ?? '';
+  return el;
+}
+
+function compactGlyphPreviewLabel(label) {
+  return String(label ?? '')
+    .replaceAll('fthora', '')
+    .replaceAll('Chromatic', 'Chr')
+    .replaceAll('Above', '')
+    .replaceAll('gorgon', 'gor')
+    .slice(0, 28);
+}
+
+function codePointSpanToStringSpan(text, span) {
+  if (!Number.isInteger(span?.start) || !Number.isInteger(span?.end)) return undefined;
+  const chars = Array.from(text ?? '');
+  const start = chars.slice(0, span.start).join('').length;
+  const end = chars.slice(0, span.end).join('').length;
+  return { start, end };
 }
 
 function setScorePracticeImportCollapsed(controls, collapsed) {

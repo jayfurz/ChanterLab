@@ -143,17 +143,6 @@ h1 {
     var(--panel-2);
 }
 
-.glyph-atlas-visual.uses-import-preview .score-practice-glyph-preview-strip {
-  justify-content: center;
-  max-width: 100%;
-  overflow: visible;
-  padding: 0;
-}
-
-.glyph-atlas-visual.uses-import-preview .score-practice-glyph-cluster {
-  margin: 0;
-}
-
 .glyph-atlas-cell h3 {
   min-height: 2.4em;
   margin-bottom: 4px;

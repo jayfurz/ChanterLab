@@ -1,26 +1,14 @@
 import {
   glyphCodepoint,
   listGlyphClusterCatalog,
-} from './score/glyph_cluster_catalog.js?v=chant-script-engine-phase6s';
-import {
-  glyphPreviewFromText,
-} from './score/glyph_render.js?v=chant-script-engine-phase6s';
-import {
-  listMinimalGlyphImportTokens,
-} from './score/glyph_import.js?v=chant-script-engine-phase6s';
-import {
-  createGlyphPreviewStrip,
-} from './score/glyph_preview_dom.js?v=chant-script-engine-phase6s';
+} from './score/glyph_cluster_catalog.js?v=chant-script-engine-phase6r';
 import {
   createGlyphClusterElement,
   formatGlyphClusterSemantic,
   glyphClusterRenderModel,
-} from './score/glyph_cluster_render.js?v=chant-script-engine-phase6s';
+} from './score/glyph_cluster_render.js?v=chant-script-engine-phase6r';
 
-const GLYPH_ATLAS_RUNTIME_BUILD = 'phase6s import-preview-renderer-cache-bust';
-const IMPORTABLE_GLYPH_NAMES = new Set(
-  listMinimalGlyphImportTokens().map(token => token.glyphName)
-);
+const GLYPH_ATLAS_RUNTIME_BUILD = 'phase6r renderer-module-cache-bust';
 const root = document.getElementById('glyph-atlas-root');
 const summary = document.getElementById('glyph-atlas-summary');
 const build = document.querySelector('.glyph-atlas-build');
@@ -74,9 +62,7 @@ function createAtlasCell(cluster) {
 
   const visual = document.createElement('div');
   visual.className = 'glyph-atlas-visual';
-  const rendered = createAtlasVisual(cluster);
-  visual.classList.add(rendered.mode);
-  visual.appendChild(rendered.element);
+  visual.appendChild(createGlyphClusterElement(cluster));
 
   const label = document.createElement('h3');
   label.textContent = cluster.label;
@@ -96,46 +82,7 @@ function createAtlasCell(cluster) {
     .join(' / ');
 
   cell.append(visual, label, id, semantic, codepoints);
-  cell.classList.add(rendered.mode);
   return cell;
-}
-
-function createAtlasVisual(cluster) {
-  const previewText = glyphImportTextForCluster(cluster);
-  if (previewText) {
-    const preview = glyphPreviewFromText(previewText, { source: 'glyph-name' });
-    if (canRenderImportPreview(preview)) {
-      const strip = createGlyphPreviewStrip(preview, {
-        sourceText: previewText,
-        documentRef: document,
-        clusterTag: 'span',
-      });
-      strip.classList.add('glyph-atlas-import-preview-strip');
-      return {
-        mode: 'uses-import-preview',
-        element: strip,
-      };
-    }
-  }
-
-  return {
-    mode: 'uses-catalog-render',
-    element: createGlyphClusterElement(cluster),
-  };
-}
-
-function glyphImportTextForCluster(cluster) {
-  const glyphNames = (cluster?.components ?? [])
-    .map(component => component.glyphName)
-    .filter(Boolean);
-  if (!glyphNames.length) return '';
-  if (!glyphNames.every(glyphName => IMPORTABLE_GLYPH_NAMES.has(glyphName))) return '';
-  return glyphNames.join(' ');
-}
-
-function canRenderImportPreview(preview) {
-  return preview?.clusters?.length > 0
-    && !preview.clusters.some(cluster => cluster.kind === 'unknown');
 }
 
 function groupByCategory(items) {

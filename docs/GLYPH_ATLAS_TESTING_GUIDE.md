@@ -12,22 +12,21 @@ http://127.0.0.1:8432/glyph-atlas.html
 If a mobile browser appears stale, add a cache-busting query:
 
 ```text
-http://127.0.0.1:8432/glyph-atlas.html?v=phase6s
+http://127.0.0.1:8432/glyph-atlas.html?v=phase6r
 ```
 
 Filter to one atlas group with `category`, for example:
 
 ```text
-http://127.0.0.1:8432/glyph-atlas.html?v=phase6s&category=Timing%20Signs
-http://127.0.0.1:8432/glyph-atlas.html?v=phase6s&category=Attachment%20Examples
-http://127.0.0.1:8432/glyph-atlas.html?v=phase6s&category=Martyria%20Checkpoints
+http://127.0.0.1:8432/glyph-atlas.html?v=phase6r&category=Timing%20Signs
+http://127.0.0.1:8432/glyph-atlas.html?v=phase6r&category=Attachment%20Examples
+http://127.0.0.1:8432/glyph-atlas.html?v=phase6r&category=Martyria%20Checkpoints
 ```
 
 Do not use port `8765` for this workflow.
 
 ## What To Inspect
 
-- Importable cells should use the same preview renderer and CSS classes as the score-practice glyph import preview.
 - Each cell should show a centered Neanes glyph or glyph cluster inside the grid box.
 - No glyph should be clipped by the grid box.
 - Duration signs should sit close above the base glyph at roughly dot scale.
