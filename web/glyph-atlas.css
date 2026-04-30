@@ -72,6 +72,12 @@ h1 {
   text-align: right;
 }
 
+.glyph-atlas-build {
+  margin-top: 5px;
+  color: var(--muted);
+  font: 11px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 .glyph-atlas-summary.has-warnings {
   color: var(--warn);
 }
