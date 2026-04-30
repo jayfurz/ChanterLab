@@ -471,10 +471,6 @@ function wireScorePracticePrototypeUnsafe() {
   mainView.appendChild(controls.el);
   mainView.classList.add('score-practice-enabled');
   document.body.classList.toggle('score-practice-active', app.scorePracticeModeVisible);
-  app.singscope?.setTraceTiming({
-    anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
-    pxPerSecond: scrollPxPerSecond,
-  });
 
   app.scorePractice = new ScorePracticePrototype(canvas, {
     enabled: app.scorePracticeModeVisible,
@@ -491,6 +487,13 @@ function wireScorePracticePrototypeUnsafe() {
 
   const updatePlayPauseLabel = () => {
     controls.playPause.textContent = app.scorePractice?.isRunning() ? 'Pause' : 'Play';
+  };
+
+  const syncScorePracticeSingscopeTiming = visible => {
+    app.singscope?.setTraceTiming({
+      anchorRatio: visible ? SCORE_PRACTICE_CROSSHAIR_RATIO : 1,
+      pxPerSecond: visible ? scrollPxPerSecond : null,
+    });
   };
 
   const restoreRegularSingTuning = () => {
@@ -525,6 +528,7 @@ function wireScorePracticePrototypeUnsafe() {
 
   app.onScorePracticeModeChange = visible => {
     if (!app.scorePractice) return;
+    syncScorePracticeSingscopeTiming(visible);
     if (visible) {
       app.scorePractice.setEnabled(true);
       activateLoadedScore();
@@ -643,10 +647,7 @@ function wireScorePracticePrototypeUnsafe() {
   controls.speed.addEventListener('input', () => {
     const nextRate = clampScorePracticePlaybackRate(Number(controls.speed.value));
     controls.speedReadout.textContent = formatPlaybackRate(nextRate);
-    app.singscope?.setTraceTiming({
-      anchorRatio: SCORE_PRACTICE_CROSSHAIR_RATIO,
-      pxPerSecond: scrollPxPerSecond,
-    });
+    syncScorePracticeSingscopeTiming(app.scorePracticeModeVisible);
     app.scorePractice.setTiming({
       playbackRate: nextRate,
       pxPerSecond: scrollPxPerSecond,
