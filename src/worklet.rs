@@ -17,6 +17,7 @@ mod worklet_exports {
         detector::{fft::FftDetector, TimeDomainDetector},
         filters::{CascadedHpf, LowPassFilter1, NotchFilter},
         gate::Gate,
+        psola::PsolaRepitcher,
     };
     use crate::tuning::{nearest_enabled_cell, NearestCellResult};
     use wasm_bindgen::prelude::*;
@@ -35,6 +36,7 @@ mod worklet_exports {
         lpf: LowPassFilter1,
         td_det: TimeDomainDetector,
         fft_det: FftDetector,
+        psola: PsolaRepitcher,
         // Tuning table: sorted (period_24_8, cell_id).
         tuning_table: Vec<(u32, i32)>,
         last_cell_id: Option<i32>,
@@ -61,6 +63,7 @@ mod worklet_exports {
                 lpf: LowPassFilter1::for_peak_detector(),
                 td_det: TimeDomainDetector::new(),
                 fft_det: FftDetector::new(sample_rate),
+                psola: PsolaRepitcher::new(),
                 tuning_table: Vec::new(),
                 last_cell_id: None,
                 sample_rate,
@@ -231,6 +234,75 @@ mod worklet_exports {
         #[wasm_bindgen(js_name = resetHysteresis)]
         pub fn reset_hysteresis(&mut self) {
             self.last_cell_id = None;
+        }
+
+        // ── PSOLA pitch correction ──────────────────────────────────────────
+        //
+        // The repitcher is fed sample-by-sample inside `processBlockIntoStereo`
+        // and produces one output sample per input sample. Period setters are
+        // called from JS at pitch-event rate (~60 Hz).
+
+        /// Update the PSOLA detected (actual) period in 24.8 fixed-point.
+        #[wasm_bindgen(js_name = setActualPeriod)]
+        pub fn set_actual_period(&mut self, period_24_8: u32) {
+            self.psola.set_actual_period(period_24_8);
+        }
+
+        /// Update the PSOLA target (snapped cell) period in 24.8 fixed-point.
+        /// Pass 0 to signal "no target" — PSOLA fades out.
+        #[wasm_bindgen(js_name = setTargetPeriod)]
+        pub fn set_target_period(&mut self, period_24_8: u32) {
+            self.psola.set_target_period(period_24_8);
+        }
+
+        /// Reset PSOLA buffer + envelope state. Call when the gate closes for
+        /// long enough that the in-flight buffer is no longer relevant.
+        #[wasm_bindgen(js_name = resetPsola)]
+        pub fn reset_psola(&mut self) {
+            self.psola.reset();
+        }
+
+        /// Process one render quantum producing both the dry monitor channel
+        /// and the PSOLA-corrected channel in a single boundary crossing.
+        ///
+        /// `dry_out` receives the same signal as `processBlockInto` (HPF →
+        /// optional notch → monitor envelope). `psola_out` receives the
+        /// pitch-corrected version of the same input (or fade-out silence
+        /// when no target period is set).
+        #[wasm_bindgen(js_name = processBlockIntoStereo)]
+        pub fn process_block_into_stereo(
+            &mut self,
+            input: &[f32],
+            dry_out: &mut [f32],
+            psola_out: &mut [f32],
+        ) {
+            let n = input.len().min(dry_out.len()).min(psola_out.len());
+            for i in 0..n {
+                let filtered = self.hpf.process(input[i]);
+                let post_notch = if self.notch_enabled {
+                    self.notch.process(filtered)
+                } else {
+                    filtered
+                };
+                let gate_open = self.gate.process(post_notch);
+                let lp = self.lpf.process(post_notch);
+                self.td_det.push_sample(lp);
+                self.fft_det.push(post_notch);
+                self.psola.push_sample(post_notch);
+                self.sample_count = self.sample_count.wrapping_add(1);
+
+                let monitor_gain = self.step_monitor_gain(gate_open);
+                dry_out[i] = post_notch * monitor_gain;
+                // PSOLA already self-envelopes via its own out_volume; gate it
+                // by the monitor envelope so it tracks the singer's onsets.
+                psola_out[i] = self.psola.get_sample() * monitor_gain;
+            }
+            for x in &mut dry_out[n..] {
+                *x = 0.0;
+            }
+            for x in &mut psola_out[n..] {
+                *x = 0.0;
+            }
         }
     }
 }

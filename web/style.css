@@ -2775,8 +2775,7 @@ body.score-practice-active .score-practice-controls {
 .ison-btn.active { color: #50c878; border-color: #50c878; background: #0a2010; }
 .ison-btn:hover  { border-color: var(--accent2); }
 
-#ison-degree-select, #ison-octave-select {
-  flex: 1;
+#ison-octave-select {
   background: var(--bg);
   color: var(--text);
   border: 1px solid #444;
@@ -2784,8 +2783,105 @@ body.score-practice-active .score-practice-controls {
   padding: 2px 4px;
   font-size: 11px;
   cursor: pointer;
+  max-width: 44px;
 }
-#ison-octave-select { max-width: 44px; }
+
+.ison-degree-buttons {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  min-width: 0;
+}
+.ison-degree-btn {
+  min-width: 0;
+  padding: 3px 0;
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ison-degree-btn:hover { border-color: var(--accent2); }
+.ison-degree-btn.active {
+  color: #50c878;
+  border-color: #50c878;
+  background: #0a2010;
+}
+
+.voicing-buttons {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+.voicing-btn {
+  min-width: 0;
+  padding: 4px 0;
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+.voicing-btn:hover { border-color: var(--accent2); }
+.voicing-btn.active {
+  color: var(--accent2);
+  border-color: var(--accent2);
+  background: rgba(83, 192, 240, 0.12);
+}
+
+.metronome-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.metronome-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.metronome-field input,
+.metronome-field select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+  width: 56px;
+}
+.metronome-pips {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.metronome-pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2a2a2a;
+  border: 1px solid #555;
+  transition: background 60ms linear, border-color 60ms linear;
+}
+.metronome-pip.active {
+  background: var(--accent2);
+  border-color: var(--accent2);
+  box-shadow: 0 0 6px rgba(83, 192, 240, 0.7);
+}
+.metronome-pip:first-child.active {
+  background: #50c878;
+  border-color: #50c878;
+  box-shadow: 0 0 6px rgba(80, 200, 120, 0.7);
+}
 
 /* ── Mic / correction ────────────────────────────────────── */
 .mic-row {

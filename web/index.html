@@ -94,15 +94,15 @@
       <h2>Ison Drone</h2>
       <div class="ison-row">
         <button id="ison-toggle-btn" class="ison-btn">Off</button>
-        <select id="ison-degree-select">
-          <option value="Ni">Ni</option>
-          <option value="Pa">Pa</option>
-          <option value="Vou">Vou</option>
-          <option value="Ga">Ga</option>
-          <option value="Di">Di</option>
-          <option value="Ke">Ke</option>
-          <option value="Zo">Zo</option>
-        </select>
+        <div id="ison-degree-buttons" class="ison-degree-buttons" role="group" aria-label="Ison degree">
+          <button type="button" class="ison-degree-btn" data-degree="Ni">Ni</button>
+          <button type="button" class="ison-degree-btn" data-degree="Pa">Pa</button>
+          <button type="button" class="ison-degree-btn" data-degree="Vou">Vou</button>
+          <button type="button" class="ison-degree-btn" data-degree="Ga">Ga</button>
+          <button type="button" class="ison-degree-btn" data-degree="Di">Di</button>
+          <button type="button" class="ison-degree-btn" data-degree="Ke">Ke</button>
+          <button type="button" class="ison-degree-btn" data-degree="Zo">Zo</button>
+        </div>
         <select id="ison-octave-select">
           <option value="-1">-1</option>
           <option value="0" selected>0</option>
@@ -113,8 +113,47 @@
       <input type="range" id="ison-volume-slider" min="0" max="1" step="0.01" value="0.5">
     </div>
 
+    <div class="control-group mobile-more" id="voicing-controls">
+      <h2>Synth Voice</h2>
+      <div id="voicing-buttons" class="voicing-buttons" role="group" aria-label="Synth voicing">
+        <button type="button" class="voicing-btn" data-voicing="Sine">Sine</button>
+        <button type="button" class="voicing-btn" data-voicing="Organ">Organ</button>
+        <button type="button" class="voicing-btn" data-voicing="Reed">Reed</button>
+        <button type="button" class="voicing-btn" data-voicing="Flute">Flute</button>
+        <button type="button" class="voicing-btn" data-voicing="String">String</button>
+      </div>
+    </div>
+
+    <div class="control-group mobile-more" id="metronome-controls">
+      <h2>Metronome</h2>
+      <div class="metronome-row">
+        <button id="metronome-toggle-btn" class="ison-btn" type="button">Off</button>
+        <label class="metronome-field">
+          <span>BPM</span>
+          <input type="number" id="metronome-bpm-input" min="20" max="300" step="1" value="80">
+        </label>
+        <label class="metronome-field">
+          <span>Beats</span>
+          <select id="metronome-beats-select">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4" selected>4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+          </select>
+        </label>
+      </div>
+      <div id="metronome-pips" class="metronome-pips" aria-hidden="true"></div>
+      <label for="metronome-volume-slider">Volume</label>
+      <input type="range" id="metronome-volume-slider" min="0" max="1" step="0.01" value="0.5">
+    </div>
+
     <div class="control-group mobile-more" id="mic-controls">
       <h2>Mic / Monitor</h2>
+      <label for="mic-gain-slider" title="Boost the raw mic signal before EQ. iOS Safari mics are typically very quiet; try 6×–10×.">Mic gain (×)</label>
+      <input type="range" id="mic-gain-slider" min="1" max="12" step="0.1" value="6">
       <div class="mic-row">
         <button id="correction-toggle-btn" class="ison-btn" title="Mix your (dry) mic signal into the synth output">Off</button>
         <span class="mic-label">Voice monitor</span>
@@ -127,6 +166,14 @@
       </div>
       <label for="synth-follow-volume-slider">Synth follow volume</label>
       <input type="range" id="synth-follow-volume-slider" min="0" max="1" step="0.01" value="0.5">
+      <div class="mic-row follow-row">
+        <button id="psola-toggle-btn" class="ison-btn" title="Play back your voice pitch-corrected to the snapped scale degree">Off</button>
+        <span class="mic-label">Pitch correction</span>
+      </div>
+      <label for="psola-volume-slider">Correction volume</label>
+      <input type="range" id="psola-volume-slider" min="0" max="1" step="0.01" value="0.5">
+      <label for="reverb-slider">Reverb</label>
+      <input type="range" id="reverb-slider" min="0" max="1" step="0.01" value="0.2">
     </div>
 
     <div class="control-group mobile-more" id="recording-controls">

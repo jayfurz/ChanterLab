@@ -5,6 +5,7 @@ import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
 import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2f';
 import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
+import { Metronome      } from './ui/metronome.js?v=0.2.0-alpha.0';
 import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=0.2.0-alpha.0';
 import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.2.0-alpha.0';
 import {
@@ -150,12 +151,27 @@ const app = {
   isonDegree:     'Ni',
   isonOctave:     0,
   isonVolume:     0.5,
+  // Synth timbre — one of "Sine", "Organ", "Reed", "Flute", "String".
+  synthVoicing:   'Organ',
+  // Metronome state
+  metronome:        null,
+  metronomeBpm:     80,
+  metronomeBeats:   4,
+  metronomeVolume:  0.5,
   scorePracticeIsonOverride: null,
   scorePracticeManualIsonState: null,
   // Mic / PSOLA correction state. Off by default — chanters should hear
   // their own voice first and opt in to correction as a training aid.
   correctionEnabled: false,
   correctionVolume:  0.5,
+  // Mic input makeup gain (linear). iOS Safari delivers very low getUserMedia
+  // levels so this defaults higher than 1×; users can dial to taste.
+  voiceInputGain:    6,
+  // PSOLA pitch-corrected playback (independent of dry voice monitor).
+  psolaEnabled:      false,
+  psolaVolume:       0.5,
+  // Reverb send for the voice/PSOLA mix bus.
+  monitorReverbWet:  0.2,
   voiceSnapTable:    [],
   voiceLastCellId:   null,
   voiceCurrentCellId: null,
@@ -204,8 +220,13 @@ async function main() {
   wireAccidentalPopup();
   wirePresetSaveLoad();
   wireIsonControls();
+  wireVoicingControls();
+  wireMetronomeControls();
   wireCorrectionControls();
   wireSynthFollowControls();
+  wirePsolaControls();
+  wireReverbControl();
+  wireMicGainControl();
   wireRecordingControls();
   wireMobileTabs();
   syncAppVersionText();
@@ -1875,8 +1896,8 @@ app.showAccidentalPopup = function(cell, x, y) {
 // ── Ison drone ────────────────────────────────────────────────────────────────
 
 function wireIsonControls() {
-  const toggleBtn   = document.getElementById('ison-toggle-btn');
-  const degreeSelect = document.getElementById('ison-degree-select');
+  const toggleBtn    = document.getElementById('ison-toggle-btn');
+  const degreeRow    = document.getElementById('ison-degree-buttons');
   const octaveSelect = document.getElementById('ison-octave-select');
   const volSlider    = document.getElementById('ison-volume-slider');
 
@@ -1887,8 +1908,11 @@ function wireIsonControls() {
     updateIsonVoice(JSON.parse(app.grid.cellsJson()));
   });
 
-  degreeSelect.addEventListener('change', () => {
-    app.isonDegree = degreeSelect.value;
+  degreeRow.addEventListener('click', e => {
+    const btn = e.target.closest('.ison-degree-btn');
+    if (!btn) return;
+    app.isonDegree = btn.dataset.degree;
+    syncIsonControls();
     updateIsonVoice(JSON.parse(app.grid.cellsJson()));
   });
 
@@ -1909,14 +1933,18 @@ function wireIsonControls() {
 
 function syncIsonControls() {
   const toggleBtn = document.getElementById('ison-toggle-btn');
-  const degreeSelect = document.getElementById('ison-degree-select');
+  const degreeRow = document.getElementById('ison-degree-buttons');
   const octaveSelect = document.getElementById('ison-octave-select');
   const volSlider = document.getElementById('ison-volume-slider');
   if (toggleBtn) {
     toggleBtn.textContent = app.isonEnabled ? 'On' : 'Off';
     toggleBtn.classList.toggle('active', app.isonEnabled);
   }
-  if (degreeSelect) degreeSelect.value = app.isonDegree;
+  if (degreeRow) {
+    for (const btn of degreeRow.querySelectorAll('.ison-degree-btn')) {
+      btn.classList.toggle('active', btn.dataset.degree === app.isonDegree);
+    }
+  }
   if (octaveSelect) {
     const octaveValue = String(app.isonOctave);
     octaveSelect.value = octaveValue;
@@ -1925,6 +1953,93 @@ function syncIsonControls() {
     }
   }
   if (volSlider) volSlider.value = String(app.isonVolume);
+}
+
+function wireVoicingControls() {
+  const row = document.getElementById('voicing-buttons');
+  if (!row) return;
+
+  app.engine.setVoicing(app.synthVoicing);
+  syncVoicingControls();
+
+  row.addEventListener('click', e => {
+    const btn = e.target.closest('.voicing-btn');
+    if (!btn) return;
+    app.synthVoicing = btn.dataset.voicing;
+    app.engine.setVoicing(app.synthVoicing);
+    syncVoicingControls();
+  });
+}
+
+function syncVoicingControls() {
+  const row = document.getElementById('voicing-buttons');
+  if (!row) return;
+  for (const btn of row.querySelectorAll('.voicing-btn')) {
+    btn.classList.toggle('active', btn.dataset.voicing === app.synthVoicing);
+  }
+}
+
+function wireMetronomeControls() {
+  const toggleBtn   = document.getElementById('metronome-toggle-btn');
+  const bpmInput    = document.getElementById('metronome-bpm-input');
+  const beatsSelect = document.getElementById('metronome-beats-select');
+  const volSlider   = document.getElementById('metronome-volume-slider');
+  const pips        = document.getElementById('metronome-pips');
+  if (!toggleBtn) return;
+
+  const m = new Metronome(app.engine);
+  app.metronome = m;
+  m.setBpm(app.metronomeBpm);
+  m.setBeats(app.metronomeBeats);
+  m.setVolume(app.metronomeVolume);
+  bpmInput.value    = String(app.metronomeBpm);
+  beatsSelect.value = String(app.metronomeBeats);
+  volSlider.value   = String(app.metronomeVolume);
+
+  function rebuildPips() {
+    pips.innerHTML = '';
+    for (let i = 0; i < app.metronomeBeats; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'metronome-pip';
+      pips.appendChild(dot);
+    }
+  }
+  rebuildPips();
+
+  m.onBeat = idx => {
+    const dots = pips.querySelectorAll('.metronome-pip');
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+  };
+
+  toggleBtn.addEventListener('click', async () => {
+    if (m.isRunning) {
+      m.stop();
+      toggleBtn.textContent = 'Off';
+      toggleBtn.classList.remove('active');
+      pips.querySelectorAll('.metronome-pip.active').forEach(d => d.classList.remove('active'));
+    } else {
+      await m.start();
+      toggleBtn.textContent = 'On';
+      toggleBtn.classList.add('active');
+    }
+  });
+
+  bpmInput.addEventListener('change', () => {
+    app.metronomeBpm = Math.max(20, Math.min(300, parseInt(bpmInput.value, 10) || app.metronomeBpm));
+    bpmInput.value = String(app.metronomeBpm);
+    m.setBpm(app.metronomeBpm);
+  });
+
+  beatsSelect.addEventListener('change', () => {
+    app.metronomeBeats = parseInt(beatsSelect.value, 10);
+    m.setBeats(app.metronomeBeats);
+    rebuildPips();
+  });
+
+  volSlider.addEventListener('input', () => {
+    app.metronomeVolume = parseFloat(volSlider.value);
+    m.setVolume(app.metronomeVolume);
+  });
 }
 
 app.setIsonDrone = function({ degree = app.isonDegree, octave = app.isonOctave, enabled = true } = {}) {
@@ -2042,6 +2157,58 @@ function wireCorrectionControls() {
   volSlider.addEventListener('input', () => {
     app.correctionVolume = parseFloat(volSlider.value);
     if (app.correctionEnabled) pushVolume();
+  });
+}
+
+// ── PSOLA pitch-corrected playback ───────────────────────────────────────────
+
+function wirePsolaControls() {
+  const toggleBtn = document.getElementById('psola-toggle-btn');
+  const volSlider = document.getElementById('psola-volume-slider');
+  if (!toggleBtn) return;
+
+  volSlider.value = String(app.psolaVolume);
+
+  const pushVolume = () => {
+    app.engine.setPsolaPlayback(app.psolaEnabled ? app.psolaVolume : 0);
+  };
+
+  toggleBtn.addEventListener('click', () => {
+    app.psolaEnabled = !app.psolaEnabled;
+    toggleBtn.textContent = app.psolaEnabled ? 'On' : 'Off';
+    toggleBtn.classList.toggle('active', app.psolaEnabled);
+    pushVolume();
+  });
+
+  volSlider.addEventListener('input', () => {
+    app.psolaVolume = parseFloat(volSlider.value);
+    if (app.psolaEnabled) pushVolume();
+  });
+}
+
+// ── Mic input makeup gain ────────────────────────────────────────────────────
+
+function wireMicGainControl() {
+  const slider = document.getElementById('mic-gain-slider');
+  if (!slider) return;
+  slider.value = String(app.voiceInputGain);
+  app.engine.setVoiceInputGain(app.voiceInputGain);
+  slider.addEventListener('input', () => {
+    app.voiceInputGain = parseFloat(slider.value);
+    app.engine.setVoiceInputGain(app.voiceInputGain);
+  });
+}
+
+// ── Reverb send ──────────────────────────────────────────────────────────────
+
+function wireReverbControl() {
+  const slider = document.getElementById('reverb-slider');
+  if (!slider) return;
+  slider.value = String(app.monitorReverbWet);
+  app.engine.setMonitorReverb(app.monitorReverbWet);
+  slider.addEventListener('input', () => {
+    app.monitorReverbWet = parseFloat(slider.value);
+    app.engine.setMonitorReverb(app.monitorReverbWet);
   });
 }
 

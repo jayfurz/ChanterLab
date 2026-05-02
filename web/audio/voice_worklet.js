@@ -661,23 +661,22 @@ class VoiceProcessor extends AudioWorkletProcessor {
 
   process(inputs, outputs) {
     const input  = inputs[0]?.[0];
-    const output = outputs[0]?.[0];
+    const dryOut   = outputs[0]?.[0];
+    const psolaOut = outputs[0]?.[1];
     if (!input) return true;
 
     if (this._wasmReady && this._wasmProc) {
-      return this._processWasm(input, output);
+      return this._processWasm(input, dryOut, psolaOut);
     }
-    return this._processJs(input, output);
+    return this._processJs(input, dryOut, psolaOut);
   }
 
-  // Original JS DSP path — HPF → notch → gate → FFT pitch detect.
-  // Monitor output is the HPF'd dry signal, continuous. PSOLA output is
-  // intentionally NOT routed here: its volume envelope fades on every
-  // detection miss, producing the "breaking up" stutter that makes the
-  // monitor unusable. PSOLA correction will be reintroduced on a separate
-  // output channel once the detector feeds it a valid target period.
-  _processJs(input, output) {
-    const n = input.length;  // 128 per render quantum
+  // JS DSP fallback path — HPF → notch → gate → FFT pitch detect.
+  // Dry monitor on ch0; PSOLA channel left silent in this fallback path
+  // (the user's deployment uses the WASM path; reviving JS PSOLA isn't
+  // worth the per-sample boundary cost).
+  _processJs(input, dryOut, psolaOut) {
+    const n = input.length;
 
     for (let i = 0; i < n; i++) {
       let s = this._hpf.process(input[i]);
@@ -685,10 +684,11 @@ class VoiceProcessor extends AudioWorkletProcessor {
       const gateOpen = this._gate.process(s);
       this._det.push(s);
 
-      if (output) output[i] = s * this._stepMonitorGain(gateOpen);
+      const g = this._stepMonitorGain(gateOpen);
+      if (dryOut) dryOut[i] = s * g;
+      if (psolaOut) psolaOut[i] = 0;
     }
 
-    // Run pitch detection every FFT_BLOCK samples (= every render quantum).
     if (++this._blockCount >= PITCH_RATE_DIV) {
       this._blockCount = 0;
       this._runPitchAndEmit();
@@ -698,13 +698,19 @@ class VoiceProcessor extends AudioWorkletProcessor {
   }
 
   // WASM DSP path — delegates filtering, gate, pitch detection, and PSOLA to Rust.
-  _processWasm(input, output) {
+  _processWasm(input, dryOut, psolaOut) {
     const proc = this._wasmProc;
 
     // One boundary crossing per render quantum instead of 128 — critical
-    // for mobile Safari, which otherwise runs out of quantum budget.
-    if (output) proc.processBlockInto(input, output);
-    else proc.processBlock(input);
+    // for mobile Safari. Stereo path is used whenever the host gave us a
+    // PSOLA channel; otherwise fall back to the legacy mono path.
+    if (dryOut && psolaOut) {
+      proc.processBlockIntoStereo(input, dryOut, psolaOut);
+    } else if (dryOut) {
+      proc.processBlockInto(input, dryOut);
+    } else {
+      proc.processBlock(input);
+    }
 
     // Emit pitch events at ~60 Hz (same throttle as JS path).
     if (++this._blockCount >= PITCH_RATE_DIV) {
@@ -713,6 +719,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
       const gateOpen    = proc.gateOpen();
       const levelAmp    = proc.currentLevel ? proc.currentLevel() : 0;
       let period24_8    = 0;
+      let targetPeriod  = 0;
       let cellId        = -1;
       let neighborId    = -1;
       let neighborVel   = 0;
@@ -723,6 +730,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
           const snap = nearestEnabledCell(this._tuning, period24_8, this._lastCellId);
           if (snap) {
             cellId = snap.primary;
+            targetPeriod = snap.period;
             this._lastCellId = cellId;
             if (snap.neighbor) {
               neighborId = snap.neighbor.cell_id;
@@ -730,6 +738,25 @@ class VoiceProcessor extends AudioWorkletProcessor {
             }
           }
         }
+      }
+
+      // Forward the actual + target period to the WASM PSOLA so the next
+      // render quantum's psola_out tracks the snapped pitch. Pass 0/0 to
+      // signal "no target", which fades the corrected channel out.
+      if (period24_8 > 0 && targetPeriod > 0) {
+        if (period24_8 !== this._lastActualPeriod) {
+          proc.setActualPeriod(period24_8);
+          this._lastActualPeriod = period24_8;
+        }
+        if (targetPeriod !== this._lastTargetPeriod) {
+          proc.setTargetPeriod(targetPeriod);
+          this._lastTargetPeriod = targetPeriod;
+        }
+      } else if (this._lastActualPeriod !== 0 || this._lastTargetPeriod !== 0) {
+        proc.setActualPeriod(0);
+        proc.setTargetPeriod(0);
+        this._lastActualPeriod = 0;
+        this._lastTargetPeriod = 0;
       }
 
       if (!gateOpen || period24_8 === 0) {
