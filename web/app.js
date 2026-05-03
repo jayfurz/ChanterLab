@@ -179,6 +179,7 @@ const app = {
   synthFollowVolume:  0.5,
   synthFollowCellId:  null,
   synthFollowMisses:  0,
+  zoomFollow:         false,
   setReferenceNiHz:   null,
   selectedPalettePayload: null,
   selectedPaletteEl:      null,
@@ -228,6 +229,7 @@ async function main() {
   wireReverbControl();
   wireMicGainControl();
   wireRecordingControls();
+  wireZoomFollowControl();
   wireMobileTabs();
   syncAppVersionText();
   wireHelpDialog();
@@ -453,6 +455,15 @@ function handlePitchEvent(msg) {
   }
   if (app.singscope) app.singscope.pushPitch(msg);
   recordPitchForActiveTake(msg);
+
+  // Zoom follow target from detected pitch.
+  if (app.zoomFollow) {
+    if (msg.gate_open && Number.isFinite(msg.snap_moria)) {
+      app.ladder.setFollowTarget(msg.snap_moria);
+    } else if (!msg.gate_open) {
+      app.ladder.setFollowTarget(null);
+    }
+  }
 }
 
 function setScorePracticeModeVisible(visible) {
@@ -2233,6 +2244,23 @@ function wireSynthFollowControls() {
     } else {
       stopSynthFollow();
     }
+  });
+}
+
+// ── Zoom / follow-along ──────────────────────────────────────────────────────
+
+function wireZoomFollowControl() {
+  const btn = document.getElementById('zoom-follow-btn');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    app.zoomFollow = !app.zoomFollow;
+    btn.classList.toggle('active', app.zoomFollow);
+    btn.setAttribute('aria-pressed', app.zoomFollow ? 'true' : 'false');
+    btn.textContent = app.zoomFollow ? 'Follow On' : 'Follow';
+    document.body.classList.toggle('zoom-follow-active', app.zoomFollow);
+    app.ladder.setZoomFollow(app.zoomFollow);
+    app.singscope?.setZoomMode(app.zoomFollow);
   });
 }
 

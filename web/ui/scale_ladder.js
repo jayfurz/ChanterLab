@@ -104,6 +104,13 @@ export class ScaleLadder {
     // Drop hover preview state.
     this._hoverCell = null;
 
+    // Zoom follow state.
+    this._zoomFollow = false;
+    this._viewportCenterMoria = 0;
+    this._viewportHalfRange = 30;
+    this._followTarget = null;
+    this._followRafId = null;
+
     canvas.addEventListener('click', e => this._onClick(e));
     canvas.addEventListener('contextmenu', e => this._onRightClick(e));
     canvas.addEventListener('chanterlab:palette-drop', e => this._onPaletteDrop(e));
@@ -139,6 +146,61 @@ export class ScaleLadder {
   /** Expose the row layout so other components (e.g. Singscope) can align. */
   get rowMap() { return this._rowMap; }
 
+  /** Enable or disable zoom/follow-along mode. */
+  setZoomFollow(enabled) {
+    this._zoomFollow = !!enabled;
+    if (this._zoomFollow) {
+      this._startFollowLoop();
+      if (this._followTarget === null && this._cells.length) {
+        // Start centered on the middle of the visible range.
+        const midMoria = this._cells.reduce(
+          (sum, c) => sum + c.moria, 0
+        ) / Math.max(1, this._cells.length);
+        this._viewportCenterMoria = midMoria;
+      }
+    } else {
+      this._stopFollowLoop();
+    }
+    this._paint();
+  }
+
+  /** True when zoom follow mode is active. */
+  get zoomFollow() { return this._zoomFollow; }
+
+  /** Set the target moria for the viewport to follow. */
+  setFollowTarget(moria) {
+    this._followTarget = Number.isFinite(moria) ? moria : null;
+  }
+
+  // ── Follow animation ─────────────────────────────────────────────
+
+  _startFollowLoop() {
+    if (this._followRafId !== null) return;
+    const tick = () => {
+      this._followRafId = requestAnimationFrame(tick);
+      this._tickFollow();
+    };
+    this._followRafId = requestAnimationFrame(tick);
+  }
+
+  _stopFollowLoop() {
+    if (this._followRafId !== null) {
+      cancelAnimationFrame(this._followRafId);
+      this._followRafId = null;
+    }
+  }
+
+  _tickFollow() {
+    if (this._followTarget !== null) {
+      const prev = this._viewportCenterMoria;
+      this._viewportCenterMoria +=
+        (this._followTarget - this._viewportCenterMoria) * 0.08;
+      if (Math.abs(this._viewportCenterMoria - prev) > 0.001) {
+        this._paint();
+      }
+    }
+  }
+
   /** Re-read cells from WASM and repaint. */
   refresh() {
     const json = this.app.grid.cellsJson();
@@ -152,6 +214,48 @@ export class ScaleLadder {
     this.canvas.height = height * devicePixelRatio;
     this._paint();
     this.app.singscope?.setRowMap(this._rowMap);
+  }
+
+  _buildZoomedRowMap(cssH) {
+    const halfRange = this._viewportHalfRange;
+    const center = this._viewportCenterMoria;
+    const viewTop = center + halfRange;
+    const viewBottom = center - halfRange;
+
+    // Filter cells within the visible moria range (with small padding).
+    const visible = this._cells.filter(c =>
+      c.moria >= viewBottom - 2 && c.moria <= viewTop + 2
+    );
+
+    // Sort highest moria first (top of canvas).
+    const sorted = [...visible].sort((a, b) => b.moria - a.moria);
+
+    this._rowMap = [];
+    const rowH = cssH / halfRange; // uniform height: 2 moria per cell
+    for (const cell of sorted) {
+      const y = cssH * (viewTop - cell.moria - 1) / (2 * halfRange);
+      this._rowMap.push({ cell, y, h: rowH });
+    }
+
+    return 1; // scale = 1 — full-size fonts in zoom mode
+  }
+
+  _paintGridLines(ctx, cssW, cssH) {
+    const halfRange = this._viewportHalfRange;
+    const center = this._viewportCenterMoria;
+    const viewTop = center + halfRange;
+    const viewBottom = center - halfRange;
+
+    const firstGrid = Math.ceil(viewBottom / 2) * 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    for (let m = firstGrid; m <= viewTop; m += 2) {
+      const y = cssH * (viewTop - m) / (2 * halfRange);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(cssW, y);
+      ctx.stroke();
+    }
   }
 
   _paint() {
@@ -170,21 +274,26 @@ export class ScaleLadder {
     ctx.fillStyle = '#111a31';
     ctx.fillRect(0, 0, cssW, cssH);
 
-    // Build row map top-to-bottom (cells are sorted low→high by moria from
-    // the engine; we reverse so the highest moria is at the top of the canvas).
-    const reversed = [...cells].reverse();
+    let scale;
+    if (this._zoomFollow) {
+      scale = this._buildZoomedRowMap(cssH);
+    } else {
+      // Build row map top-to-bottom (cells are sorted low→high by moria from
+      // the engine; we reverse so the highest moria is at the top of the canvas).
+      const reversed = [...cells].reverse();
 
-    // Total natural height to determine if we need to scroll (we don't scroll
-    // yet — just fit into the available height by scaling row heights).
-    const naturalH = reversed.reduce((s, c) => s + (c.degree !== null ? DEGREE_H : NONDEG_H), 0);
-    const scale = Math.min(1, cssH / naturalH);
+      // Total natural height to determine if we need to scroll (we don't scroll
+      // yet — just fit into the available height by scaling row heights).
+      const naturalH = reversed.reduce((s, c) => s + (c.degree !== null ? DEGREE_H : NONDEG_H), 0);
+      scale = Math.min(1, cssH / naturalH);
 
-    this._rowMap = [];
-    let y = 0;
-    for (const cell of reversed) {
-      const h = Math.max(2, (cell.degree !== null ? DEGREE_H : NONDEG_H) * scale);
-      this._rowMap.push({ cell, y, h });
-      y += h;
+      this._rowMap = [];
+      let y = 0;
+      for (const cell of reversed) {
+        const h = Math.max(2, (cell.degree !== null ? DEGREE_H : NONDEG_H) * scale);
+        this._rowMap.push({ cell, y, h });
+        y += h;
+      }
     }
 
     // Paint rows.
@@ -329,8 +438,17 @@ export class ScaleLadder {
       }
     }
 
+    // Grid lines on top of cell fills so they remain visible.
+    if (this._zoomFollow) {
+      this._paintGridLines(ctx, cssW, cssH);
+    }
+
     this._paintEffectiveHighlights(ctx, cssW, scale);
     this._paintIntervals(ctx, cssW, scale);
+
+    // Keep singscope aligned with the current rowMap (always — needed on
+    // both zoom-follow frames and the transition back to full view).
+    this.app.singscope?.setRowMap(this._rowMap);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
