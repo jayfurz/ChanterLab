@@ -30,13 +30,13 @@ const ROLE_LABELS = Object.freeze({
 const DEFAULTS = Object.freeze({
   columns: 8,
   cellWidth: 140,
-  cellHeight: 112,
-  glyphSize: 64,
+  cellHeight: 130,
+  glyphSize: 56,
   labelSize: 10,
-  sectionGap: 22,
+  sectionGap: 24,
   headerHeight: 28,
   marginX: 24,
-  marginY: 32,
+  marginY: 40,
 });
 
 export function planAtlas(options = {}) {

@@ -44,39 +44,58 @@ function drawSection(ctx, section, layout, fontFamily) {
 }
 
 function drawCell(ctx, cell, config, fontFamily) {
-  // Cell border (very subtle so the model can see grid structure)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(cell.x, cell.y, cell.cellWidth, cell.cellHeight);
+  ctx.clip();
+
+  // Cell border
   ctx.strokeStyle = '#e5e7eb';
   ctx.lineWidth = 1;
   ctx.strokeRect(cell.x + 0.5, cell.y + 0.5, cell.cellWidth - 1, cell.cellHeight - 1);
 
-  // Glyph
+  const glyphZone = cell.y + Math.round(cell.cellHeight * 0.62);
+  const labelZone = cell.y + Math.round(cell.cellHeight * 0.70);
+
+  // Thin separator between glyph and label zone
+  ctx.strokeStyle = '#f3f4f6';
+  ctx.beginPath();
+  ctx.moveTo(cell.x + 8, labelZone);
+  ctx.lineTo(cell.x + cell.cellWidth - 8, labelZone);
+  ctx.stroke();
+
+  // Glyph — anchored so it stays within the glyph zone
   if (cell.character) {
     ctx.fillStyle = '#000000';
     ctx.font = `${config.glyphSize}px "${fontFamily}"`;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textBaseline = 'alphabetic';
     const cx = cell.x + cell.cellWidth / 2;
-    const cy = cell.y + config.glyphSize / 2 + 6;
-    ctx.fillText(cell.character, cx, cy);
+    const glyphBaseline = glyphZone - Math.round(config.glyphSize * 0.12);
+    ctx.fillText(cell.character, cx, glyphBaseline);
   }
 
-  // Label (wrapped if long)
+  // Label — wrapped, clipped to label zone
   ctx.fillStyle = '#1f2937';
   ctx.font = `${config.labelSize}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  const lines = wrapGlyphName(cell.glyphName, Math.floor(cell.cellWidth / (config.labelSize * 0.62)));
+  ctx.textBaseline = 'top';
+  const maxChars = Math.floor(cell.cellWidth / (config.labelSize * 0.62));
+  const lines = wrapGlyphName(cell.glyphName, maxChars);
   const lineHeight = config.labelSize + 2;
-  const labelBottom = cell.y + cell.cellHeight - 6;
-  for (let i = 0; i < lines.length; i += 1) {
-    const y = labelBottom - (lines.length - 1 - i) * lineHeight;
-    ctx.fillText(lines[i], cell.x + cell.cellWidth / 2, y);
+  const maxLabelLines = Math.floor((cell.y + cell.cellHeight - labelZone - 4) / lineHeight);
+  const visibleLines = lines.slice(0, maxLabelLines);
+  const labelY0 = labelZone + 4;
+  for (let i = 0; i < visibleLines.length; i += 1) {
+    ctx.fillText(visibleLines[i], cell.x + cell.cellWidth / 2, labelY0 + i * lineHeight);
   }
 
-  // Codepoint hint (faint, top-right of cell)
+  // Codepoint hint (top-right of cell)
   ctx.fillStyle = '#9ca3af';
-  ctx.font = `9px ui-monospace, "SF Mono", monospace`;
+  ctx.font = '9px ui-monospace, "SF Mono", monospace';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
   ctx.fillText(cell.codepoint.replace('U+', ''), cell.x + cell.cellWidth - 4, cell.y + 4);
+
+  ctx.restore();
 }
