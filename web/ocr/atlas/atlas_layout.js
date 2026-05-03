@@ -1,31 +1,70 @@
 // Layout planner for the labeled glyph reference atlas.
-// Produces a deterministic page description that the renderer paints to canvas.
+// Uses the complete font glyph table, not just the semantic importer subset.
 
-import { listGlyphImportTokens } from '../../score/glyph_import.js';
+import { NEANES_GLYPH_MAP } from './font_glyph_map.js';
 
 const ROLE_ORDER = [
   'quantity',
-  'rest',
+  'ornamental',
   'temporal',
   'duration',
   'tempo',
+  'rest',
   'pthora',
-  'qualitative',
+  'chroa',
   'martyria-note',
   'martyria-sign',
+  'accidental',
+  'mode',
+  'barline',
+  'indicator',
+  'other',
 ];
 
 const ROLE_LABELS = Object.freeze({
-  quantity: 'Quantity (body) neumes',
+  quantity: 'Quantity · body neumes',
+  ornamental: 'Ornamental · vareia, heteron, omalon, psifiston, …',
+  temporal: 'Temporal · gorgon, digorgon, trigorgon, argon',
+  duration: 'Duration · apli, klasma, dipli, koronis, …',
+  tempo: 'Tempo · agogi markings',
   rest: 'Rests · leimma',
-  temporal: 'Temporal · gorgon family',
-  duration: 'Duration · apli, klasma, dipli, …',
-  tempo: 'Tempo · agogi',
-  pthora: 'Pthora · mode signs',
-  qualitative: 'Qualitative · chroai',
+  pthora: 'Pthora · mode-change signs',
+  chroa: 'Chroa · qualitative mode marks',
   'martyria-note': 'Martyria notes',
-  'martyria-sign': 'Martyria signs',
+  'martyria-sign': 'Martyria modal signatures',
+  accidental: 'Accidentals · diesis, yfesis (sharps/flats)',
+  mode: 'Mode signatures · echos indicators',
+  barline: 'Barlines · separators',
+  indicator: 'Indicators · note & ison pointers',
+  other: 'Unicode alternates & other',
 });
+
+const ROLE_RULES = [
+  { role: 'rest', pattern: /^leimma/ },
+  { role: 'temporal', pattern: /^(gorgon|digorgon|trigorgon|argon|diargon|triargon)/ },
+  { role: 'duration', pattern: /^(apli|dipli|tripli|tetrapli|klasma|koronis)/ },
+  { role: 'tempo', pattern: /^agogi/ },
+  { role: 'pthora', pattern: /^fthora/ },
+  { role: 'chroa', pattern: /^chroa/ },
+  { role: 'martyria-note', pattern: /^martyriaNote/ },
+  { role: 'martyria-sign', pattern: /^martyria(?!Note)/ },
+  { role: 'accidental', pattern: /^(diesis|yfesis)/ },
+  { role: 'barline', pattern: /^(barline|measureNumber)/ },
+  { role: 'indicator', pattern: /^(noteIndicator|isonIndicator)/ },
+  { role: 'mode', pattern: /^mode/ },
+  { role: 'ornamental', pattern: /^(vareia|psifiston|antikenoma|omalon|heteron|endofonon|yfen|stavros|breath|gorthmikon|pelastikon|syndesmos)/ },
+  { role: 'quantity', pattern: /./ }, // catch-all last
+];
+
+const EXCLUDE_PATTERNS = [
+  /^\.notdef$/,
+  /^space$/,
+  /^uni200D$/,
+  /^u1D[0-9A-F]+$/,           // bare Unicode codepoint names (duplicates of named glyphs)
+  /^uniE[0-9A-F]+$/,           // bare PUA codepoint names
+  /\.alt0[12]$/,               // alternate glyph designs, not distinct symbols
+  /\.salt0[12]$/,              // stylistic alternates
+];
 
 const DEFAULTS = Object.freeze({
   columns: 10,
@@ -42,13 +81,22 @@ const DEFAULTS = Object.freeze({
 export function planAtlas(options = {}) {
   const config = { ...DEFAULTS, ...options };
 
-  const tokens = listGlyphImportTokens()
-    .filter(token => token.codepoint)
+  const glyphs = NEANES_GLYPH_MAP
+    .filter(g => !EXCLUDE_PATTERNS.some(pat => pat.test(g.name)))
+    .map(g => {
+      const role = ROLE_RULES.find(r => r.pattern.test(g.name))?.role ?? 'other';
+      return {
+        glyphName: g.name,
+        codepoint: g.codepoint,
+        character: characterForCodepoint(g.codepoint),
+        role,
+      };
+    })
     .sort((a, b) => a.glyphName.localeCompare(b.glyphName));
 
   const byRole = new Map(ROLE_ORDER.map(role => [role, []]));
-  for (const token of tokens) {
-    if (byRole.has(token.role)) byRole.get(token.role).push(token);
+  for (const glyph of glyphs) {
+    byRole.get(glyph.role).push(glyph);
   }
 
   const sections = [];
@@ -62,13 +110,13 @@ export function planAtlas(options = {}) {
     const rows = Math.ceil(items.length / config.columns);
     const sectionHeight = config.headerHeight + rows * config.cellHeight;
 
-    const cells = items.map((token, index) => {
+    const cells = items.map((item, index) => {
       const col = index % config.columns;
       const row = Math.floor(index / config.columns);
       return {
-        glyphName: token.glyphName,
-        codepoint: token.codepoint,
-        character: characterForCodepoint(token.codepoint),
+        glyphName: item.glyphName,
+        codepoint: item.codepoint,
+        character: item.character,
         x: config.marginX + col * config.cellWidth,
         y: sectionTop + config.headerHeight + row * config.cellHeight,
         cellWidth: config.cellWidth,
