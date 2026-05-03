@@ -11,6 +11,7 @@ import {
 import { compileChantScore } from './compiler.js?v=chant-script-engine-phase6w';
 import { DIAGNOSTIC_SEVERITY, pushDiagnostic } from './diagnostics.js';
 import { resolveGlyphGroups } from './glyph_group_resolver.js';
+import { decomposeSemanticTokens } from './glyph_decompose.js';
 
 const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
 
@@ -487,7 +488,8 @@ export function semanticTokenGroupsFromGlyphText(text, options = {}) {
     glyphIndex += 1;
   }
 
-  return groupSemanticGlyphTokens(semanticItems, diagnostics);
+  const decomposed = decomposeSemanticTokens(semanticItems);
+  return groupSemanticGlyphTokens(decomposed, diagnostics);
 }
 
 export function chantScoreFromGlyphGroups(groups, options = {}) {
@@ -669,6 +671,10 @@ function scoreEventFromSemanticGroup(group, context) {
       const currentDegree = degreeFromLinearIndex(context.currentLinear);
       return pthoraEventFromToken(pthoraTokens.at(-1), currentDegree);
     }
+    const stepTokens = group.filter(token => token.kind === 'ornamental-step');
+    if (stepTokens.length) {
+      return selfAnchoredOrnamentalStep(group, stepTokens, context, diagnostics);
+    }
     pushDiagnostic(diagnostics, {
       severity: DIAGNOSTIC_SEVERITY.ERROR,
       code: 'glyph-import-group-missing-quantity',
@@ -679,7 +685,22 @@ function scoreEventFromSemanticGroup(group, context) {
   }
 
   const quantity = quantityTokens[0];
-  const nextLinear = context.currentLinear + movementDelta(quantity.value.movement);
+  const stepTokens = group.filter(token => token.kind === 'ornamental-step');
+  const stepContribution = stepTokens.reduce((sum, token) => sum + (token.value.stepContribution ?? 0), 0);
+  const adjustedMovement = (() => {
+    const base = quantity.value.movement;
+    if (!stepContribution) return { ...base };
+    const totalSteps = (base.steps ?? 0) + stepContribution;
+    if (totalSteps === 0 && base.direction !== 'same') {
+      return { direction: 'same', steps: 0 };
+    }
+    if (totalSteps < 0) {
+      return { direction: base.direction === 'up' ? 'down' : 'up', steps: Math.abs(totalSteps) };
+    }
+    return { direction: base.direction, steps: totalSteps };
+  })();
+
+  const nextLinear = context.currentLinear + movementDelta(adjustedMovement);
   const attachedDegree = degreeFromLinearIndex(nextLinear);
   const pthoraToken = pthoraTokens.at(-1);
   const temporal = temporalEvents(temporalTokens, diagnostics);
@@ -695,7 +716,7 @@ function scoreEventFromSemanticGroup(group, context) {
 
   return {
     type: 'neume',
-    movement: { ...quantity.value.movement },
+    movement: adjustedMovement,
     temporal: temporal.filter(sign => sign.type !== 'unsupported'),
     qualitative: [
       ...(quantity.value.quality
@@ -708,6 +729,11 @@ function scoreEventFromSemanticGroup(group, context) {
       ...qualitativeTokens.map(token => ({
         type: 'quality',
         name: token.value.name,
+        source: tokenSource(token),
+      })),
+      ...stepTokens.map(token => ({
+        type: 'quality',
+        name: token.value.glyphName,
         source: tokenSource(token),
       })),
       ...temporal
@@ -764,6 +790,43 @@ function martyriaEventFromTokens({ noteToken, signToken, pthoraToken, qualitativ
       })),
     ],
     source,
+  };
+}
+
+function selfAnchoredOrnamentalStep(group, stepTokens, context, diagnostics) {
+  const totalSteps = stepTokens.reduce((sum, token) => sum + (token.value.stepContribution ?? 0), 0);
+  if (totalSteps <= 0) {
+    pushDiagnostic(diagnostics, {
+      severity: DIAGNOSTIC_SEVERITY.ERROR,
+      code: 'glyph-import-group-missing-quantity',
+      message: 'A glyph group needs a quantity, rest, tempo, or pthora sign.',
+      source: groupSource(group),
+    });
+    return undefined;
+  }
+  const movement = { direction: 'up', steps: totalSteps };
+  const nextLinear = context.currentLinear + movementDelta(movement);
+  const attachedDegree = degreeFromLinearIndex(nextLinear);
+  const qualitativeTokens = group.filter(token => token.kind === 'qualitative');
+  return {
+    type: 'neume',
+    movement,
+    qualitative: [
+      ...stepTokens.map(token => ({
+        type: 'quality',
+        name: token.value.glyphName,
+        source: tokenSource(token),
+      })),
+      ...qualitativeTokens.map(token => ({
+        type: 'quality',
+        name: token.value.name,
+        source: tokenSource(token),
+      })),
+    ],
+    display: {
+      preferredGlyphName: stepTokens[0].value.glyphName,
+    },
+    source: groupSource(group),
   };
 }
 

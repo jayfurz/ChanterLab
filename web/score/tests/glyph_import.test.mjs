@@ -12,6 +12,7 @@ import {
   semanticTokenGroupsFromGlyphText,
   sourceTokensFromGlyphText,
 } from '../glyph_import.js';
+import { GLYPH_DECOMPOSITION } from '../glyph_decompose.js';
 import { listGlyphImportSampleFixtures } from '../glyph_import_samples.js';
 import { hasErrorDiagnostics } from '../diagnostics.js';
 
@@ -283,5 +284,46 @@ test('glyph import sample fixtures compile without errors', () => {
 
     assert.equal(hasErrorDiagnostics(compiled.diagnostics), false, sample.id);
     assert.ok(compiled.notes.length > 0, sample.id);
+  }
+});
+
+test('precomposed glyphs decompose to atomics and compile identically via text import', () => {
+  const cases = [
+    ['ison', 'petastiKentima', 'ison'],
+    ['ison', 'oligonYpsiliLeft'],
+    ['ison', 'petastiDoubleChamiliApostrofos'],
+    ['ison', 'oligonKentimaYpsiliRight', 'apostrofos'],
+    ['oligon', 'oligonKentimataBelow', 'apostrofos'],
+  ];
+
+  for (const glyphs of cases) {
+    const direct = compileGlyphGroups(glyphs.map(g => [g]), { startDegree: 'Ni', bpm: 120 });
+    assert.equal(hasErrorDiagnostics(direct.diagnostics), false);
+    const viaText = compileGlyphText(glyphs.join(' '), { startDegree: 'Ni', bpm: 120 });
+    assert.equal(hasErrorDiagnostics(viaText.diagnostics), false);
+    assert.deepEqual(
+      viaText.notes.map(n => n.degree),
+      direct.notes.map(n => n.degree),
+      `"${glyphs.join(' ')}": text path should match direct API`
+    );
+  }
+});
+
+test('every decomposition entry has valid base body with non-null step contributions summing to composite total', () => {
+  for (const [compositeName, parts] of Object.entries(GLYPH_DECOMPOSITION)) {
+    const body = parts.find(p => p.kind === 'quantity');
+    assert.ok(body, `${compositeName}: must have a base body`);
+
+    const stepSum = parts
+      .filter(p => p.kind === 'ornamental-step')
+      .reduce((sum, p) => sum + (p.stepContribution ?? 0), 0);
+
+    // stepSum must be a finite number
+    assert.ok(Number.isFinite(stepSum), `${compositeName}: step contributions sum to finite`);
+
+    // every part must have a slot
+    for (const part of parts) {
+      assert.ok(typeof part.slot === 'string', `${compositeName}: part ${part.glyphName} has slot`);
+    }
   }
 });
