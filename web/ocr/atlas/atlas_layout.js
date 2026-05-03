@@ -28,11 +28,11 @@ const ROLE_LABELS = Object.freeze({
 });
 
 const DEFAULTS = Object.freeze({
-  columns: 8,
-  cellWidth: 140,
-  cellHeight: 130,
-  glyphSize: 56,
-  labelSize: 10,
+  columns: 10,
+  cellWidth: 160,
+  cellHeight: 135,
+  glyphSize: 42,
+  labelSize: 11,
   sectionGap: 24,
   headerHeight: 28,
   marginX: 24,
