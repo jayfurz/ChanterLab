@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chant OCR · photo import</title>
+<style>
+  @font-face {
+    font-family: 'Neanes';
+    src: url('../fonts/neanes/Neanes.otf') format('opentype');
+    font-display: block;
+  }
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #1c1f24; color: #e5e7eb; }
+  header { padding: 12px 16px; border-bottom: 1px solid #2c313a; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  header .hint { font-size: 11px; color: #6b7280; }
+  main { display: grid; grid-template-columns: 320px 1fr 320px; gap: 16px; padding: 16px; height: calc(100vh - 60px); box-sizing: border-box; }
+  .panel { background: #232830; border: 1px solid #2c313a; border-radius: 6px; padding: 12px; overflow: auto; }
+  .panel h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa3af; }
+  label { display: block; margin: 6px 0; font-size: 12px; color: #cbd2da; }
+  label input[type="number"], label input[type="text"], label select {
+    width: 100%; box-sizing: border-box; background: #1a1d22; color: #e5e7eb; border: 1px solid #353b45; border-radius: 4px; padding: 6px 8px; font: inherit;
+  }
+  button { background: #3b82f6; color: white; border: 0; border-radius: 4px; padding: 7px 12px; font: inherit; cursor: pointer; }
+  button.secondary { background: #353b45; }
+  #dropZone { border: 2px dashed #4b5360; border-radius: 6px; padding: 16px; text-align: center; color: #9aa3af; margin-bottom: 12px; }
+  #dropZone.hover { border-color: #3b82f6; color: #cbd2da; }
+  .canvas-wrap { position: relative; background: #f8f9fa; border-radius: 6px; overflow: auto; }
+  canvas { display: block; }
+  #overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
+  #status { font-size: 12px; color: #9aa3af; margin-top: 6px; }
+  .token { display: flex; align-items: baseline; gap: 6px; padding: 4px 0; border-bottom: 1px solid #2c313a; font-size: 12px; }
+  .token .glyph { font-size: 22px; min-width: 28px; text-align: center; color: #f8f9fa; }
+  .token .label { color: #cbd2da; }
+  .token .alternates { color: #6b7280; font-size: 11px; margin-left: auto; }
+  pre { font: 11px ui-monospace, monospace; color: #cbd2da; white-space: pre-wrap; margin: 0; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Chant OCR · photo import</h1>
+  <span class="hint">v0 template-matching · expects clean printed scores in the Neanes/SBMuFL family.</span>
+</header>
+<main>
+  <div class="panel">
+    <h2>Input</h2>
+    <div id="dropZone">Drop an image here<br><small>or pick a file below</small></div>
+    <input type="file" id="file" accept="image/*">
+
+    <h2 style="margin-top:16px;">Recognition</h2>
+    <div class="row">
+      <label>Cell size <input id="cellSize" type="number" value="48" min="16" max="160"></label>
+      <label>Min comp px <input id="minPixels" type="number" value="12" min="2" max="200"></label>
+    </div>
+    <label>Start degree <input id="startDegree" type="text" value="Ni"></label>
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input id="showLabels" type="checkbox" checked> show labels in overlay
+    </label>
+    <button id="runBtn">Re-run</button>
+    <div id="status">Drop or pick an image to begin.</div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="source"></canvas>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Recognized glyphs</h2>
+    <div id="tokens"></div>
+    <h2 style="margin-top:16px;">Compiled score</h2>
+    <pre id="compiled">(awaiting input)</pre>
+  </div>
+</main>
+<script type="module" src="import/import_app.js"></script>
+</body>
+</html>
