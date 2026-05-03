@@ -10,6 +10,9 @@ import {
 } from './chant_score.js';
 import { compileChantScore } from './compiler.js?v=chant-script-engine-phase6w';
 import { DIAGNOSTIC_SEVERITY, pushDiagnostic } from './diagnostics.js';
+import { resolveGlyphGroups } from './glyph_group_resolver.js';
+
+const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
 
 const UNICODE_BYZANTINE_START = 0x1D000;
 const UNICODE_BYZANTINE_END = 0x1D0FF;
@@ -263,6 +266,16 @@ export function semanticTokenFromGlyph(input, options = {}) {
     alternateCodepoint: sourceToken.alternateCodepoint ?? metadata.alternateCodepoint,
   };
 
+  if (Number.isFinite(enrichedSource.confidence) && enrichedSource.confidence < CONFIDENCE_REVIEW_THRESHOLD) {
+    pushDiagnostic(diagnostics, {
+      severity: DIAGNOSTIC_SEVERITY.REVIEW,
+      code: 'glyph-import-low-confidence',
+      message: `Low-confidence glyph "${enrichedSource.glyphName}" (${enrichedSource.confidence.toFixed(2)}); review before compile.`,
+      source: enrichedSource,
+      detail: { confidence: enrichedSource.confidence, alternates: enrichedSource.alternates ?? [] },
+    });
+  }
+
   if (metadata.role === 'quantity') {
     return semanticToken('quantity', {
       glyphName: metadata.glyphName,
@@ -351,6 +364,10 @@ export function normalizeGlyphSourceToken(input, options = {}) {
   const codepoint = sourceCodepoint ?? metadataByName?.codepoint;
   const source = input?.source ?? options.source ?? inferSourceKind(sourceCodepoint);
 
+  const region = normalizeGlyphRegion(input?.region);
+  const confidence = normalizeConfidence(input?.confidence);
+  const alternates = normalizeAlternates(input?.alternates);
+
   return {
     source,
     raw,
@@ -362,7 +379,53 @@ export function normalizeGlyphSourceToken(input, options = {}) {
     ...(input?.span
       ? { span: input.span }
       : Number.isInteger(options.index) ? { span: { start: options.index, end: options.index + 1 } } : {}),
+    ...(region ? { region } : {}),
+    ...(confidence !== undefined ? { confidence } : {}),
+    ...(alternates ? { alternates } : {}),
   };
+}
+
+function normalizeGlyphRegion(region) {
+  if (!region || typeof region !== 'object') return undefined;
+  const bbox = normalizeBBox(region.bbox);
+  if (!bbox) return undefined;
+  const out = { bbox };
+  if (Number.isInteger(region.page)) out.page = region.page;
+  if (Number.isInteger(region.line)) out.line = region.line;
+  if (typeof region.role === 'string') out.role = region.role;
+  return out;
+}
+
+function normalizeBBox(bbox) {
+  if (!bbox || typeof bbox !== 'object') return undefined;
+  const { x, y, w, h } = bbox;
+  if (![x, y, w, h].every(value => Number.isFinite(value))) return undefined;
+  if (w <= 0 || h <= 0) return undefined;
+  return { x, y, w, h };
+}
+
+function normalizeConfidence(value) {
+  if (!Number.isFinite(value)) return undefined;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+function normalizeAlternates(alternates) {
+  if (!Array.isArray(alternates) || !alternates.length) return undefined;
+  const cleaned = alternates
+    .map(entry => {
+      if (!entry || typeof entry !== 'object') return undefined;
+      const out = {};
+      if (typeof entry.glyphName === 'string') out.glyphName = entry.glyphName;
+      const codepoint = normalizeCodepoint(entry.codepoint);
+      if (codepoint) out.codepoint = codepoint;
+      const confidence = normalizeConfidence(entry.confidence);
+      if (confidence !== undefined) out.confidence = confidence;
+      return Object.keys(out).length ? out : undefined;
+    })
+    .filter(Boolean);
+  return cleaned.length ? cleaned : undefined;
 }
 
 export function sourceTokensFromGlyphText(text, options = {}) {
@@ -747,70 +810,7 @@ function normalizeGlyphGroups(groups, diagnostics) {
 }
 
 function groupSemanticGlyphTokens(tokens, diagnostics) {
-  const groups = [];
-  let current = [];
-  let pending = [];
-
-  const flushCurrent = () => {
-    if (current.length) groups.push(current);
-    current = [];
-  };
-
-  for (const token of tokens) {
-    if (token.kind === 'separator') {
-      flushCurrent();
-      if (pending.length) {
-        groups.push(pending);
-        pending = [];
-      }
-      continue;
-    }
-
-    if (isGroupAnchor(token)) {
-      flushCurrent();
-      current = [...pending, token];
-      pending = [];
-      continue;
-    }
-
-    if (isGroupModifier(token)) {
-      if (current.length && current.some(isGroupAnchor)) current.push(token);
-      else pending.push(token);
-      continue;
-    }
-
-    flushCurrent();
-    groups.push([...pending, token]);
-    pending = [];
-  }
-
-  flushCurrent();
-  if (pending.length) {
-    pushDiagnostic(diagnostics, {
-      severity: DIAGNOSTIC_SEVERITY.ERROR,
-      code: 'glyph-import-unattached-modifier',
-      message: 'Glyph modifiers without a quantity or rest sign cannot be imported unambiguously.',
-      source: groupSource(pending),
-    });
-    groups.push(pending);
-  }
-
-  return groups;
-}
-
-function isGroupAnchor(token) {
-  return token?.kind === 'quantity'
-    || token?.kind === 'rest'
-    || token?.kind === 'tempo'
-    || token?.kind === 'martyria-note';
-}
-
-function isGroupModifier(token) {
-  return token?.kind === 'temporal'
-    || token?.kind === 'duration'
-    || token?.kind === 'pthora'
-    || token?.kind === 'qualitative'
-    || token?.kind === 'martyria-sign';
+  return resolveGlyphGroups(tokens, { diagnostics });
 }
 
 function tokenizeGlyphText(text) {

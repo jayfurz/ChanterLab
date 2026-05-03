@@ -1,6 +1,7 @@
 export const DIAGNOSTIC_SEVERITY = Object.freeze({
   ERROR: 'error',
   WARNING: 'warning',
+  REVIEW: 'review',
   INFO: 'info',
 });
 
