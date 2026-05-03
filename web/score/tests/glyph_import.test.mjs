@@ -12,7 +12,7 @@ import {
   semanticTokenGroupsFromGlyphText,
   sourceTokensFromGlyphText,
 } from '../glyph_import.js';
-import { GLYPH_DECOMPOSITION } from '../glyph_decompose.js';
+import { COMPOSITION_LOOKUP } from '../glyph_decompose.js';
 import { listGlyphImportSampleFixtures } from '../glyph_import_samples.js';
 import { hasErrorDiagnostics } from '../diagnostics.js';
 
@@ -309,21 +309,12 @@ test('precomposed glyphs decompose to atomics and compile identically via text i
   }
 });
 
-test('every decomposition entry has valid base body with non-null step contributions summing to composite total', () => {
-  for (const [compositeName, parts] of Object.entries(GLYPH_DECOMPOSITION)) {
-    const body = parts.find(p => p.kind === 'quantity');
-    assert.ok(body, `${compositeName}: must have a base body`);
-
-    const stepSum = parts
-      .filter(p => p.kind === 'ornamental-step')
-      .reduce((sum, p) => sum + (p.stepContribution ?? 0), 0);
-
-    // stepSum must be a finite number
-    assert.ok(Number.isFinite(stepSum), `${compositeName}: step contributions sum to finite`);
-
-    // every part must have a slot
-    for (const part of parts) {
-      assert.ok(typeof part.slot === 'string', `${compositeName}: part ${part.glyphName} has slot`);
-    }
+test('every composition entry has a valid body, parts list, and movement', () => {
+  for (const [name, entry] of Object.entries(COMPOSITION_LOOKUP)) {
+    assert.ok(entry.body, `${name}: must have a body`);
+    assert.ok(entry.parts.length >= 2, `${name}: must have at least 2 atomic parts`);
+    assert.ok(entry.movement, `${name}: must have movement`);
+    assert.ok(typeof entry.movement.direction === 'string', `${name}: direction must be a string`);
+    assert.ok(Number.isInteger(entry.movement.steps), `${name}: steps must be integer`);
   }
 });

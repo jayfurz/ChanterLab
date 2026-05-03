@@ -198,6 +198,7 @@ function isGroupModifier(token) {
     || token?.kind === 'duration'
     || token?.kind === 'pthora'
     || token?.kind === 'qualitative'
+    || token?.kind === 'ornamental'
     || token?.kind === 'ornamental-step'
     || token?.kind === 'martyria-sign';
 }

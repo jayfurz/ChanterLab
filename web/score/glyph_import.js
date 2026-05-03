@@ -11,7 +11,12 @@ import {
 import { compileChantScore } from './compiler.js?v=chant-script-engine-phase6w';
 import { DIAGNOSTIC_SEVERITY, pushDiagnostic } from './diagnostics.js';
 import { resolveGlyphGroups } from './glyph_group_resolver.js';
-import { decomposeSemanticTokens } from './glyph_decompose.js';
+import {
+  decomposeToAtomicParts,
+  composedNameFromParts,
+  movementForComposedName,
+  qualityForComposedName,
+} from './glyph_decompose.js';
 
 const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
 
@@ -488,7 +493,28 @@ export function semanticTokenGroupsFromGlyphText(text, options = {}) {
     glyphIndex += 1;
   }
 
-  const decomposed = decomposeSemanticTokens(semanticItems);
+  const decomposed = semanticItems.flatMap(token => {
+    if (token.kind === 'separator') return [token];
+    const glyphName = token.value?.glyphName ?? token.source?.[0]?.glyphName;
+    if (!glyphName) return [token];
+    const parts = decomposeToAtomicParts(glyphName);
+    if (!parts || parts.length <= 1) return [token];
+
+    return parts.map(part => ({
+      kind: part.kind,
+      value: {
+        glyphName: part.glyphName,
+        ...(part.kind === 'quantity'
+          ? { movement: { ...token.value.movement }, quality: token.value.quality }
+          : { name: part.glyphName }),
+        ...(part.slot ? { slot: part.slot } : {}),
+        // Preserve the original composed name so the compiler can look it up
+        // without ambiguity (e.g. ypsiliRight vs ypsiliLeft have same parts).
+        _composedName: glyphName,
+      },
+      source: [{ ...(token.source[0] ?? {}), glyphName: part.glyphName, _slot: part.slot }],
+    }));
+  });
   return groupSemanticGlyphTokens(decomposed, diagnostics);
 }
 
@@ -671,10 +697,6 @@ function scoreEventFromSemanticGroup(group, context) {
       const currentDegree = degreeFromLinearIndex(context.currentLinear);
       return pthoraEventFromToken(pthoraTokens.at(-1), currentDegree);
     }
-    const stepTokens = group.filter(token => token.kind === 'ornamental-step');
-    if (stepTokens.length) {
-      return selfAnchoredOrnamentalStep(group, stepTokens, context, diagnostics);
-    }
     pushDiagnostic(diagnostics, {
       severity: DIAGNOSTIC_SEVERITY.ERROR,
       code: 'glyph-import-group-missing-quantity',
@@ -685,22 +707,20 @@ function scoreEventFromSemanticGroup(group, context) {
   }
 
   const quantity = quantityTokens[0];
-  const stepTokens = group.filter(token => token.kind === 'ornamental-step');
-  const stepContribution = stepTokens.reduce((sum, token) => sum + (token.value.stepContribution ?? 0), 0);
-  const adjustedMovement = (() => {
-    const base = quantity.value.movement;
-    if (!stepContribution) return { ...base };
-    const totalSteps = (base.steps ?? 0) + stepContribution;
-    if (totalSteps === 0 && base.direction !== 'same') {
-      return { direction: 'same', steps: 0 };
-    }
-    if (totalSteps < 0) {
-      return { direction: base.direction === 'up' ? 'down' : 'up', steps: Math.abs(totalSteps) };
-    }
-    return { direction: base.direction, steps: totalSteps };
-  })();
+  const stepTokens = group.filter(token => token.kind === 'ornamental-step' || token.kind === 'ornamental');
 
-  const nextLinear = context.currentLinear + movementDelta(adjustedMovement);
+  // Prefer the preserved composed name (from decomposition); fall back to parts-based lookup.
+  const inheritedName = quantity.value._composedName
+    ?? stepTokens.find(t => t.value._composedName)?.value._composedName;
+  const glyphNames = group
+    .filter(t => t.kind === 'quantity' || t.kind === 'ornamental-step' || t.kind === 'ornamental')
+    .map(t => t.value.glyphName ?? t.value.name)
+    .filter(Boolean);
+  const composedName = inheritedName
+    ?? (glyphNames.length > 1 ? composedNameFromParts(glyphNames) : null);
+  const lookedUpMovement = composedName ? movementForComposedName(composedName) : null;
+  const resolvedMovement = lookedUpMovement ?? { ...quantity.value.movement };
+  const nextLinear = context.currentLinear + movementDelta(resolvedMovement);
   const attachedDegree = degreeFromLinearIndex(nextLinear);
   const pthoraToken = pthoraTokens.at(-1);
   const temporal = temporalEvents(temporalTokens, diagnostics);
@@ -716,7 +736,7 @@ function scoreEventFromSemanticGroup(group, context) {
 
   return {
     type: 'neume',
-    movement: adjustedMovement,
+    movement: resolvedMovement,
     temporal: temporal.filter(sign => sign.type !== 'unsupported'),
     qualitative: [
       ...(quantity.value.quality
@@ -747,7 +767,7 @@ function scoreEventFromSemanticGroup(group, context) {
     ...(durationTokens.length ? { baseBeats: durationTokens.at(-1).value.beats } : {}),
     ...(pthoraToken ? { pthora: pthoraSpecFromToken(pthoraToken, attachedDegree) } : {}),
     display: {
-      preferredGlyphName: quantity.value.glyphName,
+      preferredGlyphName: composedName ?? quantity.value.glyphName,
     },
     source: groupSource(group),
   };
@@ -790,43 +810,6 @@ function martyriaEventFromTokens({ noteToken, signToken, pthoraToken, qualitativ
       })),
     ],
     source,
-  };
-}
-
-function selfAnchoredOrnamentalStep(group, stepTokens, context, diagnostics) {
-  const totalSteps = stepTokens.reduce((sum, token) => sum + (token.value.stepContribution ?? 0), 0);
-  if (totalSteps <= 0) {
-    pushDiagnostic(diagnostics, {
-      severity: DIAGNOSTIC_SEVERITY.ERROR,
-      code: 'glyph-import-group-missing-quantity',
-      message: 'A glyph group needs a quantity, rest, tempo, or pthora sign.',
-      source: groupSource(group),
-    });
-    return undefined;
-  }
-  const movement = { direction: 'up', steps: totalSteps };
-  const nextLinear = context.currentLinear + movementDelta(movement);
-  const attachedDegree = degreeFromLinearIndex(nextLinear);
-  const qualitativeTokens = group.filter(token => token.kind === 'qualitative');
-  return {
-    type: 'neume',
-    movement,
-    qualitative: [
-      ...stepTokens.map(token => ({
-        type: 'quality',
-        name: token.value.glyphName,
-        source: tokenSource(token),
-      })),
-      ...qualitativeTokens.map(token => ({
-        type: 'quality',
-        name: token.value.name,
-        source: tokenSource(token),
-      })),
-    ],
-    display: {
-      preferredGlyphName: stepTokens[0].value.glyphName,
-    },
-    source: groupSource(group),
   };
 }
 
