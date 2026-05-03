@@ -17,7 +17,25 @@ import {
   composedNameCandidatesFromParts,
   movementForComposedName,
   qualityForComposedName,
+  COMPOSITION_LOOKUP,
+  MOVEMENT_TABLE,
 } from './glyph_decompose.js';
+
+// Glyph names that are PRIMARILY ornamental attachments — never body glyphs.
+// When OCR detects these alone, they act as self-anchored neumes; when next to
+// a body, they're grouped as modifiers for composition lookup.
+const ATOMIC_ORNAMENTAL_NAMES = new Set(
+  (() => {
+    const bodyNames = new Set(
+      Object.values(COMPOSITION_LOOKUP).map(entry => entry.parts[0])
+    );
+    const allParts = new Set(
+      Object.values(COMPOSITION_LOOKUP).flatMap(entry => entry.parts)
+    );
+    // Only include names that are NEVER a body in any entry.
+    return [...allParts].filter(name => !bodyNames.has(name));
+  })()
+);
 
 const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
 
@@ -269,6 +287,13 @@ export function semanticTokenFromGlyph(input, options = {}) {
   });
   const metadata = glyphMetadataForSource(sourceToken);
   if (!metadata) {
+    // OCR path: unrecognised glyph name may be a known atomic ornamental part
+    // (e.g. ypsili, which only exists inside composite glyphs in the font).
+    if (ATOMIC_ORNAMENTAL_NAMES.has(sourceToken.glyphName) && sourceToken.source === 'ocr') {
+      const name = sourceToken.glyphName;
+      const enriched = { ...sourceToken, glyphName: name };
+      return semanticToken('ornamental', { name }, enriched);
+    }
     pushDiagnostic(diagnostics, {
       severity: DIAGNOSTIC_SEVERITY.ERROR,
       code: 'glyph-import-unknown',
@@ -280,6 +305,21 @@ export function semanticTokenFromGlyph(input, options = {}) {
       value: {},
       source: [sourceToken],
     };
+  }
+
+  // OCR path: glyphs that can act as body OR ornamental (kentima, kentimata).
+  // Only override when the source is explicitly OCR — text/synthetic imports keep metadata roles.
+  if (ATOMIC_ORNAMENTAL_NAMES.has(metadata.glyphName) && sourceToken.source === 'ocr') {
+    const enrichedSource = {
+      ...sourceToken,
+      glyphName: sourceToken.glyphName ?? metadata.glyphName,
+      codepoint: sourceToken.codepoint ?? metadata.codepoint,
+      alternateCodepoint: sourceToken.alternateCodepoint ?? metadata.alternateCodepoint,
+    };
+    return semanticToken('ornamental', {
+      name: metadata.glyphName,
+      glyphName: metadata.glyphName,
+    }, enrichedSource);
   }
 
   const enrichedSource = {
@@ -698,6 +738,25 @@ function scoreEventFromSemanticGroup(group, context) {
       const currentDegree = degreeFromLinearIndex(context.currentLinear);
       return pthoraEventFromToken(pthoraTokens.at(-1), currentDegree);
     }
+    // Self-anchor: ornamental token with no body acts as its own neume
+    // (e.g. standalone kentima detected by OCR without an adjacent oligon).
+    const ornamentalTokens = group.filter(t => t.kind === 'ornamental');
+    if (ornamentalTokens.length) {
+      const names = ornamentalTokens.map(t => t.value.name).filter(Boolean);
+      if (names.length) {
+        const selfName = composedNameFromParts(names) ?? names[0];
+        const selfMovement = movementForComposedName(selfName) ?? MOVEMENT_TABLE[names[0]];
+        if (selfMovement) {
+          const nextLinear = context.currentLinear + movementDelta(selfMovement);
+          return {
+            type: 'neume',
+            movement: selfMovement,
+            display: { preferredGlyphName: selfName },
+            source: groupSource(group),
+          };
+        }
+      }
+    }
     pushDiagnostic(diagnostics, {
       severity: DIAGNOSTIC_SEVERITY.ERROR,
       code: 'glyph-import-group-missing-quantity',
@@ -722,13 +781,18 @@ function scoreEventFromSemanticGroup(group, context) {
   const lookedUpMovement = composedName ? movementForComposedName(composedName) : null;
 
   // When OCR detects atomic parts without a _composedName, flag ambiguous cases for review.
+  // Only flag when the candidates have DIFFERENT movements (orthographic variants like
+  // kentima Above/Below/Middle all have the same step value — not ambiguous musically).
   if (!inheritedName && glyphNames.length > 1) {
     const candidates = composedNameCandidatesFromParts(glyphNames);
-    if (candidates.length > 1) {
+    const distinctMovements = new Set(
+      candidates.map(c => `${c.movement?.direction ?? ''}${c.movement?.steps ?? ''}`)
+    );
+    if (distinctMovements.size > 1) {
       pushDiagnostic(diagnostics, {
         severity: DIAGNOSTIC_SEVERITY.REVIEW,
         code: 'glyph-import-ambiguous-composition',
-        message: `Ambiguous glyph composition: [${glyphNames.join(', ')}] matched ${candidates.length} variants. Used "${composedName}" (steps ${lookedUpMovement?.steps ?? '?'}); alternates available for review.`,
+        message: `Ambiguous glyph composition: [${glyphNames.join(', ')}] matched ${candidates.length} variants with ${distinctMovements.size} different movement(s). Used "${composedName}" (steps ${lookedUpMovement?.steps ?? '?'}); alternates available for review.`,
         source: groupSource(group),
         detail: {
           used: composedName,

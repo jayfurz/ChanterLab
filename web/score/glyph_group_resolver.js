@@ -88,7 +88,9 @@ function resolveSpatialLine(tokens, diagnostics) {
   const sorted = [...tokens].sort((a, b) => centerX(a) - centerX(b));
   const anchors = sorted.filter(isGroupAnchor);
   if (!anchors.length) {
-    return resolveLinearGroups(sorted, diagnostics);
+    // No body glyphs on this line — each modifier becomes its own group
+    // so the compiler can self-anchor them.
+    return sorted.filter(isGroupModifier).map(token => [token]);
   }
 
   const groupsByAnchor = new Map(anchors.map(anchor => [anchor, [anchor]]));
@@ -99,12 +101,10 @@ function resolveSpatialLine(tokens, diagnostics) {
 
     const anchor = chooseAnchorForModifier(token, anchors);
     if (!anchor) {
-      pushDiagnostic(diagnostics, {
-        severity: DIAGNOSTIC_SEVERITY.ERROR,
-        code: 'glyph-import-unattached-modifier',
-        message: 'Glyph modifier has no spatially adjacent quantity, rest, or martyria anchor.',
-        source: groupSource([token]),
-      });
+      // Standalone modifier (e.g. kentima detected by OCR with no adjacent body).
+      // Leave it as its own group so the compiler can self-anchor it.
+      groupsByAnchor.set(token, [token]);
+      anchors.push(token);
       continue;
     }
     groupsByAnchor.get(anchor).push(token);

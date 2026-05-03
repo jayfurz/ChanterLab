@@ -55,13 +55,15 @@ test('spatial resolver attaches a prefix pthora to the next anchor on its right'
   assert.deepEqual(kinds, ['pthora', 'quantity']);
 });
 
-test('spatial resolver flags a modifier with no anchors at all', () => {
+test('spatial resolver creates a standalone group for a modifier with no anchors (self-anchor)', () => {
   const tokens = semanticTokensFromGlyphs([
     withRegion({ glyphName: 'gorgonAbove' }, { x: 12, y: 0, w: 10, h: 8 }),
   ]);
   const diagnostics = [];
-  resolveGlyphGroups(tokens, { diagnostics });
-  assert.equal(diagnostics.some(diagnostic => diagnostic.code === 'glyph-import-unattached-modifier'), true);
+  const groups = resolveGlyphGroups(tokens, { diagnostics });
+  assert.equal(groups.length, 1, 'standalone modifier becomes its own group');
+  assert.equal(groups[0].length, 1);
+  assert.equal(groups[0][0].source[0].glyphName, 'gorgonAbove');
 });
 
 test('low-confidence source tokens emit a REVIEW diagnostic without blocking compile', () => {
