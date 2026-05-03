@@ -76,6 +76,15 @@ function resolveLinearGroups(tokens, diagnostics) {
 }
 
 function resolveSpatialGroups(tokens, diagnostics) {
+  const lines = partitionByLine(tokens);
+  const out = [];
+  for (const line of lines) {
+    out.push(...resolveSpatialLine(line, diagnostics));
+  }
+  return out;
+}
+
+function resolveSpatialLine(tokens, diagnostics) {
   const sorted = [...tokens].sort((a, b) => centerX(a) - centerX(b));
   const anchors = sorted.filter(isGroupAnchor);
   if (!anchors.length) {
@@ -102,6 +111,20 @@ function resolveSpatialGroups(tokens, diagnostics) {
   }
 
   return anchors.map(anchor => groupsByAnchor.get(anchor));
+}
+
+function partitionByLine(tokens) {
+  const explicit = tokens.every(token => Number.isInteger(tokenRegion(token)?.line));
+  if (!explicit) return [tokens];
+  const buckets = new Map();
+  for (const token of tokens) {
+    const line = tokenRegion(token).line;
+    if (!buckets.has(line)) buckets.set(line, []);
+    buckets.get(line).push(token);
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, list]) => list);
 }
 
 function chooseAnchorForModifier(modifier, anchors) {
