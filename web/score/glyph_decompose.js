@@ -464,16 +464,18 @@ export const COMPOSITION_LOOKUP = Object.freeze(
   )
 );
 
-// Reverse: partsSignature → composedName
-// A partsSignature is a sorted, unique set of glyph names joined by '+'.
-// For ambiguous cases (oligon+kentima maps to 3 variants), returns the first match.
+// Reverse: partsSignature → [composedName, ...] (all matching variants).
+// Ambiguous when >1 entry (e.g. ypsili right vs left have same atomic parts).
 export const COMPOSITION_BY_PARTS = Object.freeze(
   (() => {
     const map = new Map();
     for (const [name, entry] of Object.entries(COMPOSITION_LOOKUP)) {
       const sig = [...new Set(entry.parts)].sort().join('+');
-      if (!map.has(sig)) map.set(sig, name);
+      if (!map.has(sig)) map.set(sig, []);
+      map.get(sig).push(name);
     }
+    // Freeze inner arrays
+    for (const [sig, names] of map) map.set(sig, Object.freeze([...names]));
     return map;
   })()
 );
@@ -486,11 +488,31 @@ export function atomicPartsForComposed(name) {
   return entry ? [...entry.parts] : null;
 }
 
-// Given a set of atomic glyph names (e.g. from OCR), return the best composed name match.
-// Returns null if no match found.
+// Given a set of atomic glyph names (e.g. from OCR), return the best composed name match
+// (first entry in the table for this parts set). Returns null if no match found.
 export function composedNameFromParts(glyphNames) {
   const sig = [...new Set(glyphNames)].sort().join('+');
-  return COMPOSITION_BY_PARTS.get(sig) ?? null;
+  const matches = COMPOSITION_BY_PARTS.get(sig);
+  return matches?.[0] ?? null;
+}
+
+// Return ALL matching composed names for a parts set. Length > 1 means ambiguous.
+// Each entry is { name, movement, quality }.
+export function composedNameCandidatesFromParts(glyphNames) {
+  const sig = [...new Set(glyphNames)].sort().join('+');
+  const matches = COMPOSITION_BY_PARTS.get(sig);
+  if (!matches) return [];
+  return matches.map(name => ({
+    name,
+    movement: movementForComposedName(name),
+    quality: qualityForComposedName(name),
+  }));
+}
+
+// Whether the parts set matches more than one composed form (e.g. ypsili left vs right).
+export function isAmbiguousParts(glyphNames) {
+  const sig = [...new Set(glyphNames)].sort().join('+');
+  return (COMPOSITION_BY_PARTS.get(sig)?.length ?? 0) > 1;
 }
 
 // Look up the movement for a composed glyph name. Returns null if unknown.

@@ -14,6 +14,7 @@ import { resolveGlyphGroups } from './glyph_group_resolver.js';
 import {
   decomposeToAtomicParts,
   composedNameFromParts,
+  composedNameCandidatesFromParts,
   movementForComposedName,
   qualityForComposedName,
 } from './glyph_decompose.js';
@@ -719,6 +720,27 @@ function scoreEventFromSemanticGroup(group, context) {
   const composedName = inheritedName
     ?? (glyphNames.length > 1 ? composedNameFromParts(glyphNames) : null);
   const lookedUpMovement = composedName ? movementForComposedName(composedName) : null;
+
+  // When OCR detects atomic parts without a _composedName, flag ambiguous cases for review.
+  if (!inheritedName && glyphNames.length > 1) {
+    const candidates = composedNameCandidatesFromParts(glyphNames);
+    if (candidates.length > 1) {
+      pushDiagnostic(diagnostics, {
+        severity: DIAGNOSTIC_SEVERITY.REVIEW,
+        code: 'glyph-import-ambiguous-composition',
+        message: `Ambiguous glyph composition: [${glyphNames.join(', ')}] matched ${candidates.length} variants. Used "${composedName}" (steps ${lookedUpMovement?.steps ?? '?'}); alternates available for review.`,
+        source: groupSource(group),
+        detail: {
+          used: composedName,
+          candidates: candidates.map(c => ({
+            name: c.name,
+            movement: c.movement,
+            quality: c.quality,
+          })),
+        },
+      });
+    }
+  }
   const resolvedMovement = lookedUpMovement ?? { ...quantity.value.movement };
   const nextLinear = context.currentLinear + movementDelta(resolvedMovement);
   const attachedDegree = degreeFromLinearIndex(nextLinear);
