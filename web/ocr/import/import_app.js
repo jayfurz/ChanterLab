@@ -1,5 +1,6 @@
 import { rgbaToGray } from '../pipeline/buffers.js';
 import { recognizePage } from '../pipeline/recognize.js';
+import { recognizePageClaude, loadAtlasBlob } from '../pipeline/recognize_claude.js';
 import { buildNeanesTemplates } from '../pipeline/templates.js';
 import {
   semanticTokensFromGlyphs,
@@ -16,6 +17,7 @@ const state = {
   grayBuffer: undefined,
   templates: undefined,
   result: undefined,
+  atlasBlob: undefined,
 };
 
 async function ensureTemplates(cellSize) {
