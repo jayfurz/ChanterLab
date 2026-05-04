@@ -19,6 +19,7 @@ export class Singscope {
     this._canvas  = canvas;
     this._ctx     = canvas.getContext('2d');
     this._rowMap  = []; // [{cell, y, h}] — same structure as ScaleLadder._rowMap
+    this._zoomMode = false;
 
     // Ring buffer of pitch points.
     // Each entry: { atMs, moria, snapMoria, confidence, gateOpen }
@@ -79,6 +80,12 @@ export class Singscope {
   setRowMap(rowMap) {
     this._rowMap = rowMap;
     this._dirty  = true;
+  }
+
+  /** Enable/disable zoom-mode grid lines aligned with the ladder. */
+  setZoomMode(enabled) {
+    this._zoomMode = !!enabled;
+    this._dirty = true;
   }
 
   setTraceAnchorRatio(ratio) {
@@ -228,6 +235,24 @@ export class Singscope {
     for (const row of this._rowMap) {
       if (row.cell.enabled) {
         ctx.fillRect(0, row.y * rowScale, cssW, row.h * rowScale);
+      }
+    }
+
+    // 2b. Zoom-mode grid lines every 2 moria.
+    if (this._zoomMode && this._rowMap.length) {
+      const moriaVals = this._rowMap.map(r => r.cell.moria);
+      const minMoria = Math.min(...moriaVals);
+      const maxMoria = Math.max(...moriaVals);
+      const firstGrid = Math.ceil(minMoria / 2) * 2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1;
+      for (let m = firstGrid; m <= maxMoria; m += 2) {
+        const y = this._moriaToY(m, cssH, true);
+        if (y === null) continue;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(cssW, y);
+        ctx.stroke();
       }
     }
 
