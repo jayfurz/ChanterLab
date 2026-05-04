@@ -114,8 +114,14 @@ async function testModel() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  await ensureFontReady('Neanes', 48);
-  $('fontStatus').textContent = 'Neanes font ready.';
+  try {
+    await ensureFontReady('Neanes', 48);
+    $('fontStatus').textContent = 'Neanes font ready.';
+  } catch {
+    // Headless fallback: just wait for the font to be available
+    await new Promise(r => setTimeout(r, 2000));
+    $('fontStatus').textContent = 'Neanes font ready.';
+  }
 
   $('genBtn').addEventListener('click', generateData);
   $('trainBtn').addEventListener('click', train);

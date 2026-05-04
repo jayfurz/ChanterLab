@@ -1,29 +1,16 @@
-// CNN-based recognizer for Byzantine chant notation.
-// Loads a TFJS model trained via /ocr/train.html and classifies glyph crops.
-// Same output shape as recognize.js → drops into the existing import pipeline.
+// CNN-based recognizer using hand-rolled JS forward pass.
+// Loads weights from the PyTorch-exported JSON. Same output shape as recognize.js.
 
-import { binarizeGray, cropGrayBuffer } from './buffers.js';
-import {
-  findConnectedComponents,
-  groupComponentsIntoColumns,
-} from './segment.js';
-import { bboxCenter } from './buffers.js';
-import { INDEX_TO_NAME, NAME_TO_INDEX, CLASS_COUNT } from '../train/glyph_data.js';
+import { binarizeGray, cropGrayBuffer, bboxCenter } from './buffers.js';
+import { findConnectedComponents, groupComponentsIntoColumns } from './segment.js';
+import { loadWeights, classify, isReady, getMeta } from './cnn_forward.js';
 
 const CELL = 48;
 
-export async function loadModelFromFiles(modelJson, weightBin) {
-  const { loadGraphModel, loadLayersModel } = await import('@tensorflow/tfjs');
-  return loadLayersModel(tf.io.browserFiles([modelJson, weightBin]));
-}
+// Main entry point — same interface as recognize.js
+export function recognizePageCNN(grayBuffer, options = {}) {
+  if (!isReady()) throw new Error('CNN weights not loaded. Call initCNN(url) first.');
 
-export async function loadModelFromIndexedDB(key = 'chant-glyph-cnn') {
-  const { loadLayersModel } = await import('@tensorflow/tfjs');
-  return loadLayersModel(`indexeddb://${key}`);
-}
-
-// Main entry point: page image → tokens (same interface as recognize.js)
-export function recognizePageCNN(grayBuffer, model, options = {}) {
   const binary = binarizeGray(grayBuffer, options.binaryThreshold ?? 'otsu');
   const components = findConnectedComponents(binary, { minPixels: options.minComponentPixels ?? 6 });
   const { columns } = groupComponentsIntoColumns(components);
@@ -33,68 +20,56 @@ export function recognizePageCNN(grayBuffer, model, options = {}) {
   let lineIndex = 0;
   for (const lineColumns of linesOfColumns) {
     for (const column of lineColumns) {
-      const componentIndices = [column.mainIndex, ...(column.aboveIndices ?? []), ...(column.belowIndices ?? [])];
-      for (const componentIndex of componentIndices) {
-        const component = components[componentIndex];
+      for (const idx of componentIndices(column)) {
+        const component = components[idx];
         if (!component) continue;
         const crop = cropGrayBuffer(grayBuffer, padBBox(component.bbox, 2, grayBuffer));
-        const fitted = fitToCell(crop, CELL);
-        const topK = classifyCropTFJS(model, fitted, options.topK ?? 5);
+        const fitted = fitToCell(crop);
+        const topK = classify(fitted, options.topK ?? 5);
         if (!topK.length) continue;
         const [best, ...alternates] = topK;
         tokens.push({
           glyphName: best.glyphName,
+          codepoint: best.codepoint,
           confidence: best.confidence,
           source: 'ocr',
           region: { bbox: { ...component.bbox }, line: lineIndex, role: 'neume' },
           ...(alternates.length ? {
-            alternates: alternates.map(a => ({ glyphName: a.glyphName, confidence: a.confidence })),
+            alternates: alternates.map(a => ({ glyphName: a.glyphName, codepoint: a.codepoint, confidence: a.confidence })),
           } : {}),
         });
       }
     }
     lineIndex += 1;
   }
-
   return { tokens, components, lineCount: linesOfColumns.length };
 }
 
-// TFJS classify a single CELL×CELL Float32Array (values 0-1, lighter=higher).
-function classifyCropTFJS(model, grayData, topK = 5) {
-  const tf = requireTensorFlow();
-  const input = tf.tensor4d(grayData, [1, CELL, CELL, 1]);
-  const predictions = model.predict(input);
-  const values = predictions.dataSync();
-  input.dispose();
-  predictions.dispose();
-
-  return Array.from(values)
-    .map((conf, i) => ({
-      glyphName: INDEX_TO_NAME[i] ?? `class_${i}`,
-      confidence: conf,
-    }))
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, topK);
+export async function initCNN(url = '../train/chant_cnn_model/weights.json') {
+  return loadWeights(url);
 }
 
-function fitToCell(buffer, cellSize) {
-  const data = new Float32Array(cellSize * cellSize);
-  // Center the crop in the cell with aspect-ratio preservation
-  const scale = Math.min(cellSize / buffer.width, cellSize / buffer.height);
+function componentIndices(column) {
+  return [column.mainIndex, ...(column.aboveIndices ?? []), ...(column.belowIndices ?? [])]
+    .filter(i => Number.isInteger(i));
+}
+
+function fitToCell(buffer) {
+  const data = new Float32Array(CELL * CELL);
+  data.fill(1); // white
+
+  const scale = Math.min(CELL / buffer.width, CELL / buffer.height);
   const sw = Math.round(buffer.width * scale);
   const sh = Math.round(buffer.height * scale);
-  const ox = Math.floor((cellSize - sw) / 2);
-  const oy = Math.floor((cellSize - sh) / 2);
-
-  // Fill with white (1.0)
-  data.fill(1);
+  const ox = Math.floor((CELL - sw) / 2);
+  const oy = Math.floor((CELL - sh) / 2);
 
   for (let y = 0; y < sh; y++) {
     for (let x = 0; x < sw; x++) {
       const sx = Math.floor(x / scale);
       const sy = Math.floor(y / scale);
       if (sx < buffer.width && sy < buffer.height) {
-        data[(oy + y) * cellSize + (ox + x)] = 1 - buffer.data[sy * buffer.width + sx] / 255;
+        data[(oy + y) * CELL + (ox + x)] = 1 - buffer.data[sy * buffer.width + sx] / 255;
       }
     }
   }
@@ -118,15 +93,15 @@ function partitionColumnsIntoLines(columns, components) {
 
   const lines = [];
   let current = [];
-  let currentMaxBottom = -Infinity;
+  let maxBottom = -Infinity;
   for (const entry of annotated) {
-    if (current.length === 0 || entry.mainBottom - currentMaxBottom <= lineGap) {
+    if (!current.length || entry.mainBottom - maxBottom <= lineGap) {
       current.push(entry.column);
-      currentMaxBottom = Math.max(currentMaxBottom, entry.mainBottom);
+      maxBottom = Math.max(maxBottom, entry.mainBottom);
     } else {
       lines.push(current);
       current = [entry.column];
-      currentMaxBottom = entry.mainBottom;
+      maxBottom = entry.mainBottom;
     }
   }
   if (current.length) lines.push(current);
@@ -141,13 +116,3 @@ function padBBox(bbox, padding, buffer) {
   const bottom = Math.min(buffer.height, bbox.y + bbox.h + padding);
   return { x, y, w: right - x, h: bottom - y };
 }
-
-// Lazy-load TFJS — avoids bundling it until the CNN recognizer is selected.
-let _tf = undefined;
-function requireTensorFlow() {
-  if (!_tf) {
-    throw new Error('TensorFlow.js must be imported before calling CNN recognizer. Import @tensorflow/tfjs first.');
-  }
-  return _tf;
-}
-export function setTensorFlow(tf) { _tf = tf; }

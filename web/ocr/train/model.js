@@ -34,7 +34,7 @@ export function createGlyphClassifier(numClasses) {
     activation: 'relu',
     kernelInitializer: 'heNormal',
   }));
-  model.add(tf.layers.globalAveragePooling2d());
+  model.add(tf.layers.globalAveragePooling2d({ dataFormat: 'channelsLast' }));
 
   model.add(tf.layers.dropout({ rate: 0.4 }));
   model.add(tf.layers.dense({

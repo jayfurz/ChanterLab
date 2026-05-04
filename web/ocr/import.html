@@ -39,7 +39,7 @@
 <body>
 <header>
   <h1>Chant OCR · photo import</h1>
-  <span class="hint">v0 template-matching · expects clean printed scores in the Neanes/SBMuFL family.</span>
+  <span class="hint">Template matching for font screenshots · CNN for real pages.</span>
 </header>
 <main>
   <div class="panel">
@@ -48,6 +48,12 @@
     <input type="file" id="file" accept="image/*">
 
     <h2 style="margin-top:16px;">Recognition</h2>
+    <label>Backend
+      <select id="backend">
+        <option value="cnn">CNN (trained, 62% acc)</option>
+        <option value="template">Template matching (font only)</option>
+      </select>
+    </label>
     <div class="row">
       <label>Cell size <input id="cellSize" type="number" value="48" min="16" max="160"></label>
       <label>Min comp px <input id="minPixels" type="number" value="12" min="2" max="200"></label>

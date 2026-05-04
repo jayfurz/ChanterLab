@@ -56,20 +56,48 @@ function readSourceGray() {
   return rgbaToGray(imageData.data, canvas.width, canvas.height);
 }
 
+let cnnReady = false;
+
+async function ensureCNN() {
+  if (cnnReady) return;
+  const { initCNN } = await import('../pipeline/recognize_cnn.js');
+  setStatus('Loading CNN weights (8.7 MB)…');
+  await initCNN();
+  cnnReady = true;
+  setStatus('CNN ready.');
+}
+
 async function runRecognition() {
   if (!state.imageBitmap) return;
-  const cellSize = Number($('cellSize').value) || 48;
+  const backend = $('backend').value;
   const minPixels = Number($('minPixels').value) || 12;
-  const templates = await ensureTemplates(cellSize);
 
-  setStatus('Recognising…');
+  if (backend === 'cnn') {
+    await ensureCNN();
+    setStatus('Classifying with CNN…');
+    state.grayBuffer = readSourceGray();
+    const { recognizePageCNN } = await import('../pipeline/recognize_cnn.js');
+    const start = Date.now();
+    const result = recognizePageCNN(state.grayBuffer, { minComponentPixels: minPixels, topK: 4 });
+    const ms = Date.now() - start;
+    state.result = result;
+    drawOverlay(result);
+    renderTokenList(result);
+    renderCompiled(result);
+    setStatus(`${result.tokens.length} glyphs · ${result.lineCount} line(s) · CNN · ${(ms/1000).toFixed(1)}s`);
+    return;
+  }
+
+  // Template matching backend
+  const cellSize = Number($('cellSize').value) || 48;
+  const templates = await ensureTemplates(cellSize);
+  setStatus('Matching templates…');
   state.grayBuffer = readSourceGray();
   const result = recognizePage(state.grayBuffer, templates, {
     minComponentPixels: minPixels,
     topK: 4,
   });
   state.result = result;
-
   drawOverlay(result);
   renderTokenList(result);
   renderCompiled(result);

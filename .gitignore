@@ -3,4 +3,4 @@
 /node_modules
 *.wasm
 .codex
-.claude
+.claudedata/xs.bin
