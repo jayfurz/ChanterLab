@@ -249,7 +249,6 @@ function gridChanged() {
   app.grid.refNiHz = app.refNiHz;
   syncReferenceControls();
   app.ladder.refresh();
-  if (app.singscope) app.singscope.setRowMap(app.ladder.rowMap);
   const cells = JSON.parse(app.grid.cellsJson());
   const gridState = readGridState();
   app.noteIndicator?.refresh(cells, gridState);
