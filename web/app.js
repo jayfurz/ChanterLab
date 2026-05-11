@@ -2514,21 +2514,27 @@ async function importYouTubeUrl(url) {
 async function importYouTubeViaMetube(url, metubeBaseUrl) {
   stopRecordingPlayback();
   await app.ensureAudio?.();
-  setRecordingStatus('Sending YouTube link to MeTube as MP3...');
+  setRecordingStatus('Checking MeTube for an existing MP3...');
 
   try {
-    await metubeAddMp3Download(metubeBaseUrl, url.href);
-    const item = await waitForMetubeDownload(metubeBaseUrl, url.href, {
+    let item = await findExistingMetubeDownload(metubeBaseUrl, url.href);
+    if (item?.status === 'finished' && item.filename) {
+      await importMetubeDownloadItem(metubeBaseUrl, url, item);
+      setRecordingStatus(`Imported existing MeTube MP3: ${item.title || 'YouTube audio'}.`);
+      return true;
+    }
+
+    if (item) {
+      setRecordingStatus(formatMetubeProgress(item));
+    } else {
+      setRecordingStatus('Sending YouTube link to MeTube as MP3...');
+      await metubeAddMp3Download(metubeBaseUrl, url.href);
+    }
+
+    item = await waitForMetubeDownload(metubeBaseUrl, url.href, {
       onProgress: status => setRecordingStatus(status),
     });
-    const blob = await fetchMetubeDownloadBlob(metubeBaseUrl, item);
-    await importMediaBlob(blob, {
-      name: cleanMediaName(item.title || item.filename || mediaNameFromUrl(url), makeImportedMediaName()),
-      mimeType: blob.type || 'audio/mpeg',
-      extension: extensionForFileName(item.filename || '', blob.type || 'audio/mpeg'),
-      sourceKind: 'youtube',
-      sourceUrl: url.href,
-    });
+    await importMetubeDownloadItem(metubeBaseUrl, url, item);
     setRecordingStatus(`Imported ${item.title || 'YouTube audio'} from MeTube.`);
     return true;
   } catch (e) {
@@ -2571,6 +2577,23 @@ async function importYouTubeViaGenericProxy(url, proxyEndpoint) {
     setRecordingStatus('Could not extract audio from that YouTube link.');
     return false;
   }
+}
+
+async function findExistingMetubeDownload(baseUrl, youtubeUrl) {
+  const history = await fetchMetubeHistory(baseUrl);
+  const item = findMetubeDownload(history, youtubeUrl, youtubeVideoId(youtubeUrl));
+  return metubeItemRank(item) >= 2 ? item : null;
+}
+
+async function importMetubeDownloadItem(baseUrl, url, item) {
+  const blob = await fetchMetubeDownloadBlob(baseUrl, item);
+  await importMediaBlob(blob, {
+    name: cleanMediaName(item.title || item.filename || mediaNameFromUrl(url), makeImportedMediaName()),
+    mimeType: blob.type || 'audio/mpeg',
+    extension: extensionForFileName(item.filename || '', blob.type || 'audio/mpeg'),
+    sourceKind: 'youtube',
+    sourceUrl: url.href,
+  });
 }
 
 async function metubeAddMp3Download(baseUrl, youtubeUrl) {
@@ -2640,7 +2663,11 @@ function findMetubeDownload(history, youtubeUrl, targetVideoId) {
   ];
   return items
     .filter(item => isMatchingMetubeDownload(item, youtubeUrl, targetVideoId))
-    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))[0] || null;
+    .sort((a, b) => {
+      const rankDiff = metubeItemRank(b) - metubeItemRank(a);
+      if (rankDiff !== 0) return rankDiff;
+      return Number(b.timestamp || 0) - Number(a.timestamp || 0);
+    })[0] || null;
 }
 
 function isMatchingMetubeDownload(item, youtubeUrl, targetVideoId) {
@@ -2655,6 +2682,13 @@ function isMatchingMetubeDownload(item, youtubeUrl, targetVideoId) {
   const filename = String(item.filename || '').toLowerCase();
   const quality = String(item.quality || '').toLowerCase();
   return format === 'mp3' || filename.endsWith('.mp3') || quality === 'audio';
+}
+
+function metubeItemRank(item) {
+  if (!item) return 0;
+  if (item.status === 'finished' && item.filename) return 3;
+  if (item.status === 'error' || item.status === 'failed' || item.error) return 1;
+  return 2;
 }
 
 function formatMetubeProgress(item) {
