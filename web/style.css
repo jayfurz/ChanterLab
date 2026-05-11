@@ -329,7 +329,42 @@ select {
   gap: 4px;
 }
 
+.recording-import {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recording-file-input,
+.recording-url-form input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px 5px;
+  font-size: 11px;
+  min-width: 0;
+}
+
+.recording-file-input::file-selector-button {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin-right: 6px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.recording-url-form {
+  display: grid;
+  grid-template-columns: 1fr 0.55fr;
+  gap: 4px;
+}
+
 .recording-actions button,
+.recording-url-form button,
 .recording-item-actions button,
 .recording-download {
   background: var(--bg);
@@ -355,6 +390,8 @@ select {
 }
 
 .recording-actions button:hover:not(:disabled),
+.recording-url-form button:hover,
+.recording-file-input::file-selector-button:hover,
 .recording-item-actions button:hover,
 .recording-download:hover {
   border-color: var(--accent2);

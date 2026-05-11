@@ -5,6 +5,36 @@
 const HISTORY_LEN = 600; // number of pitch points to retain
 const BG_COLOR    = '#111';
 const TRACE_START_MARK_W = 2;
+const TRACE_STYLES = {
+  reference: {
+    snap: '#63b8ff',
+    rawRgb: '125,190,255',
+    rawAlphaScale: 0.62,
+    snapWidth: 1.25,
+    rawWidth: 1.25,
+    marker: false,
+  },
+  live: {
+    snap: '#50c850',
+    rawRgb: '255,200,0',
+    rawAlphaScale: 1,
+    snapWidth: 1.5,
+    rawWidth: 1.5,
+    marker: true,
+  },
+};
+
+function blankPoint() {
+  return { atMs: null, moria: null, snapMoria: null, confidence: 0, gateOpen: false };
+}
+
+function createTraceState() {
+  return {
+    buf: new Array(HISTORY_LEN).fill(null).map(blankPoint),
+    head: 0,
+    count: 0,
+  };
+}
 
 function cellAxisMoria(cell) {
   return cell.moria;
@@ -21,13 +51,13 @@ export class Singscope {
     this._rowMap  = []; // [{cell, y, h}] — same structure as ScaleLadder._rowMap
     this._zoomMode = false;
 
-    // Ring buffer of pitch points.
+    // Separate ring buffers keep reference/media playback from corrupting the
+    // live mic trace when a chanter sings along.
     // Each entry: { atMs, moria, snapMoria, confidence, gateOpen }
-    this._buf     = new Array(HISTORY_LEN).fill(null).map(() => ({
-      atMs: null, moria: null, snapMoria: null, confidence: 0, gateOpen: false,
-    }));
-    this._head    = 0; // index of the next write slot (oldest data)
-    this._count   = 0; // how many valid entries have been written
+    this._traces = {
+      reference: createTraceState(),
+      live: createTraceState(),
+    };
 
     this._rafId   = null;
     this._dirty   = true;
@@ -40,39 +70,24 @@ export class Singscope {
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
-  /** Called on every pitch event from VoiceWorklet (~60 Hz). */
-  pushPitch(msg) {
-    const gateOpen = !!msg.gate_open;
-    const cellId   = (typeof msg.cell_id === 'number') ? msg.cell_id : -1;
-    const hasSnap  = Number.isFinite(cellId) && cellId !== -1;
-    const rawMoria = (typeof msg.raw_moria === 'number' && Number.isFinite(msg.raw_moria))
-      ? msg.raw_moria
-      : null;
-    const snapMoria = (typeof msg.snap_moria === 'number' && Number.isFinite(msg.snap_moria))
-      ? msg.snap_moria
-      : cellId;
-    const moria    = gateOpen ? (rawMoria ?? (hasSnap ? cellId : null)) : null;
-    const snap     = (gateOpen && hasSnap) ? snapMoria : null;
-    const conf     = (typeof msg.confidence === 'number') ? msg.confidence : 0;
-
-    this._buf[this._head] = {
-      atMs: performanceNow(),
-      moria,
-      snapMoria: snap,
-      confidence: conf,
-      gateOpen,
-    };
-    this._head = (this._head + 1) % HISTORY_LEN;
-    if (this._count < HISTORY_LEN) this._count++;
-    this._dirty = true;
+  /** Called on every live mic pitch event from VoiceWorklet (~60 Hz). */
+  pushPitch(msg, options = {}) {
+    const layer = options.layer === 'reference' ? 'reference' : 'live';
+    this._pushPitchToLayer(layer, msg);
   }
 
-  clear() {
-    for (let i = 0; i < HISTORY_LEN; i++) {
-      this._buf[i] = { atMs: null, moria: null, snapMoria: null, confidence: 0, gateOpen: false };
+  /** Called for imported/recorded playback reference pitch events. */
+  pushReferencePitch(msg) {
+    this._pushPitchToLayer('reference', msg);
+  }
+
+  clear(layer = 'all') {
+    if (layer === 'live' || layer === 'reference') {
+      this._resetTrace(layer);
+    } else {
+      this._resetTrace('live');
+      this._resetTrace('reference');
     }
-    this._head = 0;
-    this._count = 0;
     this._dirty = true;
   }
 
@@ -127,6 +142,46 @@ export class Singscope {
   }
 
   // ── Internal ────────────────────────────────────────────────────────────────
+
+  _traceState(layer) {
+    return this._traces[layer] ?? this._traces.live;
+  }
+
+  _pushPitchToLayer(layer, msg) {
+    const trace = this._traceState(layer);
+    const gateOpen = !!msg.gate_open;
+    const cellId   = (typeof msg.cell_id === 'number') ? msg.cell_id : -1;
+    const hasSnap  = Number.isFinite(cellId) && cellId !== -1;
+    const rawMoria = (typeof msg.raw_moria === 'number' && Number.isFinite(msg.raw_moria))
+      ? msg.raw_moria
+      : null;
+    const snapMoria = (typeof msg.snap_moria === 'number' && Number.isFinite(msg.snap_moria))
+      ? msg.snap_moria
+      : cellId;
+    const moria    = gateOpen ? (rawMoria ?? (hasSnap ? cellId : null)) : null;
+    const snap     = (gateOpen && hasSnap) ? snapMoria : null;
+    const conf     = (typeof msg.confidence === 'number') ? msg.confidence : 0;
+
+    trace.buf[trace.head] = {
+      atMs: performanceNow(),
+      moria,
+      snapMoria: snap,
+      confidence: conf,
+      gateOpen,
+    };
+    trace.head = (trace.head + 1) % HISTORY_LEN;
+    if (trace.count < HISTORY_LEN) trace.count++;
+    this._dirty = true;
+  }
+
+  _resetTrace(layer) {
+    const trace = this._traceState(layer);
+    for (let i = 0; i < HISTORY_LEN; i++) {
+      trace.buf[i] = blankPoint();
+    }
+    trace.head = 0;
+    trace.count = 0;
+  }
 
   _onResize() {
     const { width, height } = this._canvas.getBoundingClientRect();
@@ -193,14 +248,15 @@ export class Singscope {
   }
 
   /** Return an ordered array of the most recent `count` points (oldest first). */
-  _orderedPoints() {
-    const n   = Math.min(this._count, HISTORY_LEN);
+  _orderedPoints(layer) {
+    const trace = this._traceState(layer);
+    const n   = Math.min(trace.count, HISTORY_LEN);
     const out = new Array(n);
     // _head points to the slot that will be overwritten next, so the oldest
     // live slot is (_head - n + HISTORY_LEN) % HISTORY_LEN.
-    const start = (this._head - n + HISTORY_LEN) % HISTORY_LEN;
+    const start = (trace.head - n + HISTORY_LEN) % HISTORY_LEN;
     for (let i = 0; i < n; i++) {
-      out[i] = this._buf[(start + i) % HISTORY_LEN];
+      out[i] = trace.buf[(start + i) % HISTORY_LEN];
     }
     return out;
   }
@@ -256,15 +312,36 @@ export class Singscope {
       }
     }
 
-    const points = this._orderedPoints();
-    const N      = points.length;
-    if (N === 0) {
+    const referencePoints = this._orderedPoints('reference');
+    const livePoints = this._orderedPoints('live');
+    if (referencePoints.length === 0 && livePoints.length === 0) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       return;
     }
 
     const traceAnchorX = cssW * this._traceAnchorRatio;
-    const latestAtMs = points[N - 1]?.atMs ?? performanceNow();
+    const latestReferenceAt = referencePoints.length
+      ? referencePoints[referencePoints.length - 1]?.atMs
+      : 0;
+    const latestLiveAt = livePoints.length
+      ? livePoints[livePoints.length - 1]?.atMs
+      : 0;
+    const latestAtMs = Math.max(
+      latestReferenceAt ?? 0,
+      latestLiveAt ?? 0,
+      performanceNow(),
+    );
+
+    this._paintTraceLayer(ctx, referencePoints, traceAnchorX, latestAtMs, cssW, cssH, TRACE_STYLES.reference);
+    this._paintTraceLayer(ctx, livePoints, traceAnchorX, latestAtMs, cssW, cssH, TRACE_STYLES.live);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  _paintTraceLayer(ctx, points, traceAnchorX, latestAtMs, cssW, cssH, style) {
+    const N = points.length;
+    if (N === 0) return;
+
     const xStep = cssW / Math.max(HISTORY_LEN - 1, 1);
     const sampleStartX = traceAnchorX - (N - 1) * xStep;
     const xOf = i => {
@@ -275,10 +352,10 @@ export class Singscope {
       return sampleStartX + i * xStep;
     };
 
-    // 3. Snap polyline (green, stepped horizontally).
+    // Snap polyline, stepped horizontally.
     // Draw horizontal/vertical steps only when snapMoria !== null.
-    ctx.lineWidth   = 1.5;
-    ctx.strokeStyle = '#50c850';
+    ctx.lineWidth   = style.snapWidth;
+    ctx.strokeStyle = style.snap;
     ctx.beginPath();
     let snapInPath = false;
     let prevSnapY  = null;
@@ -310,8 +387,8 @@ export class Singscope {
     }
     ctx.stroke();
 
-    // 4. Raw pitch polyline (amber, confidence-modulated alpha).
-    ctx.lineWidth = 1.5;
+    // Raw pitch polyline, confidence-modulated alpha.
+    ctx.lineWidth = style.rawWidth;
 
     for (let i = 1; i < N; i++) {
       const prev = points[i - 1];
@@ -329,16 +406,15 @@ export class Singscope {
 
       // Average confidence for the segment.
       const conf = (prev.confidence + curr.confidence) / 2;
-      ctx.strokeStyle = `rgba(255,200,0,${conf.toFixed(3)})`;
+      const alpha = Math.max(0.08, Math.min(1, conf * style.rawAlphaScale));
+      ctx.strokeStyle = `rgba(${style.rawRgb},${alpha.toFixed(3)})`;
       ctx.beginPath();
       ctx.moveTo(x0, y0);
       ctx.lineTo(x1, y1);
       ctx.stroke();
     }
 
-    this._paintTraceStartMarker(ctx, points[N - 1], traceAnchorX, cssH);
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (style.marker) this._paintTraceStartMarker(ctx, points[N - 1], traceAnchorX, cssH);
   }
 
   _paintTraceStartMarker(ctx, latest, traceAnchorX, cssH) {
