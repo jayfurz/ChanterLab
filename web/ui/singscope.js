@@ -63,6 +63,7 @@ export class Singscope {
     this._dirty   = true;
     this._traceAnchorRatio = 1;
     this._tracePxPerSecond = null;
+    this._referencePlayheadMs = null;
 
     this._ro = new ResizeObserver(() => this._onResize());
     this._ro.observe(canvas);
@@ -77,8 +78,13 @@ export class Singscope {
   }
 
   /** Called for imported/recorded playback reference pitch events. */
-  pushReferencePitch(msg) {
-    this._pushPitchToLayer('reference', msg);
+  pushReferencePitch(msg, options = {}) {
+    this._pushPitchToLayer('reference', msg, options);
+  }
+
+  setReferencePlayheadMs(ms) {
+    this._referencePlayheadMs = Number.isFinite(ms) ? Math.max(0, ms) : null;
+    this._dirty = true;
   }
 
   clear(layer = 'all') {
@@ -147,7 +153,7 @@ export class Singscope {
     return this._traces[layer] ?? this._traces.live;
   }
 
-  _pushPitchToLayer(layer, msg) {
+  _pushPitchToLayer(layer, msg, options = {}) {
     const trace = this._traceState(layer);
     const gateOpen = !!msg.gate_open;
     const cellId   = (typeof msg.cell_id === 'number') ? msg.cell_id : -1;
@@ -163,7 +169,7 @@ export class Singscope {
     const conf     = (typeof msg.confidence === 'number') ? msg.confidence : 0;
 
     trace.buf[trace.head] = {
-      atMs: performanceNow(),
+      atMs: Number.isFinite(options.atMs) ? options.atMs : performanceNow(),
       moria,
       snapMoria: snap,
       confidence: conf,
@@ -181,6 +187,7 @@ export class Singscope {
     }
     trace.head = 0;
     trace.count = 0;
+    if (layer === 'reference') this._referencePlayheadMs = null;
   }
 
   _onResize() {
@@ -320,20 +327,15 @@ export class Singscope {
     }
 
     const traceAnchorX = cssW * this._traceAnchorRatio;
-    const latestReferenceAt = referencePoints.length
-      ? referencePoints[referencePoints.length - 1]?.atMs
-      : 0;
+    const latestReferenceAt = this._referencePlayheadMs
+      ?? (referencePoints.length ? referencePoints[referencePoints.length - 1]?.atMs : null)
+      ?? performanceNow();
     const latestLiveAt = livePoints.length
       ? livePoints[livePoints.length - 1]?.atMs
-      : 0;
-    const latestAtMs = Math.max(
-      latestReferenceAt ?? 0,
-      latestLiveAt ?? 0,
-      performanceNow(),
-    );
+      : performanceNow();
 
-    this._paintTraceLayer(ctx, referencePoints, traceAnchorX, latestAtMs, cssW, cssH, TRACE_STYLES.reference);
-    this._paintTraceLayer(ctx, livePoints, traceAnchorX, latestAtMs, cssW, cssH, TRACE_STYLES.live);
+    this._paintTraceLayer(ctx, referencePoints, traceAnchorX, latestReferenceAt, cssW, cssH, TRACE_STYLES.reference);
+    this._paintTraceLayer(ctx, livePoints, traceAnchorX, latestLiveAt, cssW, cssH, TRACE_STYLES.live);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }

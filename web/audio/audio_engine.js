@@ -32,6 +32,7 @@ export class AudioEngine {
     this._currentVoiceTable = [];
     this._voiceWorkletModulePromise = null;
     this._voiceWasmPayloadPromise   = null;
+    this._pitchShiftWorkletModulePromise = null;
     this._mediaPitchAnalyzers = new Set();
     this._synthFollowCellId = null;
     this._synthFollowVolume = 0;
@@ -200,6 +201,24 @@ export class AudioEngine {
         try { sink.disconnect(); } catch {}
       },
     };
+  }
+
+  async createPitchShiftNode({ pitchShiftMoria = 0 } = {}) {
+    if (!this._ready) await this.init();
+    if (!this._pitchShiftWorkletModulePromise) {
+      this._pitchShiftWorkletModulePromise = this._ctx.audioWorklet.addModule(
+        new URL('./pitch_shift_worklet.js', import.meta.url),
+      );
+    }
+    await this._pitchShiftWorkletModulePromise;
+
+    const node = new AudioWorkletNode(this._ctx, 'pitch-shift-processor', {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    node.port.postMessage({ type: 'pitch_shift', moria: pitchShiftMoria });
+    return node;
   }
 
   // Build and send the tuning table from grid cells.

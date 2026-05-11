@@ -1,8 +1,8 @@
 import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
 import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2f';
-import { AudioEngine    } from './audio/audio_engine.js?v=media-import-1';
+import { AudioEngine    } from './audio/audio_engine.js?v=reference-player-1';
 import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
-import { Singscope      } from './ui/singscope.js?v=media-import-1';
+import { Singscope      } from './ui/singscope.js?v=reference-player-1';
 import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
 import { Metronome      } from './ui/metronome.js?v=0.2.0-alpha.0';
@@ -134,6 +134,10 @@ const METUBE_QUERY_PARAM = 'metube';
 const DEFAULT_METUBE_BASE_URL = 'https://metube.lab.alwaysdobetterllc.com';
 const METUBE_POLL_INTERVAL_MS = 2000;
 const METUBE_TIMEOUT_MS = 10 * 60 * 1000;
+const REFERENCE_SEEK_STEP_MS = 10000;
+const REFERENCE_TRACE_PREFILL_MS = 12000;
+const REFERENCE_PITCH_MIN_MORIA = -72;
+const REFERENCE_PITCH_MAX_MORIA = 72;
 
 const app = {
   grid:            null,
@@ -199,6 +203,8 @@ const app = {
   recordingCounter:  0,
   recordings:        [],
   activeRecordingPlayback: null,
+  referencePlaybackRate: 1,
+  referencePitchShiftMoria: 0,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -341,7 +347,12 @@ function wireAudioInit() {
   const statusEl = document.getElementById('audio-status');
 
   async function ensureAudio() {
-    if (app.engine.ready) return;
+    if (app.engine.ready) {
+      if (app.engine.audioContext?.state === 'suspended') {
+        await app.engine.audioContext.resume();
+      }
+      return;
+    }
     try {
       await app.engine.init();
       statusEl.textContent = '▶ Audio on';
@@ -440,14 +451,24 @@ function handlePitchEvent(msg) {
   }
 }
 
-function normalizePitchMessage(input, lastCellId = null) {
+function normalizePitchMessage(input, lastCellId = null, options = {}) {
   const msg = { ...input };
+  const pitchShiftMoria = Number.isFinite(options.pitchShiftMoria)
+    ? options.pitchShiftMoria
+    : 0;
+  let rawMoria = null;
   if (
     typeof msg.detected_hz === 'number' &&
     Number.isFinite(msg.detected_hz) &&
     msg.detected_hz > 0
   ) {
-    msg.raw_moria = 72 * Math.log2(msg.detected_hz / app.refNiHz);
+    rawMoria = 72 * Math.log2(msg.detected_hz / app.refNiHz);
+  } else if (Number.isFinite(msg.raw_moria)) {
+    rawMoria = msg.raw_moria;
+  }
+
+  if (rawMoria !== null) {
+    msg.raw_moria = rawMoria + pitchShiftMoria;
   } else {
     msg.raw_moria = null;
   }
@@ -2289,14 +2310,18 @@ function wireRecordingControls() {
     stopRecordingPlayback();
   });
 
+  wireReferencePlayerControls();
+  wireReferencePlaybackLifecycle();
+
   document.getElementById('recording-upload-input')?.addEventListener('change', event => {
-    importMediaFiles([...event.currentTarget.files])
+    const input = event.currentTarget;
+    importMediaFiles([...input.files])
       .catch(e => {
         console.error('Media file import failed', e);
         setRecordingStatus('Could not import the selected media.');
       })
       .finally(() => {
-        event.currentTarget.value = '';
+        input.value = '';
       });
   });
 
@@ -2310,6 +2335,87 @@ function wireRecordingControls() {
 
   renderRecordings();
   updateRecordingControls();
+}
+
+function wireReferencePlayerControls() {
+  document.getElementById('reference-play-pause-btn')?.addEventListener('click', () => {
+    const playback = app.activeRecordingPlayback;
+    if (!playback) return;
+    if (playback.state === 'playing') pauseReferencePlayback('paused');
+    else {
+      if (playback.state === 'ended') seekReferencePlayback(0);
+      resumeReferencePlayback(playback);
+    }
+  });
+
+  document.getElementById('reference-stop-btn')?.addEventListener('click', () => {
+    stopRecordingPlayback();
+  });
+
+  document.getElementById('reference-restart-btn')?.addEventListener('click', () => {
+    const playback = app.activeRecordingPlayback;
+    if (!playback) return;
+    seekReferencePlayback(0);
+    resumeReferencePlayback(playback);
+  });
+
+  document.getElementById('reference-back-btn')?.addEventListener('click', () => {
+    seekReferencePlayback((app.activeRecordingPlayback?.currentTimeMs || 0) - REFERENCE_SEEK_STEP_MS);
+  });
+
+  document.getElementById('reference-forward-btn')?.addEventListener('click', () => {
+    seekReferencePlayback((app.activeRecordingPlayback?.currentTimeMs || 0) + REFERENCE_SEEK_STEP_MS);
+  });
+
+  const seek = document.getElementById('reference-player-seek');
+  seek?.addEventListener('input', () => {
+    const playback = app.activeRecordingPlayback;
+    if (!playback) return;
+    playback.userSeeking = true;
+    updateReferencePlayerTime(Number(seek.value), playback.durationMs);
+  });
+  seek?.addEventListener('change', () => {
+    const playback = app.activeRecordingPlayback;
+    if (!playback) return;
+    playback.userSeeking = false;
+    seekReferencePlayback(Number(seek.value));
+  });
+
+  document.getElementById('reference-speed-select')?.addEventListener('change', event => {
+    setReferencePlaybackRate(Number(event.currentTarget.value));
+  });
+
+  document.getElementById('reference-pitch-slider')?.addEventListener('input', event => {
+    setReferencePitchShift(Number(event.currentTarget.value));
+  });
+
+  document.getElementById('reference-pitch-reset-btn')?.addEventListener('click', () => {
+    setReferencePitchShift(0);
+  });
+
+  document.querySelectorAll('[data-reference-pitch-step]').forEach(button => {
+    button.addEventListener('click', () => {
+      const step = Number(button.dataset.referencePitchStep);
+      setReferencePitchShift(app.referencePitchShiftMoria + step);
+    });
+  });
+}
+
+function wireReferencePlaybackLifecycle() {
+  const suspend = () => {
+    if (document.visibilityState === 'hidden') {
+      suspendReferencePlayback('Page hidden. Playback paused.');
+    }
+  };
+  document.addEventListener('visibilitychange', suspend);
+  window.addEventListener('pagehide', () => suspendReferencePlayback('Page hidden. Playback paused.'));
+  window.addEventListener('pageshow', () => {
+    const playback = app.activeRecordingPlayback;
+    if (playback?.state === 'suspended') {
+      setRecordingStatus(`Playback paused at ${formatDuration(playback.currentTimeMs)}.`);
+      renderReferencePlayer();
+    }
+  });
 }
 
 async function startRecording() {
@@ -2427,6 +2533,7 @@ async function finalizeRecording() {
     createdAt: new Date(),
     sourceKind: 'mic',
     analyzeDuringPlayback: false,
+    pitchAnalysisComplete: true,
   };
 
   app.recordings.unshift(recording);
@@ -2784,6 +2891,7 @@ async function importMediaBlob(blob, options = {}) {
     sourceKind: options.sourceKind || 'upload',
     sourceUrl: options.sourceUrl || null,
     analyzeDuringPlayback: true,
+    pitchAnalysisComplete: false,
   };
 
   app.recordings.unshift(recording);
@@ -2999,8 +3107,12 @@ function renderRecordings() {
   }
 
   for (const recording of app.recordings) {
+    const active = app.activeRecordingPlayback?.id === recording.id
+      ? app.activeRecordingPlayback
+      : null;
     const row = document.createElement('div');
     row.className = 'recording-item';
+    if (active) row.classList.add('active');
 
     const meta = document.createElement('div');
     meta.className = 'recording-meta';
@@ -3018,10 +3130,10 @@ function renderRecordings() {
 
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
-    playBtn.textContent = app.activeRecordingPlayback?.id === recording.id ? 'Stop' : 'Play';
+    playBtn.textContent = active?.state === 'playing' ? 'Pause' : 'Play';
+    playBtn.disabled = active?.state === 'loading';
     playBtn.addEventListener('click', () => {
-      if (app.activeRecordingPlayback?.id === recording.id) stopRecordingPlayback();
-      else playRecording(recording);
+      playRecording(recording);
     });
 
     const download = document.createElement('a');
@@ -3050,91 +3162,409 @@ async function playRecording(recording) {
     setRecordingStatus('Stop recording before playback.');
     return;
   }
-  stopRecordingPlayback();
-  app.singscope?.clear();
+
+  const active = app.activeRecordingPlayback;
+  if (active?.id === recording.id) {
+    if (active.state === 'playing') pauseReferencePlayback('paused');
+    else {
+      if (active.state === 'ended') seekReferencePlayback(0);
+      resumeReferencePlayback(active);
+    }
+    return;
+  }
+
+  stopRecordingPlayback({ silent: true });
+  app.singscope?.clear('reference');
   showSingView();
   await app.ensureAudio?.();
-  const analyzeDuringPlayback = shouldAnalyzeRecordingPlayback(recording);
-  if (!analyzeDuringPlayback) await ensureRecordingNormalized(recording);
 
-  const audio = new Audio(recording.url);
-  let idx = 0;
-  let rafId = null;
-  let referenceLastCellId = null;
-
-  if (analyzeDuringPlayback) {
+  const analyzing = shouldAnalyzeRecordingPlayback(recording);
+  if (!analyzing) await ensureRecordingNormalized(recording);
+  if (analyzing) {
     recording.pitchEvents = [];
+    recording.pitchAnalysisComplete = false;
     renderRecordings();
   }
 
-  const captureReferencePitch = rawMsg => {
-    if (rawMsg.type !== 'pitch') return;
-    if (app.activeRecordingPlayback?.audio !== audio) return;
-    const normalized = normalizePitchMessage(rawMsg, referenceLastCellId);
-    referenceLastCellId = normalized.lastCellId;
-    const msg = normalized.msg;
-    const pitchEvent = {
-      t: Math.max(0, audio.currentTime * 1000),
-      msg: compactPitchMessage(msg),
-    };
-    recording.pitchEvents.push(pitchEvent);
-    app.singscope?.pushReferencePitch(msg);
+  const playback = {
+    id: recording.id,
+    recording,
+    audio: null,
+    rafId: null,
+    graph: null,
+    state: 'idle',
+    idx: 0,
+    referenceLastCellId: null,
+    analysisLastCellId: null,
+    currentTimeMs: 0,
+    durationMs: recording.durationMs || 0,
+    playbackRate: app.referencePlaybackRate,
+    pitchShiftMoria: app.referencePitchShiftMoria,
+    analyzing,
+    userSeeking: false,
+    handlers: null,
+    resumeToken: null,
   };
 
-  const stereoGraph = await createStereoPlaybackGraph(audio, {
-    onPitch: analyzeDuringPlayback ? captureReferencePitch : null,
-  });
-
-  const pushDuePitch = () => {
-    if (analyzeDuringPlayback) return;
-    const t = audio.currentTime * 1000;
-    while (idx < recording.pitchEvents.length && recording.pitchEvents[idx].t <= t) {
-      app.singscope?.pushReferencePitch(recording.pitchEvents[idx].msg);
-      idx++;
-    }
-  };
-
-  const tick = () => {
-    pushDuePitch();
-    if (!audio.paused && !audio.ended) {
-      rafId = requestAnimationFrame(tick);
-      if (app.activeRecordingPlayback) app.activeRecordingPlayback.rafId = rafId;
-    }
-  };
-
-  const cleanup = () => {
-    if (rafId !== null) cancelAnimationFrame(rafId);
-    stereoGraph?.cleanup?.();
-    if (app.activeRecordingPlayback?.audio === audio) {
-      app.activeRecordingPlayback = null;
-      setRecordingStatus(analyzeDuringPlayback && recording.pitchEvents.length
-        ? `Playback finished. Captured ${recording.pitchEvents.length} reference points.`
-        : 'Playback finished.');
-      renderRecordings();
-      updateRecordingControls();
-    }
-  };
-
-  audio.addEventListener('play', () => {
-    setRecordingStatus(`Playing ${recording.name}.`);
-    rafId = requestAnimationFrame(tick);
-  });
-  audio.addEventListener('ended', () => {
-    pushDuePitch();
-    cleanup();
-  });
-  audio.addEventListener('pause', () => {
-    if (!audio.ended && app.activeRecordingPlayback?.audio === audio) cleanup();
-  });
-
-  app.activeRecordingPlayback = { id: recording.id, audio, rafId: null, stereoGraph };
+  app.activeRecordingPlayback = playback;
+  prepareReferencePlaybackCursor(playback);
+  app.singscope?.setReferencePlayheadMs(0);
   renderRecordings();
   updateRecordingControls();
-  audio.play().catch(e => {
+
+  await resumeReferencePlayback(playback);
+}
+
+async function resumeReferencePlayback(playback = app.activeRecordingPlayback) {
+  if (!playback) return;
+  const resumeToken = Symbol('reference-resume');
+  playback.resumeToken = resumeToken;
+  try {
+    playback.state = 'loading';
+    renderReferencePlayer();
+    await app.ensureAudio?.();
+    await ensureReferencePlaybackResources(playback);
+    if (
+      app.activeRecordingPlayback !== playback ||
+      playback.resumeToken !== resumeToken ||
+      playback.state !== 'loading'
+    ) {
+      teardownReferencePlaybackResources(playback);
+      return;
+    }
+    setAudioPreservesPitch(playback.audio);
+    playback.audio.playbackRate = playback.playbackRate;
+    playback.audio.currentTime = Math.max(0, playback.currentTimeMs / 1000);
+    await playback.audio.play();
+  } catch (e) {
     console.error('Recording playback failed', e);
+    if (app.activeRecordingPlayback !== playback) return;
+    playback.state = 'error';
     setRecordingStatus('Could not play this recording.');
-    cleanup();
+    renderReferencePlayer();
+  }
+}
+
+async function ensureReferencePlaybackResources(playback) {
+  if (playback.audio) return;
+
+  const audio = new Audio(playback.recording.url);
+  audio.preload = 'auto';
+  setAudioPreservesPitch(audio);
+  audio.playbackRate = playback.playbackRate;
+
+  const handlers = {
+    play: () => {
+      playback.state = 'playing';
+      setRecordingStatus(`Playing ${playback.recording.name}.`);
+      startReferencePlaybackTick(playback);
+      renderRecordings();
+      updateRecordingControls();
+    },
+    pause: () => {
+      if (audio.ended || playback.state === 'suspended') return;
+      if (playback.state === 'playing' || playback.state === 'loading') {
+        playback.state = 'paused';
+        playback.currentTimeMs = audio.currentTime * 1000;
+        stopReferencePlaybackTick(playback);
+        setRecordingStatus(`Paused at ${formatDuration(playback.currentTimeMs)}.`);
+        renderRecordings();
+        updateRecordingControls();
+      }
+    },
+    ended: () => finishReferencePlayback(playback),
+    loadedmetadata: () => {
+      playback.durationMs = Number.isFinite(audio.duration)
+        ? audio.duration * 1000
+        : playback.recording.durationMs || playback.durationMs;
+      renderReferencePlayer();
+    },
+  };
+
+  audio.addEventListener('play', handlers.play);
+  audio.addEventListener('pause', handlers.pause);
+  audio.addEventListener('ended', handlers.ended);
+  audio.addEventListener('loadedmetadata', handlers.loadedmetadata);
+
+  playback.audio = audio;
+  playback.handlers = handlers;
+  playback.graph = await createStereoPlaybackGraph(audio, {
+    onPitch: playback.analyzing ? rawMsg => captureReferencePitch(playback, rawMsg) : null,
+    pitchShiftMoria: playback.pitchShiftMoria,
   });
+}
+
+function captureReferencePitch(playback, rawMsg) {
+  if (rawMsg.type !== 'pitch' || app.activeRecordingPlayback !== playback) return;
+  const base = normalizePitchMessage(rawMsg, playback.analysisLastCellId);
+  playback.analysisLastCellId = base.lastCellId;
+  const pitchEvent = {
+    t: Math.max(0, playback.audio.currentTime * 1000),
+    msg: compactPitchMessage(base.msg),
+  };
+  playback.recording.pitchEvents.push(pitchEvent);
+  displayReferencePitchEvent(playback, pitchEvent);
+}
+
+function startReferencePlaybackTick(playback) {
+  stopReferencePlaybackTick(playback);
+  const tick = () => {
+    if (app.activeRecordingPlayback !== playback || playback.state !== 'playing') return;
+    playback.currentTimeMs = (playback.audio?.currentTime || 0) * 1000;
+    playback.durationMs = Number.isFinite(playback.audio?.duration)
+      ? playback.audio.duration * 1000
+      : playback.durationMs;
+    app.singscope?.setReferencePlayheadMs(playback.currentTimeMs);
+    pushDueReferencePitchEvents(playback);
+    renderReferencePlayer();
+    playback.rafId = requestAnimationFrame(tick);
+  };
+  playback.rafId = requestAnimationFrame(tick);
+}
+
+function stopReferencePlaybackTick(playback) {
+  if (playback?.rafId !== null && playback?.rafId !== undefined) {
+    cancelAnimationFrame(playback.rafId);
+    playback.rafId = null;
+  }
+}
+
+function pushDueReferencePitchEvents(playback) {
+  if (playback.analyzing) return;
+  const events = playback.recording.pitchEvents || [];
+  while (playback.idx < events.length && events[playback.idx].t <= playback.currentTimeMs) {
+    displayReferencePitchEvent(playback, events[playback.idx]);
+    playback.idx++;
+  }
+}
+
+function displayReferencePitchEvent(playback, event) {
+  const display = normalizePitchMessage(event.msg, playback.referenceLastCellId, {
+    pitchShiftMoria: playback.pitchShiftMoria,
+  });
+  playback.referenceLastCellId = display.lastCellId;
+  app.singscope?.pushReferencePitch(display.msg, { atMs: event.t });
+}
+
+function prepareReferencePlaybackCursor(playback) {
+  const events = playback.recording.pitchEvents || [];
+  playback.idx = lowerBoundPitchEvent(events, playback.currentTimeMs);
+  playback.referenceLastCellId = null;
+}
+
+function lowerBoundPitchEvent(events, timeMs) {
+  let lo = 0;
+  let hi = events.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if ((events[mid]?.t ?? 0) < timeMs) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function finishReferencePlayback(playback) {
+  if (app.activeRecordingPlayback !== playback) return;
+  stopReferencePlaybackTick(playback);
+  playback.state = 'ended';
+  playback.currentTimeMs = playback.durationMs || playback.currentTimeMs;
+  playback.analyzing = false;
+  if (playback.recording.pitchEvents.length) {
+    playback.recording.pitchEvents.sort((a, b) => (a.t || 0) - (b.t || 0));
+    playback.recording.analyzeDuringPlayback = false;
+    playback.recording.pitchAnalysisComplete = true;
+  }
+  app.singscope?.setReferencePlayheadMs(playback.currentTimeMs);
+  setRecordingStatus(playback.recording.pitchEvents.length
+    ? `Playback finished. Captured ${playback.recording.pitchEvents.length} reference points.`
+    : 'Playback finished.');
+  renderRecordings();
+  updateRecordingControls();
+}
+
+function pauseReferencePlayback(state = 'paused') {
+  const playback = app.activeRecordingPlayback;
+  if (!playback) return;
+  playback.state = state;
+  playback.currentTimeMs = Number.isFinite(playback.audio?.currentTime)
+    ? playback.audio.currentTime * 1000
+    : playback.currentTimeMs;
+  stopReferencePlaybackTick(playback);
+  playback.audio?.pause();
+  app.singscope?.setReferencePlayheadMs(playback.currentTimeMs);
+  setRecordingStatus(state === 'suspended'
+    ? `Playback paused at ${formatDuration(playback.currentTimeMs)}.`
+    : `Paused at ${formatDuration(playback.currentTimeMs)}.`);
+  renderRecordings();
+  updateRecordingControls();
+}
+
+function suspendReferencePlayback(message) {
+  const playback = app.activeRecordingPlayback;
+  if (!playback || !['playing', 'loading', 'paused'].includes(playback.state)) return;
+  pauseReferencePlayback('suspended');
+  teardownReferencePlaybackResources(playback);
+  if (message) setRecordingStatus(message);
+  renderReferencePlayer();
+}
+
+function teardownReferencePlaybackResources(playback) {
+  if (!playback) return;
+  stopReferencePlaybackTick(playback);
+
+  if (playback.audio && playback.handlers) {
+    playback.audio.removeEventListener('play', playback.handlers.play);
+    playback.audio.removeEventListener('pause', playback.handlers.pause);
+    playback.audio.removeEventListener('ended', playback.handlers.ended);
+    playback.audio.removeEventListener('loadedmetadata', playback.handlers.loadedmetadata);
+  }
+
+  if (playback.audio) {
+    try { playback.audio.pause(); } catch {}
+    try { playback.audio.removeAttribute('src'); } catch {}
+    try { playback.audio.load(); } catch {}
+  }
+
+  playback.graph?.cleanup?.();
+  playback.graph = null;
+  playback.audio = null;
+  playback.handlers = null;
+}
+
+function seekReferencePlayback(timeMs) {
+  const playback = app.activeRecordingPlayback;
+  if (!playback) return;
+
+  const durationMs = playback.durationMs || playback.recording.durationMs || 0;
+  const clampedMs = Math.max(0, durationMs ? Math.min(timeMs, durationMs) : timeMs);
+  playback.currentTimeMs = clampedMs;
+  playback.state = playback.state === 'ended' ? 'paused' : playback.state;
+
+  if (playback.audio) {
+    playback.audio.currentTime = clampedMs / 1000;
+  }
+
+  if (playback.analyzing) {
+    playback.recording.pitchEvents = [];
+    playback.recording.pitchAnalysisComplete = false;
+    playback.analysisLastCellId = null;
+    renderRecordings();
+  }
+  rebuildReferenceTrace(playback);
+  setRecordingStatus(`Playback position ${formatDuration(playback.currentTimeMs)}.`);
+  renderReferencePlayer();
+}
+
+function rebuildReferenceTrace(playback) {
+  app.singscope?.clear('reference');
+  app.singscope?.setReferencePlayheadMs(playback.currentTimeMs);
+  playback.referenceLastCellId = null;
+
+  const events = playback.recording.pitchEvents || [];
+  const startMs = Math.max(0, playback.currentTimeMs - REFERENCE_TRACE_PREFILL_MS);
+  let idx = lowerBoundPitchEvent(events, startMs);
+  while (idx < events.length && events[idx].t <= playback.currentTimeMs) {
+    displayReferencePitchEvent(playback, events[idx]);
+    idx++;
+  }
+  playback.idx = idx;
+}
+
+function setReferencePlaybackRate(rate) {
+  const nextRate = Number.isFinite(rate)
+    ? Math.max(0.25, Math.min(2, rate))
+    : 1;
+  app.referencePlaybackRate = nextRate;
+  const playback = app.activeRecordingPlayback;
+  if (playback) {
+    playback.playbackRate = nextRate;
+    if (playback.audio) {
+      setAudioPreservesPitch(playback.audio);
+      playback.audio.playbackRate = nextRate;
+    }
+  }
+  renderReferencePlayer();
+}
+
+function setReferencePitchShift(moria) {
+  const nextMoria = Number.isFinite(moria)
+    ? Math.max(REFERENCE_PITCH_MIN_MORIA, Math.min(REFERENCE_PITCH_MAX_MORIA, Math.round(moria)))
+    : 0;
+  app.referencePitchShiftMoria = nextMoria;
+  const playback = app.activeRecordingPlayback;
+  if (playback) {
+    playback.pitchShiftMoria = nextMoria;
+    playback.graph?.setPitchShift?.(nextMoria);
+    rebuildReferenceTrace(playback);
+  }
+  renderReferencePlayer();
+}
+
+function setAudioPreservesPitch(audio) {
+  if (!audio) return;
+  audio.preservesPitch = true;
+  audio.mozPreservesPitch = true;
+  audio.webkitPreservesPitch = true;
+}
+
+function renderReferencePlayer() {
+  const player = document.getElementById('reference-player');
+  if (!player) return;
+  const playback = app.activeRecordingPlayback;
+  player.classList.toggle('hidden', !playback);
+
+  const title = document.getElementById('reference-player-title');
+  if (title) title.textContent = playback?.recording?.name || 'Reference';
+
+  const durationMs = playback?.durationMs || playback?.recording?.durationMs || 0;
+  const currentMs = playback?.currentTimeMs || 0;
+  updateReferencePlayerTime(currentMs, durationMs);
+
+  const seek = document.getElementById('reference-player-seek');
+  if (seek && playback) {
+    seek.max = String(Math.max(1, Math.round(durationMs)));
+    if (!playback.userSeeking) seek.value = String(Math.round(currentMs));
+    seek.disabled = durationMs <= 0;
+  } else if (seek) {
+    seek.value = '0';
+    seek.disabled = true;
+  }
+
+  const playPause = document.getElementById('reference-play-pause-btn');
+  if (playPause) {
+    playPause.disabled = !playback || playback.state === 'loading';
+    playPause.textContent = playback?.state === 'playing' ? 'Pause' : 'Play';
+  }
+
+  const stop = document.getElementById('reference-stop-btn');
+  if (stop) stop.disabled = !playback;
+  const restart = document.getElementById('reference-restart-btn');
+  if (restart) restart.disabled = !playback;
+  const back = document.getElementById('reference-back-btn');
+  if (back) back.disabled = !playback;
+  const forward = document.getElementById('reference-forward-btn');
+  if (forward) forward.disabled = !playback;
+
+  const speed = document.getElementById('reference-speed-select');
+  if (speed) speed.value = String(playback?.playbackRate ?? app.referencePlaybackRate);
+
+  const pitchSlider = document.getElementById('reference-pitch-slider');
+  if (pitchSlider) pitchSlider.value = String(playback?.pitchShiftMoria ?? app.referencePitchShiftMoria);
+  const pitchReadout = document.getElementById('reference-pitch-readout');
+  if (pitchReadout) pitchReadout.textContent = formatPitchShift(playback?.pitchShiftMoria ?? app.referencePitchShiftMoria);
+}
+
+function updateReferencePlayerTime(currentMs = 0, durationMs = 0) {
+  const time = document.getElementById('reference-player-time');
+  if (time) {
+    time.textContent = `${formatDuration(currentMs)} / ${formatDuration(durationMs)}`;
+  }
+}
+
+function formatPitchShift(moria) {
+  const value = Number.isFinite(moria) ? Math.round(moria) : 0;
+  if (value === 0) return '0m';
+  return `${value > 0 ? '+' : ''}${value}m`;
 }
 
 async function ensureRecordingNormalized(recording) {
@@ -3158,17 +3588,30 @@ async function createStereoPlaybackGraph(audio, options = {}) {
   if (!ctx) return null;
 
   let source = null;
-  let merger = null;
+  let pitchNode = null;
   let analyzer = null;
+  let routedDirect = false;
   try {
     source = ctx.createMediaElementSource(audio);
-    merger = ctx.createChannelMerger(2);
-    source.connect(merger, 0, 0);
-    source.connect(merger, 0, 1);
-    merger.connect(ctx.destination);
   } catch (e) {
     console.warn('Stereo recording playback routing unavailable; using direct element output.', e);
     return null;
+  }
+
+  try {
+    pitchNode = await app.engine.createPitchShiftNode({
+      pitchShiftMoria: Number.isFinite(options.pitchShiftMoria) ? options.pitchShiftMoria : 0,
+    });
+    source.connect(pitchNode);
+    pitchNode.connect(ctx.destination);
+  } catch (e) {
+    console.warn('Reference pitch shifter unavailable; using direct media output.', e);
+    try {
+      source.connect(ctx.destination);
+      routedDirect = true;
+    } catch (routeError) {
+      console.warn('Recording playback routing unavailable.', routeError);
+    }
   }
 
   if (options.onPitch) {
@@ -3182,23 +3625,29 @@ async function createStereoPlaybackGraph(audio, options = {}) {
   }
 
   return {
+    setPitchShift: moria => {
+      pitchNode?.port?.postMessage?.({ type: 'pitch_shift', moria });
+    },
     cleanup: () => {
       analyzer?.cleanup?.();
+      try { pitchNode?.disconnect(); } catch {}
       try { source.disconnect(); } catch {}
-      try { merger.disconnect(); } catch {}
+      if (routedDirect) {
+        try { source.disconnect(ctx.destination); } catch {}
+      }
     },
   };
 }
 
-function stopRecordingPlayback() {
+function stopRecordingPlayback(options = {}) {
   const playback = app.activeRecordingPlayback;
   if (!playback) return;
-  if (playback.rafId !== null) cancelAnimationFrame(playback.rafId);
-  playback.stereoGraph?.cleanup?.();
-  playback.audio.pause();
-  playback.audio.currentTime = 0;
+  playback.state = 'stopped';
+  teardownReferencePlaybackResources(playback);
   app.activeRecordingPlayback = null;
-  setRecordingStatus('Playback stopped.');
+  app.singscope?.clear('reference');
+  app.singscope?.setReferencePlayheadMs(null);
+  if (!options.silent) setRecordingStatus('Playback stopped.');
   renderRecordings();
   updateRecordingControls();
 }
@@ -3225,6 +3674,7 @@ function updateRecordingControls() {
   if (stopPlaybackBtn) {
     stopPlaybackBtn.disabled = !app.activeRecordingPlayback;
   }
+  renderReferencePlayer();
   if (isRecording) {
     setRecordingStatus(`Recording ${formatDuration(performance.now() - app.recordingStartedAt)}`);
   }
@@ -3271,11 +3721,14 @@ function recordingDetails(recording) {
   const source = recording.sourceKind === 'mic'
     ? (recording.normalized ? 'normalized' : recording.extension)
     : recordingSourceLabel(recording);
-  const pitchLabel = recording.analyzeDuringPlayback
-    ? (recording.pitchEvents.length
-      ? `${recording.pitchEvents.length} reference points`
-      : 'analyzes on play')
-    : `${recording.pitchEvents.length} pitch points`;
+  let pitchLabel = `${recording.pitchEvents.length} pitch points`;
+  if (recording.pitchAnalysisComplete && recording.sourceKind !== 'mic') {
+    pitchLabel = `${recording.pitchEvents.length} reference points`;
+  } else if (recording.analyzeDuringPlayback) {
+    pitchLabel = recording.pitchEvents.length
+      ? `${recording.pitchEvents.length} partial points`
+      : 'analyzes on play';
+  }
   return [
     formatDuration(recording.durationMs),
     source,
@@ -3290,7 +3743,7 @@ function recordingSourceLabel(recording) {
 }
 
 function shouldAnalyzeRecordingPlayback(recording) {
-  return Boolean(recording.analyzeDuringPlayback);
+  return Boolean(recording.analyzeDuringPlayback && !recording.pitchAnalysisComplete);
 }
 
 function parseMediaUrl(rawUrl) {
