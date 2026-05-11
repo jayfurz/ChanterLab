@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Glyph Reference Atlas</title>
+<style>
+  @font-face {
+    font-family: 'Neanes';
+    src: url('../fonts/neanes/Neanes.otf') format('opentype');
+    font-display: block;
+  }
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #1c1f24; color: #e5e7eb; }
+  header { padding: 12px 16px; border-bottom: 1px solid #2c313a; display: flex; gap: 12px; align-items: center; }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  main { display: grid; grid-template-columns: 240px 1fr; gap: 16px; padding: 16px; }
+  .panel { background: #232830; border: 1px solid #2c313a; border-radius: 6px; padding: 12px; }
+  .panel h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa3af; }
+  label { display: block; margin: 6px 0; font-size: 12px; color: #cbd2da; }
+  label input[type="number"] {
+    width: 100%; box-sizing: border-box; background: #1a1d22; color: #e5e7eb; border: 1px solid #353b45; border-radius: 4px; padding: 6px 8px; font: inherit;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  button { background: #3b82f6; color: white; border: 0; border-radius: 4px; padding: 7px 12px; font: inherit; cursor: pointer; width: 100%; margin-top: 8px; }
+  button.secondary { background: #353b45; }
+  .canvas-wrap { background: #f8f9fa; border-radius: 6px; padding: 12px; overflow: auto; max-height: calc(100vh - 96px); }
+  canvas { display: block; }
+  #status { font-size: 12px; color: #9aa3af; margin-top: 8px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Glyph Reference Atlas</h1>
+</header>
+<main>
+  <div class="panel">
+    <h2>Layout</h2>
+    <div class="row">
+      <label>Columns <input id="columns" type="number" value="10" min="2" max="20"></label>
+      <label>Cell width <input id="cellWidth" type="number" value="160" min="80" max="300"></label>
+      <label>Cell height <input id="cellHeight" type="number" value="135" min="60" max="300"></label>
+      <label>Glyph size <input id="glyphSize" type="number" value="42" min="16" max="160"></label>
+    </div>
+    <label>Label size <input id="labelSize" type="number" value="10" min="7" max="16"></label>
+    <button id="renderBtn">Re-render</button>
+    <button id="downloadBtn" class="secondary" disabled>Download PNG</button>
+    <div id="status"></div>
+  </div>
+  <div class="canvas-wrap">
+    <canvas id="atlas"></canvas>
+  </div>
+</main>
+<script type="module" src="atlas/atlas_harness.js"></script>
+</body>
+</html>

@@ -10,6 +10,34 @@ import {
 } from './chant_score.js';
 import { compileChantScore } from './compiler.js?v=chant-script-engine-phase6w';
 import { DIAGNOSTIC_SEVERITY, pushDiagnostic } from './diagnostics.js';
+import { resolveGlyphGroups } from './glyph_group_resolver.js';
+import {
+  decomposeToAtomicParts,
+  composedNameFromParts,
+  composedNameCandidatesFromParts,
+  movementForComposedName,
+  qualityForComposedName,
+  COMPOSITION_LOOKUP,
+  MOVEMENT_TABLE,
+} from './glyph_decompose.js';
+
+// Glyph names that are PRIMARILY ornamental attachments — never body glyphs.
+// When OCR detects these alone, they act as self-anchored neumes; when next to
+// a body, they're grouped as modifiers for composition lookup.
+const ATOMIC_ORNAMENTAL_NAMES = new Set(
+  (() => {
+    const bodyNames = new Set(
+      Object.values(COMPOSITION_LOOKUP).map(entry => entry.parts[0])
+    );
+    const allParts = new Set(
+      Object.values(COMPOSITION_LOOKUP).flatMap(entry => entry.parts)
+    );
+    // Only include names that are NEVER a body in any entry.
+    return [...allParts].filter(name => !bodyNames.has(name));
+  })()
+);
+
+const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
 
 const UNICODE_BYZANTINE_START = 0x1D000;
 const UNICODE_BYZANTINE_END = 0x1D0FF;
@@ -173,6 +201,22 @@ const GLYPH_METADATA = Object.freeze({
   chroaKlitonAbove: qualitative('chroaKlitonAbove', 'U+E19E', undefined, 'kliton'),
   chroaSpathiAbove: qualitative('chroaSpathiAbove', 'U+E19F', undefined, 'spathi'),
 
+  vareia: qualitative('vareia', 'U+E0A0', undefined, 'vareia'),
+  psifiston: qualitative('psifiston', 'U+E0A1', undefined, 'psifiston'),
+  antikenoma: qualitative('antikenoma', 'U+E0A2', undefined, 'antikenoma'),
+  omalon: qualitative('omalon', 'U+E0A3', undefined, 'omalon'),
+  omalonConnecting: qualitative('omalonConnecting', 'U+E0A4', undefined, 'omalon'),
+  heteron: qualitative('heteron', 'U+E0A5', undefined, 'heteron'),
+  heteronConnecting: qualitative('heteronConnecting', 'U+E0A6', undefined, 'heteron'),
+  endofonon: qualitative('endofonon', 'U+E0A7', undefined, 'endofonon'),
+  yfenAbove: qualitative('yfenAbove', 'U+E0B0', undefined, 'yfen'),
+  yfenBelow: qualitative('yfenBelow', 'U+E0B1', undefined, 'yfen'),
+  stavros: qualitative('stavros', 'U+E0C0', undefined, 'stavros'),
+  stavrosAbove: qualitative('stavrosAbove', 'U+E0C8', undefined, 'stavros'),
+  breath: qualitative('breath', 'U+E0C1', undefined, 'breath'),
+  gorthmikon: qualitative('gorthmikon', 'U+E280', undefined, 'gorthmikon'),
+  pelastikon: qualitative('pelastikon', 'U+E281', undefined, 'pelastikon'),
+
   martyriaNoteNiLow: martyriaNote('martyriaNoteNiLow', 'U+E131', 'Ni', -1),
   martyriaNotePaLow: martyriaNote('martyriaNotePaLow', 'U+E132', 'Pa', -1),
   martyriaNoteVouLow: martyriaNote('martyriaNoteVouLow', 'U+E133', 'Vou', -1),
@@ -243,6 +287,13 @@ export function semanticTokenFromGlyph(input, options = {}) {
   });
   const metadata = glyphMetadataForSource(sourceToken);
   if (!metadata) {
+    // OCR path: unrecognised glyph name may be a known atomic ornamental part
+    // (e.g. ypsili, which only exists inside composite glyphs in the font).
+    if (ATOMIC_ORNAMENTAL_NAMES.has(sourceToken.glyphName) && sourceToken.source === 'ocr') {
+      const name = sourceToken.glyphName;
+      const enriched = { ...sourceToken, glyphName: name };
+      return semanticToken('ornamental', { name }, enriched);
+    }
     pushDiagnostic(diagnostics, {
       severity: DIAGNOSTIC_SEVERITY.ERROR,
       code: 'glyph-import-unknown',
@@ -256,12 +307,37 @@ export function semanticTokenFromGlyph(input, options = {}) {
     };
   }
 
+  // OCR path: glyphs that can act as body OR ornamental (kentima, kentimata).
+  // Only override when the source is explicitly OCR — text/synthetic imports keep metadata roles.
+  if (ATOMIC_ORNAMENTAL_NAMES.has(metadata.glyphName) && sourceToken.source === 'ocr') {
+    const enrichedSource = {
+      ...sourceToken,
+      glyphName: sourceToken.glyphName ?? metadata.glyphName,
+      codepoint: sourceToken.codepoint ?? metadata.codepoint,
+      alternateCodepoint: sourceToken.alternateCodepoint ?? metadata.alternateCodepoint,
+    };
+    return semanticToken('ornamental', {
+      name: metadata.glyphName,
+      glyphName: metadata.glyphName,
+    }, enrichedSource);
+  }
+
   const enrichedSource = {
     ...sourceToken,
     glyphName: sourceToken.glyphName ?? metadata.glyphName,
     codepoint: sourceToken.codepoint ?? metadata.codepoint,
     alternateCodepoint: sourceToken.alternateCodepoint ?? metadata.alternateCodepoint,
   };
+
+  if (Number.isFinite(enrichedSource.confidence) && enrichedSource.confidence < CONFIDENCE_REVIEW_THRESHOLD) {
+    pushDiagnostic(diagnostics, {
+      severity: DIAGNOSTIC_SEVERITY.REVIEW,
+      code: 'glyph-import-low-confidence',
+      message: `Low-confidence glyph "${enrichedSource.glyphName}" (${enrichedSource.confidence.toFixed(2)}); review before compile.`,
+      source: enrichedSource,
+      detail: { confidence: enrichedSource.confidence, alternates: enrichedSource.alternates ?? [] },
+    });
+  }
 
   if (metadata.role === 'quantity') {
     return semanticToken('quantity', {
@@ -351,6 +427,10 @@ export function normalizeGlyphSourceToken(input, options = {}) {
   const codepoint = sourceCodepoint ?? metadataByName?.codepoint;
   const source = input?.source ?? options.source ?? inferSourceKind(sourceCodepoint);
 
+  const region = normalizeGlyphRegion(input?.region);
+  const confidence = normalizeConfidence(input?.confidence);
+  const alternates = normalizeAlternates(input?.alternates);
+
   return {
     source,
     raw,
@@ -362,7 +442,53 @@ export function normalizeGlyphSourceToken(input, options = {}) {
     ...(input?.span
       ? { span: input.span }
       : Number.isInteger(options.index) ? { span: { start: options.index, end: options.index + 1 } } : {}),
+    ...(region ? { region } : {}),
+    ...(confidence !== undefined ? { confidence } : {}),
+    ...(alternates ? { alternates } : {}),
   };
+}
+
+function normalizeGlyphRegion(region) {
+  if (!region || typeof region !== 'object') return undefined;
+  const bbox = normalizeBBox(region.bbox);
+  if (!bbox) return undefined;
+  const out = { bbox };
+  if (Number.isInteger(region.page)) out.page = region.page;
+  if (Number.isInteger(region.line)) out.line = region.line;
+  if (typeof region.role === 'string') out.role = region.role;
+  return out;
+}
+
+function normalizeBBox(bbox) {
+  if (!bbox || typeof bbox !== 'object') return undefined;
+  const { x, y, w, h } = bbox;
+  if (![x, y, w, h].every(value => Number.isFinite(value))) return undefined;
+  if (w <= 0 || h <= 0) return undefined;
+  return { x, y, w, h };
+}
+
+function normalizeConfidence(value) {
+  if (!Number.isFinite(value)) return undefined;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+function normalizeAlternates(alternates) {
+  if (!Array.isArray(alternates) || !alternates.length) return undefined;
+  const cleaned = alternates
+    .map(entry => {
+      if (!entry || typeof entry !== 'object') return undefined;
+      const out = {};
+      if (typeof entry.glyphName === 'string') out.glyphName = entry.glyphName;
+      const codepoint = normalizeCodepoint(entry.codepoint);
+      if (codepoint) out.codepoint = codepoint;
+      const confidence = normalizeConfidence(entry.confidence);
+      if (confidence !== undefined) out.confidence = confidence;
+      return Object.keys(out).length ? out : undefined;
+    })
+    .filter(Boolean);
+  return cleaned.length ? cleaned : undefined;
 }
 
 export function sourceTokensFromGlyphText(text, options = {}) {
@@ -408,7 +534,29 @@ export function semanticTokenGroupsFromGlyphText(text, options = {}) {
     glyphIndex += 1;
   }
 
-  return groupSemanticGlyphTokens(semanticItems, diagnostics);
+  const decomposed = semanticItems.flatMap(token => {
+    if (token.kind === 'separator') return [token];
+    const glyphName = token.value?.glyphName ?? token.source?.[0]?.glyphName;
+    if (!glyphName) return [token];
+    const parts = decomposeToAtomicParts(glyphName);
+    if (!parts || parts.length <= 1) return [token];
+
+    return parts.map(part => ({
+      kind: part.kind,
+      value: {
+        glyphName: part.glyphName,
+        ...(part.kind === 'quantity'
+          ? { movement: { ...token.value.movement }, quality: token.value.quality }
+          : { name: part.glyphName }),
+        ...(part.slot ? { slot: part.slot } : {}),
+        // Preserve the original composed name so the compiler can look it up
+        // without ambiguity (e.g. ypsiliRight vs ypsiliLeft have same parts).
+        _composedName: glyphName,
+      },
+      source: [{ ...(token.source[0] ?? {}), glyphName: part.glyphName, _slot: part.slot }],
+    }));
+  });
+  return groupSemanticGlyphTokens(decomposed, diagnostics);
 }
 
 export function chantScoreFromGlyphGroups(groups, options = {}) {
@@ -590,6 +738,25 @@ function scoreEventFromSemanticGroup(group, context) {
       const currentDegree = degreeFromLinearIndex(context.currentLinear);
       return pthoraEventFromToken(pthoraTokens.at(-1), currentDegree);
     }
+    // Self-anchor: ornamental token with no body acts as its own neume
+    // (e.g. standalone kentima detected by OCR without an adjacent oligon).
+    const ornamentalTokens = group.filter(t => t.kind === 'ornamental');
+    if (ornamentalTokens.length) {
+      const names = ornamentalTokens.map(t => t.value.name).filter(Boolean);
+      if (names.length) {
+        const selfName = composedNameFromParts(names) ?? names[0];
+        const selfMovement = movementForComposedName(selfName) ?? MOVEMENT_TABLE[names[0]];
+        if (selfMovement) {
+          const nextLinear = context.currentLinear + movementDelta(selfMovement);
+          return {
+            type: 'neume',
+            movement: selfMovement,
+            display: { preferredGlyphName: selfName },
+            source: groupSource(group),
+          };
+        }
+      }
+    }
     pushDiagnostic(diagnostics, {
       severity: DIAGNOSTIC_SEVERITY.ERROR,
       code: 'glyph-import-group-missing-quantity',
@@ -600,7 +767,46 @@ function scoreEventFromSemanticGroup(group, context) {
   }
 
   const quantity = quantityTokens[0];
-  const nextLinear = context.currentLinear + movementDelta(quantity.value.movement);
+  const stepTokens = group.filter(token => token.kind === 'ornamental-step' || token.kind === 'ornamental');
+
+  // Prefer the preserved composed name (from decomposition); fall back to parts-based lookup.
+  const inheritedName = quantity.value._composedName
+    ?? stepTokens.find(t => t.value._composedName)?.value._composedName;
+  const glyphNames = group
+    .filter(t => t.kind === 'quantity' || t.kind === 'ornamental-step' || t.kind === 'ornamental')
+    .map(t => t.value.glyphName ?? t.value.name)
+    .filter(Boolean);
+  const composedName = inheritedName
+    ?? (glyphNames.length > 1 ? composedNameFromParts(glyphNames) : null);
+  const lookedUpMovement = composedName ? movementForComposedName(composedName) : null;
+
+  // When OCR detects atomic parts without a _composedName, flag ambiguous cases for review.
+  // Only flag when the candidates have DIFFERENT movements (orthographic variants like
+  // kentima Above/Below/Middle all have the same step value — not ambiguous musically).
+  if (!inheritedName && glyphNames.length > 1) {
+    const candidates = composedNameCandidatesFromParts(glyphNames);
+    const distinctMovements = new Set(
+      candidates.map(c => `${c.movement?.direction ?? ''}${c.movement?.steps ?? ''}`)
+    );
+    if (distinctMovements.size > 1) {
+      pushDiagnostic(diagnostics, {
+        severity: DIAGNOSTIC_SEVERITY.REVIEW,
+        code: 'glyph-import-ambiguous-composition',
+        message: `Ambiguous glyph composition: [${glyphNames.join(', ')}] matched ${candidates.length} variants with ${distinctMovements.size} different movement(s). Used "${composedName}" (steps ${lookedUpMovement?.steps ?? '?'}); alternates available for review.`,
+        source: groupSource(group),
+        detail: {
+          used: composedName,
+          candidates: candidates.map(c => ({
+            name: c.name,
+            movement: c.movement,
+            quality: c.quality,
+          })),
+        },
+      });
+    }
+  }
+  const resolvedMovement = lookedUpMovement ?? { ...quantity.value.movement };
+  const nextLinear = context.currentLinear + movementDelta(resolvedMovement);
   const attachedDegree = degreeFromLinearIndex(nextLinear);
   const pthoraToken = pthoraTokens.at(-1);
   const temporal = temporalEvents(temporalTokens, diagnostics);
@@ -616,7 +822,7 @@ function scoreEventFromSemanticGroup(group, context) {
 
   return {
     type: 'neume',
-    movement: { ...quantity.value.movement },
+    movement: resolvedMovement,
     temporal: temporal.filter(sign => sign.type !== 'unsupported'),
     qualitative: [
       ...(quantity.value.quality
@@ -631,6 +837,11 @@ function scoreEventFromSemanticGroup(group, context) {
         name: token.value.name,
         source: tokenSource(token),
       })),
+      ...stepTokens.map(token => ({
+        type: 'quality',
+        name: token.value.glyphName,
+        source: tokenSource(token),
+      })),
       ...temporal
         .filter(sign => sign.type === 'unsupported')
         .map(sign => ({
@@ -642,7 +853,7 @@ function scoreEventFromSemanticGroup(group, context) {
     ...(durationTokens.length ? { baseBeats: durationTokens.at(-1).value.beats } : {}),
     ...(pthoraToken ? { pthora: pthoraSpecFromToken(pthoraToken, attachedDegree) } : {}),
     display: {
-      preferredGlyphName: quantity.value.glyphName,
+      preferredGlyphName: composedName ?? quantity.value.glyphName,
     },
     source: groupSource(group),
   };
@@ -747,70 +958,7 @@ function normalizeGlyphGroups(groups, diagnostics) {
 }
 
 function groupSemanticGlyphTokens(tokens, diagnostics) {
-  const groups = [];
-  let current = [];
-  let pending = [];
-
-  const flushCurrent = () => {
-    if (current.length) groups.push(current);
-    current = [];
-  };
-
-  for (const token of tokens) {
-    if (token.kind === 'separator') {
-      flushCurrent();
-      if (pending.length) {
-        groups.push(pending);
-        pending = [];
-      }
-      continue;
-    }
-
-    if (isGroupAnchor(token)) {
-      flushCurrent();
-      current = [...pending, token];
-      pending = [];
-      continue;
-    }
-
-    if (isGroupModifier(token)) {
-      if (current.length && current.some(isGroupAnchor)) current.push(token);
-      else pending.push(token);
-      continue;
-    }
-
-    flushCurrent();
-    groups.push([...pending, token]);
-    pending = [];
-  }
-
-  flushCurrent();
-  if (pending.length) {
-    pushDiagnostic(diagnostics, {
-      severity: DIAGNOSTIC_SEVERITY.ERROR,
-      code: 'glyph-import-unattached-modifier',
-      message: 'Glyph modifiers without a quantity or rest sign cannot be imported unambiguously.',
-      source: groupSource(pending),
-    });
-    groups.push(pending);
-  }
-
-  return groups;
-}
-
-function isGroupAnchor(token) {
-  return token?.kind === 'quantity'
-    || token?.kind === 'rest'
-    || token?.kind === 'tempo'
-    || token?.kind === 'martyria-note';
-}
-
-function isGroupModifier(token) {
-  return token?.kind === 'temporal'
-    || token?.kind === 'duration'
-    || token?.kind === 'pthora'
-    || token?.kind === 'qualitative'
-    || token?.kind === 'martyria-sign';
+  return resolveGlyphGroups(tokens, { diagnostics });
 }
 
 function tokenizeGlyphText(text) {
