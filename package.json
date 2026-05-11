@@ -5,6 +5,7 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.100",
+    "@playwright/test": "^1.59.1",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-cpu": "^4.22.0",
     "@tensorflow/tfjs-node": "^4.22.0",
