@@ -10,6 +10,7 @@
 //   { type: 'tuning_table', table: [{cell_id, period_24_8}] }
 //   { type: 'gate_threshold', amp }       — linear 0..1
 //   { type: 'notch_enable', enabled, period_samples, amp }
+//   { type: 'reference_repitch', enabled, playbackRate, pitchShiftMoria }
 //
 // Messages TO main thread (at ~60 Hz):
 //   { type: 'pitch', cell_id, neighbor_id, neighbor_vel, gate_open, confidence }
@@ -561,6 +562,9 @@ class VoiceProcessor extends AudioWorkletProcessor {
 
     this._lastActualPeriod = 0;
     this._lastTargetPeriod = 0;
+    this._referenceRepitch = false;
+    this._referencePlaybackRate = 1;
+    this._referencePitchRatio = 1;
 
     this._blockCount = 0;   // counts FFT_BLOCK-sample blocks
     this._pitchDiv   = 0;   // sub-divides to ~60 Hz pitch events
@@ -597,6 +601,15 @@ class VoiceProcessor extends AudioWorkletProcessor {
               msg.amp != null ? msg.amp : this._notch.amp,
             );
           }
+        }
+        break;
+      case 'reference_repitch':
+        this._referenceRepitch = msg.enabled !== false;
+        if (Number.isFinite(msg.playbackRate)) {
+          this._referencePlaybackRate = Math.max(0.25, Math.min(2, msg.playbackRate));
+        }
+        if (Number.isFinite(msg.pitchShiftMoria)) {
+          this._referencePitchRatio = Math.pow(2, msg.pitchShiftMoria / 72);
         }
         break;
       case 'init_wasm':
@@ -683,10 +696,22 @@ class VoiceProcessor extends AudioWorkletProcessor {
       if (this._notchOn) s = this._notch.process(s);
       const gateOpen = this._gate.process(s);
       this._det.push(s);
+      if (this._referenceRepitch) this._psola.push(s);
 
       const g = this._stepMonitorGain(gateOpen);
-      if (dryOut) dryOut[i] = s * g;
-      if (psolaOut) psolaOut[i] = 0;
+      if (this._referenceRepitch) {
+        const dry = s * g;
+        const wet = this._psola.getSample() * g;
+        const usePsola = this._referenceNeedsRepitch()
+          && this._lastActualPeriod !== 0
+          && this._lastTargetPeriod !== 0;
+        const out = usePsola && Math.abs(wet) > 1e-7 ? wet : dry;
+        if (dryOut) dryOut[i] = out;
+        if (psolaOut) psolaOut[i] = out;
+      } else {
+        if (dryOut) dryOut[i] = s * g;
+        if (psolaOut) psolaOut[i] = 0;
+      }
     }
 
     if (++this._blockCount >= PITCH_RATE_DIV) {
@@ -724,9 +749,11 @@ class VoiceProcessor extends AudioWorkletProcessor {
       let neighborId    = -1;
       let neighborVel   = 0;
 
-      if (gateOpen && this._tuning.length > 0) {
+      if (gateOpen && (this._referenceRepitch || this._tuning.length > 0)) {
         period24_8 = proc.detectPitch();
-        if (period24_8 > 0) {
+        if (this._referenceRepitch && period24_8 > 0) {
+          targetPeriod = this._referenceTargetPeriod(period24_8);
+        } else if (period24_8 > 0) {
           const snap = nearestEnabledCell(this._tuning, period24_8, this._lastCellId);
           if (snap) {
             cellId = snap.primary;
@@ -777,7 +804,34 @@ class VoiceProcessor extends AudioWorkletProcessor {
       });
     }
 
+    if (this._referenceRepitch) this._renderReferenceOutput(dryOut, psolaOut);
     return true;
+  }
+
+  _referenceNeedsRepitch() {
+    return Math.abs(this._referencePlaybackRate - 1) > 0.002
+      || Math.abs(this._referencePitchRatio - 1) > 0.0005;
+  }
+
+  _referenceTargetPeriod(period24_8) {
+    if (!this._referenceNeedsRepitch()) return 0;
+    const target = period24_8 * this._referencePlaybackRate / this._referencePitchRatio;
+    return Math.max(1, Math.min(0x7fffffff, Math.round(target)));
+  }
+
+  _renderReferenceOutput(dryOut, psolaOut) {
+    if (!dryOut) return;
+    const usePsola = this._referenceNeedsRepitch()
+      && this._lastActualPeriod !== 0
+      && this._lastTargetPeriod !== 0
+      && psolaOut;
+    for (let i = 0; i < dryOut.length; i++) {
+      const dry = dryOut[i] || 0;
+      const wet = usePsola ? (psolaOut[i] || 0) : dry;
+      const out = usePsola && Math.abs(wet) > 1e-7 ? wet : dry;
+      dryOut[i] = out;
+      if (psolaOut) psolaOut[i] = out;
+    }
   }
 
   _runPitchAndEmit() {
@@ -788,12 +842,26 @@ class VoiceProcessor extends AudioWorkletProcessor {
     let confidence  = 0;
     let detectedPeriod24_8 = 0;
 
-    if (gateOpen && this._tuning.length > 0) {
+    if (gateOpen && (this._referenceRepitch || this._tuning.length > 0)) {
       const minPeriod24_8 = Math.max(1, Math.floor(sampleRate / 1200 * 256));
       const period24_8    = this._det.detect(minPeriod24_8);
       detectedPeriod24_8 = period24_8;
 
-      if (period24_8 > 0) {
+      if (this._referenceRepitch && period24_8 > 0) {
+        confidence = 1;
+        if (period24_8 !== this._lastActualPeriod) {
+          this._psola.setActualPeriod(period24_8);
+          this._lastActualPeriod = period24_8;
+        }
+        const targetPeriod = this._referenceTargetPeriod(period24_8);
+        if (targetPeriod > 0 && targetPeriod !== this._lastTargetPeriod) {
+          this._psola.setTargetPeriod(targetPeriod);
+          this._lastTargetPeriod = targetPeriod;
+        } else if (targetPeriod === 0 && this._lastTargetPeriod !== 0) {
+          this._psola.setTargetPeriod(0);
+          this._lastTargetPeriod = 0;
+        }
+      } else if (period24_8 > 0) {
         const snap = nearestEnabledCell(this._tuning, period24_8, this._lastCellId);
         if (snap) {
           cellId    = snap.primary;

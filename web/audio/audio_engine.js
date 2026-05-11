@@ -32,7 +32,6 @@ export class AudioEngine {
     this._currentVoiceTable = [];
     this._voiceWorkletModulePromise = null;
     this._voiceWasmPayloadPromise   = null;
-    this._pitchShiftWorkletModulePromise = null;
     this._mediaPitchAnalyzers = new Set();
     this._synthFollowCellId = null;
     this._synthFollowVolume = 0;
@@ -203,22 +202,45 @@ export class AudioEngine {
     };
   }
 
-  async createPitchShiftNode({ pitchShiftMoria = 0 } = {}) {
+  async createReferenceRepitchNode({ onPitch, playbackRate = 1, pitchShiftMoria = 0 } = {}) {
     if (!this._ready) await this.init();
-    if (!this._pitchShiftWorkletModulePromise) {
-      this._pitchShiftWorkletModulePromise = this._ctx.audioWorklet.addModule(
-        new URL('./pitch_shift_worklet.js', import.meta.url),
-      );
-    }
-    await this._pitchShiftWorkletModulePromise;
+    await this._ensureVoiceWorkletModule();
 
-    const node = new AudioWorkletNode(this._ctx, 'pitch-shift-processor', {
+    const node = new AudioWorkletNode(this._ctx, 'voice-processor', {
       numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
-    node.port.postMessage({ type: 'pitch_shift', moria: pitchShiftMoria });
-    return node;
+    node.port.postMessage({
+      type: 'reference_repitch',
+      enabled: true,
+      playbackRate,
+      pitchShiftMoria,
+    });
+    node.port.postMessage({
+      type: 'gate_threshold',
+      amp: DEFAULT_VOICE_GATE_THRESHOLD,
+    });
+    node.port.onmessage = e => {
+      if (e.data?.type === 'pitch' && onPitch) onPitch(e.data);
+    };
+
+    await this._sendVoiceWasmInit(node);
+
+    return {
+      input: node,
+      output: node,
+      setPlaybackRate: rate => {
+        node.port.postMessage({ type: 'reference_repitch', playbackRate: rate });
+      },
+      setPitchShift: moria => {
+        node.port.postMessage({ type: 'reference_repitch', pitchShiftMoria: moria });
+      },
+      cleanup: () => {
+        node.port.onmessage = null;
+        try { node.disconnect(); } catch {}
+      },
+    };
   }
 
   // Build and send the tuning table from grid cells.
@@ -336,7 +358,7 @@ export class AudioEngine {
     if (!this._ctx) throw new Error('AudioContext is not initialized');
     if (!this._voiceWorkletModulePromise) {
       this._voiceWorkletModulePromise = this._ctx.audioWorklet.addModule(
-        new URL('./voice_worklet.js', import.meta.url),
+        new URL('./voice_worklet.js?v=reference-player-2', import.meta.url),
       );
     }
     return this._voiceWorkletModulePromise;

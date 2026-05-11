@@ -1,8 +1,8 @@
 import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
 import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2f';
-import { AudioEngine    } from './audio/audio_engine.js?v=reference-player-1';
+import { AudioEngine    } from './audio/audio_engine.js?v=reference-player-2';
 import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
-import { Singscope      } from './ui/singscope.js?v=reference-player-1';
+import { Singscope      } from './ui/singscope.js?v=reference-player-2';
 import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
 import { Metronome      } from './ui/metronome.js?v=0.2.0-alpha.0';
@@ -138,6 +138,12 @@ const REFERENCE_SEEK_STEP_MS = 10000;
 const REFERENCE_TRACE_PREFILL_MS = 12000;
 const REFERENCE_PITCH_MIN_MORIA = -72;
 const REFERENCE_PITCH_MAX_MORIA = 72;
+const PITCH_OCTAVE_MORIA = 72;
+const PITCH_TRACK_RESET_MS = 420;
+const PITCH_MAX_FAST_JUMP_MORIA = 30;
+const PITCH_FAST_JUMP_WINDOW_MS = 180;
+const PITCH_OUTLIER_CONFIRM_MS = 140;
+const PITCH_OUTLIER_CONFIRM_COUNT = 3;
 
 const app = {
   grid:            null,
@@ -183,6 +189,7 @@ const app = {
   monitorReverbWet:  0.2,
   voiceSnapTable:    [],
   voiceLastCellId:   null,
+  voicePitchTracker:  null,
   voiceCurrentCellId: null,
   synthFollowEnabled: false,
   synthFollowVolume:  0.5,
@@ -414,7 +421,10 @@ function handlePitchEvent(msg) {
   }
   if (msg.type !== 'pitch') return;
 
-  const normalized = normalizePitchMessage(msg, app.voiceLastCellId);
+  if (!app.voicePitchTracker) app.voicePitchTracker = createPitchTrackState();
+  const normalized = normalizePitchMessage(msg, app.voiceLastCellId, {
+    trackState: app.voicePitchTracker,
+  });
   msg = normalized.msg;
   app.voiceLastCellId = normalized.lastCellId;
   app.voiceCurrentCellId = msg.gate_open && isValidCellId(msg.cell_id)
@@ -456,15 +466,24 @@ function normalizePitchMessage(input, lastCellId = null, options = {}) {
   const pitchShiftMoria = Number.isFinite(options.pitchShiftMoria)
     ? options.pitchShiftMoria
     : 0;
+  const atMs = Number.isFinite(options.atMs)
+    ? options.atMs
+    : performance.now();
+  const inputAllowsPitch = input.gate_open !== false;
   let rawMoria = null;
   if (
+    inputAllowsPitch &&
     typeof msg.detected_hz === 'number' &&
     Number.isFinite(msg.detected_hz) &&
     msg.detected_hz > 0
   ) {
     rawMoria = 72 * Math.log2(msg.detected_hz / app.refNiHz);
-  } else if (Number.isFinite(msg.raw_moria)) {
+  } else if (inputAllowsPitch && Number.isFinite(msg.raw_moria)) {
     rawMoria = msg.raw_moria;
+  }
+
+  if (rawMoria !== null && options.trackState) {
+    rawMoria = stabilizePitchMoria(rawMoria, options.trackState, atMs);
   }
 
   if (rawMoria !== null) {
@@ -498,6 +517,67 @@ function normalizePitchMessage(input, lastCellId = null, options = {}) {
   }
 
   return { msg, lastCellId };
+}
+
+function createPitchTrackState() {
+  return {
+    lastRawMoria: null,
+    lastAcceptedAtMs: null,
+    pendingRawMoria: null,
+    pendingStartedAtMs: null,
+    pendingCount: 0,
+  };
+}
+
+function stabilizePitchMoria(rawMoria, state, atMs) {
+  if (!Number.isFinite(rawMoria)) return null;
+  if (!state || !Number.isFinite(state.lastRawMoria)) {
+    acceptPitchTrackMoria(state, rawMoria, atMs);
+    return rawMoria;
+  }
+
+  const dt = Math.max(0, atMs - (state.lastAcceptedAtMs ?? atMs));
+  let candidate = foldPitchNear(rawMoria, state.lastRawMoria);
+  const jump = Math.abs(candidate - state.lastRawMoria);
+  if (dt > PITCH_TRACK_RESET_MS || jump <= PITCH_MAX_FAST_JUMP_MORIA || dt > PITCH_FAST_JUMP_WINDOW_MS) {
+    acceptPitchTrackMoria(state, candidate, atMs);
+    return candidate;
+  }
+
+  const pendingClose = Number.isFinite(state.pendingRawMoria)
+    && Math.abs(candidate - state.pendingRawMoria) <= PITCH_MAX_FAST_JUMP_MORIA / 2;
+  if (!pendingClose) {
+    state.pendingRawMoria = candidate;
+    state.pendingStartedAtMs = atMs;
+    state.pendingCount = 1;
+    return null;
+  }
+
+  state.pendingRawMoria = (state.pendingRawMoria + candidate) / 2;
+  state.pendingCount++;
+  const pendingAge = atMs - (state.pendingStartedAtMs ?? atMs);
+  if (state.pendingCount >= PITCH_OUTLIER_CONFIRM_COUNT || pendingAge >= PITCH_OUTLIER_CONFIRM_MS) {
+    candidate = state.pendingRawMoria;
+    acceptPitchTrackMoria(state, candidate, atMs);
+    return candidate;
+  }
+
+  return null;
+}
+
+function foldPitchNear(rawMoria, anchorMoria) {
+  if (!Number.isFinite(anchorMoria)) return rawMoria;
+  const octaves = Math.round((anchorMoria - rawMoria) / PITCH_OCTAVE_MORIA);
+  return rawMoria + octaves * PITCH_OCTAVE_MORIA;
+}
+
+function acceptPitchTrackMoria(state, rawMoria, atMs) {
+  if (!state) return;
+  state.lastRawMoria = rawMoria;
+  state.lastAcceptedAtMs = atMs;
+  state.pendingRawMoria = null;
+  state.pendingStartedAtMs = null;
+  state.pendingCount = 0;
 }
 
 function setScorePracticeModeVisible(visible) {
@@ -3071,11 +3151,12 @@ function createStereoRecordingStream(micStream) {
 }
 
 function compactPitchMessage(msg) {
+  const hasPitch = Boolean(msg.gate_open) && Number.isFinite(msg.raw_moria);
   return {
     type: 'pitch',
-    detected_hz: Number.isFinite(msg.detected_hz) ? msg.detected_hz : null,
-    raw_moria: Number.isFinite(msg.raw_moria) ? msg.raw_moria : null,
-    snap_moria: Number.isFinite(msg.snap_moria) ? msg.snap_moria : null,
+    detected_hz: hasPitch && Number.isFinite(msg.detected_hz) ? msg.detected_hz : null,
+    raw_moria: hasPitch ? msg.raw_moria : null,
+    snap_moria: hasPitch && Number.isFinite(msg.snap_moria) ? msg.snap_moria : null,
     cell_id: isValidCellId(msg.cell_id) ? msg.cell_id : -1,
     neighbor_id: isValidCellId(msg.neighbor_id) ? msg.neighbor_id : -1,
     neighbor_moria: Number.isFinite(msg.neighbor_moria) ? msg.neighbor_moria : null,
@@ -3196,6 +3277,8 @@ async function playRecording(recording) {
     idx: 0,
     referenceLastCellId: null,
     analysisLastCellId: null,
+    referencePitchTracker: createPitchTrackState(),
+    analysisPitchTracker: createPitchTrackState(),
     currentTimeMs: 0,
     durationMs: recording.durationMs || 0,
     playbackRate: app.referencePlaybackRate,
@@ -3232,7 +3315,7 @@ async function resumeReferencePlayback(playback = app.activeRecordingPlayback) {
       teardownReferencePlaybackResources(playback);
       return;
     }
-    setAudioPreservesPitch(playback.audio);
+    setAudioPreservesPitch(playback.audio, !playback.graph?.manualPitchCompensation);
     playback.audio.playbackRate = playback.playbackRate;
     playback.audio.currentTime = Math.max(0, playback.currentTimeMs / 1000);
     await playback.audio.play();
@@ -3250,7 +3333,6 @@ async function ensureReferencePlaybackResources(playback) {
 
   const audio = new Audio(playback.recording.url);
   audio.preload = 'auto';
-  setAudioPreservesPitch(audio);
   audio.playbackRate = playback.playbackRate;
 
   const handlers = {
@@ -3290,20 +3372,39 @@ async function ensureReferencePlaybackResources(playback) {
   playback.handlers = handlers;
   playback.graph = await createStereoPlaybackGraph(audio, {
     onPitch: playback.analyzing ? rawMsg => captureReferencePitch(playback, rawMsg) : null,
+    playbackRate: playback.playbackRate,
     pitchShiftMoria: playback.pitchShiftMoria,
   });
+  setAudioPreservesPitch(audio, !playback.graph?.manualPitchCompensation);
 }
 
 function captureReferencePitch(playback, rawMsg) {
   if (rawMsg.type !== 'pitch' || app.activeRecordingPlayback !== playback) return;
-  const base = normalizePitchMessage(rawMsg, playback.analysisLastCellId);
+  const atMs = Math.max(0, playback.audio.currentTime * 1000);
+  const analysisMsg = compensateReferenceAnalysisPitch(rawMsg, playback);
+  const base = normalizePitchMessage(analysisMsg, playback.analysisLastCellId, {
+    atMs,
+    trackState: playback.analysisPitchTracker,
+  });
   playback.analysisLastCellId = base.lastCellId;
   const pitchEvent = {
-    t: Math.max(0, playback.audio.currentTime * 1000),
+    t: atMs,
     msg: compactPitchMessage(base.msg),
   };
   playback.recording.pitchEvents.push(pitchEvent);
   displayReferencePitchEvent(playback, pitchEvent);
+}
+
+function compensateReferenceAnalysisPitch(rawMsg, playback) {
+  if (!playback.graph?.manualPitchCompensation) return rawMsg;
+  const playbackRate = Number.isFinite(playback.playbackRate) && playback.playbackRate > 0
+    ? playback.playbackRate
+    : 1;
+  if (!Number.isFinite(rawMsg.detected_hz) || rawMsg.detected_hz <= 0) return rawMsg;
+  return {
+    ...rawMsg,
+    detected_hz: rawMsg.detected_hz / playbackRate,
+  };
 }
 
 function startReferencePlaybackTick(playback) {
@@ -3340,7 +3441,9 @@ function pushDueReferencePitchEvents(playback) {
 
 function displayReferencePitchEvent(playback, event) {
   const display = normalizePitchMessage(event.msg, playback.referenceLastCellId, {
+    atMs: event.t,
     pitchShiftMoria: playback.pitchShiftMoria,
+    trackState: playback.referencePitchTracker,
   });
   playback.referenceLastCellId = display.lastCellId;
   app.singscope?.pushReferencePitch(display.msg, { atMs: event.t });
@@ -3350,6 +3453,7 @@ function prepareReferencePlaybackCursor(playback) {
   const events = playback.recording.pitchEvents || [];
   playback.idx = lowerBoundPitchEvent(events, playback.currentTimeMs);
   playback.referenceLastCellId = null;
+  playback.referencePitchTracker = createPitchTrackState();
 }
 
 function lowerBoundPitchEvent(events, timeMs) {
@@ -3448,6 +3552,7 @@ function seekReferencePlayback(timeMs) {
     playback.recording.pitchEvents = [];
     playback.recording.pitchAnalysisComplete = false;
     playback.analysisLastCellId = null;
+    playback.analysisPitchTracker = createPitchTrackState();
     renderRecordings();
   }
   rebuildReferenceTrace(playback);
@@ -3459,6 +3564,7 @@ function rebuildReferenceTrace(playback) {
   app.singscope?.clear('reference');
   app.singscope?.setReferencePlayheadMs(playback.currentTimeMs);
   playback.referenceLastCellId = null;
+  playback.referencePitchTracker = createPitchTrackState();
 
   const events = playback.recording.pitchEvents || [];
   const startMs = Math.max(0, playback.currentTimeMs - REFERENCE_TRACE_PREFILL_MS);
@@ -3478,8 +3584,9 @@ function setReferencePlaybackRate(rate) {
   const playback = app.activeRecordingPlayback;
   if (playback) {
     playback.playbackRate = nextRate;
+    playback.graph?.setPlaybackRate?.(nextRate);
     if (playback.audio) {
-      setAudioPreservesPitch(playback.audio);
+      setAudioPreservesPitch(playback.audio, !playback.graph?.manualPitchCompensation);
       playback.audio.playbackRate = nextRate;
     }
   }
@@ -3500,11 +3607,11 @@ function setReferencePitchShift(moria) {
   renderReferencePlayer();
 }
 
-function setAudioPreservesPitch(audio) {
+function setAudioPreservesPitch(audio, preserves = true) {
   if (!audio) return;
-  audio.preservesPitch = true;
-  audio.mozPreservesPitch = true;
-  audio.webkitPreservesPitch = true;
+  audio.preservesPitch = preserves;
+  audio.mozPreservesPitch = preserves;
+  audio.webkitPreservesPitch = preserves;
 }
 
 function renderReferencePlayer() {
@@ -3588,7 +3695,7 @@ async function createStereoPlaybackGraph(audio, options = {}) {
   if (!ctx) return null;
 
   let source = null;
-  let pitchNode = null;
+  let repitcher = null;
   let analyzer = null;
   let routedDirect = false;
   try {
@@ -3599,13 +3706,15 @@ async function createStereoPlaybackGraph(audio, options = {}) {
   }
 
   try {
-    pitchNode = await app.engine.createPitchShiftNode({
+    repitcher = await app.engine.createReferenceRepitchNode({
+      onPitch: options.onPitch || null,
+      playbackRate: Number.isFinite(options.playbackRate) ? options.playbackRate : 1,
       pitchShiftMoria: Number.isFinite(options.pitchShiftMoria) ? options.pitchShiftMoria : 0,
     });
-    source.connect(pitchNode);
-    pitchNode.connect(ctx.destination);
+    source.connect(repitcher.input);
+    repitcher.output.connect(ctx.destination);
   } catch (e) {
-    console.warn('Reference pitch shifter unavailable; using direct media output.', e);
+    console.warn('Reference repitcher unavailable; using direct media output.', e);
     try {
       source.connect(ctx.destination);
       routedDirect = true;
@@ -3614,7 +3723,7 @@ async function createStereoPlaybackGraph(audio, options = {}) {
     }
   }
 
-  if (options.onPitch) {
+  if (options.onPitch && !repitcher) {
     try {
       analyzer = await app.engine.createMediaPitchAnalyzer(options.onPitch);
       source.connect(analyzer.input);
@@ -3625,12 +3734,16 @@ async function createStereoPlaybackGraph(audio, options = {}) {
   }
 
   return {
+    manualPitchCompensation: Boolean(repitcher),
+    setPlaybackRate: rate => {
+      repitcher?.setPlaybackRate?.(rate);
+    },
     setPitchShift: moria => {
-      pitchNode?.port?.postMessage?.({ type: 'pitch_shift', moria });
+      repitcher?.setPitchShift?.(moria);
     },
     cleanup: () => {
       analyzer?.cleanup?.();
-      try { pitchNode?.disconnect(); } catch {}
+      repitcher?.cleanup?.();
       try { source.disconnect(); } catch {}
       if (routedDirect) {
         try { source.disconnect(ctx.destination); } catch {}
