@@ -1,8 +1,8 @@
 import init, { JsTuningGrid } from './pkg/chanterlab_core.js';
 import { ScaleLadder    } from './ui/scale_ladder.js?v=chant-script-engine-phase2f';
-import { AudioEngine    } from './audio/audio_engine.js?v=0.2.0-alpha.0';
+import { AudioEngine    } from './audio/audio_engine.js?v=media-import-1';
 import { VKeyboard      } from './ui/vkeyboard.js?v=0.2.0-alpha.0';
-import { Singscope      } from './ui/singscope.js?v=chant-script-engine-phase2f';
+import { Singscope      } from './ui/singscope.js?v=media-import-1';
 import { NoteIndicator  } from './ui/note_indicator.js?v=0.2.0-alpha.0';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=0.2.0-alpha.0';
 import { Metronome      } from './ui/metronome.js?v=0.2.0-alpha.0';
@@ -2587,7 +2587,10 @@ async function metubeAddMp3Download(baseUrl, youtubeUrl) {
       auto_start: true,
     }),
   });
-  if (!response.ok) throw new Error(`metube_add_http_${response.status}`);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`metube_add_http_${response.status}${text ? `: ${text}` : ''}`);
+  }
   const payload = await response.json().catch(() => null);
   if (payload?.status && payload.status !== 'ok') {
     throw new Error(payload.msg || 'metube_add_failed');
