@@ -239,7 +239,7 @@ mod tests {
 
         for _ in 0..200 {
             let out = r.get_sample();
-            assert!(out >= -1.0 && out <= 1.0, "sample out of range: {out}");
+            assert!((-1.0..=1.0).contains(&out), "sample out of range: {out}");
         }
     }
 
@@ -260,7 +260,7 @@ mod tests {
         }
         for _ in 0..100 {
             let out = r.get_sample();
-            assert!(out >= -1.0 && out <= 1.0, "sample out of range: {out}");
+            assert!((-1.0..=1.0).contains(&out), "sample out of range: {out}");
         }
 
         // Change target mid-stream.
@@ -272,7 +272,7 @@ mod tests {
         }
         for _ in 0..100 {
             let out = r.get_sample();
-            assert!(out >= -1.0 && out <= 1.0, "sample out of range: {out}");
+            assert!((-1.0..=1.0).contains(&out), "sample out of range: {out}");
         }
     }
 }

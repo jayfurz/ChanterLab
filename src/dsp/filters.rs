@@ -37,8 +37,12 @@ impl BiquadHpf {
     }
 }
 
-// Project-tuned coefficients for the voice analysis high-pass filter.
+// Project-tuned coefficients for the voice analysis high-pass filter. The
+// literals carry their full design precision for documentation; f32 rounds
+// them on load (hence the excessive_precision allow).
+#[allow(clippy::excessive_precision)]
 const HPF_K0: f32 = -0.9907866988;
+#[allow(clippy::excessive_precision)]
 const HPF_K1: f32 = 1.9907440595;
 
 /// Two cascaded 2nd-order biquad HPF stages (~32 Hz corner frequency).

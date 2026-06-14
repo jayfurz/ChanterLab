@@ -11,6 +11,9 @@
 /// Cepstrum-based FFT pitch detector.
 ///
 /// Only compiled with the `worklet` feature (requires `realfft`).
+// Index-based loops below mirror the cepstrum algorithm step-for-step (and the
+// JS reference implementation in voice_worklet.js); keep them as range loops.
+#[allow(clippy::needless_range_loop)]
 #[cfg(feature = "worklet")]
 pub mod fft {
     use realfft::num_complex::Complex;
