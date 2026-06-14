@@ -1,4 +1,4 @@
-.PHONY: build-main build-worklet build test test-rust test-js lint fmt clippy check
+.PHONY: build-main build-worklet build test test-rust test-js lint lint-rust lint-js fmt clippy eslint check
 
 build-main:
 	wasm-pack build --target web --out-dir web/pkg -- --features main --no-default-features
@@ -16,7 +16,15 @@ fmt:
 clippy:
 	cargo clippy --all-features --all-targets -- -D warnings
 
-lint: fmt clippy
+lint-rust: fmt clippy
+
+# Requires `npm ci` once to install ESLint.
+eslint:
+	npm run lint
+
+lint-js: eslint
+
+lint: lint-rust lint-js
 
 # --all-features covers the worklet FFT detector and serde tests that the
 # default feature set skips.
@@ -24,7 +32,7 @@ test-rust:
 	cargo test --all-features
 
 test-js:
-	cd web/score && node --test
+	npm test
 
 test: test-rust test-js
 

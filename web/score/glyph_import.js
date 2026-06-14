@@ -860,7 +860,7 @@ function isGlyphTextWordStart(char) {
 }
 
 function isWordGlyphChar(char) {
-  return /[A-Za-z0-9_+\-]/.test(char);
+  return /[A-Za-z0-9_+-]/.test(char);
 }
 
 function glyphMetadataForSource(sourceToken) {
