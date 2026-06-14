@@ -14,9 +14,7 @@ mod worklet_exports {
     const MONITOR_RELEASE_SECONDS: f32 = 0.180;
 
     use crate::dsp::{
-        detector::{fft::FftDetector, TimeDomainDetector},
-        filters::{CascadedHpf, LowPassFilter1, NotchFilter},
-        gate::Gate,
+        detector::fft::FftDetector, filters::CascadedHpf, filters::NotchFilter, gate::Gate,
         psola::PsolaRepitcher,
     };
     use crate::tuning::{nearest_enabled_cell, NearestCellResult};
@@ -33,8 +31,6 @@ mod worklet_exports {
         notch: NotchFilter,
         notch_enabled: bool,
         gate: Gate,
-        lpf: LowPassFilter1,
-        td_det: TimeDomainDetector,
         fft_det: FftDetector,
         psola: PsolaRepitcher,
         // Tuning table: sorted (period_24_8, cell_id).
@@ -60,8 +56,6 @@ mod worklet_exports {
                 notch: NotchFilter::new(),
                 notch_enabled: false,
                 gate,
-                lpf: LowPassFilter1::for_peak_detector(),
-                td_det: TimeDomainDetector::new(),
                 fft_det: FftDetector::new(sample_rate),
                 psola: PsolaRepitcher::new(),
                 tuning_table: Vec::new(),
@@ -97,9 +91,6 @@ mod worklet_exports {
                 filtered
             };
             let gate_open = self.gate.process(out);
-            // Time-domain path (LPF → peak machine → histogram).
-            let lp = self.lpf.process(out);
-            self.td_det.push_sample(lp);
             // FFT ring buffer.
             self.fft_det.push(out);
             self.sample_count = self.sample_count.wrapping_add(1);
@@ -147,8 +138,6 @@ mod worklet_exports {
         /// or 0 if no confident pitch is found.
         ///
         /// Should be called every 128 samples when the gate is open.
-        /// Uses the FFT detector; the time-domain detector runs continuously
-        /// inside `process_sample` as a warm-up path.
         #[wasm_bindgen(js_name = detectPitch)]
         pub fn detect_pitch(&mut self) -> u32 {
             let min_period = (self.sample_rate / 1200.0 * 256.0).max(1.0) as u32;
@@ -202,13 +191,6 @@ mod worklet_exports {
                 .map(|(&p, &id)| (p, id))
                 .collect();
             self.tuning_table.sort_by_key(|(p, _)| *p);
-
-            // Refresh the time-domain histogram range.
-            if let (Some(&(lo, _)), Some(&(hi, _))) =
-                (self.tuning_table.first(), self.tuning_table.last())
-            {
-                self.td_det.setup_histogram(lo, hi);
-            }
         }
 
         /// Set gate open threshold (linear amplitude, 0.0..1.0).
@@ -285,8 +267,6 @@ mod worklet_exports {
                     filtered
                 };
                 let gate_open = self.gate.process(post_notch);
-                let lp = self.lpf.process(post_notch);
-                self.td_det.push_sample(lp);
                 self.fft_det.push(post_notch);
                 self.psola.push_sample(post_notch);
                 self.sample_count = self.sample_count.wrapping_add(1);

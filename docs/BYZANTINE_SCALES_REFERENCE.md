@@ -124,6 +124,26 @@ The diatonic form of Mode Barys (Grave / Plagal III). Rooted functionally on Ga.
 - **Step sequence:** `6 · 16 · 8 · 12 · 10 · 12 · 8`
 - **Cumulative degrees from Ni:** `0, 6, 22, 30, 42, 52, 64, 72`
 
+### 3.5 Western Major (non-Byzantine reference preset)
+
+**Not a Byzantine scale.** This is the Western 12-tone equal-tempered major
+scale expressed in the 72-moria grid (each equal-tempered semitone = 6 moria),
+provided as a convenience preset for comparison and ear-training, not as part
+of the chant tradition.
+
+|From → To|Moria|
+|---------|-----|
+|Ni → Pa  |12   |
+|Pa → Vou |12   |
+|Vou → Ga |6    |
+|Ga → Di  |12   |
+|Di → Ke  |12   |
+|Ke → Zo  |12   |
+|Zo → Ni′ |6    |
+
+- **Step sequence:** `12 · 12 · 6 · 12 · 12 · 12 · 6`
+- **Cumulative degrees from Ni:** `0, 12, 24, 30, 42, 54, 66, 72`
+
 -----
 
 ## 4. Scales with Disjunct Tetrachords (Enharmonic Family)
@@ -275,6 +295,7 @@ These govern metric placement and accentuation, not interval content.
 |Grave Diatonic            |Ga       |6 · 16 · 8 · 12 · 10 · 12 · 8      |72                                |
 |Grave Enharmonic (from Zo)|Zo       |6 · 12 · 12 · 12 · 6 · 12 · 12     |72                                |
 |Grave Enharmonic (from Ga)|Ga       |6 · 12 · 12 · 6 · 12 · 12 · 6·12·12|(tetrachord generator, not closed)|
+|Western Major (non-Byzantine)|Ni    |12 · 12 · 6 · 12 · 12 · 12 · 6     |72 (equal-tempered reference preset)|
 
 ## 9. Summary Table of Shadings
 
