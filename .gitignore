@@ -1,5 +1,6 @@
 /target
-/pkg
+/web/pkg
+/web/pkg-worklet
 /node_modules
 *.wasm
 .codex

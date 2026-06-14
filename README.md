@@ -65,9 +65,28 @@ Then open `http://localhost:8000`.
 
 ## Test
 
+Rust tests. Use `--all-features` to include the worklet FFT-detector tests and
+the serde serialization tests (the default feature set skips both):
+
 ```sh
-cargo test
+cargo test --all-features
 ```
+
+JavaScript score-engine tests (Node's built-in test runner, no install needed):
+
+```sh
+cd web/score && node --test
+```
+
+To run everything CI runs — `rustfmt`, `clippy`, and both test suites — in one
+command:
+
+```sh
+make check
+```
+
+Both suites, plus `cargo fmt --check` and `cargo clippy`, run in CI on every
+push and pull request.
 
 ## GitHub Pages Deployment
 

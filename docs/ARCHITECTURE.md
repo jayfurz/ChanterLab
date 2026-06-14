@@ -100,77 +100,96 @@ pub struct TuningGrid {
     low_moria: i32,                      // range start, default -72
     high_moria: i32,                     // range end,   default +146 (exclusive)
     regions: Vec<Region>,                // sorted ascending by start_moria, contiguous
+    events: Vec<TuningEvent>,            // append-only semantic-drop log (§3.5)
+    next_event_id: EventId,
     overrides: HashMap<i32, CellOverride>, // per-moria user state (accidental, enabled)
 }
 ```
 
-Cells are *derived* from regions + overrides. Mutations operate on regions
-and overrides; cells are recomputed (or incrementally updated) as needed.
-Nothing in the UI owns cell state.
+Cells are *derived* from regions + events + overrides. Mutations operate on
+those; cells are recomputed by `cells()` as needed. Nothing in the UI owns
+cell state.
 
 ### 3.2 Region
 
 ```rust
 pub struct Region {
-    pub start_moria: i32,          // absolute; inclusive; equal to root_degree's position
+    pub start_moria: i32,          // absolute; inclusive
     pub end_moria: i32,            // absolute; exclusive; == next region's start_moria
     pub genus: Genus,
-    pub root_degree: Degree,       // which degree sits at start_moria
-    pub shading: Option<Shading>,
+    pub anchor_moria: i32,         // absolute moria where anchor_degree sits
+    pub anchor_degree: Degree,     // which degree is pinned at anchor_moria
+    pub active_rules: Vec<EventId>, // chroa/pthora events applied to this region
 }
 ```
 
-A contiguous span where a single genus is active, rooted at a specific
-degree at its start boundary.
+A contiguous span where a single genus is active. The musical **anchor**
+(`anchor_moria` / `anchor_degree`) is *independent of* `start_moria`, so a
+pthora can re-root the region from a drop point in its interior without making
+that point a boundary.
 
 Created by:
-- **Initialization:** one region spanning `[low_moria, high_moria)` using the
-  user's chosen preset.
-- **Applying a pthora on moria M:** split the existing region at M; insert a
-  new region `[M, next_boundary)` with the pthora's `(genus, degree)`.
-- **Removing a pthora:** merge neighbors if their `(genus, root_degree)`
-  agree; otherwise prompt the user.
+- **Initialization:** one region spanning `[low_moria, high_moria)` (snapped
+  outward to octave boundaries) using the user's chosen preset.
+- **Applying a pthora on moria M:** *re-anchor the containing region in place*
+  to the resolved `(anchor_moria, anchor_degree)` and record a
+  `PthoraReanchor` event. The region is **not** split; cells on both sides of
+  M are reinterpreted out to the existing boundaries.
+- **Removing a pthora (`remove_pthora`):** merge the region into its left
+  neighbor, extending the neighbor's `end_moria`.
 
 ### 3.3 Genus and interval storage — one convention
 
 ```rust
 pub enum Genus {
-    Diatonic,
-    HardChromatic,
-    SoftChromatic,
-    GraveDiatonic,
-    EnharmonicZo,
-    EnharmonicGa,         // generator, see BYZANTINE_SCALES_REFERENCE §4.2
-    Custom(Vec<i32>),
+    Diatonic,            // closed octave scale, canonical root Ni
+    Western,             // 12-TET major in 72-moria form, root Ni — non-Byzantine preset
+    HardChromatic,       // cyclic 4-step phase, canonical root Pa
+    SoftChromatic,       // cyclic 4-step phase, canonical root Ni
+    GraveDiatonic,       // closed octave scale, canonical root Ga
+    EnharmonicZo,        // closed octave scale, canonical root Zo
+    EnharmonicGa,        // 30-moria generator (6·12·12), root Ga; see SCALES_REFERENCE §4.2
+    Custom { name: String, intervals: Vec<i32>, canonical_root: Degree },
 }
 ```
 
+Genera fall into three shapes, distinguished by `is_closed()` /
+`is_chromatic_cycle()` / `is_tiled_generator()`:
+
+- **Closed octave scales** (`Diatonic`, `Western`, `GraveDiatonic`,
+  `EnharmonicZo`): a 7-interval sequence summing to 72.
+- **Cyclic chromatic phases** (`HardChromatic`, `SoftChromatic`): a 4-step
+  cycle that repeats every four scale degrees rather than closing at the
+  octave, e.g. `HardChromatic.intervals() == [6, 20, 4, 12]`.
+- **Tiled generators** (`EnharmonicGa`): a short interval sequence
+  (`[6, 12, 12]`) repeated across the region span, running past the octave.
+
 **Canonical intervals are stored once, indexed from the genus's canonical
-root.** For example, `HardChromatic.intervals() == [6, 20, 4, 12, 6, 20, 4]`
-where `intervals[0]` is `Pa → Vou` — because Pa is HardChromatic's canonical
-root. There is no "rotation." A region's cell positions are computed:
+root.** `intervals()[0]` is the step from `canonical_root` to its next degree
+(Pa→Vou for HardChromatic, because Pa is its canonical root). There is no
+Ni-indexed "rotation" code path. Closed-genus cell positions are computed in
+`Region::degree_positions` by accumulating `rotated_intervals()` from the
+region's `anchor_degree`:
 
 ```
 for i in 0..7:
-    cell_moria = region.start_moria + sum(intervals[0..i])
-    cell_degree = region.root_degree.shifted_by(i)  // wraps Ni→Pa→Vou→Ga→Di→Ke→Zo→Ni'
+    cell_moria  = region.anchor_moria + sum(rotated_intervals[0..i])
+    cell_degree = region.anchor_degree.shifted_by(i)  // Ni→Pa→Vou→Ga→Di→Ke→Zo→Ni'
 ```
 
-This collapses the tangled rotation math from the original PLAN.md. `Region`
-carries `root_degree`, which names which degree sits at `start_moria`.
-
-`EnharmonicGa` is a 30-moria tetrachord generator (`6·12·12`) that tiles
-across the region span. It's not a closed 7-interval sequence; model it by
-repeating the generator and letting it run past the octave, with the closing
-segment adjusted at region boundaries.
+`Region` carries `anchor_degree` (which degree sits at `anchor_moria`),
+independent of `start_moria`. Cyclic and tiled genera are laid out by
+`TuningGrid::build_generator_map` instead, walking the generator step-by-step
+in both directions from the anchor.
 
 ### 3.4 Cell and accidental
 
 ```rust
 pub struct Cell {
-    pub moria: i32,                // scale-derived grid position
-    pub degree: Option<Degree>,    // Some if this cell is a degree
-    pub accidental: i32,           // even; 0 = none; any ±2k accepted
+    pub moria: i32,                  // scale-derived grid position
+    pub degree: Option<Degree>,      // Some if this cell is a degree
+    pub chromatic_phase: Option<u8>, // phase 0..3 for cyclic chromatic genera
+    pub accidental: i32,             // even; 0 = none; any ±2k accepted
     pub enabled: bool,
     pub region_idx: usize,
 }
@@ -189,28 +208,42 @@ Cells at non-degree positions are filled in at 2-moria granularity between
 degrees, disabled by default. This gives the user the full Byzantine
 accidental space to light up à la carte.
 
-### 3.5 Pthora and shading
+### 3.5 Semantic drops and the event log
+
+Palette interactions arrive as a `SymbolDrop` (the typed input) and are
+recorded in the grid's append-only `events: Vec<TuningEvent>` log. Each cell
+rebuild replays the events active on a region, so state is reconstructible and
+removable by id:
 
 ```rust
-pub struct Pthora {
-    pub genus: Genus,
-    pub target_degree: Degree,    // what the drop point becomes
+pub enum SymbolDrop {
+    Pthora { drop_moria, drop_degree, genus, target_degree, target_phase },
+    Chroa  { drop_moria, drop_degree, symbol: Shading },
+    Geniki { drop_moria, drop_degree, shift: i32 },   // ±6 general accidental
+    ClearChroa { drop_moria, drop_degree },
 }
 
-pub enum Shading {
-    Zygos,     // 18·4·16·4 from Ga
-    Kliton,    // 20·4·4·14 from Ga
-    SpathiA,   // 14·12·4 from Ga
-    SpathiB,   // 14·4·4·20 from Ga
+pub enum TuningEventKind {
+    PthoraReanchor(PthoraRule),     // re-roots the containing region in place
+    ChroaPatch(ChroaRule),          // local tetrachord override on the region
+    GenikiModulator(ModulatorRule), // shifts every occurrence of a degree
 }
+
+pub enum Shading { Zygos, Kliton, Spathi, Enharmonic }
 ```
 
 **Pthora is generalized:** the engine accepts any `(genus, degree)` drop on
-any `moria`, not only canonical degrees. The UI palette exposes the common
-families; the engine doesn't care.
+any `moria`. Rather than splitting the region at the drop point, a pthora
+**re-anchors the containing region** (`anchor_moria` / `anchor_degree`) so
+cells on both sides of the drop are reinterpreted. Chromatic-cycle pthorae
+also resolve a `target_phase` (which step of the 4-step cycle the drop lands
+on).
 
-**Shading** is stored per-region as an optional local tetrachord override,
-applied every time the region's cells are rebuilt.
+**Chroa (shading)** patches the region's per-degree interval steps
+(`apply_chroa_patch`), preserving the drop note's absolute position. **Geniki**
+is a global ±6 shift applied to every cell of a given degree. All three are
+stored as events keyed to the region's `active_rules`; removing an event (or
+`ClearChroa`) restores the prior anchor where one was recorded.
 
 ### 3.6 Frequency mapping
 
@@ -250,20 +283,24 @@ in pitch detection; do not drop one without measuring the substitute.
 2. Optional notch filter for 50/60 Hz mains hum, with user-selectable
    frequency and width.
 3. Ring buffers:
-   - `audio_raw[4096]` — filtered signal for FFT analysis.
-   - `audio_in[16384]` — comb-filtered signal locked to the currently
-     detected fundamental; source for PSOLA.
+   - `audio_raw[8192]` — filtered signal for FFT analysis (≥ `FFTLEN`,
+     power-of-2 for bitwise wrap).
+   - PSOLA holds its own buffer of comb-filtered signal locked to the
+     currently detected fundamental.
 4. Envelope + **asymmetric hysteretic noise gate**:
    `gate_off_amp = gate_on_amp * 15/16`. Gate state controls whether pitch
    detection runs — the single most effective optimization is not running
    DSP during silence.
 
-### 4.2 FFT pitch detection (default)
+### 4.2 FFT pitch detection
 
-Cepstral FFT pitch detection using `realfft`. Every element listed is
-load-bearing:
+`FftDetector` (cepstral FFT detection using `realfft`) is the **sole** pitch
+detector. It covers the full vocal range — tested 80 Hz–1200 Hz, including
+deep bass and harmonic-rich low voices. Every element listed is load-bearing:
 
-1. **Hann window** over the last 2560 samples of `audio_raw`.
+1. **Hann window** over the last `FFTLEN` (= 5120) samples of `audio_raw`.
+   5120 (doubled from 2560) gives ~8.5 cycles at 80 Hz for confident
+   bass-range cepstrum peaks.
 2. **Forward FFT → power spectrum → sqrt → inverse DCT** (square-root
    cepstrum). Sharper than plain autocorrelation for voiced speech.
 3. **Window-bias removal** via precomputed `fft_corr`. At init, run the same
@@ -276,20 +313,19 @@ load-bearing:
 5. **Log-bin EMA** `fft_tavg[aindex] *= 0.75` per detection, neighbor
    spreading `1/1.1^k²`. Recency bias without hard lock.
 6. **Two-tier confidence gates:** accept iff `global_peak > 0.03` AND
-   `second_peak / global_peak < min(global_peak * 0.6 + 0.14, 0.5)`.
-   Clarity threshold relaxes when the winner is strong.
+   `second_peak / global_peak < min(global_peak * 0.6 + 0.14, 0.5)`. Below
+   C4 the ambiguity limit is relaxed (up to 0.65) since low voices often
+   project a stronger overtone than the fundamental.
 7. **Parabolic least-squares** sub-sample interpolation using `s20`/`s42`
    moments over bins above half-amplitude.
 8. Output: **24.8 fixed-point period**, clamped to
    `[sample_rate/1200, sample_rate/60]`.
 
-### 4.3 Time-domain fallback
-
-Time-domain fallback using a peak-state machine with adaptive threshold,
-log-spaced histogram over the active key set, and half-life decay.
-
-Keep the fallback for low-end mobile and as the pre-warm path while the
-FFT plan initializes.
+There is no separate time-domain detector. The `realfft` plan is built
+synchronously in `FftDetector::new`, so there is no async warm-up window to
+cover, and the FFT path already spans the whole range. When the worklet WASM
+is unavailable, `web/audio/voice_worklet.js` provides a pure-JS mirror of the
+same cepstrum pipeline as the fallback.
 
 ### 4.4 Nearest-cell snap
 
@@ -313,11 +349,11 @@ voice.
 
 ### 4.6 FFT scheduling
 
-C++ defers the FFT to `AudioThread`'s Qt event loop via `postEvent`
-(ARCHITECTURE.md §6.3). AudioWorklet has no external event loop. We run the
-FFT inline in the worklet with the C++ rate limiter intact: a 2560-point
-FFT runs ~every 256 samples (`FFT_DETECT_BLOCK_SIZE`) — tens of microseconds
-on modern hardware, safely under a 128-sample (`render quantum`) budget.
+AudioWorklet has no external event loop, so the FFT runs inline in the
+worklet, rate-limited: a `FFTLEN`-point (5120) FFT runs every
+`FFT_DETECT_BLOCK_SIZE` (= 128) samples — tens of microseconds on modern
+hardware, comfortably inside one 128-sample render-quantum budget. The
+host calls `detectPitch` at that cadence whenever the gate is open.
 
 `pitch_detect_event_count` rate-scaler (`PITCH_DETECTION_RATE_SCALE`) is
 preserved for low-end environments, defaulting to 1.
@@ -401,60 +437,51 @@ DSP is agnostic to the view.
 
 ## 7. Crate and repo layout
 
+The crate is a single flat `src/` tree (no nested `core/` crate). Rust tests
+live inline as `#[cfg(test)] mod tests` next to the code they cover — there is
+no separate top-level `tests/` directory. The synth is implemented in JS
+(`web/audio/`), not Rust.
+
 ```
 chanterlab/
-├── Cargo.toml
+├── Cargo.toml                 # one crate, features: main | worklet | serde
 ├── src/
-│   ├── lib.rs                 # main-thread wasm_bindgen exports
-│   └── worklet.rs             # worklet-bundle wasm_bindgen exports
-├── core/
-│   ├── mod.rs
+│   ├── lib.rs                 # main-thread wasm_bindgen exports (JsTuningGrid)
+│   ├── worklet.rs             # worklet-bundle wasm_bindgen exports (VoiceProcessor)
 │   ├── tuning/
 │   │   ├── mod.rs
-│   │   ├── grid.rs            # TuningGrid
-│   │   ├── region.rs          # Region, Genus (+ interval tables)
-│   │   ├── cell.rs            # Cell, Accidental
-│   │   ├── pthora.rs
-│   │   └── shading.rs
-│   ├── dsp/
-│   │   ├── mod.rs
-│   │   ├── filters.rs         # biquad HPF, NotchFilter, CombFilter
-│   │   ├── gate.rs            # envelope + hysteretic gate
-│   │   ├── detector.rs        # FFT + time-domain detectors
-│   │   └── psola.rs
-│   └── synth/
+│   │   ├── grid.rs            # TuningGrid + nearest_enabled_cell + tuning_table
+│   │   ├── region.rs          # Region (span + anchor)
+│   │   ├── genus.rs           # Genus + interval tables
+│   │   ├── degree.rs          # Degree (Ni..Zo) + shifted_by
+│   │   ├── cell.rs            # Cell, CellOverride
+│   │   ├── pthora.rs          # SymbolDrop, PthoraRule
+│   │   ├── shading.rs         # Shading
+│   │   └── event.rs           # TuningEvent, TuningEventKind, ChroaRule, ModulatorRule
+│   └── dsp/
 │       ├── mod.rs
-│       └── additive.rs
+│       ├── filters.rs         # BiquadHpf/CascadedHpf, NotchFilter
+│       ├── gate.rs            # envelope + hysteretic gate
+│       ├── detector.rs        # FftDetector (cepstral FFT)
+│       └── psola.rs           # PsolaRepitcher
 ├── web/
-│   ├── index.html
-│   ├── style.css
-│   ├── app.js                 # entry; WASM init; UI wiring
-│   ├── ui/
-│   │   ├── scale_ladder.js
-│   │   ├── pthora_palette.js
-│   │   ├── shading_palette.js
-│   │   ├── singscope.js
-│   │   ├── controls.js
-│   │   └── vkeyboard.js
-│   ├── audio/
-│   │   ├── voice_worklet.js
-│   │   └── synth_worklet.js
-│   └── assets/
-│       └── pthora/
-├── docs/
-│   ├── ARCHITECTURE.md        # this file
-│   └── BYZANTINE_SCALES_REFERENCE.md
-└── tests/
-    ├── tuning/*.rs
-    ├── dsp/*.rs
-    └── integration/*.rs
+│   ├── index.html · app.js · style.css
+│   ├── ui/                    # scale_ladder, pthora_palette, shading_palette,
+│   │                         # singscope, vkeyboard, metronome, note_indicator, …
+│   ├── audio/                 # audio_engine, voice_worklet, synth_worklet (JS DSP/synth)
+│   ├── score/                 # glyph score editor, parser, compiler, timing, + node tests
+│   └── fonts/neanes/          # bundled Neanes notation font (own license)
+└── docs/
+    ├── ARCHITECTURE.md        # this file
+    ├── BYZANTINE_SCALES_REFERENCE.md
+    └── …                      # proposals + testing guides
 ```
 
-The crate compiles to **two WASM bundles** via `wasm-pack` with different
-feature flags:
+The crate compiles to **two WASM bundles** via `wasm-pack` (see `Makefile`),
+each with `--no-default-features`:
 
-- `chanterlab-core` (feature `main`): full `TuningGrid` + `Genus` + serialization.
-- `chanterlab-core` (feature `worklet`): only DSP primitives + frequency math,
+- feature `main`: full `TuningGrid` + `Genus` + serialization (`JsTuningGrid`).
+- feature `worklet`: only DSP primitives + frequency math (`VoiceProcessor`),
   for use inside the AudioWorklet.
 
 ## 8. Cross-cutting concerns

@@ -529,9 +529,15 @@ function nearestEnabledCell(sortedTable, period24_8, lastCellId) {
         neighbor = { cell_id: above.cell_id, vel: total > 0 ? a2 / total : 0.5 };
       }
     } else if (below) {
-      neighbor = { cell_id: below.cell_id, vel: 0.5 };
+      // Single neighbor below (primary is the top enabled cell): match the
+      // Rust nearest_enabled_cell edge formula for parity.
+      const d = Math.abs(period24_8 - below.period);
+      const total = d + Math.max(0, primary.period - below.period);
+      neighbor = { cell_id: below.cell_id, vel: Math.min(1, total > 0 ? d / total : 0.5) };
     } else {
-      neighbor = { cell_id: above.cell_id, vel: 0.5 };
+      const d = Math.abs(period24_8 - above.period);
+      const total = d + Math.max(0, above.period - primary.period);
+      neighbor = { cell_id: above.cell_id, vel: Math.min(1, total > 0 ? d / total : 0.5) };
     }
   }
 

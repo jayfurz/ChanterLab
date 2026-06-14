@@ -231,7 +231,7 @@ function tokenizeEditorGlyphText(text) {
       cursor += width;
       while (cursor < text.length) {
         const next = String.fromCodePoint(text.codePointAt(cursor));
-        if (!/[A-Za-z0-9_+\-]/.test(next)) break;
+        if (!/[A-Za-z0-9_+-]/.test(next)) break;
         cursor += next.length;
       }
       tokens.push({ type: 'glyph', raw: text.slice(start, cursor), start, end: cursor });

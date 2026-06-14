@@ -2,7 +2,6 @@
 //!
 //! - `CascadedHpf`: two 2nd-order biquad high-pass stages (~50 Hz corner).
 //! - `NotchFilter`: comb-delay notch.
-//! - `LowPassFilter1`: 1st-order LPF used before the time-domain peak detector.
 
 /// One 2nd-order biquad high-pass section.
 ///
@@ -38,8 +37,12 @@ impl BiquadHpf {
     }
 }
 
-// Project-tuned coefficients for the voice analysis high-pass filter.
+// Project-tuned coefficients for the voice analysis high-pass filter. The
+// literals carry their full design precision for documentation; f32 rounds
+// them on load (hence the excessive_precision allow).
+#[allow(clippy::excessive_precision)]
 const HPF_K0: f32 = -0.9907866988;
+#[allow(clippy::excessive_precision)]
 const HPF_K1: f32 = 1.9907440595;
 
 /// Two cascaded 2nd-order biquad HPF stages (~32 Hz corner frequency).
@@ -118,37 +121,6 @@ impl NotchFilter {
     }
 }
 
-/// 1st-order IIR low-pass filter used before the time-domain peak detector.
-pub struct LowPassFilter1 {
-    x: [f32; 2],
-    y: [f32; 2],
-    k0: f32,
-}
-
-impl LowPassFilter1 {
-    pub fn new(k0: f32) -> Self {
-        Self {
-            x: [0.0; 2],
-            y: [0.0; 2],
-            k0,
-        }
-    }
-
-    /// Pre-configured for the time-domain pitch detector path.
-    pub fn for_peak_detector() -> Self {
-        Self::new(0.9929014614)
-    }
-
-    #[inline]
-    pub fn process(&mut self, input: f32) -> f32 {
-        self.x[1] = self.x[0];
-        self.x[0] = input;
-        self.y[1] = self.y[0];
-        self.y[0] = (self.x[1] + self.x[0]) + self.k0 * self.y[1];
-        self.y[0]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,17 +154,6 @@ mod tests {
             peak > 0.80,
             "HPF should pass 500 Hz with gain > 0.8, got {peak}"
         );
-    }
-
-    /// LPF DC gain: input of 1.0 should converge to 1/(1 - k0) * 2 = very large,
-    /// so what we actually test is that output grows (LPF passes DC).
-    #[test]
-    fn lpf_output_grows_for_dc() {
-        let mut lpf = LowPassFilter1::for_peak_detector();
-        // Feed DC: output should grow (LPF doesn't block DC).
-        let out = lpf.process(0.01);
-        let out2 = lpf.process(0.01);
-        assert!(out2 > out, "LPF output should grow toward steady state");
     }
 
     #[test]

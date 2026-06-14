@@ -1,238 +1,19 @@
-//! Pitch detectors. Two paths:
+//! Pitch detection.
 //!
-//! - `TimeDomainDetector`: peak state-machine feeding a log-spaced histogram.
-//!
-//! - `FftDetector`: cepstrum-based FFT detector. Feature-gated under
-//!   `worklet` since it requires `realfft`.
-
-// ─── Time-domain detector ─────────────────────────────────────────────────────
-
-/// A log-spaced histogram bin for the time-domain path.
-#[derive(Clone, Default)]
-struct HistogramBin {
-    /// Center period for this bin (in samples, raw — not fixed-point).
-    period: u32,
-    total: u64,
-    hits: u16,
-}
-
-/// Peak state-machine + log-histogram pitch detector.
-///
-/// Call `push_sample` for every audio sample; call `detect` every 2048 samples
-/// to read the histogram peak.
-pub struct TimeDomainDetector {
-    // Peak state machine
-    peak_state: bool, // false = searching for high, true = searching for low
-    peak_low: f32,
-    peak_high: f32,
-    threshold: f32,
-    low_pt: u64,
-    low_pt0: u64,
-    high_pt: u64,
-    high_pt0: u64,
-    reset_pt: u64,
-    sample_pos: u64,
-
-    // Histogram (log-spaced bins, range set from tuning table)
-    histogram: Vec<HistogramBin>,
-    lowest_period: u32,
-    highest_period: u32,
-}
-
-impl Default for TimeDomainDetector {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TimeDomainDetector {
-    pub fn new() -> Self {
-        Self {
-            peak_state: false,
-            peak_low: 0.0,
-            peak_high: 0.0,
-            threshold: 0.0,
-            low_pt: 0,
-            low_pt0: 0,
-            high_pt: 0,
-            high_pt0: 0,
-            reset_pt: 0,
-            sample_pos: 0,
-            histogram: Vec::new(),
-            lowest_period: u32::MAX,
-            highest_period: 0,
-        }
-    }
-
-    /// Initialise histogram bins from the enabled cell period range.
-    /// Bins are log-spaced with ratio 9/8 (matching the C++ `setupHystogram`).
-    pub fn setup_histogram(&mut self, lowest_period: u32, highest_period: u32) {
-        if lowest_period == 0 || highest_period == 0 || lowest_period > highest_period {
-            return;
-        }
-        self.lowest_period = lowest_period;
-        self.highest_period = highest_period;
-        self.histogram.clear();
-
-        let mut p = lowest_period;
-        while p <= highest_period {
-            self.histogram.push(HistogramBin {
-                period: p,
-                ..Default::default()
-            });
-            p = p * 9 / 8;
-        }
-    }
-
-    /// Feed one (already filtered) sample. Returns a raw period when a
-    /// peak-to-peak crossing is detected, 0 otherwise.
-    /// Update the period histogram from the current peak state.
-    #[inline]
-    pub fn push_sample(&mut self, sample: f32) -> u32 {
-        let pos = self.sample_pos;
-        self.sample_pos += 1;
-
-        // Decay threshold every 2048 samples (matching C++ resetpt logic).
-        if pos.wrapping_sub(self.reset_pt) >= 2048 {
-            self.reset_pt = pos;
-            self.threshold -= self.threshold * 0.25;
-        }
-
-        let mut period = 0u32;
-        if self.peak_state {
-            // Searching for low.
-            if sample < self.peak_low {
-                self.peak_low = sample;
-                self.threshold = (self.peak_high * 2.0 + self.peak_low) / 3.0;
-                self.low_pt = pos;
-            }
-            if sample > self.threshold {
-                // Transition low→high: measure low-to-low period.
-                self.peak_state = false;
-                let raw = self.low_pt.wrapping_sub(self.low_pt0) as u32;
-                period = raw;
-                self.low_pt0 = self.low_pt;
-                self.peak_high = sample;
-                self.threshold = (self.peak_high * 2.0 + self.peak_low) / 3.0;
-                self.reset_pt = pos;
-                self.high_pt = pos;
-            }
-        } else {
-            // Searching for high.
-            if sample > self.peak_high {
-                self.peak_high = sample;
-                self.threshold = (self.peak_high + 2.0 * self.peak_low) / 3.0;
-                self.high_pt = pos;
-            }
-            if sample < self.threshold {
-                // Transition high→low: measure high-to-high period.
-                self.peak_state = true;
-                let raw = self.high_pt.wrapping_sub(self.high_pt0) as u32;
-                period = raw;
-                self.high_pt0 = self.high_pt;
-                self.peak_low = sample;
-                self.threshold = (self.peak_high + 2.0 * self.peak_low) / 3.0;
-                self.reset_pt = pos;
-                self.low_pt = pos;
-            }
-        }
-
-        if period != 0 && !self.histogram.is_empty() {
-            self.update_histogram(period);
-        }
-        period
-    }
-
-    /// Find the peak histogram bin and return the weighted average period
-    /// (raw samples). Returns 0 if confidence is too low.
-    /// Run time-domain pitch detection for one sample.
-    pub fn detect(&mut self) -> u32 {
-        if self.histogram.is_empty() {
-            return 0;
-        }
-
-        // Find the most-hit bin.
-        let mut max_hits = 0u16;
-        let mut hit_idx = usize::MAX;
-        for (i, bin) in self.histogram.iter().enumerate() {
-            if bin.hits > max_hits {
-                max_hits = bin.hits;
-                hit_idx = i;
-            }
-        }
-
-        if hit_idx == usize::MAX {
-            return 0;
-        }
-
-        // Accumulate this bin + neighbours.
-        let n = self.histogram.len();
-        let mut total_hits = self.histogram[hit_idx].hits as u32;
-        let mut sum_total = self.histogram[hit_idx].total;
-        if hit_idx > 0 {
-            total_hits += self.histogram[hit_idx - 1].hits as u32;
-            sum_total += self.histogram[hit_idx - 1].total;
-        }
-        if hit_idx + 1 < n {
-            total_hits += self.histogram[hit_idx + 1].hits as u32;
-            sum_total += self.histogram[hit_idx + 1].total;
-        }
-
-        // Half-life decay (hits >>= 1).
-        for bin in &mut self.histogram {
-            let old = bin.hits;
-            bin.hits >>= 1;
-            if bin.hits == 0 {
-                bin.total = 0;
-            } else {
-                bin.total = (bin.total * bin.hits as u64 + old as u64 / 2) / old as u64;
-            }
-        }
-
-        // Accept only if hit power is large enough (matching C++ threshold 1_100_000).
-        let hit_power = total_hits as u64 * self.histogram[hit_idx].period as u64;
-        if hit_power >= 1_100_000 {
-            // Weighted average period (24.8 fixed-point: shift by 8).
-            let period_raw = if total_hits > 0 {
-                ((sum_total << 8) + total_hits as u64 / 2) / total_hits as u64
-            } else {
-                0
-            };
-            period_raw as u32
-        } else {
-            0
-        }
-    }
-
-    fn update_histogram(&mut self, period: u32) {
-        // Binary search for nearest bin (log-spaced, so search by period value).
-        let pp = (period as u64) << 8;
-        let pos = self.histogram.partition_point(|b| (b.period as u64) < pp);
-
-        let idx = if pos == 0 {
-            0
-        } else if pos == self.histogram.len() {
-            self.histogram.len() - 1
-        } else {
-            let a = pp - (self.histogram[pos - 1].period as u64);
-            let b = (self.histogram[pos].period as u64) - pp;
-            if a < b {
-                pos - 1
-            } else {
-                pos
-            }
-        };
-
-        self.histogram[idx].hits = self.histogram[idx].hits.saturating_add(1);
-        self.histogram[idx].total += period as u64;
-    }
-}
+//! `FftDetector` is the sole pitch detector: a cepstrum-based FFT detector,
+//! feature-gated under `worklet` since it requires `realfft`. It covers the
+//! full vocal range (tested 80 Hz–1200 Hz); there is no separate time-domain
+//! path. The JS worklet fallback (`web/audio/voice_worklet.js`) mirrors the
+//! same cepstrum pipeline in pure JS.
 
 // ─── FFT detector ─────────────────────────────────────────────────────────────
 
 /// Cepstrum-based FFT pitch detector.
 ///
 /// Only compiled with the `worklet` feature (requires `realfft`).
+// Index-based loops below mirror the cepstrum algorithm step-for-step (and the
+// JS reference implementation in voice_worklet.js); keep them as range loops.
+#[allow(clippy::needless_range_loop)]
 #[cfg(feature = "worklet")]
 pub mod fft {
     use realfft::num_complex::Complex;
@@ -583,13 +364,6 @@ pub mod fft {
             FftDetector::new(SR)
         }
 
-        fn feed_sine(det: &mut FftDetector, freq: f32, n_samples: usize) {
-            for i in 0..n_samples {
-                let s = (2.0 * PI * freq * i as f32 / SR).sin();
-                det.push(s);
-            }
-        }
-
         /// Pure sine at 220 Hz → detected period ≈ SR/220 = 200.45 samples.
         ///
         /// The EMA (`fft_tavg`) starts at zero, so the detector needs several
@@ -791,51 +565,5 @@ pub mod fft {
                 err * 100.0
             );
         }
-    }
-}
-
-// ─── Unit tests for time-domain detector ─────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::f32::consts::PI;
-
-    fn make_td_det(sr: f32) -> TimeDomainDetector {
-        let mut d = TimeDomainDetector::new();
-        // Pitch range: 60 Hz..1200 Hz at given sample rate.
-        let lo = (sr / 1200.0) as u32;
-        let hi = (sr / 60.0) as u32;
-        d.setup_histogram(lo, hi);
-        d
-    }
-
-    #[test]
-    fn time_domain_detects_sine_period() {
-        let sr = 44100.0f32;
-        let freq = 440.0;
-        let mut det = make_td_det(sr);
-        let mut lpf = crate::dsp::filters::LowPassFilter1::for_peak_detector();
-
-        for i in 0..8192usize {
-            let s = (2.0 * PI * freq * i as f32 / sr).sin();
-            let fs = lpf.process(s);
-            det.push_sample(fs);
-        }
-
-        let result = det.detect();
-        // Result is 24.8 fixed-point; convert to raw samples.
-        if result > 0 {
-            let period_samples = result as f32 / 256.0;
-            let detected_freq = sr / period_samples;
-            let err = (detected_freq - freq).abs() / freq;
-            assert!(
-                err < 0.05,
-                "440 Hz: detected {detected_freq:.1} Hz (err {:.1}%)",
-                err * 100.0
-            );
-        }
-        // If result is 0 the histogram didn't reach threshold — that's
-        // acceptable for 8192 samples; we test the pipeline runs without panic.
     }
 }
