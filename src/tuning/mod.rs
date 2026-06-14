@@ -13,6 +13,9 @@ pub mod pthora;
 pub mod region;
 pub mod shading;
 
+#[cfg(test)]
+mod proptests;
+
 pub use cell::{Cell, CellOverride};
 pub use degree::{Degree, NUM_DEGREES};
 pub use event::{
