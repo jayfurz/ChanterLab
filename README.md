@@ -78,7 +78,15 @@ JavaScript score-engine tests (Node's built-in test runner, no install needed):
 cd web/score && node --test
 ```
 
-Both suites run in CI on every push and pull request.
+To run everything CI runs — `rustfmt`, `clippy`, and both test suites — in one
+command:
+
+```sh
+make check
+```
+
+Both suites, plus `cargo fmt --check` and `cargo clippy`, run in CI on every
+push and pull request.
 
 ## GitHub Pages Deployment
 
