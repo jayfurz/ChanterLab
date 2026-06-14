@@ -71,6 +71,12 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          # Create/enable the Pages site if it doesn't exist yet (uses the
+          # workflow's pages: write permission). Without this the deploy fails
+          # with "Get Pages site failed ... Not Found" on a repo that has
+          # never had Pages enabled.
+          enablement: true
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
