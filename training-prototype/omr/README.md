@@ -64,6 +64,24 @@ note counts. The headline number is `measure_integrity_pct` — the share of
 measures where all four voices agree on total beats. On the 3-piece corpus
 it is 100% for all pieces.
 
+## Verification harness (`verify/`)
+
+Full-score audit against the original PDFs (see
+`docs/omr-verification-2026-07-02.md` for the 2026-07-02 findings):
+
+```sh
+.venv/bin/python verify/coverage.py          # every PDF notehead/rest accounted for (exit 1 if not)
+.venv/bin/python verify/annotate.py          # extraction overlaid on the PDF, per system
+.venv/bin/python verify/annotate.py cherubic -m 14   # 6x zoom of one measure
+.venv/bin/python verify/render_compare.py    # verovio render vs PDF crop, per system
+.venv/bin/python verify/split_halves.py      # L/R half crops for reading
+```
+
+Outputs land in `verify/out/` (gitignored — derived from copyrighted PDFs);
+curated proof images in `verify/proof/`. Layout emission (measure splitting for
+unmetered chant, beams, `<print new-system>`, engraved widths) is exercised by
+`render_compare.py` since it renders the emitted MusicXML verbatim.
+
 ## Bake-off tooling
 
 - `ground_truth/trisagion_p2_gt.json` — hand-encoded 8 measures × 4 voices

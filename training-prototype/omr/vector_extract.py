@@ -108,6 +108,14 @@ class Head:
     grace: bool = False
 
 
+_BEAM_GROUP_SEQ = [0]
+
+
+def _next_beam_group():
+    _BEAM_GROUP_SEQ[0] += 1
+    return _BEAM_GROUP_SEQ[0]
+
+
 @dataclass(eq=False)
 class Stem:
     x: float
@@ -116,6 +124,7 @@ class Stem:
     heads: list = field(default_factory=list)
     nbeams: int = 0
     flag: Optional[tuple] = None
+    beam_group: Optional[int] = None
 
     @property
     def direction(self):
@@ -143,6 +152,8 @@ class Event:
     lyric: Optional[dict] = None
     unison_assumed: bool = False
     ambiguous: bool = False    # lone whole / centered rest on a shared staff
+    beam_group: Optional[int] = None   # id shared by stems under one beam
+    nbeams: int = 0                    # beam levels on this event's stem
 
     @property
     def total_beats(self):
@@ -562,16 +573,24 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
         # bboxes, so the height cap is generous
         if s_near is None or qw < 0.7 * s_near.sp or qh > 3.5 * s_near.sp:
             continue
-        hit = 0
+        hit_stems = []
         for st in stems:
             if qx0 - 1.0 <= st.x <= qx1 + 1.0 and \
                     qy0 - 1.5 * s_near.sp <= st.y0 <= qy1 + 1.5 * s_near.sp or \
                     qx0 - 1.0 <= st.x <= qx1 + 1.0 and \
                     qy0 - 1.5 * s_near.sp <= st.y1 <= qy1 + 1.5 * s_near.sp:
                 st.nbeams += 1
-                hit += 1
-        if hit < 2:
+                hit_stems.append(st)
+        if len(hit_stems) < 2:
             report.stats["beam_quads_with_lt2_stems"] += 1
+        # union stems joined by this quad into one beam group
+        gids = [st.beam_group for st in hit_stems if st.beam_group is not None]
+        gid = gids[0] if gids else _next_beam_group()
+        for st in stems:
+            if st.beam_group in gids[1:]:
+                st.beam_group = gid
+        for st in hit_stems:
+            st.beam_group = gid
 
     # ---- flags -> stems
     for g in music:
@@ -622,17 +641,25 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                 report.warn(f"p{page_no}: augmentation dot at "
                             f"({g.x:.0f},{g.y:.0f}) matched no notehead")
 
-    # ---- tempo (metronome mark: met-note glyph + '= NN' text)
-    if tempo_state.get("bpm") is None:
-        met = [g for g in music if g.cp in MET_NOTES]
-        for g in met:
-            for t in tokens:
-                m = re.match(r"=?\s*(\d{2,3})$", t["text"].replace(" ", ""))
-                if m and abs(t["y"] - g.y) < 12 and 0 < t["x0"] - g.x < 60:
-                    unit = MET_NOTES[g.cp]
-                    tempo_state["bpm"] = int(m.group(1)) * unit
+    # ---- tempo (metronome marks: met-note glyph + '= NN' text, all of them)
+    for g in music:
+        if g.cp not in MET_NOTES:
+            continue
+        for t in tokens:
+            m = re.match(r"=?\s*(\d{2,3})$", t["text"].replace(" ", ""))
+            if m and abs(t["y"] - g.y) < 12 and 0 < t["x0"] - g.x < 60:
+                unit = MET_NOTES[g.cp]
+                mark = {"page": page_no, "x": g.x, "y": g.y,
+                        "per_minute": int(m.group(1)), "unit": unit,
+                        "qpm": int(m.group(1)) * unit}
+                if not any(mk["page"] == page_no and abs(mk["x"] - g.x) < 4
+                           for mk in tempo_state["marks"]):
+                    tempo_state["marks"].append(mark)
+                    if tempo_state.get("bpm") is None:
+                        tempo_state["bpm"] = mark["qpm"]
                     report.note(f"p{page_no}: tempo mark -> quarter = "
-                                f"{tempo_state['bpm']:.0f}")
+                                f"{mark['qpm']:.0f} at x={g.x:.0f}")
+                break
 
     # ---- build events per system
     for sy in systems:
@@ -694,7 +721,8 @@ def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
         ev = Event(x=min(h.g.x0 for h in st_heads), kind="note",
                    heads=sorted(st_heads, key=lambda h: -h.step),
                    beats=beats, dots=max(h.dots for h in st_heads),
-                   staff=staff, stem_dir=st.direction)
+                   staff=staff, stem_dir=st.direction,
+                   beam_group=st.beam_group, nbeams=st.nbeams)
         used.update(id(h) for h in st_heads)
         _route_event(ev, sv, events, ambiguous_out, report, page_no)
 
@@ -790,7 +818,8 @@ def _route_event(ev, sv, events, ambiguous_out, report, page_no):
 def _clone_event(ev, heads, voice):
     return Event(x=ev.x, kind=ev.kind, heads=list(heads), beats=ev.beats,
                  dots=ev.dots, staff=ev.staff, voice=voice,
-                 stem_dir=ev.stem_dir, unison_assumed=ev.unison_assumed)
+                 stem_dir=ev.stem_dir, unison_assumed=ev.unison_assumed,
+                 beam_group=ev.beam_group, nbeams=ev.nbeams)
 
 
 def _cluster_columns(events, sp):
@@ -1213,17 +1242,41 @@ def _measure_ranges(staff, bar_xs):
     return out
 
 
+_NON_LYRIC_RE = re.compile(r"=|\d|^N\.?B\.?$|^\*|^rit\.*$", re.I)
+
+
+def _drop_non_lyric_lines(band):
+    """Group band tokens into text lines by y; drop lines that look like
+    tempo marks / editorial footnotes ('♩ = 98', 'N.B.', '*parenthetical
+    notes are optional') rather than sung text."""
+    lines = defaultdict(list)
+    for t in band:
+        key = None
+        for y in lines:
+            if abs(y - t["y"]) < 1.5:
+                key = y
+                break
+        lines[key if key is not None else t["y"]].append(t)
+    keep = []
+    for y, toks in lines.items():
+        if any(_NON_LYRIC_RE.search(t["text"]) for t in toks):
+            continue
+        keep.extend(toks)
+    return keep
+
+
 def _attach_lyrics(sy, tokens, report, page_no):
     """Lyric tokens live in the band below a staff; attach to nearest onset."""
     for si, staff in enumerate(sy.staves):
         band_top = staff.bot + 0.5 * staff.sp
         nxt = sy.staves[si + 1] if si + 1 < len(sy.staves) else None
-        band_bot = (nxt.top - 2 * staff.sp) if nxt is not None \
+        band_bot = (nxt.top - 0.5 * staff.sp) if nxt is not None \
             else staff.bot + 8 * staff.sp
         band = [t for t in tokens
                 if band_top < t["y"] < band_bot
                 and staff.x0 - 2 <= t["cx"] <= staff.x1 + 2
                 and t["size"] > 6]
+        band = _drop_non_lyric_lines(band)
         if not band:
             continue
         # events that can carry a lyric: notes on this staff
@@ -1284,12 +1337,27 @@ def _apply_ties(systems, curves, report, page_no):
         if e1 is e2:
             report.stats["curves_within_one_event"] += 1
             continue
-        if v1 == v2 and h1.step == h2.step and h1.staff is h2.staff:
+        if v1 == v2 and h1.step == h2.step and h1.staff is h2.staff and \
+                _adjacent_in_voice(sy1, v1, e1, e2):
             e1.tie_start = True
             e2.tie_stop = True
             report.stats["ties_detected"] += 1
         else:
+            # same-pitch but non-adjacent endpoints = a melisma slur whose
+            # first and last notes coincide (very common in chant) — NOT a tie
             report.stats["slurs_detected"] += 1
+
+
+def _adjacent_in_voice(sy, v, e1, e2):
+    """True iff no other note event of voice v on the same staff lies
+    strictly between e1 and e2 (a tie may only join consecutive notes)."""
+    lo, hi = min(e1.x, e2.x), max(e1.x, e2.x)
+    for e in sy.events.get(v, []):
+        if e is e1 or e is e2 or e.kind != "note" or e.staff is not e1.staff:
+            continue
+        if lo < e.x < hi:
+            return False
+    return True
 
 
 def _nearest_head_event(evs_all, x, y, side):
@@ -1310,7 +1378,7 @@ def _nearest_head_event(evs_all, x, y, side):
 def build_score(pdf_path, pages=None, report=None):
     report = report or Report()
     doc = fitz.open(pdf_path)
-    tempo_state = {"bpm": None}
+    tempo_state = {"bpm": None, "marks": []}
     all_systems = []
     for pno in range(len(doc)):
         if pages and (pno + 1) not in pages:
@@ -1328,13 +1396,17 @@ def build_score(pdf_path, pages=None, report=None):
                       if any(v in sy.events for sy in all_systems)]
     score = {v: [] for v in voices_present}
     measure_meta = []
-    for sy in all_systems:
+    for si, sy in enumerate(all_systems):
         ref_staff = sy.staves[0]
         ranges = _measure_ranges(ref_staff, sy.bar_xs)
         staff_ranges = {id(s): _measure_ranges(s, sy.bar_xs) for s in sy.staves}
         key = ref_staff.key_fifths
         for mi in range(len(ranges)):
-            meta = {"key": key, "sums": {}, "system_page": sy.page}
+            meta = {"key": key, "sums": {}, "system_page": sy.page,
+                    "system_index": si, "new_system": mi == 0,
+                    "x_range": ranges[mi], "sp": ref_staff.sp,
+                    "system_top": sy.staves[0].top,
+                    "system_bot": sy.staves[-1].bot}
             for v in voices_present:
                 evs = []
                 for e in sy.events.get(v, []):
@@ -1346,6 +1418,24 @@ def build_score(pdf_path, pages=None, report=None):
                 score[v].append(evs)
                 meta["sums"][v] = sum(e.total_beats for e in evs)
             measure_meta.append(meta)
+
+    # ---- attach tempo marks to the measure under them
+    for mark in tempo_state["marks"]:
+        best = None
+        for mi, meta in enumerate(measure_meta):
+            if meta["system_page"] != mark["page"]:
+                continue
+            sy_top = meta["system_top"]
+            if sy_top < mark["y"] - 6:      # mark must sit above the system
+                continue
+            lo, hi = meta["x_range"]
+            dx = 0.0 if lo - 6 <= mark["x"] < hi else \
+                min(abs(mark["x"] - lo), abs(mark["x"] - hi))
+            score_d = (sy_top - mark["y"]) + 4 * dx
+            if best is None or score_d < best[0]:
+                best = (score_d, mi)
+        if best is not None:
+            measure_meta[best[1]].setdefault("tempo", dict(mark))
 
     # drop measures that are empty in every voice (slivers next to final
     # thick barlines, decorative ranges) — report them
@@ -1378,7 +1468,7 @@ def build_score(pdf_path, pages=None, report=None):
 
     return {"title": title, "voices": voices_present, "score": score,
             "meta": measure_meta, "tempo": tempo_state["bpm"],
-            "report": report}
+            "report": report, "systems": all_systems}
 
 
 def _find_title(doc, first_music_page, first_staff_top, report):
@@ -1410,9 +1500,133 @@ def _esc(t):
              .replace('"', "&quot;"))
 
 
+MAX_MEASURE_BEATS = 6.5   # unmetered chant: split longer measures for layout
+SPLIT_TARGET_BEATS = 4.5
+
+
+def _voice_onsets(evs):
+    """Cumulative beat position at which each event starts + total."""
+    pos, cur = [], 0.0
+    for e in evs:
+        pos.append(round(cur, 4))
+        cur += e.total_beats
+    return pos, round(cur, 4)
+
+
+def _split_points(score, voices, mi, m_sum):
+    """Beat positions where a long measure can be split: every voice either
+    has an event onset there or has already run out of events (deficit)."""
+    common = None
+    for v in voices:
+        evs = score[v][mi]
+        pos, total = _voice_onsets(evs)
+        cand = {p for p in pos if 0 < p < m_sum}
+        cand |= {round(p * 0.25, 4) for p in range(1, int(m_sum * 4))
+                 if p * 0.25 >= total}   # after this voice's last event
+        common = cand if common is None else (common & cand)
+    if not common:
+        return []
+    n_seg = max(2, math.ceil(m_sum / SPLIT_TARGET_BEATS))
+    ideal = m_sum / n_seg
+    chosen, last = [], 0.0
+    for k in range(1, n_seg):
+        target = k * ideal
+        cands = [p for p in sorted(common)
+                 if p > last + 1.0 and p < m_sum - 1.0 + 1e-6]
+        if not cands:
+            break
+        p = min(cands, key=lambda p: abs(p - target))
+        if p - last < 1.0:
+            continue
+        chosen.append(p)
+        last = p
+    return chosen
+
+
+def _layout_measures(result):
+    """Turn extracted measures into layout measures: long unmetered measures
+    are split at all-voice onset boundaries (joined by invisible barlines)
+    so renderers can wrap lines and space notes like the engraving."""
+    score, voices, meta = result["score"], result["voices"], result["meta"]
+    out = []
+    for mi in range(len(meta)):
+        m_sum = max([meta[mi]["sums"].get(v, 0) for v in voices] + [0])
+        splits = _split_points(score, voices, mi, m_sum) \
+            if m_sum > MAX_MEASURE_BEATS else []
+        bounds = [0.0] + splits + [m_sum]
+        lo, hi = meta[mi]["x_range"]
+        sp = meta[mi].get("sp") or 6.0
+        for si in range(len(bounds) - 1):
+            b0, b1 = bounds[si], bounds[si + 1]
+            seg_events = {}
+            seg_sums = {}
+            for v in voices:
+                evs = score[v][mi]
+                pos, _total = _voice_onsets(evs)
+                seg = [e for e, p in zip(evs, pos) if b0 - 1e-6 <= p < b1 - 1e-6]
+                seg_events[v] = seg
+                seg_sums[v] = sum(e.total_beats for e in seg)
+            frac0, frac1 = (b0 / m_sum if m_sum else 0), \
+                           (b1 / m_sum if m_sum else 1)
+            width = (hi - lo) * (frac1 - frac0) / sp * 10
+            out.append({
+                "number": mi + 1,
+                "implicit": si > 0,
+                "events": seg_events,
+                "sums": seg_sums,
+                "m_sum": round(b1 - b0, 4),
+                "key": meta[mi]["key"],
+                "new_system": meta[mi].get("new_system") and si == 0,
+                "tempo": meta[mi].get("tempo") if si == 0 else None,
+                "invisible_right": si < len(bounds) - 2,
+                "width_tenths": width,
+                "first_of_printed": si == 0,
+            })
+    return out
+
+
+BEAT_UNIT_NAMES = {2.0: "half", 1.0: "quarter", 0.5: "eighth"}
+
+
+def _beam_xml(evs):
+    """Per-event beam element strings for one measure of one voice."""
+    beams = [""] * len(evs)
+    i = 0
+    while i < len(evs):
+        e = evs[i]
+        if e.kind != "note" or e.beam_group is None or e.beats >= 1.0:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(evs) and evs[j + 1].kind == "note" and \
+                evs[j + 1].beam_group == e.beam_group and \
+                evs[j + 1].beats < 1.0:
+            j += 1
+        if j > i:   # run of >= 2 notes under one beam
+            for k in range(i, j + 1):
+                pos = ("begin" if k == i else
+                       "end" if k == j else "continue")
+                parts = [f'<beam number="1">{pos}</beam>']
+                if evs[k].nbeams >= 2:
+                    left = k > i and evs[k - 1].nbeams >= 2
+                    right = k < j and evs[k + 1].nbeams >= 2
+                    if left and right:
+                        parts.append('<beam number="2">continue</beam>')
+                    elif right:
+                        parts.append('<beam number="2">begin</beam>')
+                    elif left:
+                        parts.append('<beam number="2">end</beam>')
+                    else:
+                        hook = "backward hook" if k > i else "forward hook"
+                        parts.append(f'<beam number="2">{hook}</beam>')
+                beams[k] = "".join(parts)
+        i = j + 1
+    return beams
+
+
 def emit_musicxml(result):
-    score, voices = result["score"], result["voices"]
-    meta = result["meta"]
+    voices = result["voices"]
+    lay = _layout_measures(result)
     out = []
     w = out.append
     w('<?xml version="1.0" encoding="UTF-8"?>')
@@ -1429,20 +1643,24 @@ def emit_musicxml(result):
           f'<part-name>{VOICE_NAMES.get(v, v)}</part-name></score-part>')
     w('  </part-list>')
 
-    n_meas = len(meta)
     for i, v in enumerate(voices):
         w(f'  <part id="P{i + 1}">')
         cur_key = None
         cur_beats = None
-        for mi in range(n_meas):
-            evs = score[v][mi]
-            m_sum = max([meta[mi]["sums"].get(vv, 0) for vv in voices] + [0])
-            w(f'    <measure number="{mi + 1}">')
+        memory = {}
+        for li, lm in enumerate(lay):
+            evs = lm["events"][v]
+            m_sum = lm["m_sum"]
+            impl = ' implicit="yes"' if lm["implicit"] else ''
+            w(f'    <measure number="{lm["number"]}"{impl} '
+              f'width="{lm["width_tenths"]:.0f}">')
+            if lm["new_system"] and li > 0:
+                w('      <print new-system="yes"/>')
             attrs = []
-            if mi == 0:
+            if li == 0:
                 attrs.append(f'<divisions>{DIVISIONS}</divisions>')
-            if meta[mi]["key"] != cur_key:
-                cur_key = meta[mi]["key"]
+            if lm["key"] != cur_key:
+                cur_key = lm["key"]
                 attrs.append(f'<key><fifths>{cur_key}</fifths></key>')
             beats_frac = _beats_fraction(m_sum)
             if beats_frac and beats_frac != cur_beats:
@@ -1450,23 +1668,32 @@ def emit_musicxml(result):
                 bn, bt = beats_frac
                 attrs.append(f'<time print-object="no"><beats>{bn}</beats>'
                              f'<beat-type>{bt}</beat-type></time>')
-            if mi == 0:
+            if li == 0:
                 attrs.append(_clef_xml(v))
             if attrs:
                 w('      <attributes>' + "".join(attrs) + '</attributes>')
-            if mi == 0 and result["tempo"]:
+            if lm["tempo"] and i == 0:   # metronome mark on the top part only
+                mk = lm["tempo"]
+                unit = BEAT_UNIT_NAMES.get(mk["unit"], "quarter")
                 w(f'      <direction placement="above"><direction-type>'
-                  f'<words></words></direction-type>'
-                  f'<sound tempo="{result["tempo"]:.0f}"/></direction>')
-            # accidental memory for this measure (per step+octave)
-            memory = {}
-            for e in evs:
-                _emit_event(w, e, memory, cur_key)
+                  f'<metronome><beat-unit>{unit}</beat-unit>'
+                  f'<per-minute>{mk["per_minute"]}</per-minute></metronome>'
+                  f'</direction-type>'
+                  f'<sound tempo="{mk["qpm"]:.0f}"/></direction>')
+            # accidental memory resets per PRINTED measure (splits carry it)
+            if lm["first_of_printed"]:
+                memory = {}
+            beam_xml = _beam_xml(evs)
+            for e, bx in zip(evs, beam_xml):
+                _emit_event(w, e, memory, cur_key, bx)
             # pad under-full measures so parts stay aligned
-            deficit = m_sum - meta[mi]["sums"].get(v, 0)
+            deficit = m_sum - lm["sums"].get(v, 0)
             if deficit > 1e-6:
                 w(f'      <forward><duration>'
                   f'{int(round(deficit * DIVISIONS))}</duration></forward>')
+            if lm["invisible_right"]:
+                w('      <barline location="right">'
+                  '<bar-style>none</bar-style></barline>')
             w('    </measure>')
         w('  </part>')
     w('</score-partwise>')
@@ -1492,7 +1719,7 @@ def _clef_xml(v):
     return '<clef><sign>G</sign><line>2</line></clef>'
 
 
-def _emit_event(w, e, memory, key_fifths):
+def _emit_event(w, e, memory, key_fifths, beam_xml=""):
     dur = int(round(e.total_beats * DIVISIONS))
     typ = TYPE_OF.get(e.beats)
     if e.kind == "rest":
@@ -1526,7 +1753,11 @@ def _emit_event(w, e, memory, key_fifths):
         if hi > 0:
             parts.append('<chord/>')
         parts.append(f'<pitch><step>{letter}</step>')
-        if alter:
+        # Emit <alter> explicitly whenever it differs from natural OR the key
+        # signature would otherwise alter this step (an unadorned <pitch> in a
+        # sharp/flat key is still natural per MusicXML, but naive consumers
+        # apply the key signature — an explicit 0 keeps everyone honest).
+        if alter or key_map.get(letter, 0):
             parts.append(f'<alter>{alter}</alter>')
         parts.append(f'<octave>{octave}</octave></pitch>')
         parts.append(f'<duration>{dur}</duration>')
@@ -1540,6 +1771,8 @@ def _emit_event(w, e, memory, key_fifths):
         parts.append(acc_xml)
         if e.stem_dir:
             parts.append(f'<stem>{e.stem_dir}</stem>')
+        if hi == 0 and beam_xml:
+            parts.append(beam_xml)
         if e.tie_start or e.tie_stop:
             nots = []
             if e.tie_start:

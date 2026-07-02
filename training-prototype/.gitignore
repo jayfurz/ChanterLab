@@ -9,6 +9,9 @@ omr/pdfs/
 omr/pages/
 omr/out/
 omr/gt_crops/
+omr/verify/out/
+omr/verify/shots/
+omr/verify/proof/
 omr/*.log
 omr/*.token
 omr/.token
