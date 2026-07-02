@@ -135,6 +135,13 @@ scores keep each voice on its own staff. Given born-digital PDFs, a
 PDF drawing operators) may ultimately beat raster OMR for this specific,
 clean corpus — worth a spike.
 
+A second piece confirms the pattern. The **Cherubic Hymn** page 2 OMR'd to:
+key = 4 sharps (detected), **1 part again (no S/A/T/B separation)**, but this
+time **6 measures** recovered (vs the Trisagion's 1) with 120 notes. So the
+**voice-collapse failure is consistent**, while **barline/measure recovery is
+inconsistent** across pieces — reinforcing that a choral-aware assembly stage
+(not a per-piece tweak) is the real requirement.
+
 The **control** sample proves the practice UX independently; the **OMR slot**
 shows the real, imperfect pipeline output and exactly why the correction step
 in Phase 4 exists.
