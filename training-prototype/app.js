@@ -223,6 +223,8 @@
         // We do our own container-scoped following — OSMD's followCursor
         // scrolls the PAGE, which made Pause unreachable on mobile.
         followCursor: false,
+        newSystemFromXML: true,   // honor the engraving's line breaks from the extractor
+        drawMeasureNumbers: false, // OSMD ordinals diverge from printed numbers at split measures
         cursorsOptions: [{ type: 0, color: GOLD, alpha: 0.4, follow: false }],
       });
     }
