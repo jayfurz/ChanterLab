@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "piece": "Trisagion Hymn — Oleksa Lozowchuk (Antiochian Sacred Music Library)",
+    "source": "pdfs/01_trisagion_lozowchuk_satb.pdf, page 2 (first music page), systems 1-2 = measures 1-8",
+    "encoding": "Hand-encoded 2026-07-02 for OMR bake-off scoring. Pitches are SOUNDING pitches (tenor is written treble-8vb, sounds an octave lower). Durations in quarter-note beats. The piece is unmetered (no time signature); measure lengths vary (6,6,6,4). System 2 is a varied repeat (alto/tenor differ from system 1).",
+    "method": "Read visually from 7-9x zoomed renders of the born-digital PDF (staff-by-staff, measure-by-measure), cross-checked against raw glyph coordinates. Beams/dots/flags verified visually on every measure.",
+    "key_fifths": 2,
+    "note": "notes are [pitch, beats]; pitch format letter+accidental+octave, accidental in {#,b,n(atural, printed)}; naturals persist within the measure per standard rules"
+  },
+  "voices": {
+    "S": {
+      "clef": "treble",
+      "measures": [
+        [["D4", 1], ["G4", 0.5], ["F#4", 0.5], ["E4", 2], ["D4", 2]],
+        [["D4", 1], ["G4", 0.5], ["F#4", 0.5], ["E4", 1.5], ["F#4", 0.5], ["F#4", 2]],
+        [["A4", 1], ["A4", 0.5], ["A4", 0.5], ["Cn5", 1], ["B4", 1], ["A4", 1], ["G4", 0.5], ["F#4", 0.5]],
+        [["E4", 1], ["E4", 0.5], ["E4", 0.5], ["D4", 2]],
+        [["D4", 1], ["G4", 0.5], ["F#4", 0.5], ["E4", 2], ["D4", 2]],
+        [["D4", 1], ["G4", 0.5], ["F#4", 0.5], ["E4", 1.5], ["F#4", 0.5], ["F#4", 2]],
+        [["A4", 1], ["A4", 0.5], ["A4", 0.5], ["Cn5", 1], ["B4", 1], ["A4", 1], ["G4", 0.5], ["F#4", 0.5]],
+        [["E4", 1], ["E4", 0.5], ["E4", 0.5], ["D4", 2]]
+      ]
+    },
+    "A": {
+      "clef": "treble",
+      "measures": [
+        [["A3", 1], ["D4", 1], ["D4", 1], ["C#4", 1], ["D4", 2]],
+        [["A3", 1], ["D4", 1], ["D4", 1], ["C#4", 1], ["D4", 2]],
+        [["A3", 1], ["A3", 0.5], ["A3", 0.5], ["E4", 1], ["D4", 1], ["Cn4", 1], ["B3", 1]],
+        [["A3", 1], ["A3", 0.5], ["A3", 0.5], ["A3", 2]],
+        [["A3", 1], ["D4", 1], ["D4", 1], ["C#4", 1], ["A3", 2]],
+        [["A3", 1], ["D4", 1], ["D4", 1], ["C#4", 1], ["D4", 2]],
+        [["A3", 1], ["A3", 0.5], ["A3", 0.5], ["E4", 1], ["D4", 1], ["Cn4", 1], ["B3", 1]],
+        [["A3", 1], ["A3", 0.5], ["A3", 0.5], ["A3", 2]]
+      ]
+    },
+    "T": {
+      "clef": "treble-8vb",
+      "measures": [
+        [["A3", 1], ["A3", 1], ["A3", 4]],
+        [["A3", 1], ["A3", 1], ["A3", 2], ["A3", 2]],
+        [["D3", 1], ["D3", 0.5], ["D3", 0.5], ["A3", 2], ["A3", 1], ["A3", 1]],
+        [["G3", 1], ["G3", 0.5], ["G3", 0.5], ["A3", 2]],
+        [["F#3", 1], ["A3", 1], ["A3", 2], ["F#3", 2]],
+        [["F#3", 1], ["B3", 1], ["B3", 1], ["A3", 1], ["A3", 2]],
+        [["E3", 1], ["E3", 0.5], ["E3", 0.5], ["A3", 1], ["G3", 1], ["E3", 1], ["E3", 1]],
+        [["G3", 1], ["G3", 0.5], ["G3", 0.5], ["A3", 2]]
+      ]
+    },
+    "B": {
+      "clef": "bass",
+      "measures": [
+        [["D3", 1], ["D3", 1], ["A2", 2], ["D3", 2]],
+        [["D3", 1], ["D3", 1], ["A2", 2], ["D3", 2]],
+        [["D3", 1], ["Cn3", 0.5], ["B2", 0.5], ["A2", 2], ["A2", 1], ["A2", 1]],
+        [["Cn3", 1], ["C3", 0.5], ["C3", 0.5], ["D3", 2]],
+        [["D3", 1], ["D3", 1], ["A2", 2], ["D3", 2]],
+        [["D3", 1], ["D3", 1], ["A2", 2], ["D3", 2]],
+        [["D3", 1], ["Cn3", 0.5], ["B2", 0.5], ["A2", 2], ["A2", 1], ["A2", 1]],
+        [["Cn3", 1], ["C3", 0.5], ["C3", 0.5], ["D3", 2]]
+      ]
+    }
+  }
+}

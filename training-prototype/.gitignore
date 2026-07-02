@@ -8,12 +8,20 @@ omr/.venv/
 omr/pdfs/
 omr/pages/
 omr/out/
+omr/gt_crops/
 omr/*.log
 omr/*.token
 omr/.token
 content/trisagion_omr.musicxml
+content/trisagion_vector.musicxml
+content/cherubic_vector.musicxml
+content/anaphora_vector.musicxml
 
 # Screenshots derived from the copyrighted score
 omr/shots/trisagion_omr.png
+omr/shots/trisagion_vector*.png
+omr/shots/cherubic_vector*.png
+omr/shots/anaphora_vector*.png
 omr/shots/teaser*.png
 omr/shots/lib*.html
+__pycache__/

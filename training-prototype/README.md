@@ -28,10 +28,15 @@ Everything is client-side. OpenSheetMusicDisplay and Tone.js are vendored in
 ## Content
 
 - **Control** (`content/control_satb.musicxml`) — a hand-made, deliberately
-  clean 4-part sample. Known-good, so the UI is verifiable independent of OMR.
-- **Trisagion** (`content/trisagion_omr.musicxml`) — produced by OMR from a real
-  Antiochian Sacred Music Library PDF (see `omr/SOURCES.md`). OMR output is
-  imperfect; this slot demonstrates the real-data path.
+  clean 4-part sample. Known-good, so the UI is verifiable independent of
+  extraction quality.
+- **Trisagion / Cherubic Hymn / Anaphora** (`content/*_vector.musicxml`) —
+  produced by the **vector-extraction pipeline** (`omr/pipeline.py`) from the
+  real Antiochian Sacred Music Library PDFs; 100% measure integrity, full
+  lyrics, all four voices (the Cherubic even splits its 2-staff reduction
+  pages into S/A/T/B). Gitignored — regenerate via `omr/README.md`.
+- **Trisagion (oemer OMR)** (`content/trisagion_omr.musicxml`) — the losing
+  raster-OMR output, kept for comparison (1 collapsed part, 1 measure).
 
 ## Layout
 

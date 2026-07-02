@@ -58,3 +58,24 @@ pdftoppm -png -r 300 pdfs/01_trisagion_lozowchuk_satb.pdf pages/01_trisagion
 # apply the OpenCV-5 find_lines patch (see note above), then:
 CUDA_VISIBLE_DEVICES="" .venv/bin/oemer pages/01_trisagion-2.png -o out
 ```
+
+## Audiveris (bake-off reference OMR — fallback path for scans)
+
+User-level install (no sudo), done 2026-07-02 for the bake-off
+(docs/choir-training-roadmap.md §3.4):
+
+- Temurin JDK 21 tarball → `/mnt/data/tools/jdk21`
+- Audiveris 5.10.2 Linux .deb, unpacked (dpkg-deb -x) → `/mnt/data/tools/audiveris`
+- Tesseract language data → `/mnt/data/tools/tessdata`
+
+```sh
+JAVA_HOME=/mnt/data/tools/jdk21 PATH="/mnt/data/tools/jdk21/bin:$PATH" \
+TESSDATA_PREFIX=/mnt/data/tools/tessdata \
+/mnt/data/tools/audiveris/bin/Audiveris -batch -export \
+    -output out/audiveris pdfs/*.pdf
+# .mxl outputs are zip containers; the root .xml inside is the MusicXML.
+```
+
+Results on this corpus: perfect on 4-staff pages, but 2-staff choral
+reductions come out as 2 parts × 2 internal voices (not S/A/T/B) — see the
+bake-off table. ~20–45 s per piece on CPU.

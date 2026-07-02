@@ -133,7 +133,8 @@ Option (b) is the most promising near-term fix and is cheap to try, since these
 scores keep each voice on its own staff. Given born-digital PDFs, a
 **vector-text extraction path** (read note glyphs/positions straight from the
 PDF drawing operators) may ultimately beat raster OMR for this specific,
-clean corpus — worth a spike.
+clean corpus — worth a spike. **(Spike done the next night — it wins
+decisively; see §3.4.)**
 
 A second piece confirms the pattern. The **Cherubic Hymn** page 2 OMR'd to:
 key = 4 sharps (detected), **1 part again (no S/A/T/B separation)**, but this
@@ -145,6 +146,103 @@ inconsistent** across pieces — reinforcing that a choral-aware assembly stage
 The **control** sample proves the practice UX independently; the **OMR slot**
 shows the real, imperfect pipeline output and exactly why the correction step
 in Phase 4 exists.
+
+---
+
+## 3.4 OMR bake-off (2026-07-02) — vector extraction wins
+
+Following §3.3's hunch, three pipelines were built/run on the same corpus and
+scored against a **hand-encoded ground truth**: the first 8 measures × 4
+voices of the Trisagion (page 2, both systems — system 2 is a *varied*
+repeat, so it's real test data), encoded from 7–9× zoomed renders note by
+note (`training-prototype/omr/ground_truth/trisagion_p2_gt.json`, committed).
+Judge: `omr/score_extraction.py` — LCS alignment per voice; metrics are
+note recall/precision per voice, duration accuracy on matched notes,
+voice-assignment, and measure integrity.
+
+**Why vector extraction is even possible:** the Antiochian PDFs are Dorico
+exports. Every notehead/clef/rest/accidental is a **Bravura (SMuFL) font
+glyph at exact coordinates** (noteheads use Bravura's "oversized" alternates
+U+F4BC/BD/BE); staff lines, stems, beams and barlines are vector paths. No
+pixels are ever rendered — `omr/vector_extract.py` reads the primitives with
+PyMuPDF and reassembles notation deterministically.
+
+### Scoreboard — Trisagion p2 ground truth (8 measures, 161 notes)
+
+| Metric | oemer (raster OMR) | Audiveris 5.10.2 (raster OMR) | **vector extraction** |
+|---|---|---|---|
+| Parts produced | 1 ("Piano") | 4 (SOPRANO/ALTO/TENOR/BASS) | **4 (Soprano/Alto/Tenor/Bass)** |
+| Voice-aware note recall | 28.6% | 100% | **100%** |
+| Voice-aware note precision | 28.4% | 100% | **100%** |
+| Voice-blind pitch recall / precision | 77.0% / 76.5% | 100% / 100% | **100% / 100%** |
+| Duration accuracy (matched notes) | 84.8% | 100% | **100%** |
+| Measures recovered (of 8) | 1 | 8 | **8** |
+| Per-voice measure-length match | 0% | 100% | **100%** |
+| Lyrics | none | partial (S+T lines) | **full syllables + hyphenation** |
+| Runtime (whole piece, CPU) | ~4 m 48 s **per page** | ~20–45 s per piece | **~0.15–0.2 s per piece** |
+| Footprint | Python + ONNX U-Net | JDK 21 + Audiveris + Tesseract | **PyMuPDF only** |
+
+### The tie-breaker: the Cherubic Hymn's 2-staff reduction pages
+
+The Trisagion/Anaphora are 4-staff (easy mode: one voice per staff). The
+Cherubic Hymn's first two pages are a **2-staff choral reduction** (S+A share
+the treble staff, T+B the bass) — the classic voice-separation nightmare:
+
+- **Audiveris** keeps the reduction as 2 parts with 2 internal MusicXML
+  voices each and generic/partial names (`Voice`, `Voice`, `ALTO`, `BASS`),
+  and stitches the mid-piece 2-staff↔4-staff layout switch into an
+  inconsistent 4-part hybrid. Not loadable as S|A|T|B without writing the
+  entire voice-splitting layer anyway.
+- **vector extraction** emits 4 clean named parts across the layout switch.
+  Stem direction gives the definite assignments; the genuinely ambiguous
+  notations (written unisons/a2, single-stem chords, lone whole notes,
+  stacked whole pairs, shared vs voice-specific rests) are resolved by a
+  per-measure **constrained search**: both voices of a staff must sum to the
+  same beat count, both staves of a system must agree on the measure length,
+  and engraving-convention priors break the remaining ties. Full-piece
+  measure integrity: **Trisagion 22/22, Cherubic 29/29, Anaphora 51/51
+  measures (100%)**, with every assumption logged in the confidence report.
+
+Honest caveats where Audiveris did *well*: on 4-staff pages it matched the
+ground truth perfectly (it is the reference OMR for a reason), and on the
+Anaphora's bass divisi it kept the secondary line as MusicXML voice 2 where
+vector extraction currently **drops secondary divisi streams** (3 spots in
+the Cherubic, all reported with exact pitches — correction-UI material).
+Audiveris also logged 40 warnings on this corpus (unmetered music trips its
+time-signature checks) and its OCR lyric capture was partial.
+
+### Verdict
+
+**`omr/pipeline.py` = vector extraction** (usage in `omr/README.md`):
+PDF → 4-voice MusicXML + JSON confidence report; refuses scanned PDFs
+(exit 3) instead of guessing; exits 2 below a measure-integrity threshold.
+All three full pieces load in the practice prototype with working S|A|T|B
+selection, gold highlighting, per-voice mute, and follow cursor
+(screenshots: `omr/shots/trisagion_vector_S.png`,
+`omr/shots/trisagion_vector_T_play.png`, `omr/shots/cherubic_vector_A.png`).
+
+Scope honesty: this wins **for born-digital engravings** — which is what the
+Antiochian library serves (≈3,800 items, largely Dorico/Sibelius-era
+publications). For scanned/photographed scores, Audiveris is the fallback
+path already validated above (JDK 21 user-level install, batch CLI), with
+the caveat that 2-staff reductions then still need a voice-splitting
+post-pass like the one built here.
+
+### Phase-2 correction UI — what the residuals actually need
+
+From the confidence reports, the correction UI only has to handle a short,
+well-defined list (all locations are already machine-reported):
+
+1. **Dropped divisi streams** (secondary line under a held note): offer
+   "restore as chord / restore as second voice / leave out".
+2. **Unison-assumption review**: measures where a2 duplication or ambiguous
+   whole/rest routing was applied — show the choice, allow flipping.
+3. **Repeat structure**: repeat barlines + "x5" texts are detected and
+   reported but not expanded; UI should let the user set verse counts.
+4. **Lyric attachment nits**: syllable→note mismatches are counted in the
+   report; a click-to-reassign affordance suffices.
+No pitch/duration editor is needed for this corpus — no pitch or duration
+errors were found against ground truth.
 
 ---
 
@@ -230,11 +328,14 @@ tolerance bands. This reuses open backlog items (see §7) — FB-06, VIS-04/05,
 FB-04/05 — now applied to a chosen SATB line. Mic pitch-detection for the
 singer is the phase-2 deliverable of the owner's vision.
 
-**Phase 4 — OMR ingestion at scale.** Batch-import the Antiochian catalog
-(the library API is documented in `training-prototype/omr/SOURCES.md`): a
-review/correction UI for OMR output (OMR is never 100%), a small store of
-verified scores, tags by hymn type / tone / composer. Copyright/attribution
-gate: only ingest freely published, attributable scores.
+**Phase 4 — ingestion at scale.** Batch-import the Antiochian catalog with
+`training-prototype/omr/pipeline.py` (the library API is documented in
+`training-prototype/omr/SOURCES.md`): the vector pipeline's confidence
+report gates each piece (integrity threshold), a review/correction UI covers
+the short residual list in §3.4, a small store of verified scores, tags by
+hymn type / tone / composer. Raster OMR (Audiveris) is only the fallback for
+scanned uploads. Copyright/attribution gate: only ingest freely published,
+attributable scores.
 
 **Phase 5 — iPad port implications.** The legacy Byzorgan has an `ipad-port`
 (Qt/iOS). The web app is the strategic surface; a WKWebView wrapper would carry

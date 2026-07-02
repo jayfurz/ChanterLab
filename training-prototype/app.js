@@ -27,7 +27,10 @@
 
   const PIECES = [
     { id: 'control', label: 'Control — hand-made clean SATB', url: 'content/control_satb.musicxml' },
-    { id: 'trisagion', label: 'Trisagion (antiochian.org, OMR)', url: 'content/trisagion_omr.musicxml' },
+    { id: 'trisagion_v', label: 'Trisagion (antiochian.org, vector extraction)', url: 'content/trisagion_vector.musicxml' },
+    { id: 'cherubic_v', label: 'Cherubic Hymn (antiochian.org, vector extraction)', url: 'content/cherubic_vector.musicxml' },
+    { id: 'anaphora_v', label: 'Anaphora (antiochian.org, vector extraction)', url: 'content/anaphora_vector.musicxml' },
+    { id: 'trisagion', label: 'Trisagion (oemer OMR — kept for comparison)', url: 'content/trisagion_omr.musicxml' },
   ];
 
   const el = {
@@ -407,8 +410,8 @@
       const p = PIECES.find((x) => x.id === el.piece.value);
       try { await loadScore(p.url); buildAudio(); }
       catch (e) {
-        const hint = p.id === 'trisagion'
-          ? ' — this OMR sample is gitignored (copyrighted source); regenerate it via omr/SOURCES.md.'
+        const hint = p.id !== 'control'
+          ? ' — antiochian scores are gitignored (copyrighted source); regenerate via omr/README.md.'
           : ' — ' + e.message;
         setStatus('Could not load ' + p.url + hint);
       }
