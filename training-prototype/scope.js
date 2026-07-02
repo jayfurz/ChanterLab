@@ -39,8 +39,23 @@ window.TrainingScope = (() => {
   // time
   let timeSource = () => ({ playing: false, t: null });
 
-  // mic
-  const mic = { on: false, stream: null, analyser: null, buf: null, ctx: null };
+  // mic — `processing=false` is HEADPHONES MODE (default): raw stream, no
+  // echoCancellation. Chrome/Android ties echoCancellation to system-level
+  // audio ducking, which was muting every backing voice the moment the singer
+  // sang; with headphones there is no echo to cancel, so we keep it OFF.
+  // `processing=true` is speaker mode (echoCancellation back on; the OS may
+  // duck playback while the mic hears voice — documented in the UI).
+  // The mic stream feeds ONLY the AnalyserNode — it is never routed to the
+  // destination and never touches any Tone.js gain.
+  const mic = { on: false, stream: null, src: null, analyser: null, buf: null, ctx: null, processing: false };
+
+  function micConstraints() {
+    return {
+      audio: mic.processing
+        ? { echoCancellation: true, noiseSuppression: true, autoGainControl: false }
+        : { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    };
+  }
 
   // live pitch state
   const hist3 = [];               // median-of-3 raw freq
@@ -185,7 +200,9 @@ window.TrainingScope = (() => {
     }
 
     const { playing, t } = timeSource();
-    const tNow = (playing && t !== null) ? t : 0;
+    // use transport time whenever it exists (playing OR paused) so the lane
+    // freezes in place on pause instead of snapping back to the start
+    const tNow = (t !== null && t !== undefined) ? t : 0;
     const nowX = cssW * NOW_FRAC;
     const xOfNote = (sec) => nowX + (sec - tNow) * PX_PER_SEC;
 
@@ -327,24 +344,58 @@ window.TrainingScope = (() => {
   async function micStart(audioCtx) {
     if (mic.on) return true;
     mic.ctx = audioCtx;
-    mic.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
-    });
-    const src = audioCtx.createMediaStreamSource(mic.stream);
+    mic.stream = await navigator.mediaDevices.getUserMedia(micConstraints());
+    mic.src = audioCtx.createMediaStreamSource(mic.stream);
     mic.analyser = audioCtx.createAnalyser();
     mic.analyser.fftSize = 2048;
-    src.connect(mic.analyser);
+    mic.src.connect(mic.analyser);
     mic.buf = new Float32Array(mic.analyser.fftSize);
     mic.on = true;
     return true;
   }
 
   function micStop() {
+    if (mic.src) { try { mic.src.disconnect(); } catch (e) { /* already gone */ } }
     if (mic.stream) mic.stream.getTracks().forEach((tr) => tr.stop());
-    mic.on = false; mic.stream = null; mic.analyser = null;
+    mic.on = false; mic.stream = null; mic.src = null; mic.analyser = null;
     trace = []; emaMidi = null; hist3.length = 0;
     lastDetect = { name: '—', cents: null, hit: false, fresh: 0 };
   }
 
-  return { attach, setLane, setTimeSource, micStart, micStop, isMicOn: () => mic.on };
+  // Switch headphones/speaker mic processing. If the mic is live, re-acquire
+  // the stream with the new constraints and swap it under the running
+  // analyser; on failure the old stream keeps running and we report false.
+  async function setMicProcessing(processing) {
+    processing = !!processing;
+    if (mic.processing === processing) return true;
+    mic.processing = processing;
+    if (!mic.on) return true;                     // applied on next micStart
+    const oldStream = mic.stream, oldSrc = mic.src;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(micConstraints());
+      if (oldSrc) { try { oldSrc.disconnect(); } catch (e) { /* noop */ } }
+      if (oldStream) oldStream.getTracks().forEach((tr) => tr.stop());
+      mic.stream = stream;
+      mic.src = mic.ctx.createMediaStreamSource(stream);
+      mic.src.connect(mic.analyser);
+      return true;
+    } catch (e) {
+      mic.processing = !processing;               // revert — old stream still live
+      if (!(oldStream && oldStream.active)) { mic.on = false; throw e; }
+      return false;
+    }
+  }
+
+  // Introspection for the UI/debugging: what the browser actually granted.
+  function getMicSettings() {
+    const tr = mic.stream && mic.stream.getAudioTracks()[0];
+    return tr ? tr.getSettings() : null;
+  }
+
+  return {
+    attach, setLane, setTimeSource, micStart, micStop,
+    setMicProcessing, getMicSettings,
+    isMicOn: () => mic.on,
+    getMicProcessing: () => mic.processing,
+  };
 })();

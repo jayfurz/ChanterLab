@@ -2,48 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>ChanterLab — Choir Training (SATB) Prototype</title>
-<link rel="stylesheet" href="style.css?v=singscope1" />
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="style.css?v=overlay1" />
 </head>
-<body>
+<body class="view-split">
 <header class="app-head">
   <h1>ChanterLab · Choir Training <span class="tag">SATB prototype</span></h1>
   <p class="sub">Pick your voice — it turns <b class="gold">gold</b> and is <b>muted</b> so you sing it.
      Tap 🎤 to see your pitch hit the gold notes. <span class="hint-hp">Headphones recommended.</span></p>
 </header>
-
-<section class="controls">
-  <div class="row row-top">
-    <select id="pieceSelect" aria-label="Piece"></select>
-  </div>
-
-  <div class="row row-voice">
-    <span class="label">Your voice</span>
-    <div id="voicePicker" class="voice-picker" role="tablist" aria-label="Voice selector"></div>
-  </div>
-
-  <div class="row row-transport">
-    <button id="play" class="btn primary">▶ Play</button>
-    <button id="stop" class="btn">■</button>
-    <button id="micBtn" class="btn mic" title="Practice with mic — see your pitch on the singscope">🎤 Mic</button>
-  </div>
-
-  <div class="row row-fine">
-    <span class="group">
-      <span class="label">Tempo <output id="bpmOut">70</output></span>
-      <input id="bpm" type="range" min="30" max="160" value="70" />
-    </span>
-    <span class="group">
-      <span class="label">Loop</span>
-      <input id="loopFrom" type="number" min="1" value="1" class="mnum" aria-label="Loop from measure" />
-      <span class="dash">–</span>
-      <input id="loopTo" type="number" min="1" value="1" class="mnum" aria-label="Loop to measure" />
-      <label class="chk"><input id="loopOn" type="checkbox" /> on</label>
-    </span>
-    <label class="chk"><input id="hearMine" type="checkbox" /> hear my part</label>
-  </div>
-</section>
 
 <div id="status" class="status">Loading…</div>
 
@@ -59,9 +28,66 @@
   <span>Prototype only — see <code>docs/choir-training-roadmap.md</code>. Content: antiochian.org Sacred Music Library (used for research/demo) + a hand-made control sample.</span>
 </footer>
 
+<!-- Fixed transport overlay: mini row always visible; full controls expand when
+     paused/stopped (or via the handle, even during playback). -->
+<section id="transport" class="transport" aria-label="Playback controls">
+  <button id="expandHandle" class="handle" aria-expanded="true" aria-controls="fullControls"
+          title="Show / hide controls"><span class="chev">⌄</span></button>
+
+  <div class="mini-row">
+    <button id="play" class="btn primary big">▶ Play</button>
+    <button id="stop" class="btn" title="Stop and rewind">■</button>
+    <output id="posOut" class="pos" aria-label="Position">m –</output>
+    <button id="voiceChip" class="chip" title="Selected voice — tap to open controls">S</button>
+  </div>
+
+  <div id="fullControls" class="full">
+    <div class="row row-voice">
+      <span class="label">Your voice</span>
+      <div id="voicePicker" class="voice-picker" role="tablist" aria-label="Voice selector"></div>
+    </div>
+
+    <div class="row row-fine">
+      <span class="group">
+        <span class="label">Tempo <output id="bpmOut">70</output></span>
+        <input id="bpm" type="range" min="30" max="160" value="70" />
+      </span>
+      <span class="group">
+        <span class="label">Loop</span>
+        <input id="loopFrom" type="number" min="1" value="1" class="mnum" aria-label="Loop from measure" />
+        <span class="dash">–</span>
+        <input id="loopTo" type="number" min="1" value="1" class="mnum" aria-label="Loop to measure" />
+        <label class="chk"><input id="loopOn" type="checkbox" /> on</label>
+      </span>
+    </div>
+
+    <div class="row row-mic">
+      <button id="micBtn" class="btn mic" title="Practice with mic — see your pitch on the singscope">🎤 Mic</button>
+      <label class="chk" title="Raw mic (no echo cancellation) — backing voices keep a constant volume. Turn off only when practising on speakers.">
+        <input id="hpMode" type="checkbox" checked /> 🎧 Headphones mode</label>
+      <label class="chk"><input id="hearMine" type="checkbox" /> hear my part</label>
+    </div>
+
+    <div class="row row-view">
+      <span class="label">View</span>
+      <div id="viewPicker" class="seg" role="tablist" aria-label="View mode">
+        <button data-view="split" class="segbtn active" role="tab">Split</button>
+        <button data-view="score" class="segbtn" role="tab">Score focus</button>
+        <button data-view="scope" class="segbtn" role="tab">Scope focus</button>
+      </div>
+    </div>
+
+    <div class="row row-piece">
+      <select id="pieceSelect" aria-label="Piece"></select>
+    </div>
+
+    <p id="micNote" class="mic-note">🎧 raw mic: backing voices stay at constant volume while you sing.</p>
+  </div>
+</section>
+
 <script src="vendor/opensheetmusicdisplay.min.js"></script>
 <script src="vendor/Tone.js"></script>
-<script src="scope.js?v=singscope1"></script>
-<script src="app.js?v=singscope1"></script>
+<script src="scope.js?v=overlay1"></script>
+<script src="app.js?v=overlay1"></script>
 </body>
 </html>

@@ -8,6 +8,14 @@
  *   - a follow cursor advances through the score in time with playback,
  *   - tempo is adjustable and a measure range can be looped.
  *
+ * Transport lives in a FIXED bottom overlay (owner's design): while PLAYING it
+ * minifies to a single always-reachable row (big Pause + position + voice
+ * chip + expand handle); when PAUSED it expands to the full control set.
+ * Auto-scroll etiquette: the follow cursor only ever scrolls the score
+ * CONTAINER (never the page), keeps the selected voice's staff in view, and
+ * suspends for ~3 s after the user touches/scrolls that container. Paused =
+ * zero auto-scroll.
+ *
  * Pure client-side. No build step. Libraries are vendored in ./vendor.
  */
 (() => {
@@ -15,7 +23,6 @@
 
   const GOLD = '#d4af37';
   const DIM = '#9aa0a6';
-  const VOICE_COLORS = { S: GOLD, A: GOLD, T: GOLD, B: GOLD }; // selected always gold
 
   // Canonical SATB order + labels; matched to parts by index and by name.
   const VOICE_DEFS = [
@@ -47,9 +54,16 @@
     loopOn: document.getElementById('loopOn'),
     hearMine: document.getElementById('hearMine'),
     micBtn: document.getElementById('micBtn'),
+    hpMode: document.getElementById('hpMode'),
+    micNote: document.getElementById('micNote'),
     scope: document.getElementById('scope'),
     scopeReadout: document.getElementById('scopeReadout'),
     scopeHint: document.getElementById('scopeHint'),
+    transport: document.getElementById('transport'),
+    expandHandle: document.getElementById('expandHandle'),
+    posOut: document.getElementById('posOut'),
+    voiceChip: document.getElementById('voiceChip'),
+    viewPicker: document.getElementById('viewPicker'),
   };
 
   let osmd = null;
@@ -59,7 +73,10 @@
   let gains = [];            // Tone.Gain per part
   let scheduledIds = [];
   let cursorTimeline = [];   // sorted unique onset beats for cursor stepping
-  let playing = false;
+  let cursorMeasures = [];   // measure number per cursor step (for the position readout)
+  let playState = 'stopped'; // 'stopped' | 'playing' | 'paused'
+  let viewMode = 'split';    // 'split' | 'score' | 'scope'
+  let userHoldUntil = 0;     // auto-scroll suspended until this perf.now() ms
 
   const setStatus = (m) => { el.status.textContent = m; };
 
@@ -203,8 +220,10 @@
         backend: 'svg',
         drawTitle: true,
         drawPartNames: true,
-        followCursor: true,
-        cursorsOptions: [{ type: 0, color: GOLD, alpha: 0.4, follow: true }],
+        // We do our own container-scoped following — OSMD's followCursor
+        // scrolls the PAGE, which made Pause unreachable on mobile.
+        followCursor: false,
+        cursorsOptions: [{ type: 0, color: GOLD, alpha: 0.4, follow: false }],
       });
     }
     applyResponsiveOsmdOptions();
@@ -216,6 +235,7 @@
     el.loopFrom.value = 1;
     el.loopTo.value = parsed.measureCount;
     buildScopeLane();
+    fitScoreHeight();
     setStatus(`Loaded: ${parsed.parts.length} voices, ${parsed.measureCount} measures. Pick a voice and press Play.`);
   }
 
@@ -236,6 +256,7 @@
       });
     });
     osmd.render();
+    fitScoreHeight();
   }
 
   function matchesSelected(partIndex, instrName) {
@@ -260,6 +281,7 @@
     });
     // ensure selected voice actually exists
     if (!present.includes(selectedVoice) && present.length) selectVoice(present[0]);
+    updateVoiceChip();
   }
 
   function selectVoice(key) {
@@ -269,6 +291,60 @@
     applyVoiceColors();
     applyMix();
     buildScopeLane();
+    updateVoiceChip();
+  }
+
+  function updateVoiceChip() {
+    const def = VOICE_DEFS.find((v) => v.key === selectedVoice);
+    el.voiceChip.textContent = def ? `${def.label} · ${def.name}` : selectedVoice;
+  }
+
+  /* ---------- View modes + adaptive score height ----------------------- */
+
+  function setView(mode) {
+    viewMode = mode;
+    document.body.classList.remove('view-split', 'view-score', 'view-scope');
+    document.body.classList.add('view-' + mode);
+    [...el.viewPicker.children].forEach((b) =>
+      b.classList.toggle('active', b.dataset.view === mode));
+    fitScoreHeight();
+  }
+
+  // Height in px of the first rendered music system (one line of all staves).
+  function firstSystemHeightPx() {
+    try {
+      const sys = osmd.GraphicSheet.MusicPages[0].MusicSystems[0];
+      return sys.PositionAndShape.Size.height * 10 * osmd.zoom;
+    } catch (e) {
+      // fallback: total svg height / number of systems
+      try {
+        const svg = el.osmd.querySelector('svg');
+        const nSys = osmd.GraphicSheet.MusicPages
+          .reduce((a, p) => a + p.MusicSystems.length, 0) || 1;
+        return svg.getBoundingClientRect().height / nSys;
+      } catch (e2) { return null; }
+    }
+  }
+
+  // Adapt the score container to the rendered system height when feasible:
+  // grow past the view-mode budget (up to a hard cap) so a full 4-part system
+  // — Tenor and Bass included — is visible without scrolling. Internal scroll
+  // (with active-voice priority) remains the fallback for taller renders.
+  function fitScoreHeight() {
+    if (!osmd || !el.osmd) return;
+    const svg = el.osmd.querySelector('svg');
+    if (!svg) return;
+    const vh = window.innerHeight / 100;
+    const budget = { split: 44 * vh, score: 66 * vh, scope: 32 * vh }[viewMode];
+    const hardCap = (viewMode === 'scope' ? 44 : 72) * vh;
+    const svgH = svg.getBoundingClientRect().height + 14; // + container padding
+    let h = Math.min(svgH, budget);
+    const sysH = firstSystemHeightPx();
+    if (sysH) {
+      const wantSystem = Math.min(sysH + 26, hardCap);   // one full system + slack
+      if (wantSystem > h) h = Math.min(svgH, wantSystem);
+    }
+    el.osmd.style.maxHeight = Math.max(120, Math.round(h)) + 'px';
   }
 
   /* ---------- Singscope lane ------------------------------------------- */
@@ -321,6 +397,9 @@
   }
 
   // Mute the selected voice unless "also hear my part" is checked.
+  // NOTE: this is the ONLY place backing-voice gain changes, and it depends
+  // solely on voice selection — never on mic input/level (see Headphones mode
+  // in scope.js for the OS-level ducking story).
   function applyMix() {
     parsed.parts.forEach((p, idx) => {
       if (!gains[idx]) return;
@@ -357,12 +436,17 @@
       });
     });
 
-    // cursor timeline = unique onsets in window (any voice)
-    const onsets = new Set();
+    // cursor timeline = unique onsets in window (any voice) + their measures
+    const onsetMap = new Map();
     parsed.parts.forEach((p) => p.notes.forEach((n) => {
-      if (n.startBeat >= winStart - 1e-6 && n.startBeat < winEnd - 1e-6) onsets.add(round(n.startBeat));
+      if (n.startBeat >= winStart - 1e-6 && n.startBeat < winEnd - 1e-6) {
+        const b = round(n.startBeat);
+        const cur = onsetMap.get(b);
+        if (cur === undefined || n.measure < cur) onsetMap.set(b, n.measure);
+      }
     }));
-    cursorTimeline = [...onsets].sort((a, b) => a - b);
+    cursorTimeline = [...onsetMap.keys()].sort((a, b) => a - b);
+    cursorMeasures = cursorTimeline.map((b) => onsetMap.get(b));
 
     // schedule cursor stepping
     cursorTimeline.forEach((beat, i) => {
@@ -415,36 +499,71 @@
     if (osmd.cursor.CursorOptions) {
       osmd.cursor.CursorOptions.color = GOLD;
       osmd.cursor.CursorOptions.alpha = 0.45;
+      osmd.cursor.CursorOptions.follow = false;   // never let OSMD scroll the page
     }
     osmd.cursor.reset();
     osmd.cursor.show();
     if (osmd.cursor.update) osmd.cursor.update();
     cursorStep = 0;
+    updatePos(cursorMeasures.length ? cursorMeasures[0] : null);
     scrollCursorIntoView();
   }
   let cursorStep = 0;
   function stepCursorTo(i) {
     if (!osmd.cursor) return;
-    if (i === 0) { osmd.cursor.reset(); osmd.cursor.show(); cursorStep = 0; scrollCursorIntoView(); return; }
+    if (i === 0) {
+      osmd.cursor.reset(); osmd.cursor.show(); cursorStep = 0;
+      updatePos(cursorMeasures[0]); scrollCursorIntoView(); return;
+    }
     while (cursorStep < i) { osmd.cursor.next(); cursorStep++; }
+    updatePos(cursorMeasures[i]);
     scrollCursorIntoView();
   }
 
-  // Keep the follow cursor visible inside the scrollable score container
-  // (essential on mobile where the score is a mini view).
+  function updatePos(measure) {
+    if (!el.posOut) return;
+    el.posOut.textContent = measure
+      ? `m ${measure}/${parsed ? parsed.measureCount : '?'}`
+      : 'm –';
+  }
+
+  // Keep the follow cursor visible inside the scrollable score container.
+  // Etiquette (owner's design):
+  //   - only ever scrolls the score CONTAINER — never the page,
+  //   - only while PLAYING (paused/stopped = page + score fully free),
+  //   - suspends ~3 s after any user touch/scroll on the container,
+  //   - vertically prioritizes the SELECTED voice's staff (the cursor element
+  //     spans the whole system, so the active staff sits at a fractional
+  //     height within it — S top … B bottom).
   function scrollCursorIntoView() {
+    if (playState !== 'playing') return;
+    if (performance.now() < userHoldUntil) return;
     const cEl = osmd && osmd.cursor && osmd.cursor.cursorElement;
     const wrap = el.osmd;
     if (!cEl || !wrap) return;
-    const top = cEl.offsetTop;
-    const bottom = top + cEl.offsetHeight;
+
     const vTop = wrap.scrollTop;
     const vBottom = vTop + wrap.clientHeight;
-    if (top < vTop + 10 || bottom > vBottom - 10) {
-      wrap.scrollTo({
-        top: Math.max(0, top - wrap.clientHeight * 0.25),
-        behavior: 'smooth',
-      });
+    const sysTop = cEl.offsetTop;
+    const sysBottom = sysTop + cEl.offsetHeight;
+
+    if (cEl.offsetHeight <= wrap.clientHeight - 8) {
+      // The whole system fits — keep ALL staves (T and B included) in view.
+      if (sysTop < vTop || sysBottom > vBottom) {
+        const slack = Math.max(6, (wrap.clientHeight - cEl.offsetHeight) * 0.35);
+        wrap.scrollTo({ top: Math.max(0, sysTop - slack), behavior: 'smooth' });
+      }
+    } else {
+      // System taller than the viewport — gold-voice priority: center the
+      // SELECTED voice's staff (cursor spans the system, staff ≈ fractional).
+      const nParts = parsed && parsed.parts.length ? parsed.parts.length : 1;
+      const selIdx = parsed ? parsed.parts.findIndex((p) => p.voiceKey === selectedVoice) : -1;
+      const frac = selIdx >= 0 ? (selIdx + 0.5) / nParts : 0.5;
+      const targetY = sysTop + cEl.offsetHeight * frac;
+      const margin = Math.min(30, wrap.clientHeight * 0.12);
+      if (targetY < vTop + margin || targetY > vBottom - margin) {
+        wrap.scrollTo({ top: Math.max(0, targetY - wrap.clientHeight * 0.5), behavior: 'smooth' });
+      }
     }
     const left = cEl.offsetLeft;
     if (left < wrap.scrollLeft + 10 || left > wrap.scrollLeft + wrap.clientWidth - 30) {
@@ -452,21 +571,47 @@
     }
   }
 
+  function noteUserTouch() { userHoldUntil = performance.now() + 3000; }
+
   /* ---------- Transport ----------------------------------------------- */
 
-  async function play() {
-    if (playing) return;
+  async function playPause() {
+    if (playState === 'playing') { pause(); return; }
+    if (playState === 'paused') { await resume(); return; }
+    await startPlayback();
+  }
+
+  async function startPlayback() {
     await Tone.start();
     if (!synths.length) buildAudio();
     applyMix();
     Tone.Transport.stop();
     Tone.Transport.position = 0;
-    resetCursor();
     buildScopeLane();
     scheduleAll();
+    playState = 'playing';
+    resetCursor();
     Tone.Transport.start('+0.1');
-    playing = true;
+    updatePlayUI();
+    setOverlay(false);
     setStatus(`Playing — ${VOICE_DEFS.find((v) => v.key === selectedVoice)?.name} muted (sing it). Follow the gold cursor.`);
+  }
+
+  function pause() {
+    Tone.Transport.pause();
+    playState = 'paused';
+    updatePlayUI();
+    setOverlay(true);
+    setStatus('Paused — scroll freely. ▶ resumes where you left off.');
+  }
+
+  async function resume() {
+    await Tone.start();
+    playState = 'playing';
+    Tone.Transport.start();
+    updatePlayUI();
+    setOverlay(false);
+    setStatus(`Playing — ${VOICE_DEFS.find((v) => v.key === selectedVoice)?.name} muted (sing it).`);
   }
 
   function stop() {
@@ -474,8 +619,36 @@
     Tone.Transport.position = 0;
     clearSchedule();
     if (osmd && osmd.cursor) osmd.cursor.hide();
-    playing = false;
+    playState = 'stopped';
+    updatePos(null);
+    updatePlayUI();
+    setOverlay(true);
     setStatus('Stopped.');
+  }
+
+  function updatePlayUI() {
+    el.play.textContent =
+      playState === 'playing' ? '⏸ Pause' :
+      playState === 'paused' ? '▶ Resume' : '▶ Play';
+  }
+
+  /* ---------- Transport overlay (fixed bottom sheet) -------------------- */
+
+  function setOverlay(expanded) {
+    el.transport.classList.toggle('collapsed', !expanded);
+    el.expandHandle.setAttribute('aria-expanded', String(expanded));
+  }
+
+  function initOverlay() {
+    el.expandHandle.addEventListener('click', () =>
+      setOverlay(el.transport.classList.contains('collapsed')));
+    el.voiceChip.addEventListener('click', () => setOverlay(true));
+    // Reserve page bottom padding = live overlay height, so the overlay never
+    // covers the singscope's now-line (or any content) at full page scroll.
+    const sync = () => document.documentElement.style.setProperty(
+      '--transport-h', el.transport.offsetHeight + 'px');
+    new ResizeObserver(sync).observe(el.transport);
+    sync();
   }
 
   /* ---------- Wire-up ------------------------------------------------- */
@@ -499,15 +672,26 @@
     el.bpm.addEventListener('input', () => {
       el.bpmOut.textContent = el.bpm.value;
       buildScopeLane();
-      if (playing) { stop(); play(); }
+      if (playState === 'playing') { stop(); startPlayback(); }
+      else if (playState === 'paused') stop();
     });
-    el.play.addEventListener('click', play);
+    el.play.addEventListener('click', playPause);
     el.stop.addEventListener('click', stop);
     el.hearMine.addEventListener('change', applyMix);
-    el.loopOn.addEventListener('change', () => { if (playing) { stop(); play(); } });
+    el.loopOn.addEventListener('change', () => {
+      if (playState !== 'stopped') { stop(); startPlayback(); }
+    });
     el.loopFrom.addEventListener('change', buildScopeLane);
     el.loopTo.addEventListener('change', buildScopeLane);
     el.micBtn.addEventListener('click', toggleMic);
+    el.hpMode.addEventListener('change', onHeadphonesToggle);
+    [...el.viewPicker.children].forEach((b) =>
+      b.addEventListener('click', () => setView(b.dataset.view)));
+
+    // auto-scroll etiquette: user touch on the score container suspends
+    // cursor-follow for ~3 s (each event refreshes the window)
+    ['touchstart', 'touchmove', 'pointerdown', 'wheel'].forEach((ev) =>
+      el.osmd.addEventListener(ev, noteUserTouch, { passive: true }));
 
     // Re-apply responsive OSMD sizing when crossing the narrow/wide boundary.
     let wasNarrow = null;
@@ -520,6 +704,7 @@
         osmd.render();
         applyVoiceColors();
       }
+      fitScoreHeight();
     });
   }
 
@@ -535,6 +720,9 @@
     }
     try {
       await Tone.start();                       // user gesture → audio context running
+      // Headphones mode ON (default) = raw mic: echoCancellation OFF so the
+      // phone can't duck the backing voices while you sing.
+      await TrainingScope.setMicProcessing(!el.hpMode.checked);
       await TrainingScope.micStart(Tone.getContext().rawContext);
       el.micBtn.classList.add('on');
       el.micBtn.textContent = '🎤 On';
@@ -545,13 +733,35 @@
     }
   }
 
+  async function onHeadphonesToggle() {
+    const hp = el.hpMode.checked;
+    el.micNote.textContent = hp
+      ? '🎧 raw mic: backing voices stay at constant volume while you sing.'
+      : '🔊 speaker mode: echo cancellation on — the phone may duck the backing voices while you sing.';
+    try {
+      await TrainingScope.setMicProcessing(!hp);   // re-acquires the mic if it is live
+      if (TrainingScope.isMicOn()) {
+        setStatus(hp
+          ? 'Headphones mode: raw mic — backing voices stay at constant volume.'
+          : 'Speaker mode: echo cancellation on — ducking may occur while you sing.');
+      }
+    } catch (e) {
+      setStatus('Mic switch failed: ' + e.message);
+    }
+  }
+
   async function main() {
     initControls();
+    initOverlay();
+    setView('split');
+    updatePlayUI();
+    setOverlay(true);
     if (window.TrainingScope && el.scope) {
       TrainingScope.attach(el.scope, el.scopeReadout, el.scopeHint);
       TrainingScope.setTimeSource(() => ({
-        playing,
-        t: playing ? Tone.Transport.seconds : null,
+        playing: playState === 'playing',
+        // keep the lane frozen in place while paused (t survives the pause)
+        t: playState === 'stopped' ? null : Tone.Transport.seconds,
       }));
     }
     try {
@@ -562,6 +772,14 @@
       console.error(e);
     }
   }
+
+  // Tiny debug/verification hook (used by the headless checks; harmless in prod).
+  window.__training = {
+    gains: () => gains.map((g) => g.gain.value),
+    playState: () => playState,
+    holdRemaining: () => Math.max(0, userHoldUntil - performance.now()),
+    viewMode: () => viewMode,
+  };
 
   main();
 })();

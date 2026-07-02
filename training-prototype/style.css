@@ -1,12 +1,16 @@
 :root{
   --bg:#14151a; --panel:#1e2027; --ink:#e8e6df; --sub:#9aa0a6;
   --gold:#d4af37; --gold-soft:#e7c96b; --line:#2c2f38; --cyan:#4dd7ff;
+  --transport-h:200px; /* JS keeps this in sync with the real overlay height */
 }
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);
   font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-  -webkit-text-size-adjust:100%}
+  -webkit-text-size-adjust:100%;
+  /* reserve room so the fixed transport overlay never covers page content
+     (incl. the singscope's now-line) when scrolled to the bottom */
+  padding-bottom:calc(var(--transport-h) + 12px)}
 
 /* ---------- header (compact on mobile) ---------- */
 .app-head{padding:10px 14px 4px}
@@ -17,20 +21,19 @@ body{background:var(--bg);color:var(--ink);
 .hint-hp{opacity:.75}
 .gold{color:var(--gold)}
 
-/* ---------- controls ---------- */
-.controls{display:flex;flex-direction:column;gap:8px;
-  padding:8px 12px;background:var(--panel);
-  border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.status{padding:4px 14px;color:var(--sub);font-size:12px;min-height:18px}
+
+/* ---------- shared control bits ---------- */
 .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.row-top select{width:100%;font-size:15px;padding:9px 10px}
-.row-voice{gap:10px}
 .group{display:flex;align-items:center;gap:6px}
 .label{font-size:10px;color:var(--sub);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
 select,input[type=number]{background:#12141a;color:var(--ink);border:1px solid var(--line);
   border-radius:8px;padding:8px 8px;font-size:15px}
-.mnum{width:52px;text-align:center}
+.mnum{width:48px;text-align:center}
 .dash{color:var(--sub)}
 input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:28px}
+.chk{display:flex;align-items:center;gap:5px;color:var(--sub);font-size:13px;white-space:nowrap}
+.chk input{width:18px;height:18px}
 
 .voice-picker{display:flex;gap:8px;flex:1}
 .vbtn{flex:1;min-width:48px;height:48px;border-radius:12px;border:1px solid var(--line);
@@ -40,26 +43,54 @@ input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:28px}
 .vbtn.active{background:var(--gold);color:#161616;border-color:var(--gold);
   box-shadow:0 0 0 3px rgba(212,175,55,.25)}
 
-.row-transport{gap:8px}
 .btn{background:#20232c;border:1px solid var(--line);color:var(--ink);
   padding:12px 16px;border-radius:12px;cursor:pointer;font-weight:600;font-size:16px;
   min-height:48px;touch-action:manipulation}
-.btn.primary{background:var(--gold);color:#161616;border-color:var(--gold);flex:1}
+.btn.primary{background:var(--gold);color:#161616;border-color:var(--gold)}
 .btn.mic{min-width:84px}
 .btn.mic.on{background:var(--cyan);color:#0c2530;border-color:var(--cyan)}
 .btn:active{transform:translateY(1px)}
-.chk{display:flex;align-items:center;gap:5px;color:var(--sub);font-size:13px;white-space:nowrap}
-.chk input{width:18px;height:18px}
-.row-fine{row-gap:6px}
-.row-fine .group{flex:1 1 auto;min-width:0;flex-wrap:wrap}
-.mnum{width:48px}
 
-.status{padding:4px 14px;color:var(--sub);font-size:12px;min-height:18px}
+/* ---------- transport overlay (fixed, bottom) ---------- */
+.transport{position:fixed;left:0;right:0;bottom:0;z-index:50;
+  background:rgba(24,26,33,.96);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border-top:1px solid var(--line);
+  box-shadow:0 -8px 28px rgba(0,0,0,.5);
+  padding:0 10px calc(8px + env(safe-area-inset-bottom))}
+.handle{display:block;width:100%;background:none;border:none;color:var(--sub);
+  padding:3px 0 1px;cursor:pointer;font-size:15px;line-height:1;min-height:24px;
+  touch-action:manipulation}
+.handle .chev{display:inline-block;transition:transform .25s ease}
+.transport.collapsed .chev{transform:rotate(180deg)}
 
-/* ---------- singscope — THE prominent element on a phone ---------- */
+.mini-row{display:flex;align-items:center;gap:8px;padding:2px 0 6px}
+.btn.big{flex:1;font-size:17px;min-height:52px}
+.pos{color:var(--sub);font-size:13px;font-variant-numeric:tabular-nums;
+  min-width:56px;text-align:center;white-space:nowrap}
+.chip{background:var(--gold);color:#161616;font-weight:700;border:none;border-radius:999px;
+  padding:9px 12px;font-size:14px;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+
+.full{display:flex;flex-direction:column;gap:8px;padding-bottom:4px;
+  overflow:hidden;max-height:70vh;opacity:1;
+  transition:max-height .3s ease,opacity .22s ease,padding .3s ease}
+.transport.collapsed .full{max-height:0;opacity:0;padding-bottom:0}
+.row-piece select{width:100%;font-size:15px;padding:9px 10px}
+.mic-note{margin:0;padding:0 2px;color:var(--sub);font-size:11px}
+
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:1}
+.segbtn{flex:1;background:#12141a;border:none;color:var(--sub);padding:9px 4px;
+  font-size:13px;cursor:pointer;min-height:40px;touch-action:manipulation}
+.segbtn+.segbtn{border-left:1px solid var(--line)}
+.segbtn.active{background:var(--gold);color:#161616;font-weight:700}
+
+/* ---------- singscope ---------- */
 .scope-wrap{position:relative;margin:6px 10px 10px;border:1px solid var(--line);
   border-radius:12px;overflow:hidden;background:#14161c}
 #scope{display:block;width:100%;height:38vh;max-height:340px;min-height:200px}
+body.view-split #scope{height:27vh;min-height:150px;max-height:300px}
+body.view-score #scope{height:96px;min-height:96px;max-height:96px}
+body.view-score .scope-hint{display:none}
 .scope-readout{position:absolute;top:8px;right:10px;font-size:20px;font-weight:700;
   color:var(--cyan);text-shadow:0 1px 4px rgba(0,0,0,.7);pointer-events:none}
 .scope-readout.hit{color:#ffd95e}
@@ -67,11 +98,13 @@ input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:28px}
 .scope-hint{position:absolute;left:0;right:0;bottom:6px;text-align:center;
   color:var(--sub);font-size:11px;pointer-events:none;opacity:.85}
 
-/* ---------- score (mini view on phones, scrollable, cursor auto-follows) */
+/* ---------- score (internal scroll only; JS adapts max-height to the
+              rendered system height + view mode) ---------- */
 .score{position:relative;background:#fbfbf7;margin:0 10px 16px;border-radius:12px;padding:6px;
-  overflow:auto;max-height:34vh;-webkit-overflow-scrolling:touch}
+  overflow:auto;max-height:42vh;-webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain}
 
-.app-foot{padding:0 14px 20px;color:var(--sub);font-size:11px}
+.app-foot{padding:0 14px 8px;color:var(--sub);font-size:11px}
 code{background:#12141a;padding:1px 5px;border-radius:5px}
 
 /* ---------- desktop ---------- */
@@ -80,17 +113,26 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
   .app-head h1{font-size:20px}
   .tag{font-size:11px;padding:2px 7px}
   .sub{font-size:13px}
-  .controls{flex-direction:row;flex-wrap:wrap;gap:18px;padding:12px 20px;
-    position:sticky;top:0;z-index:5}
-  .row{flex:0 0 auto}
-  .row-top select{width:auto;min-width:280px}
-  .voice-picker{flex:0 0 auto}
-  .vbtn{flex:0 0 auto;width:44px;height:44px;font-size:16px}
-  .btn{min-height:44px;padding:9px 14px}
-  .btn.primary{flex:0 0 auto}
   .status{padding:6px 20px}
   .scope-wrap{margin:8px 20px 12px}
   #scope{height:200px;min-height:160px}
-  .score{margin:0 20px 24px;max-height:calc(100vh - 460px);min-height:280px;padding:10px}
-  .app-foot{font-size:12px;padding:0 20px 24px}
+  body.view-split #scope{height:180px;min-height:140px;max-height:220px}
+  body.view-score #scope{height:96px;min-height:96px}
+  .score{margin:0 20px 24px;padding:10px;max-height:48vh}
+  .app-foot{font-size:12px;padding:0 20px 10px}
+
+  .transport{padding-left:20px;padding-right:20px}
+  .btn{min-height:44px;padding:9px 14px}
+  .btn.big{flex:0 0 auto;min-width:200px;min-height:48px}
+  .mini-row{gap:14px}
+  .pos{font-size:14px}
+  .full{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 22px;padding:4px 0 8px}
+  .row{flex:0 0 auto}
+  .voice-picker{flex:0 0 auto}
+  .vbtn{flex:0 0 auto;width:44px;height:44px;font-size:16px}
+  .row-piece{flex:1 1 auto}
+  .row-piece select{width:auto;min-width:280px}
+  .seg{flex:0 0 auto}
+  .segbtn{flex:0 0 auto;padding:9px 14px;min-height:36px}
+  .mic-note{flex-basis:100%}
 }
