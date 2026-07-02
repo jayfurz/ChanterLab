@@ -1,0 +1,39 @@
+:root{
+  --bg:#14151a; --panel:#1e2027; --ink:#e8e6df; --sub:#9aa0a6;
+  --gold:#d4af37; --gold-soft:#e7c96b; --line:#2c2f38; --accent:#5b8cff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.app-head{padding:16px 20px 6px}
+.app-head h1{margin:0;font-size:20px;font-weight:650}
+.tag{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--gold);color:#161616;padding:2px 7px;border-radius:999px;vertical-align:middle}
+.sub{margin:6px 0 0;color:var(--sub);font-size:13px}
+.gold{color:var(--gold)}
+.controls{display:flex;flex-wrap:wrap;gap:18px;align-items:center;
+  padding:12px 20px;background:var(--panel);border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.group{display:flex;align-items:center;gap:8px}
+.label{font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.05em}
+select,input[type=number]{background:#12141a;color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:6px 8px}
+.mnum{width:56px}
+input[type=range]{accent-color:var(--gold)}
+.voice-picker{display:flex;gap:6px}
+.vbtn{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);
+  background:#12141a;color:var(--ink);font-weight:700;font-size:16px;cursor:pointer;
+  transition:all .12s}
+.vbtn:hover{border-color:var(--gold-soft)}
+.vbtn.active{background:var(--gold);color:#161616;border-color:var(--gold);
+  box-shadow:0 0 0 3px rgba(212,175,55,.25)}
+.btn{background:#20232c;border:1px solid var(--line);color:var(--ink);
+  padding:8px 14px;border-radius:9px;cursor:pointer;font-weight:600}
+.btn.primary{background:var(--gold);color:#161616;border-color:var(--gold)}
+.btn:active{transform:translateY(1px)}
+.chk{display:flex;align-items:center;gap:5px;color:var(--sub);font-size:13px}
+.status{padding:6px 20px;color:var(--sub);font-size:12px;min-height:20px}
+.score{background:#fbfbf7;margin:0 20px 24px;border-radius:12px;padding:10px;
+  overflow:auto;max-height:calc(100vh - 220px)}
+.app-foot{padding:0 20px 24px;color:var(--sub);font-size:12px}
+code{background:#12141a;padding:1px 5px;border-radius:5px}

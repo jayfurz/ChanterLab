@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ChanterLab — Choir Training (SATB) Prototype</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="app-head">
+  <h1>ChanterLab · Choir Training <span class="tag">SATB prototype</span></h1>
+  <p class="sub">Pick your voice. Its part turns <b class="gold">gold</b> and the others dim.
+     Playback <b>mutes your voice</b> so you sing it against the rest of the choir.</p>
+</header>
+
+<section class="controls">
+  <div class="group">
+    <span class="label">Content</span>
+    <select id="pieceSelect"></select>
+  </div>
+
+  <div class="group">
+    <span class="label">Your voice</span>
+    <div id="voicePicker" class="voice-picker" role="tablist" aria-label="Voice selector"></div>
+  </div>
+
+  <div class="group">
+    <span class="label">Tempo <output id="bpmOut">70</output> BPM</span>
+    <input id="bpm" type="range" min="30" max="160" value="70" />
+  </div>
+
+  <div class="group">
+    <span class="label">Loop measures</span>
+    <input id="loopFrom" type="number" min="1" value="1" class="mnum" />
+    <span>–</span>
+    <input id="loopTo" type="number" min="1" value="1" class="mnum" />
+    <label class="chk"><input id="loopOn" type="checkbox" /> loop</label>
+  </div>
+
+  <div class="group transport">
+    <button id="play" class="btn primary">▶ Play</button>
+    <button id="stop" class="btn">■ Stop</button>
+    <label class="chk"><input id="hearMine" type="checkbox" /> also hear my part (unmute)</label>
+  </div>
+</section>
+
+<div id="status" class="status">Loading…</div>
+<div id="osmd" class="score"></div>
+
+<footer class="app-foot">
+  <span>Prototype only — see <code>docs/choir-training-roadmap.md</code>. Content: antiochian.org Sacred Music Library (used for research/demo) + a hand-made control sample.</span>
+</footer>
+
+<script src="vendor/opensheetmusicdisplay.min.js"></script>
+<script src="vendor/Tone.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
