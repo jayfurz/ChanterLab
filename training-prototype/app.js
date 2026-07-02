@@ -46,6 +46,10 @@
     loopTo: document.getElementById('loopTo'),
     loopOn: document.getElementById('loopOn'),
     hearMine: document.getElementById('hearMine'),
+    micBtn: document.getElementById('micBtn'),
+    scope: document.getElementById('scope'),
+    scopeReadout: document.getElementById('scopeReadout'),
+    scopeHint: document.getElementById('scopeHint'),
   };
 
   let osmd = null;
@@ -172,6 +176,22 @@
 
   /* ---------- OSMD rendering + coloring ------------------------------- */
 
+  // Narrow screens: drop the engraved title/part names (the voice picker and
+  // gold coloring carry that) and zoom OSMD out so systems fit the width.
+  function isNarrow() { return el.osmd.clientWidth < 560; }
+
+  function applyResponsiveOsmdOptions() {
+    const narrow = isNarrow();
+    osmd.setOptions({
+      drawTitle: !narrow,
+      drawSubtitle: !narrow,
+      drawComposer: !narrow,
+      drawLyricist: false,
+      drawPartNames: !narrow,
+    });
+    osmd.zoom = narrow ? 0.55 : 1.0;
+  }
+
   async function loadScore(url) {
     setStatus('Loading score…');
     const xml = await (await fetch(url)).text();
@@ -187,6 +207,7 @@
         cursorsOptions: [{ type: 0, color: GOLD, alpha: 0.4, follow: true }],
       });
     }
+    applyResponsiveOsmdOptions();
     await osmd.load(xml);
     osmd.render();
     buildVoicePicker();
@@ -194,6 +215,7 @@
     // default loop = whole piece
     el.loopFrom.value = 1;
     el.loopTo.value = parsed.measureCount;
+    buildScopeLane();
     setStatus(`Loaded: ${parsed.parts.length} voices, ${parsed.measureCount} measures. Pick a voice and press Play.`);
   }
 
@@ -246,6 +268,33 @@
       b.classList.toggle('active', b.textContent === (VOICE_DEFS.find((v) => v.key === key)?.label)));
     applyVoiceColors();
     applyMix();
+    buildScopeLane();
+  }
+
+  /* ---------- Singscope lane ------------------------------------------- */
+
+  // Feed the singscope the selected voice's target notes (gold lane), the
+  // other voices (faint context), and the loop window length — in seconds
+  // relative to transport time 0 (which is the loop-window start).
+  function buildScopeLane() {
+    if (!parsed || !window.TrainingScope) return;
+    const spb = 60 / Number(el.bpm.value);
+    const from = clampMeasure(Number(el.loopFrom.value));
+    const to = clampMeasure(Number(el.loopTo.value));
+    const { start: winStart, end: winEnd } = measureBeatRange(from, to);
+    const mk = (p) => p.notes
+      .filter((n) => n.startBeat >= winStart - 1e-6 && n.startBeat < winEnd - 1e-6)
+      .map((n) => ({
+        start: (n.startBeat - winStart) * spb,
+        end: (n.startBeat - winStart + n.durBeat) * spb,
+        midi: n.midi,
+      }));
+    const sel = parsed.parts.find((p) => p.voiceKey === selectedVoice);
+    TrainingScope.setLane(
+      sel ? mk(sel) : [],
+      parsed.parts.filter((p) => p !== sel).flatMap(mk),
+      (winEnd - winStart) * spb,
+    );
   }
 
   /* ---------- Audio (Tone.js) ----------------------------------------- */
@@ -362,15 +411,45 @@
 
   function resetCursor() {
     if (!osmd.cursor) return;
+    // Belt-and-braces: some OSMD builds ignore constructor cursorsOptions.
+    if (osmd.cursor.CursorOptions) {
+      osmd.cursor.CursorOptions.color = GOLD;
+      osmd.cursor.CursorOptions.alpha = 0.45;
+    }
     osmd.cursor.reset();
     osmd.cursor.show();
+    if (osmd.cursor.update) osmd.cursor.update();
     cursorStep = 0;
+    scrollCursorIntoView();
   }
   let cursorStep = 0;
   function stepCursorTo(i) {
     if (!osmd.cursor) return;
-    if (i === 0) { osmd.cursor.reset(); osmd.cursor.show(); cursorStep = 0; return; }
+    if (i === 0) { osmd.cursor.reset(); osmd.cursor.show(); cursorStep = 0; scrollCursorIntoView(); return; }
     while (cursorStep < i) { osmd.cursor.next(); cursorStep++; }
+    scrollCursorIntoView();
+  }
+
+  // Keep the follow cursor visible inside the scrollable score container
+  // (essential on mobile where the score is a mini view).
+  function scrollCursorIntoView() {
+    const cEl = osmd && osmd.cursor && osmd.cursor.cursorElement;
+    const wrap = el.osmd;
+    if (!cEl || !wrap) return;
+    const top = cEl.offsetTop;
+    const bottom = top + cEl.offsetHeight;
+    const vTop = wrap.scrollTop;
+    const vBottom = vTop + wrap.clientHeight;
+    if (top < vTop + 10 || bottom > vBottom - 10) {
+      wrap.scrollTo({
+        top: Math.max(0, top - wrap.clientHeight * 0.25),
+        behavior: 'smooth',
+      });
+    }
+    const left = cEl.offsetLeft;
+    if (left < wrap.scrollLeft + 10 || left > wrap.scrollLeft + wrap.clientWidth - 30) {
+      wrap.scrollTo({ left: Math.max(0, left - wrap.clientWidth * 0.3), behavior: 'smooth' });
+    }
   }
 
   /* ---------- Transport ----------------------------------------------- */
@@ -383,6 +462,7 @@
     Tone.Transport.stop();
     Tone.Transport.position = 0;
     resetCursor();
+    buildScopeLane();
     scheduleAll();
     Tone.Transport.start('+0.1');
     playing = true;
@@ -418,16 +498,62 @@
     });
     el.bpm.addEventListener('input', () => {
       el.bpmOut.textContent = el.bpm.value;
-      if (playing) { const pos = Tone.Transport.seconds; stop(); play(); }
+      buildScopeLane();
+      if (playing) { stop(); play(); }
     });
     el.play.addEventListener('click', play);
     el.stop.addEventListener('click', stop);
     el.hearMine.addEventListener('change', applyMix);
     el.loopOn.addEventListener('change', () => { if (playing) { stop(); play(); } });
+    el.loopFrom.addEventListener('change', buildScopeLane);
+    el.loopTo.addEventListener('change', buildScopeLane);
+    el.micBtn.addEventListener('click', toggleMic);
+
+    // Re-apply responsive OSMD sizing when crossing the narrow/wide boundary.
+    let wasNarrow = null;
+    window.addEventListener('resize', () => {
+      if (!osmd) return;
+      const n = isNarrow();
+      if (n !== wasNarrow) {
+        wasNarrow = n;
+        applyResponsiveOsmdOptions();
+        osmd.render();
+        applyVoiceColors();
+      }
+    });
+  }
+
+  /* ---------- Mic ------------------------------------------------------ */
+
+  async function toggleMic() {
+    if (TrainingScope.isMicOn()) {
+      TrainingScope.micStop();
+      el.micBtn.classList.remove('on');
+      el.micBtn.textContent = '🎤 Mic';
+      setStatus('Mic off.');
+      return;
+    }
+    try {
+      await Tone.start();                       // user gesture → audio context running
+      await TrainingScope.micStart(Tone.getContext().rawContext);
+      el.micBtn.classList.add('on');
+      el.micBtn.textContent = '🎤 On';
+      if (el.scopeHint) el.scopeHint.textContent = 'sing your gold line — cyan is you, gold glow = on the note (±50¢, any octave)';
+      setStatus('Mic on — sing your part. Headphones avoid feedback from the other voices.');
+    } catch (e) {
+      setStatus('Mic unavailable: ' + e.message);
+    }
   }
 
   async function main() {
     initControls();
+    if (window.TrainingScope && el.scope) {
+      TrainingScope.attach(el.scope, el.scopeReadout, el.scopeHint);
+      TrainingScope.setTimeSource(() => ({
+        playing,
+        t: playing ? Tone.Transport.seconds : null,
+      }));
+    }
     try {
       await loadScore(PIECES[0].url);
       buildAudio();

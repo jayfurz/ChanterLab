@@ -91,6 +91,13 @@ step; OSMD + Tone.js vendored). It renders a 4-part SATB MusicXML score and:
 - **Tempo** slider and **loop a measure range** (the essential practice feature).
 - Two content slots: the **OMR'd antiochian piece** and a **hand-made clean
   control** MusicXML, so the UI is verifiable independent of OMR noise.
+- **Singscope with live mic pitch** (added 2026-07-02 on owner feedback):
+  mobile-first piano-roll lane — selected voice's targets in gold, live pitch
+  as a cyan trace, octave-tolerant **±50¢** matches glow gold, note-name/cents
+  readout. JS autocorrelation detector (see prototype README §pitch detection
+  for the works-tonight rationale, latency, and the WASM swap-in point). The
+  same session made the whole prototype responsive (360/390 px verified) with
+  cursor auto-scroll and thumb-sized controls.
 
 This is a **standalone prototype, not yet integrated** into the Rust/WASM app —
 see §5 for why and how they converge.
@@ -321,12 +328,18 @@ gold/dim coloring, gold follow cursor, tempo, and measure-loop into the app as
 a new "Choir" mode alongside Sing / Scale / Train. Reuse the existing transport
 where possible.
 
-**Phase 3 — mic scoring for choir practice (phase-2 of vision).** Wire the
-existing pitch detector + singscope to score the *selected* voice against its
-target line in real time: live moria/cents offset readout, per-note pass/fail,
-tolerance bands. This reuses open backlog items (see §7) — FB-06, VIS-04/05,
-FB-04/05 — now applied to a chosen SATB line. Mic pitch-detection for the
-singer is the phase-2 deliverable of the owner's vision.
+**Phase 3 — mic scoring for choir practice (phase-2 of vision).**
+*First slice shipped in the prototype (owner request, 2026-07-02):* `scope.js`
+adds a mobile-first **singscope** — gold target lane for the selected voice,
+live mic pitch via JS autocorrelation (see prototype README for the detector
+choice + latency numbers), octave-tolerant ±50¢ gold-glow hit feedback, and a
+note-name/cents readout.
+*Still open for 3b:* per-note pass/fail + exercise scoring (reuse the
+`exercise_mode.js` patterns: tolerance bands, per-step stats, best scores),
+score report at loop end, swapping in the WASM worklet detector for lower
+latency/robustness, and tuning the hit band per skill level. This reuses open
+backlog items (see §7) — FB-06, VIS-04/05, FB-04/05 — now applied to a chosen
+SATB line.
 
 **Phase 4 — ingestion at scale.** Batch-import the Antiochian catalog with
 `training-prototype/omr/pipeline.py` (the library API is documented in
