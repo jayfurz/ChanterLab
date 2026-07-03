@@ -79,6 +79,7 @@
               id, title: it.title,
               label: `${it.title}${it.composer ? ' — ' + it.composer : ''}`,
               url: 'omr/' + it.musicxml,
+              pdfUrl: it.pdfUrl || null,
             });
           }
           libItems.push({
@@ -121,6 +122,7 @@
     voiceChip: document.getElementById('voiceChip'),
     viewPicker: document.getElementById('viewPicker'),
     currentPiece: document.getElementById('currentPiece'),
+    pdfLink: document.getElementById('pdfLink'),
     libraryBtn: document.getElementById('libraryBtn'),
     overlay: document.getElementById('libraryOverlay'),
     libSearch: document.getElementById('libSearch'),
@@ -299,7 +301,36 @@
       return { voiceKey: voiceDef.key, voiceName: voiceDef.name, index: idx, notes };
     });
 
+    propagateLyrics(parts);
     return { parts, measureCount };
+  }
+
+  // Engravings often print the shared text under only one staff (or a subset)
+  // while every part sings the same words. For the scope lane, borrow
+  // syllables for lyric-poor parts from the best rhythm-matched lyric-bearing
+  // part: copy at exactly matching onsets only, so differing rhythms
+  // (melismas, part-specific figures) never get wrong text forced onto them.
+  function propagateLyrics(parts) {
+    const r3 = (x) => Math.round(x * 1000) / 1000;
+    const lyricCount = (p) => p.notes.reduce((a, n) => a + (n.lyric ? 1 : 0), 0);
+    const hasOwn = (p) => lyricCount(p) >= Math.max(3, p.notes.length * 0.2);
+    const donors = parts.filter(hasOwn).map((p) => ({
+      map: new Map(p.notes.filter((n) => n.lyric).map((n) => [r3(n.startBeat), n.lyric])),
+    }));
+    if (!donors.length) return;
+    parts.forEach((p) => {
+      if (hasOwn(p)) return;
+      let best = null, bestHits = 0;
+      donors.forEach((d) => {
+        let hits = 0;
+        p.notes.forEach((n) => { if (d.map.has(r3(n.startBeat))) hits++; });
+        if (hits > bestHits) { bestHits = hits; best = d.map; }
+      });
+      if (!best) return;
+      p.notes.forEach((n) => {
+        if (!n.lyric) n.lyric = best.get(r3(n.startBeat)) || null;
+      });
+    });
   }
 
   /* ---------- OSMD rendering + coloring ------------------------------- */
@@ -982,6 +1013,11 @@
 
   function setCurrentPiece(p) {
     if (el.currentPiece) el.currentPiece.textContent = p ? (p.title || p.label || p.id) : '—';
+    // show the original-engraving link for ingested pieces (transport bar)
+    if (el.pdfLink) {
+      if (p && p.pdfUrl) { el.pdfLink.href = p.pdfUrl; el.pdfLink.hidden = false; }
+      else { el.pdfLink.hidden = true; el.pdfLink.removeAttribute('href'); }
+    }
   }
 
   // Keep the hidden #pieceSelect in sync when a built-in is chosen elsewhere.
