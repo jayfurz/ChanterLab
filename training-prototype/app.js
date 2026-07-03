@@ -72,8 +72,8 @@
   let synths = [];           // Tone.PolySynth per part
   let gains = [];            // Tone.Gain per part
   let scheduledIds = [];
-  let cursorTimeline = [];   // sorted unique onset beats for cursor stepping
-  let cursorMeasures = [];   // measure number per cursor step (for the position readout)
+  let osmdSteps = [];        // OSMD's cursor step table: one {beat, measure} per cursor.next()
+  let cursorWindow = [];     // absolute osmdSteps indices inside the current loop window
   let playState = 'stopped'; // 'stopped' | 'playing' | 'paused'
   let viewMode = 'split';    // 'split' | 'score' | 'scope'
   let userHoldUntil = 0;     // auto-scroll suspended until this perf.now() ms
@@ -128,6 +128,7 @@
       let keyMap = {};
       const notes = [];
       let beatCursor = 0; // in quarter notes from start of piece
+      let lastNoteOnset = null; // notated onset of the last pitched note (chord followers share it)
       const measures = Array.from(partNode.getElementsByTagName('measure'));
       measureCount = Math.max(measureCount, measures.length);
 
@@ -157,7 +158,7 @@
             const isRest = child.getElementsByTagName('rest').length > 0;
             const durEl = textOf(child, 'duration');
             const durBeat = durEl ? parseInt(durEl, 10) / divisions : 0;
-            const onset = isChord ? (notes.length ? notes[notes.length - 1].startBeat : beatCursor) : beatCursor;
+            const onset = isChord ? (lastNoteOnset !== null ? lastNoteOnset : beatCursor) : beatCursor;
 
             if (!isRest) {
               const pitch = child.getElementsByTagName('pitch')[0];
@@ -170,12 +171,32 @@
                 if (alterEl !== null) { alter = parseInt(alterEl, 10); localAlter[key] = alter; }
                 else if (key in localAlter) alter = localAlter[key];
                 else alter = keyMap[step] || 0;
-                notes.push({
-                  midi: midiOf(step, octave, alter),
-                  startBeat: onset,
-                  durBeat,
-                  measure: measureNumber,
-                });
+                const midi = midiOf(step, octave, alter);
+                // <tie type="stop"> = continuation of a held note: extend the
+                // note it continues instead of re-attacking it in playback
+                // (and double-drawing it in the scope lane).
+                const isTieStop = Array.from(child.getElementsByTagName('tie'))
+                  .some((t) => t.getAttribute('type') === 'stop');
+                let merged = false;
+                if (isTieStop) {
+                  for (let k = notes.length - 1; k >= 0 && k >= notes.length - 8; k--) {
+                    const prev = notes[k];
+                    if (prev.midi === midi && Math.abs(prev.startBeat + prev.durBeat - onset) < 1e-6) {
+                      prev.durBeat += durBeat;
+                      merged = true;
+                      break;
+                    }
+                  }
+                }
+                if (!merged) {
+                  notes.push({
+                    midi,
+                    startBeat: onset,
+                    durBeat,
+                    measure: measureNumber,
+                  });
+                }
+                lastNoteOnset = onset;
               }
             }
             if (!isChord) beatCursor += durBeat;
@@ -209,6 +230,34 @@
     osmd.zoom = narrow ? 0.55 : 1.0;
   }
 
+  // Walk OSMD's cursor iterator once (after load+render) and record every
+  // step it will take: timestamp in quarter-note beats + printed measure
+  // number. OSMD steps on EVERY voice-entry timestep — including rest-only
+  // ones our note parse has no onset for — so the playback cursor must be
+  // scheduled from THIS table to stay 1:1 with cursor.next(); anything less
+  // leaves the score cursor progressively behind the audio on rest-heavy
+  // pieces (Cherubic: 7 such steps, Anaphora: 3, Trisagion: 0).
+  function buildOsmdStepTable() {
+    osmdSteps = [];
+    const cur = osmd && osmd.cursor;
+    if (!cur) return;
+    cur.reset();
+    const it = cur.Iterator;
+    let guard = 0;
+    while (!it.EndReached && guard++ < 20000) {
+      const ts = it.CurrentEnrolledTimestamp || it.currentTimeStamp;
+      const sm = osmd.Sheet && osmd.Sheet.SourceMeasures
+        ? osmd.Sheet.SourceMeasures[it.CurrentMeasureIndex] : null;
+      osmdSteps.push({
+        beat: ts.RealValue * 4, // OSMD timestamps are in whole notes; we count quarters
+        measure: (sm && (sm.MeasureNumberXML || sm.MeasureNumber)) || (it.CurrentMeasureIndex + 1),
+      });
+      cur.next();
+    }
+    cur.reset();
+    cur.hide();
+  }
+
   async function loadScore(url) {
     setStatus('Loading score…');
     const xml = await (await fetch(url)).text();
@@ -228,9 +277,12 @@
         cursorsOptions: [{ type: 0, color: GOLD, alpha: 0.4, follow: false }],
       });
     }
-    applyResponsiveOsmdOptions();
     await osmd.load(xml);
+    // MUST come after load(): OSMD's load() resets zoom to 1, so a zoom set
+    // earlier is silently lost — phones then render at full desktop scale.
+    applyResponsiveOsmdOptions();
     osmd.render();
+    buildOsmdStepTable();
     buildVoicePicker();
     applyVoiceColors();
     // default loop = whole piece
@@ -438,21 +490,14 @@
       });
     });
 
-    // cursor timeline = unique onsets in window (any voice) + their measures
-    const onsetMap = new Map();
-    parsed.parts.forEach((p) => p.notes.forEach((n) => {
-      if (n.startBeat >= winStart - 1e-6 && n.startBeat < winEnd - 1e-6) {
-        const b = round(n.startBeat);
-        const cur = onsetMap.get(b);
-        if (cur === undefined || n.measure < cur) onsetMap.set(b, n.measure);
-      }
-    }));
-    cursorTimeline = [...onsetMap.keys()].sort((a, b) => a - b);
-    cursorMeasures = cursorTimeline.map((b) => onsetMap.get(b));
-
-    // schedule cursor stepping
-    cursorTimeline.forEach((beat, i) => {
-      const t = (beat - winStart) * spb;
+    // cursor timeline = OSMD's own step table clipped to the window. Indices
+    // stay ABSOLUTE (= next() calls since cursor.reset()) so stepCursorTo can
+    // advance by exactly the right count even when the window starts mid-piece.
+    cursorWindow = [];
+    osmdSteps.forEach((s, i) => {
+      if (s.beat < winStart - 1e-4 || s.beat >= winEnd - 1e-4) return;
+      cursorWindow.push(i);
+      const t = (s.beat - winStart) * spb;
       const id = Tone.Transport.schedule(() => stepCursorTo(i), t);
       scheduledIds.push(id);
     });
@@ -471,7 +516,6 @@
     }
   }
 
-  const round = (x) => Math.round(x * 1000) / 1000;
   function clampMeasure(m) { return Math.min(Math.max(1, m || 1), parsed.measureCount); }
 
   // Build a per-measure beat map from the longest part (most onsets), so the
@@ -507,18 +551,23 @@
     osmd.cursor.show();
     if (osmd.cursor.update) osmd.cursor.update();
     cursorStep = 0;
-    updatePos(cursorMeasures.length ? cursorMeasures[0] : null);
+    // when the loop window starts mid-piece, park the cursor on the window's
+    // first step instead of the top of the piece
+    if (cursorWindow.length && cursorWindow[0] > 0) {
+      while (cursorStep < cursorWindow[0]) { osmd.cursor.next(); cursorStep++; }
+    }
+    updatePos(cursorWindow.length ? osmdSteps[cursorWindow[0]].measure : null);
     scrollCursorIntoView();
   }
   let cursorStep = 0;
   function stepCursorTo(i) {
     if (!osmd.cursor) return;
-    if (i === 0) {
+    if (i < cursorStep) {
+      // loop wrapped without an explicit reset — rewind and re-advance
       osmd.cursor.reset(); osmd.cursor.show(); cursorStep = 0;
-      updatePos(cursorMeasures[0]); scrollCursorIntoView(); return;
     }
     while (cursorStep < i) { osmd.cursor.next(); cursorStep++; }
-    updatePos(cursorMeasures[i]);
+    updatePos(osmdSteps[i] ? osmdSteps[i].measure : null);
     scrollCursorIntoView();
   }
 
@@ -781,6 +830,10 @@
     playState: () => playState,
     holdRemaining: () => Math.max(0, userHoldUntil - performance.now()),
     viewMode: () => viewMode,
+    cursorStep: () => cursorStep,
+    osmdSteps: () => osmdSteps.map((s) => ({ beat: s.beat, measure: s.measure })),
+    parsedNoteCounts: () => (parsed ? parsed.parts.map((p) => p.notes.length) : []),
+    zoom: () => (osmd ? osmd.zoom : null),
   };
 
   main();
