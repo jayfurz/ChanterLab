@@ -40,6 +40,33 @@
     { id: 'trisagion', label: 'Trisagion (oemer OMR — kept for comparison)', url: 'content/trisagion_omr.musicxml' },
   ];
 
+  // Batch-ingested library pieces (omr/ingest_catalog.py output). The manifest
+  // lists pipeline-ACCEPTED extractions only; it is local-only (gitignored,
+  // derived from copyrighted PDFs), so a fresh clone simply has no group.
+  async function loadIngestManifest() {
+    try {
+      const res = await fetch('omr/out/ingest/manifest.json');
+      if (!res.ok) return;
+      const items = await res.json();
+      if (!Array.isArray(items) || !items.length) return;
+      const group = document.createElement('optgroup');
+      group.label = `Ingested library (${items.length})`;
+      items.forEach((it) => {
+        const piece = {
+          id: 'ingest_' + it.id,
+          label: `${it.title}${it.composer ? ' — ' + it.composer : ''}`,
+          url: 'omr/' + it.musicxml,
+        };
+        PIECES.push(piece);
+        const o = document.createElement('option');
+        o.value = piece.id;
+        o.textContent = piece.label;
+        group.appendChild(o);
+      });
+      el.piece.appendChild(group);
+    } catch (e) { /* no local ingest output — fine */ }
+  }
+
   const el = {
     osmd: document.getElementById('osmd'),
     status: document.getElementById('status'),
@@ -803,6 +830,7 @@
 
   async function main() {
     initControls();
+    loadIngestManifest();   // async, appends an optgroup when local ingest output exists
     initOverlay();
     setView('split');
     updatePlayUI();
