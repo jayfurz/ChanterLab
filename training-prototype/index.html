@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>ChanterLab — Choir Training (SATB) Prototype</title>
 <link rel="icon" href="data:," />
-<link rel="stylesheet" href="style.css?v=overlay1" />
+<link rel="stylesheet" href="style.css?v=library1" />
 </head>
 <body class="view-split">
 <header class="app-head">
@@ -78,16 +78,40 @@
     </div>
 
     <div class="row row-piece">
-      <select id="pieceSelect" aria-label="Piece"></select>
+      <button id="libraryBtn" class="btn lib" aria-haspopup="dialog" aria-controls="libraryOverlay">📚 Library</button>
+      <span id="currentPiece" class="current-piece" title="Current piece">—</span>
+      <!-- Kept for the headless tests (selectOption). Visually hidden; holds the
+           5 built-in dev pieces only — the library (2,000+) lives in the overlay. -->
+      <select id="pieceSelect" class="sr-only" aria-label="Built-in dev pieces"></select>
     </div>
 
     <p id="micNote" class="mic-note">🎧 raw mic: backing voices stay at constant volume while you sing.</p>
   </div>
 </section>
 
+<!-- Full-screen library browser. Opened by the 📚 Library button; built for
+     thousands of pieces (windowed list, debounced search, faceted chips). -->
+<div id="libraryOverlay" class="library" role="dialog" aria-modal="true" aria-label="Piece library" hidden>
+  <div class="lib-panel">
+    <div class="lib-head">
+      <div class="lib-search-wrap">
+        <span class="lib-search-icon" aria-hidden="true">🔎</span>
+        <input id="libSearch" type="search" inputmode="search" autocomplete="off"
+               placeholder="Search title, composer, feast…" aria-label="Search pieces" />
+      </div>
+      <button id="libClose" class="lib-close" aria-label="Close library" title="Close (Esc)">✕</button>
+    </div>
+    <div id="libFacets" class="lib-facets" aria-label="Filters"></div>
+    <div id="libCount" class="lib-count" aria-live="polite"></div>
+    <div id="libList" class="lib-list" tabindex="0">
+      <div id="libViewport" class="lib-viewport"></div>
+    </div>
+  </div>
+</div>
+
 <script src="vendor/opensheetmusicdisplay.min.js"></script>
 <script src="vendor/Tone.js"></script>
 <script src="scope.js?v=overlay1"></script>
-<script src="app.js?v=overlay2"></script>
+<script src="app.js?v=library1"></script>
 </body>
 </html>

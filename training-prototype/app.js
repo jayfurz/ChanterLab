@@ -32,39 +32,67 @@
     { key: 'B', label: 'B', name: 'Bass' },
   ];
 
+  // The 5 built-in dev pieces (the "Prototype" group). These stay reachable via
+  // the hidden #pieceSelect (headless tests) AND appear in the library overlay.
   const PIECES = [
-    { id: 'control', label: 'Control — hand-made clean SATB', url: 'content/control_satb.musicxml' },
-    { id: 'trisagion_v', label: 'Trisagion (antiochian.org, vector extraction)', url: 'content/trisagion_vector.musicxml' },
-    { id: 'cherubic_v', label: 'Cherubic Hymn (antiochian.org, vector extraction)', url: 'content/cherubic_vector.musicxml' },
-    { id: 'anaphora_v', label: 'Anaphora (antiochian.org, vector extraction)', url: 'content/anaphora_vector.musicxml' },
-    { id: 'trisagion', label: 'Trisagion (oemer OMR — kept for comparison)', url: 'content/trisagion_omr.musicxml' },
+    { id: 'control', title: 'Control — clean SATB', composer: 'ChanterLab · dev', arrangement: '4-part, Full choir', label: 'Control — hand-made clean SATB', url: 'content/control_satb.musicxml' },
+    { id: 'trisagion_v', title: 'Trisagion', composer: 'antiochian.org · vector', arrangement: 'Choral', label: 'Trisagion (antiochian.org, vector extraction)', url: 'content/trisagion_vector.musicxml' },
+    { id: 'cherubic_v', title: 'Cherubic Hymn', composer: 'antiochian.org · vector', arrangement: 'Choral', label: 'Cherubic Hymn (antiochian.org, vector extraction)', url: 'content/cherubic_vector.musicxml' },
+    { id: 'anaphora_v', title: 'Anaphora', composer: 'antiochian.org · vector', arrangement: 'Choral', label: 'Anaphora (antiochian.org, vector extraction)', url: 'content/anaphora_vector.musicxml' },
+    { id: 'trisagion', title: 'Trisagion — OMR', composer: 'antiochian.org · OMR', arrangement: 'Choral', label: 'Trisagion (oemer OMR — kept for comparison)', url: 'content/trisagion_omr.musicxml' },
   ];
+  const N_BUILTIN = PIECES.length;
 
-  // Batch-ingested library pieces (omr/ingest_catalog.py output). The manifest
-  // lists pipeline-ACCEPTED extractions only; it is local-only (gitignored,
-  // derived from copyrighted PDFs), so a fresh clone simply has no group.
-  async function loadIngestManifest() {
+  /* ---------- Library data (batch-ingested pieces) --------------------- *
+   * omr/ingest_catalog.py writes a manifest of pipeline-ACCEPTED extractions.
+   * It can hold thousands of entries, so it is NOT poured into the combobox —
+   * it feeds the full-screen library browser (windowed list) below. The
+   * manifest is local-only (gitignored, derived from copyrighted PDFs); a fresh
+   * clone simply shows the Prototype group + a "run the ingester" hint.
+   */
+  const DEFAULT_MANIFEST = 'omr/out/ingest/manifest.json';
+
+  // Diacritic- and case-insensitive fold for search + facet matching.
+  const fold = (s) => (s == null ? '' : String(s))
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  // Prototype items (the 5 built-ins) rendered into the library too.
+  const libProto = PIECES.slice(0, N_BUILTIN).map((p) => ({
+    id: p.id, title: p.title, composer: p.composer, tone: null,
+    arrangement: p.arrangement, liturgicalDate: '', section: 'proto',
+    norm: fold([p.title, p.composer, p.arrangement].join(' ')),
+  }));
+  const libItems = [];   // manifest-derived items
+
+  async function loadLibraryManifest() {
+    const override = new URLSearchParams(location.search).get('manifest');
+    const url = override || DEFAULT_MANIFEST;
     try {
-      const res = await fetch('omr/out/ingest/manifest.json');
-      if (!res.ok) return;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('no manifest');
       const items = await res.json();
-      if (!Array.isArray(items) || !items.length) return;
-      const group = document.createElement('optgroup');
-      group.label = `Ingested library (${items.length})`;
-      items.forEach((it) => {
-        const piece = {
-          id: 'ingest_' + it.id,
-          label: `${it.title}${it.composer ? ' — ' + it.composer : ''}`,
-          url: 'omr/' + it.musicxml,
-        };
-        PIECES.push(piece);
-        const o = document.createElement('option');
-        o.value = piece.id;
-        o.textContent = piece.label;
-        group.appendChild(o);
-      });
-      el.piece.appendChild(group);
-    } catch (e) { /* no local ingest output — fine */ }
+      if (Array.isArray(items)) {
+        items.forEach((it) => {
+          const id = 'ingest_' + it.id;
+          if (!PIECES.some((p) => p.id === id)) {
+            PIECES.push({
+              id, title: it.title,
+              label: `${it.title}${it.composer ? ' — ' + it.composer : ''}`,
+              url: 'omr/' + it.musicxml,
+            });
+          }
+          libItems.push({
+            id, title: it.title || '(untitled)', composer: (it.composer || '').trim(),
+            tone: (it.tone != null && it.tone !== '') ? String(it.tone) : null,
+            arrangement: it.arrangementType || '', liturgicalDate: it.liturgicalDate || '',
+            section: 'lib',
+            norm: fold([it.title, it.composer, it.liturgicalDate, it.arrangementType].join(' ')),
+          });
+        });
+      }
+    } catch (e) { /* no manifest (fresh clone / bad URL) — empty state is fine */ }
+    buildFacets();
+    if (libOpen) rebuildLib();
   }
 
   const el = {
@@ -91,6 +119,15 @@
     posOut: document.getElementById('posOut'),
     voiceChip: document.getElementById('voiceChip'),
     viewPicker: document.getElementById('viewPicker'),
+    currentPiece: document.getElementById('currentPiece'),
+    libraryBtn: document.getElementById('libraryBtn'),
+    overlay: document.getElementById('libraryOverlay'),
+    libSearch: document.getElementById('libSearch'),
+    libClose: document.getElementById('libClose'),
+    libFacets: document.getElementById('libFacets'),
+    libCount: document.getElementById('libCount'),
+    libList: document.getElementById('libList'),
+    libViewport: document.getElementById('libViewport'),
   };
 
   let osmd = null;
@@ -104,6 +141,19 @@
   let playState = 'stopped'; // 'stopped' | 'playing' | 'paused'
   let viewMode = 'split';    // 'split' | 'score' | 'scope'
   let userHoldUntil = 0;     // auto-scroll suspended until this perf.now() ms
+
+  // --- library browser state ---
+  const LIB_ROW_H = 66, LIB_HEADER_H = 34, LIB_HINT_H = 64;  // fixed heights (windowing math)
+  const libFacetDefs = { arrangement: [], tone: [], composer: [] };
+  const libActive = { arrangement: new Set(), tone: new Set(), composer: new Set() };
+  let libSearch = '';        // folded search string
+  let libFlat = [];          // [{type:'header'|'row'|'hint', ...}]
+  let libOffsets = [];       // prefix pixel offset per flat index
+  let libTotalH = 0;
+  let libRange = [-1, -1];   // currently-rendered [start,end) window
+  let libOpen = false;
+  let libPushed = false;     // whether we pushed a history entry for the overlay
+  let libSearchTimer = 0, libScrollRaf = 0;
 
   const setStatus = (m) => { el.status.textContent = m; };
 
@@ -729,6 +779,242 @@
     sync();
   }
 
+  /* ---------- Library browser (full-screen overlay) -------------------- *
+   * Windowed list: a tall spacer (#libViewport) holds the full scroll height;
+   * only the rows crossing the viewport (+ a small buffer) are ever in the DOM,
+   * each absolutely positioned at a precomputed offset. This keeps the DOM at a
+   * few dozen rows even with thousands of pieces. Search + facet chips filter
+   * the flat list; a rebuild recomputes offsets and re-windows from the top.
+   */
+
+  // Facet definitions derived from the loaded data.
+  function buildFacets() {
+    // arrangement: substring buckets, keep only those present, by count
+    const buckets = [
+      ['Choral', 'choral'], ['Chant', 'chant'], ['4-part', '4-part'],
+      ['2-part', '2-part'], ['Full choir', 'full choir'],
+    ];
+    libFacetDefs.arrangement = buckets.map(([label, needle]) => {
+      const test = (a) => a.includes(needle);
+      const count = libItems.reduce((n, it) => n + (test(fold(it.arrangement)) ? 1 : 0), 0);
+      return { value: label, label, test, count };
+    }).filter((b) => b.count > 0).sort((a, b) => b.count - a.count);
+
+    // tone: distinct non-null values, numeric first (1-8 + plagal/other as found)
+    const toneCounts = {};
+    libItems.forEach((it) => { if (it.tone) toneCounts[it.tone] = (toneCounts[it.tone] || 0) + 1; });
+    libFacetDefs.tone = Object.keys(toneCounts).map((v) => ({
+      value: v, label: /^\d+$/.test(v) ? 'Tone ' + v : v, count: toneCounts[v],
+      num: /^\d+$/.test(v) ? parseInt(v, 10) : 999,
+    })).sort((a, b) => a.num - b.num || a.label.localeCompare(b.label));
+
+    // composer: top 8 by count
+    const compCounts = {};
+    libItems.forEach((it) => { if (it.composer) compCounts[it.composer] = (compCounts[it.composer] || 0) + 1; });
+    libFacetDefs.composer = Object.entries(compCounts).sort((a, b) => b[1] - a[1]).slice(0, 8)
+      .map(([value, count]) => ({ value, label: value, count }));
+
+    renderChips();
+  }
+
+  function renderChips() {
+    el.libFacets.innerHTML = '';
+    const group = (title, defs, dim) => {
+      if (!defs.length) return;
+      const g = document.createElement('div'); g.className = 'facet-group';
+      const lab = document.createElement('span'); lab.className = 'facet-label'; lab.textContent = title;
+      g.appendChild(lab);
+      const strip = document.createElement('div'); strip.className = 'facet-strip';
+      defs.forEach((d) => {
+        const c = document.createElement('button');
+        c.className = 'chip-f' + (libActive[dim].has(d.value) ? ' on' : '');
+        c.dataset.dim = dim; c.dataset.val = d.value;
+        c.textContent = `${d.label} (${d.count})`;
+        strip.appendChild(c);
+      });
+      g.appendChild(strip); el.libFacets.appendChild(g);
+    };
+    group('Type', libFacetDefs.arrangement, 'arrangement');
+    group('Tone', libFacetDefs.tone, 'tone');
+    group('Composer', libFacetDefs.composer, 'composer');
+  }
+
+  function itemPasses(it) {
+    if (libSearch && !it.norm.includes(libSearch)) return false;
+    if (libActive.arrangement.size) {
+      const ok = [...libActive.arrangement].some((v) => {
+        const b = libFacetDefs.arrangement.find((x) => x.value === v);
+        return b && b.test(fold(it.arrangement));
+      });
+      if (!ok) return false;
+    }
+    if (libActive.tone.size && !libActive.tone.has(it.tone)) return false;
+    if (libActive.composer.size && !libActive.composer.has(it.composer)) return false;
+    return true;
+  }
+
+  // Recompute the filtered flat list, its offsets, the count line, and re-window.
+  function rebuildLib() {
+    const proto = libProto.filter(itemPasses);
+    const lib = libItems.filter(itemPasses);
+    libFlat = [];
+    if (proto.length) {
+      libFlat.push({ type: 'header', label: 'Prototype' });
+      proto.forEach((it) => libFlat.push({ type: 'row', item: it }));
+    }
+    libFlat.push({ type: 'header', label: 'Library' });
+    if (!libItems.length) {
+      libFlat.push({ type: 'hint', label: 'No library yet — run <code>omr/ingest_catalog.py</code> to populate.' });
+    } else if (!lib.length) {
+      libFlat.push({ type: 'hint', label: 'No matches — clear the search or filter chips.' });
+    } else {
+      lib.forEach((it) => libFlat.push({ type: 'row', item: it }));
+    }
+
+    libOffsets = []; let off = 0;
+    for (const f of libFlat) {
+      libOffsets.push(off);
+      off += f.type === 'header' ? LIB_HEADER_H : f.type === 'hint' ? LIB_HINT_H : LIB_ROW_H;
+    }
+    libTotalH = off;
+    el.libViewport.style.height = libTotalH + 'px';
+
+    const total = libProto.length + libItems.length;
+    const shown = proto.length + lib.length;
+    el.libCount.textContent = `${total} piece${total === 1 ? '' : 's'} · ${shown} shown`;
+
+    el.libList.scrollTop = 0;
+    libRange = [-1, -1];
+    renderWindow(true);
+  }
+
+  // first flat index whose top offset exceeds px (binary search)
+  function firstVisibleIndex(px) {
+    let lo = 0, hi = libFlat.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (libOffsets[mid] <= px) lo = mid + 1; else hi = mid; }
+    return lo;
+  }
+
+  function makeFlatEl(f, top) {
+    if (f.type === 'header') {
+      const h = document.createElement('div'); h.className = 'lib-header';
+      h.style.top = top + 'px'; h.style.height = LIB_HEADER_H + 'px'; h.textContent = f.label;
+      return h;
+    }
+    if (f.type === 'hint') {
+      const h = document.createElement('div'); h.className = 'lib-hint';
+      h.style.top = top + 'px'; h.style.height = LIB_HINT_H + 'px'; h.innerHTML = f.label;
+      return h;
+    }
+    const it = f.item;
+    const b = document.createElement('button'); b.className = 'lib-row';
+    b.style.top = top + 'px'; b.style.height = LIB_ROW_H + 'px'; b.dataset.id = it.id;
+    const t = document.createElement('div'); t.className = 'lib-row-title'; t.textContent = it.title;
+    const m = document.createElement('div'); m.className = 'lib-row-meta';
+    if (it.composer) { const c = document.createElement('span'); c.className = 'composer'; c.textContent = it.composer; m.appendChild(c); }
+    if (it.tone) {
+      const tb = document.createElement('span'); tb.className = 'badge tone';
+      tb.textContent = /^\d+$/.test(it.tone) ? 'T' + it.tone : it.tone; m.appendChild(tb);
+    }
+    if (it.arrangement) { const a = document.createElement('span'); a.className = 'arr'; a.textContent = it.arrangement; m.appendChild(a); }
+    b.appendChild(t); b.appendChild(m);
+    return b;
+  }
+
+  function renderWindow(force) {
+    const top = el.libList.scrollTop;
+    const vh = el.libList.clientHeight || window.innerHeight;
+    let start = firstVisibleIndex(top) - 1; if (start < 0) start = 0;
+    let end = start; while (end < libFlat.length && libOffsets[end] < top + vh) end++;
+    const buf = 6;
+    start = Math.max(0, start - buf); end = Math.min(libFlat.length, end + buf);
+    if (!force && start === libRange[0] && end === libRange[1]) return;
+    libRange = [start, end];
+    const frag = document.createDocumentFragment();
+    for (let i = start; i < end; i++) frag.appendChild(makeFlatEl(libFlat[i], libOffsets[i]));
+    el.libViewport.replaceChildren(frag);
+  }
+
+  function openLibrary() {
+    libOpen = true;
+    el.overlay.hidden = false;
+    document.body.classList.add('lib-lock');
+    rebuildLib();
+    // avoid popping the soft keyboard over the list on touch devices
+    if (!('ontouchstart' in window)) setTimeout(() => { try { el.libSearch.focus(); } catch (e) {} }, 30);
+    if (window.history && history.pushState && !libPushed) { history.pushState({ libOpen: true }, ''); libPushed = true; }
+  }
+
+  function closeLibrary(fromPop) {
+    if (!libOpen) return;
+    libOpen = false;
+    el.overlay.hidden = true;
+    document.body.classList.remove('lib-lock');
+    if (libPushed && !fromPop) { libPushed = false; if (history.state && history.state.libOpen) history.back(); }
+    else libPushed = false;
+  }
+
+  function setCurrentPiece(p) {
+    if (el.currentPiece) el.currentPiece.textContent = p ? (p.title || p.label || p.id) : '—';
+  }
+
+  // Keep the hidden #pieceSelect in sync when a built-in is chosen elsewhere.
+  function syncSelect(id) {
+    if (el.piece && [...el.piece.options].some((o) => o.value === id)) el.piece.value = id;
+  }
+
+  // Load any piece by id through the existing stop → loadScore → buildAudio flow.
+  async function loadPieceById(id, opts) {
+    opts = opts || {};
+    stop();
+    const p = PIECES.find((x) => x.id === id);
+    if (!p) { setStatus('Unknown piece: ' + id); return; }
+    try {
+      await loadScore(p.url);
+      buildAudio();
+      setCurrentPiece(p);
+      if (!opts.fromSelect) syncSelect(id);
+    } catch (e) {
+      const hint = p.id !== 'control'
+        ? ' — score is gitignored (copyrighted source); regenerate via omr/README.md.'
+        : ' — ' + e.message;
+      setStatus('Could not load ' + p.url + hint);
+    }
+  }
+
+  function resolvePieceId(id) {
+    if (PIECES.some((p) => p.id === id)) return id;
+    if (PIECES.some((p) => p.id === 'ingest_' + id)) return 'ingest_' + id;
+    return null;
+  }
+
+  function initLibrary() {
+    el.libraryBtn.addEventListener('click', openLibrary);
+    el.libClose.addEventListener('click', () => closeLibrary());
+    el.overlay.addEventListener('click', (e) => { if (e.target === el.overlay) closeLibrary(); });
+    el.libSearch.addEventListener('input', () => {
+      clearTimeout(libSearchTimer);
+      libSearchTimer = setTimeout(() => { libSearch = fold(el.libSearch.value.trim()); rebuildLib(); }, 120);
+    });
+    el.libFacets.addEventListener('click', (e) => {
+      const c = e.target.closest('.chip-f'); if (!c) return;
+      const dim = c.dataset.dim, val = c.dataset.val;
+      if (libActive[dim].has(val)) libActive[dim].delete(val); else libActive[dim].add(val);
+      c.classList.toggle('on');
+      rebuildLib();
+    });
+    el.libList.addEventListener('click', (e) => {
+      const row = e.target.closest('.lib-row'); if (!row) return;
+      loadPieceById(row.dataset.id).then(() => closeLibrary());
+    });
+    el.libList.addEventListener('scroll', () => {
+      if (libScrollRaf) return;
+      libScrollRaf = requestAnimationFrame(() => { libScrollRaf = 0; renderWindow(false); });
+    }, { passive: true });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && libOpen) closeLibrary(); });
+    window.addEventListener('popstate', () => { if (libOpen) closeLibrary(true); });
+  }
+
   /* ---------- Wire-up ------------------------------------------------- */
 
   function initControls() {
@@ -736,17 +1022,9 @@
       const o = document.createElement('option');
       o.value = p.id; o.textContent = p.label; el.piece.appendChild(o);
     });
-    el.piece.addEventListener('change', async () => {
-      stop();
-      const p = PIECES.find((x) => x.id === el.piece.value);
-      try { await loadScore(p.url); buildAudio(); }
-      catch (e) {
-        const hint = p.id !== 'control'
-          ? ' — antiochian scores are gitignored (copyrighted source); regenerate via omr/README.md.'
-          : ' — ' + e.message;
-        setStatus('Could not load ' + p.url + hint);
-      }
-    });
+    // Hidden built-in selector (kept for headless tests). The library overlay
+    // is the primary picker; both route through loadPieceById.
+    el.piece.addEventListener('change', () => loadPieceById(el.piece.value, { fromSelect: true }));
     el.bpm.addEventListener('input', () => {
       el.bpmOut.textContent = el.bpm.value;
       buildScopeLane();
@@ -774,6 +1052,7 @@
     // Re-apply responsive OSMD sizing when crossing the narrow/wide boundary.
     let wasNarrow = null;
     window.addEventListener('resize', () => {
+      if (libOpen) renderWindow(true);
       if (!osmd) return;
       const n = isNarrow();
       if (n !== wasNarrow) {
@@ -830,7 +1109,8 @@
 
   async function main() {
     initControls();
-    loadIngestManifest();   // async, appends an optgroup when local ingest output exists
+    initLibrary();
+    loadLibraryManifest();  // async; feeds the library overlay (never the combobox)
     initOverlay();
     setView('split');
     updatePlayUI();
@@ -846,6 +1126,7 @@
     try {
       await loadScore(PIECES[0].url);
       buildAudio();
+      setCurrentPiece(PIECES[0]);
     } catch (e) {
       setStatus('Startup error: ' + e.message);
       console.error(e);
@@ -862,6 +1143,24 @@
     osmdSteps: () => osmdSteps.map((s) => ({ beat: s.beat, measure: s.measure })),
     parsedNoteCounts: () => (parsed ? parsed.parts.map((p) => p.notes.length) : []),
     zoom: () => (osmd ? osmd.zoom : null),
+  };
+
+  // Programmatic library hook (headless tests). select() resolves either the
+  // prefixed piece id ('ingest_<x>') or the bare manifest id ('<x>').
+  window.__library = {
+    open: () => openLibrary(),
+    close: () => closeLibrary(),
+    select: async (id) => {
+      const rid = resolvePieceId(id);
+      if (!rid) return null;
+      await loadPieceById(rid);
+      closeLibrary();
+      return playState;
+    },
+    count: () => libProto.length + libItems.length,
+    shown: () => libFlat.filter((f) => f.type === 'row').length,
+    domRows: () => el.libViewport.childElementCount,
+    isOpen: () => libOpen,
   };
 
   main();
