@@ -149,8 +149,15 @@ def write_manifest(state, catalog=None):
                 stem = fname[:-4] if fname.lower().endswith(".pdf") else fname
                 extra[stem] = item
     accepted = []
+    guarded = 0
     for r in state.values():
         if r["status"] != "accepted":
+            continue
+        # re-check the tripwire here too: state may hold accepts from before
+        # the guard existed (or before an engine fix) — keep them out of the
+        # app until they are re-extracted (--redo).
+        if voice_guard(r["id"], r["arrangementType"]):
+            guarded += 1
             continue
         cat = extra.get(r["id"], {})
         accepted.append(
@@ -158,7 +165,11 @@ def write_manifest(state, catalog=None):
              "arrangementType": r["arrangementType"], "musicxml": r["musicxml"],
              "integrity_pct": r["integrity_pct"],
              "tone": (cat.get("tone") or "").strip() or None,
-             "liturgicalDate": (cat.get("liturgicalDate") or "").strip() or None})
+             "liturgicalDate": (cat.get("liturgicalDate") or "").strip() or None,
+             "pdfUrl": r.get("url")})
+    if guarded:
+        print(f"[manifest] {guarded} accepted item(s) held back by the "
+              f"voice-collapse guard (re-extract with --redo)")
     accepted.sort(key=lambda r: (r["title"] or "").lower())
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(MANIFEST, "w") as f:
@@ -194,6 +205,30 @@ def parse_pipeline(stdout, stderr):
     m = re.search(r"(?:selected pages|pages \(explicit\)): ([0-9,]+)", text)
     pages = m.group(1) if m else None
     return integrity, warnings, pages
+
+
+def voice_guard(item_id, arrangement):
+    """Voice-collapse tripwire. A choral-marked piece whose extraction emitted
+    a single voice is almost always a staff-grouping failure (every staff
+    became its own 'system', so all voices concatenated into Soprano at a
+    vacuous 100% integrity) — not genuine unison. Same for extractions where
+    most systems came out single-staff (stat added by the engine). Returns a
+    review reason, or None when the structure looks plausible."""
+    if not any(k in (arrangement or "") for k in ("Choral", "4-part", "Full choir")):
+        return None
+    try:
+        with open(os.path.join(OUT_DIR, item_id + ".report.json")) as f:
+            rep = json.load(f)
+    except Exception:
+        return None
+    voices = rep.get("voices") or []
+    if len(voices) < 2:
+        return f"choral-marked but only {len(voices)} voice(s) extracted"
+    stats = rep.get("stats") or {}
+    single, total = stats.get("single_staff_systems", 0), stats.get("systems", 0)
+    if total and single > total * 0.5:
+        return f"{single}/{total} systems detected as single-staff"
+    return None
 
 
 def run_pipeline(pdf_path, xml_path):
@@ -355,6 +390,11 @@ def main():
         # --- extract ---
         res = run_pipeline(pdf_path, xml_path)
         record.update(res)
+        if record["status"] == "accepted":
+            reason = voice_guard(item_id, record["arrangementType"])
+            if reason:
+                record["status"] = "review"
+                record["detail"] = reason
         state[item_id] = record
         save_state(state)
 

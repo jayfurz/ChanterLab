@@ -196,9 +196,14 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
   font-size:13px;line-height:1.4}
 .lib-hint code{font-size:12px}
 .lib-row{position:absolute;left:0;right:0;display:flex;flex-direction:column;
-  justify-content:center;gap:3px;padding:8px 14px;width:100%;
+  justify-content:center;gap:3px;padding:8px 78px 8px 14px;width:100%;
   background:none;border:0;border-bottom:1px solid var(--line);
   color:var(--ink);text-align:left;cursor:pointer;touch-action:manipulation}
+.lib-pdf{position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+  color:var(--sub);font-size:12px;text-decoration:none;white-space:nowrap;
+  touch-action:manipulation}
+.lib-pdf:hover{color:var(--gold-soft);border-color:rgba(212,175,55,.35)}
 .lib-row:hover{background:#191b22}
 .lib-row:active{background:#1d1f28}
 .lib-row-title{font-size:15px;font-weight:600;line-height:1.25;

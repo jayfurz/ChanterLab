@@ -85,6 +85,7 @@
             id, title: it.title || '(untitled)', composer: (it.composer || '').trim(),
             tone: (it.tone != null && it.tone !== '') ? String(it.tone) : null,
             arrangement: it.arrangementType || '', liturgicalDate: it.liturgicalDate || '',
+            pdfUrl: it.pdfUrl || null,
             section: 'lib',
             norm: fold([it.title, it.composer, it.liturgicalDate, it.arrangementType].join(' ')),
           });
@@ -907,7 +908,10 @@
       return h;
     }
     const it = f.item;
-    const b = document.createElement('button'); b.className = 'lib-row';
+    // div[role=button], not <button>: rows may contain a nested PDF link and
+    // interactive-inside-interactive is invalid (and flaky on iOS Safari).
+    const b = document.createElement('div');
+    b.className = 'lib-row'; b.setAttribute('role', 'button'); b.tabIndex = 0;
     b.style.top = top + 'px'; b.style.height = LIB_ROW_H + 'px'; b.dataset.id = it.id;
     const t = document.createElement('div'); t.className = 'lib-row-title'; t.textContent = it.title;
     const m = document.createElement('div'); m.className = 'lib-row-meta';
@@ -918,6 +922,15 @@
     }
     if (it.arrangement) { const a = document.createElement('span'); a.className = 'arr'; a.textContent = it.arrangement; m.appendChild(a); }
     b.appendChild(t); b.appendChild(m);
+    if (it.pdfUrl) {
+      // link to the original engraving — must not trigger row selection
+      const pdf = document.createElement('a');
+      pdf.className = 'lib-pdf'; pdf.href = it.pdfUrl;
+      pdf.target = '_blank'; pdf.rel = 'noopener';
+      pdf.title = 'Open the original sheet music (PDF)';
+      pdf.textContent = '𝄞 PDF';
+      b.appendChild(pdf);
+    }
     return b;
   }
 
@@ -1004,7 +1017,14 @@
       rebuildLib();
     });
     el.libList.addEventListener('click', (e) => {
+      if (e.target.closest('.lib-pdf')) return;   // PDF link: let it open, don't select
       const row = e.target.closest('.lib-row'); if (!row) return;
+      loadPieceById(row.dataset.id).then(() => closeLibrary());
+    });
+    el.libList.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const row = e.target.closest('.lib-row'); if (!row) return;
+      e.preventDefault();
       loadPieceById(row.dataset.id).then(() => closeLibrary());
     });
     el.libList.addEventListener('scroll', () => {
