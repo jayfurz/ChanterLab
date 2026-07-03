@@ -250,6 +250,17 @@
                 else if (key in localAlter) alter = localAlter[key];
                 else alter = keyMap[step] || 0;
                 const midi = midiOf(step, octave, alter);
+                // first lyric syllable, with a trailing dash on begin/middle
+                // syllables so the scope can show word continuation
+                let lyric = null;
+                const lyricEl = child.getElementsByTagName('lyric')[0];
+                if (lyricEl) {
+                  const txt = textOf(lyricEl, 'text');
+                  if (txt) {
+                    const syl = textOf(lyricEl, 'syllabic');
+                    lyric = (syl === 'begin' || syl === 'middle') ? txt + '-' : txt;
+                  }
+                }
                 // <tie type="stop"> = continuation of a held note: extend the
                 // note it continues instead of re-attacking it in playback
                 // (and double-drawing it in the scope lane).
@@ -272,6 +283,7 @@
                     startBeat: onset,
                     durBeat,
                     measure: measureNumber,
+                    lyric,
                   });
                 }
                 lastNoteOnset = onset;
@@ -496,6 +508,7 @@
         start: (n.startBeat - winStart) * spb,
         end: (n.startBeat - winStart + n.durBeat) * spb,
         midi: n.midi,
+        lyric: n.lyric || null,
       }));
     const sel = parsed.parts.find((p) => p.voiceKey === selectedVoice);
     TrainingScope.setLane(

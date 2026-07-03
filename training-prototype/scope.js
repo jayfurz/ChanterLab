@@ -238,17 +238,32 @@ window.TrainingScope = (() => {
       g.fillRect(x0, yOf(n.midi) - Math.min(3, rowH * 0.25), Math.max(2, x1 - x0 - 2), Math.min(6, rowH * 0.5));
     });
 
-    // selected voice — gold target lane
+    // selected voice — gold target lane, lyric syllables riding just below
     lane.forEach((n) => {
       const x0 = xOfNote(n.start), x1 = xOfNote(n.end);
       if (x1 < -20 || x0 > cssW + 20) return;
       const active = playing && tNow >= n.start - 0.03 && tNow < n.end + 0.03;
       const h = Math.max(6, Math.min(14, rowH * 0.8));
+      const w = Math.max(4, x1 - x0 - 2);
+      const yMid = yOf(n.midi);
       g.fillStyle = active ? GOLD_BRIGHT : GOLD;
       if (active) { g.shadowColor = GOLD; g.shadowBlur = 12; }
-      roundRect(g, x0, yOf(n.midi) - h / 2, Math.max(4, x1 - x0 - 2), h, 3);
+      roundRect(g, x0, yMid - h / 2, w, h, 3);
       g.fill();
       g.shadowBlur = 0;
+      if (n.lyric && w >= 14) {
+        // clip to the bar's horizontal span so long syllables on short
+        // notes don't smear over their neighbours
+        g.save();
+        g.beginPath();
+        g.rect(x0 - 2, yMid + h / 2, w + 4, 14);
+        g.clip();
+        g.font = '11px system-ui';
+        g.textBaseline = 'top';
+        g.fillStyle = active ? GOLD_BRIGHT : 'rgba(212,175,55,0.85)';
+        g.fillText(n.lyric, x0 + 1, yMid + h / 2 + 2);
+        g.restore();
+      }
     });
 
     // loop-end marker
@@ -431,6 +446,7 @@ window.TrainingScope = (() => {
       gate: currentGate,
       floor: () => noiseFloor,
       setFloor: (v) => { noiseFloor = v; },
+      lane: () => lane,
     },
   };
 })();
