@@ -62,19 +62,32 @@ window.TrainingScope = (() => {
   let emaMidi = null;
   let trace = [];                 // [{wall, dispMidi, cents, hit, hasTarget}]
   const TRACE_KEEP_SEC = 12;
-  let lastDetect = { name: '—', cents: null, hit: false, fresh: 0 };
+  let lastDetect = { name: '—', cents: null, hit: false, fresh: 0, quiet: false };
 
   const PX_PER_SEC = 68;
   const NOW_FRAC = 0.33;
 
   /* ---------- pitch detection (JS autocorrelation) -------------------- */
 
-  function detectPitch(buf, sr) {
+  // Adaptive noise gate. Headphones mode delivers a RAW stream (no browser
+  // processing), which on many devices is far quieter than the processed
+  // speaker-mode stream — a fixed 0.012 RMS gate forced singers to belt.
+  // The floor tracks background level on UNVOICED frames only (fast down,
+  // slow up), so singing never raises it; the gate sits above the floor but
+  // never below GATE_MIN (mic self-noise) nor above GATE_MAX (old fixed gate).
+  const GATE_MIN = 0.004, GATE_MAX = 0.012;
+  let noiseFloor = 0.002;
+  const currentGate = () => Math.min(GATE_MAX, Math.max(GATE_MIN, noiseFloor * 3));
+
+  function detectPitch(buf, sr, rmsIn) {
     let SIZE = buf.length;
-    let rms = 0;
-    for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
-    rms = Math.sqrt(rms / SIZE);
-    if (rms < 0.012) return -1;                    // noise gate
+    let rms = rmsIn;
+    if (rms === undefined) {
+      let acc = 0;
+      for (let i = 0; i < SIZE; i++) acc += buf[i] * buf[i];
+      rms = Math.sqrt(acc / SIZE);
+    }
+    if (rms < currentGate()) return -1;            // noise gate (adaptive)
 
     // trim leading/trailing low-signal edges (transient guard)
     const thres = 0.2 * Math.max(...[0, 1, 2, 3].map(k => Math.abs(buf[(SIZE >> 2) * k]))) || 0.02;
@@ -118,9 +131,20 @@ window.TrainingScope = (() => {
   function captureMicFrame() {
     if (!mic.on || !mic.analyser) return;
     mic.analyser.getFloatTimeDomainData(mic.buf);
-    const f = detectPitch(mic.buf, mic.ctx.sampleRate);
+    let acc = 0;
+    for (let i = 0; i < mic.buf.length; i++) acc += mic.buf[i] * mic.buf[i];
+    const rms = Math.sqrt(acc / mic.buf.length);
+    const f = detectPitch(mic.buf, mic.ctx.sampleRate, rms);
     const wall = performance.now() / 1000;
-    if (f <= 0) { lastDetect.fresh = Math.max(0, lastDetect.fresh - 1); return; }
+    if (f <= 0) {
+      // unvoiced frame: adapt the noise floor (fast down, slow up — singing
+      // frames never reach here, so the voice can't raise its own gate)
+      noiseFloor = rms < noiseFloor ? rms : Math.min(0.02, noiseFloor * 0.98 + rms * 0.02);
+      // signal present but under the gate? tell the singer they're close
+      lastDetect.quiet = rms >= currentGate() * 0.5 && rms < currentGate();
+      lastDetect.fresh = Math.max(0, lastDetect.fresh - 1);
+      return;
+    }
 
     hist3.push(f);
     if (hist3.length > 3) hist3.shift();
@@ -151,7 +175,7 @@ window.TrainingScope = (() => {
     lastDetect = {
       name: noteName(m),
       cents: cents === null ? null : Math.round(cents),
-      hit, fresh: 6,
+      hit, fresh: 6, quiet: false,
     };
   }
 
@@ -289,7 +313,9 @@ window.TrainingScope = (() => {
     if (!readoutEl) return;
     if (!mic.on) { readoutEl.textContent = ''; readoutEl.className = 'scope-readout'; return; }
     if (lastDetect.fresh <= 0) {
-      readoutEl.textContent = '🎤 listening…';
+      readoutEl.textContent = lastDetect.quiet
+        ? '🎤 almost — sing a touch louder'
+        : '🎤 listening…';
       readoutEl.className = 'scope-readout idle';
       return;
     }
@@ -350,6 +376,7 @@ window.TrainingScope = (() => {
     mic.analyser.fftSize = 2048;
     mic.src.connect(mic.analyser);
     mic.buf = new Float32Array(mic.analyser.fftSize);
+    noiseFloor = 0.002;                 // fresh stream, fresh floor
     mic.on = true;
     return true;
   }
@@ -359,7 +386,7 @@ window.TrainingScope = (() => {
     if (mic.stream) mic.stream.getTracks().forEach((tr) => tr.stop());
     mic.on = false; mic.stream = null; mic.src = null; mic.analyser = null;
     trace = []; emaMidi = null; hist3.length = 0;
-    lastDetect = { name: '—', cents: null, hit: false, fresh: 0 };
+    lastDetect = { name: '—', cents: null, hit: false, fresh: 0, quiet: false };
   }
 
   // Switch headphones/speaker mic processing. If the mic is live, re-acquire
@@ -378,6 +405,7 @@ window.TrainingScope = (() => {
       mic.stream = stream;
       mic.src = mic.ctx.createMediaStreamSource(stream);
       mic.src.connect(mic.analyser);
+      noiseFloor = 0.002;               // new stream = new level profile
       return true;
     } catch (e) {
       mic.processing = !processing;               // revert — old stream still live
@@ -397,5 +425,12 @@ window.TrainingScope = (() => {
     setMicProcessing, getMicSettings,
     isMicOn: () => mic.on,
     getMicProcessing: () => mic.processing,
+    // for the headless checks + detector swap-in experiments
+    _debug: {
+      detectPitch,
+      gate: currentGate,
+      floor: () => noiseFloor,
+      setFloor: (v) => { noiseFloor = v; },
+    },
   };
 })();
