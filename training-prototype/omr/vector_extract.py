@@ -426,20 +426,30 @@ def _find_staves(long_h, page_no, report):
         return []
     max_w = max(x1 - x0 for x0, x1, y in long_h)
     cands = [(x0, x1, y) for x0, x1, y in long_h if x1 - x0 >= 0.55 * max_w]
-    # merge duplicated segments at the same y (indented first system etc.)
-    ys = {}
+    # merge duplicated segments at the same y (indented first system etc.).
+    # Legacy Finale draws a staff line as several overlaid hairline strokes
+    # from separate paths; _page_paths bands them per-path but leaves near-dup
+    # bands up to ~1pt apart. A 0.5pt tolerance left a 0.5pt-split line as SIX
+    # lines in one band, so the 5-line window rejected the staff (a whole
+    # system's staff went undetected — see 01-ManyYears). Real staff lines sit
+    # ~one staff-space (>=4pt) apart, so a 1pt merge tolerance is safe.
+    ys = {}   # first-seen y -> [x0, x1, y_sum, n]
     for x0, x1, y in sorted(cands, key=lambda r: r[2]):
         key = None
         for yy in ys:
-            if abs(yy - y) < 0.5:
+            if abs(yy - y) < 1.0:
                 key = yy
                 break
         if key is None:
-            ys[y] = [x0, x1]
+            ys[y] = [x0, x1, y, 1]
         else:
-            ys[key][0] = min(ys[key][0], x0)
-            ys[key][1] = max(ys[key][1], x1)
-    items = sorted((y, x0, x1) for y, (x0, x1) in ys.items())
+            e = ys[key]
+            e[0] = min(e[0], x0)
+            e[1] = max(e[1], x1)
+            e[2] += y      # average merged duplicates so the line sits at its
+            e[3] += 1      # true centre (a low-biased key would skew the gap-
+    # evenness test below and drop an otherwise valid staff)
+    items = sorted((yc / n, x0, x1) for x0, x1, yc, n in ys.values())
     staves = []
     i = 0
     skipped = []
@@ -463,35 +473,93 @@ def _find_staves(long_h, page_no, report):
     return staves
 
 
-def _group_systems(staves, music_glyphs, page_no, report):
-    """Group staves into systems. Prefer bracket glyphs (E003 top / E004
-    bottom); fall back to gap-based grouping."""
+def _connector_groups(ss, vlines):
+    """Group vertically-adjacent staves joined by a connector vline into
+    systems. A vline *connects* two adjacent staves when it bridges the gap
+    between them — its top reaches into/above the upper staff and its bottom
+    into/below the lower staff. This catches the system-start barline/brace
+    (drawn at the left edge spanning every staff of a system) and any interior
+    barline that spans more than one staff, while rejecting stems and ledger
+    strokes (far too short to cross a 50-60pt inter-staff gap). `ss` must be
+    sorted by `top`. Returns a list of ascending staff-index lists (systems);
+    staves no connector touches come back as singletons."""
+    n = len(ss)
+    parent = list(range(n))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+
+    for x, y0, y1 in vlines:
+        for i in range(n - 1):
+            a, b = ss[i], ss[i + 1]
+            tol = 0.6 * a.sp
+            if y0 <= a.bot + tol and y1 >= b.top - tol:
+                union(i, i + 1)
+    comps = {}
+    for i in range(n):
+        comps.setdefault(find(i), []).append(i)
+    return [sorted(g) for _, g in sorted(comps.items())]
+
+
+def _group_systems(staves, music_glyphs, vlines, page_no, report):
+    """Group staves into systems. Preference order (most robust first):
+      1. SMuFL bracket glyphs (E003 top / E004 bottom) when present;
+      2. system connector vlines — the initial barline/brace stroke that
+         bridges the staves of a system, plus any interior barline spanning
+         more than one staff (see _connector_groups). This is essential for
+         legacy Finale choral engravings, where LYRICS printed between the
+         staves inflate the inter-staff gap past any fixed multiple of the
+         staff height. The gap heuristic then reads every staff as its own
+         1-staff system, so `_system_layout` maps them all to Soprano in turn
+         and the whole score collapses into one concatenated voice;
+      3. vertical-gap heuristic (last resort) — only when no bracket glyph and
+         no connector line is drawn at all."""
     tops = sorted(g.y for g in music_glyphs if g.cp == 0xE003)
     bots = sorted(g.y for g in music_glyphs if g.cp == 0xE004)
+    ss = sorted(staves, key=lambda s: s.top)
     systems = []
     if tops and len(tops) == len(bots):
+        # (1) SMuFL bracket glyphs — primary
         for t, b in zip(tops, bots):
-            ss = [s for s in staves if t - 8 <= s.top and s.bot <= b + 8]
-            if ss:
-                systems.append(System(staves=sorted(ss, key=lambda s: s.top),
-                                      page=page_no))
+            grp = [s for s in ss if t - 8 <= s.top and s.bot <= b + 8]
+            if grp:
+                systems.append(System(staves=grp, page=page_no))
         grouped = {id(s) for sy in systems for s in sy.staves}
-        left = [s for s in staves if id(s) not in grouped]
+        left = [s for s in ss if id(s) not in grouped]
         if left:
             report.warn(f"p{page_no}: {len(left)} staves outside any bracket "
                         f"— grouped as their own system")
-            systems.append(System(staves=sorted(left, key=lambda s: s.top),
-                                  page=page_no))
+            systems.append(System(staves=left, page=page_no))
     else:
-        # gap heuristic: same system if vertical gap < 2.5 staff heights
-        cur = []
-        for s in sorted(staves, key=lambda s: s.top):
-            if cur and s.top - cur[-1].bot > 2.5 * (cur[-1].bot - cur[-1].top):
+        groups = _connector_groups(ss, vlines)
+        if any(len(g) >= 2 for g in groups):
+            # (2) evidence-based: connector lines bridge each system's staves
+            for g in groups:
+                systems.append(System(staves=[ss[i] for i in g],
+                                      page=page_no))
+            multi = sum(1 for g in groups if len(g) >= 2)
+            report.note(f"p{page_no}: grouped {len(ss)} staves into "
+                        f"{len(systems)} systems via {multi} connector "
+                        f"line(s) (no bracket glyphs)")
+        else:
+            # (3) gap heuristic: same system if vertical gap < 2.5 staff heights
+            cur = []
+            for s in ss:
+                if cur and s.top - cur[-1].bot > \
+                        2.5 * (cur[-1].bot - cur[-1].top):
+                    systems.append(System(staves=cur, page=page_no))
+                    cur = []
+                cur.append(s)
+            if cur:
                 systems.append(System(staves=cur, page=page_no))
-                cur = []
-            cur.append(s)
-        if cur:
-            systems.append(System(staves=cur, page=page_no))
     systems.sort(key=lambda sy: sy.staves[0].top)
     return systems
 
@@ -514,7 +582,7 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
     if not staves:
         report.note(f"p{page_no}: no staves — skipped (title/blank page)")
         return [], measure_offset
-    systems = _group_systems(staves, music, page_no, report)
+    systems = _group_systems(staves, music, vlines, page_no, report)
     for sy in systems:
         for s in sy.staves:
             s.system = sy
@@ -1586,6 +1654,16 @@ def build_score(pdf_path, pages=None, report=None):
     n_meas = len(measure_meta)
     report.stats["measures"] = n_meas
     report.stats["systems"] = len(all_systems)
+
+    # collapse-detection signals for the downstream ingest gate: a score that
+    # extracted as one concatenated Soprano shows up here as a run of 1-staff
+    # systems (mode == 1). A healthy SATB score has a mode of 2 or 4.
+    staff_counts = [len(sy.staves) for sy in all_systems]
+    report.stats["single_staff_systems"] = sum(1 for c in staff_counts
+                                               if c == 1)
+    if staff_counts:
+        report.stats["staves_per_system_mode"] = max(
+            set(staff_counts), key=staff_counts.count)
 
     # measure-integrity check
     consistent = 0
