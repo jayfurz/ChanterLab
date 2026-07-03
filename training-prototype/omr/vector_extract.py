@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import sys
 from collections import defaultdict
@@ -67,6 +68,70 @@ MET_NOTES = {0xECA2: 2.0, 0xECA3: 2.0, 0xECA5: 1.0, 0xECA7: 0.5, 0xECA9: 0.25}
 IGNORED_INFO = {0xE000, 0xE003, 0xE004, 0xE26A, 0xE26B, 0xE0F5, 0xE0F6,
                 0xE4CE, 0xECB7}  # braces/brackets, parens, breath, met-dot
 DYNAMICS = set(range(0xE520, 0xE550))
+
+# ----------------------------------------- legacy Finale (Sonata-layout) fonts
+#
+# Born-digital Finale exports (Maestro / Petrucci) place every music symbol as
+# an ASCII / MacRoman / PUA-twin codepoint from the old Sonata layout, not a
+# SMuFL PUA glyph. We translate them to SMuFL at ingestion so every table and
+# check above keys on SMuFL unchanged. legacy_glyph_map.json — verified from
+# PDF crops — is the single source of truth for the codepoints; an entry whose
+# "smufl" is null means "drop this glyph" (dynamics / articulations the engine
+# must never see).
+
+_SMUFL_FONTS = ("Bravura", "Leland", "Petaluma", "Emmentaler")
+_LEGACY_FONTS = ("Maestro", "Petrucci", "Sonata", "Opus", "Engraver")
+_MUSIC_WHITESPACE = {0x20, 0xA0}   # space / no-break space: drop, never count
+
+
+def _load_legacy_map():
+    """Parse legacy_glyph_map.json (next to this file) into
+    {family_key: {int_cp: int_smufl_or_None}}. Fail soft — an empty map plus a
+    stderr warning — if the file is missing or unparseable."""
+    path = os.path.join(os.path.dirname(__file__), "legacy_glyph_map.json")
+    out = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+    except (OSError, ValueError) as exc:
+        print(f"[vector_extract] WARNING: could not load {path} ({exc}); "
+              f"legacy Finale fonts will not be remapped", file=sys.stderr)
+        return out
+    for fam, table in raw.items():
+        if fam in ("families", "_notes") or not isinstance(table, dict):
+            continue
+        fam_map = {}
+        for cp_hex, entry in table.items():
+            try:
+                cp = int(cp_hex, 16)
+            except (TypeError, ValueError):
+                continue
+            smufl = entry.get("smufl") if isinstance(entry, dict) else None
+            fam_map[cp] = int(smufl, 16) if smufl else None
+        out[fam] = fam_map
+    return out
+
+
+LEGACY_MAP = _load_legacy_map()
+
+
+def _music_font_family(font_name):
+    """Classify a span font name: 'smufl' (glyphs already SMuFL PUA), 'finale'
+    (legacy Sonata-layout codepoints needing remap), or None (not a music
+    font). SMuFL indicators are checked BEFORE legacy names so a hybrid like
+    'Finale Maestro SMuFL' is treated as SMuFL, not legacy."""
+    if not font_name:
+        return None
+    for k in _SMUFL_FONTS:
+        if k in font_name:
+            return "smufl"
+    if "SMuFL" in font_name:
+        return "smufl"
+    for k in _LEGACY_FONTS:
+        if k in font_name:
+            return "finale"
+    return None
+
 
 LETTERS = "CDEFGAB"
 STEP_SEMITONE = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
@@ -221,21 +286,50 @@ class Report:
                 "info": self.info}
 
 
-def _page_glyphs(page):
-    """All font glyphs on the page with positions."""
+def _page_glyphs(page, page_no=0, report=None):
+    """All font glyphs on the page with positions. Legacy Finale music fonts
+    are remapped to SMuFL codepoints at ingestion (see LEGACY_MAP): glyphs that
+    map to null are dropped silently, unknown glyphs are dropped and reported so
+    the map can be extended. SMuFL fonts pass through unchanged."""
     music, text_tokens = [], []
+    unmapped_seen = set()
     raw = page.get_text("rawdict")
     for block in raw["blocks"]:
         for line in block.get("lines", []):
             for span in line["spans"]:
                 font = span["font"]
-                is_music = "Bravura" in font or "Opus" in font or \
-                           "Maestro" in font or "Leland" in font or \
-                           "Emmentaler" in font
-                if is_music:
+                fam = _music_font_family(font)
+                if fam is not None:
+                    fam_map = LEGACY_MAP.get(fam) if fam != "smufl" else None
                     for ch in span["chars"]:
+                        cp = ord(ch["c"])
+                        if fam != "smufl":
+                            # legacy Finale: translate Sonata cp -> SMuFL
+                            if cp in _MUSIC_WHITESPACE:
+                                continue          # blank advance, never count
+                            if fam_map is not None and cp in fam_map:
+                                smufl = fam_map[cp]
+                                if smufl is None:
+                                    continue      # explicit ignore glyph
+                                cp = smufl
+                            else:
+                                # unknown legacy glyph: drop + record once/page
+                                if report is not None:
+                                    report.stats["unmapped_music_glyphs"] += 1
+                                    raw_cp = ord(ch["c"])
+                                    if (fam, raw_cp) not in unmapped_seen:
+                                        unmapped_seen.add((fam, raw_cp))
+                                        bb = ch["bbox"]
+                                        report.note(
+                                            f"p{page_no}: unmapped {fam} glyph "
+                                            f"0x{raw_cp:X} at "
+                                            f"({bb[0]:.0f},{bb[1]:.0f}) "
+                                            f"— dropped")
+                                continue
+                        if report is not None:
+                            report.stats["music_glyphs_total"] += 1
                         bb = ch["bbox"]
-                        music.append(Glyph(ord(ch["c"]), ch["origin"][0],
+                        music.append(Glyph(cp, ch["origin"][0],
                                            ch["origin"][1], bb[0], bb[1],
                                            bb[2], bb[3], span["size"]))
                 else:
@@ -274,19 +368,40 @@ def _page_paths(page):
         ops = "".join(i[0] for i in items)
         if set(ops) <= {"l"}:
             segs = [(i[1], i[2]) for i in items if i[0] == "l"]
-            if len(segs) == 1:
-                p1, p2 = segs[0]
-                dx, dy = abs(p2.x - p1.x), abs(p2.y - p1.y)
-                if dy < 0.7 and dx > 2:
-                    rec = (min(p1.x, p2.x), max(p1.x, p2.x), (p1.y + p2.y) / 2)
-                    (long_h if dx > 80 else short_h).append(rec)
-                elif dx < 1.2 and dy > 2:
-                    vlines.append(((p1.x + p2.x) / 2, min(p1.y, p2.y),
-                                   max(p1.y, p2.y)))
-            elif len(segs) >= 3 and d.get("fill") is not None:
+            if len(segs) >= 3 and d.get("fill") is not None:
+                # filled polyline = beam: keep as a quad, do NOT read its edges
+                # as individual staff/bar lines (they may be shallow-slanted).
                 xs = [p.x for s in segs for p in s]
                 ys = [p.y for s in segs for p in s]
                 quads.append((min(xs), min(ys), max(xs), max(ys)))
+            else:
+                # Finale draws each staff line as several parallel hairline
+                # strokes grouped into ONE path, so a stroked line drawing can
+                # hold many segments (the old len==1 gate dropped every such
+                # staff). Collapse near-collinear horizontal segments into one
+                # line per band so a thick line reads as a single staff line —
+                # otherwise its 0.7pt thickness splits across the 0.5pt merge
+                # tolerance in _find_staves. SMuFL single-segment paths pass
+                # through as one line each, unchanged.
+                hs = sorted(((min(p1.x, p2.x), max(p1.x, p2.x),
+                              (p1.y + p2.y) / 2) for p1, p2 in segs
+                             if abs(p2.y - p1.y) < 0.7 and abs(p2.x - p1.x) > 2),
+                            key=lambda r: r[2])
+                bands = []
+                for x0, x1, y in hs:
+                    if bands and y - bands[-1][2] <= 1.0:
+                        b = bands[-1]
+                        bands[-1] = (min(b[0], x0), max(b[1], x1),
+                                     (b[2] + y) / 2)
+                    else:
+                        bands.append((x0, x1, y))
+                for x0, x1, y in bands:
+                    (long_h if x1 - x0 > 80 else short_h).append((x0, x1, y))
+                for p1, p2 in segs:
+                    dx, dy = abs(p2.x - p1.x), abs(p2.y - p1.y)
+                    if dx < 1.2 and dy > 2:
+                        vlines.append(((p1.x + p2.x) / 2, min(p1.y, p2.y),
+                                       max(p1.y, p2.y)))
         elif "c" in ops and d.get("fill") is not None:
             pts = []
             for i in items:
@@ -393,7 +508,7 @@ def _assign_staff(g, staves, max_ledger=6.0):
 
 
 def extract_page(page, page_no, report, measure_offset, tempo_state):
-    music, tokens = _page_glyphs(page)
+    music, tokens = _page_glyphs(page, page_no, report)
     long_h, short_h, vlines, quads, curves = _page_paths(page)
     staves = _find_staves(long_h, page_no, report)
     if not staves:
@@ -862,41 +977,59 @@ def _reconcile_shared(sy, pending_by_staff, report, page_no):
     ranges = _measure_ranges(sy.staves[0], sy.bar_xs)
     per_measure = []
     for mi, (lo, hi) in enumerate(ranges):
-        sols_per_pair = []
-        for up, down, staff in pairs:
-            slo, shi = _measure_ranges(staff, sy.bar_xs)[mi]
-            u_evs = [e for e in sy.events.get(up, [])
-                     if e.staff is staff and slo <= e.x < shi]
-            d_evs = [e for e in sy.events.get(down, [])
-                     if e.staff is staff and slo <= e.x < shi]
-            p_evs = [e for e in pending_by_staff.get(id(staff), [])
-                     if slo <= e.x < shi]
-            sols = _pair_solutions(u_evs, d_evs, p_evs, staff, up, down)
-            sols_per_pair.append(sols)
-        per_measure.append(sols_per_pair)
+        # A ragged final measure (staves of differing width) can make one
+        # staff's range list shorter than the reference staff's, which used to
+        # IndexError here on real legacy pieces. Degrade a failed measure to
+        # the simplest routing (ambiguous events -> primary voice) rather than
+        # aborting the whole score.
+        try:
+            sols_per_pair = []
+            for up, down, staff in pairs:
+                sranges = _measure_ranges(staff, sy.bar_xs)
+                slo, shi = sranges[mi]
+                u_evs = [e for e in sy.events.get(up, [])
+                         if e.staff is staff and slo <= e.x < shi]
+                d_evs = [e for e in sy.events.get(down, [])
+                         if e.staff is staff and slo <= e.x < shi]
+                p_evs = [e for e in pending_by_staff.get(id(staff), [])
+                         if slo <= e.x < shi]
+                sols = _pair_solutions(u_evs, d_evs, p_evs, staff, up, down)
+                sols_per_pair.append(sols)
+            per_measure.append(sols_per_pair)
 
-        # joint choice: same measure length across the staves, minimal cost
-        best = None
-        for sa in sols_per_pair[0]:
-            for sb in sols_per_pair[1]:
-                mismatch = abs(sa["M"] - sb["M"]) > 1e-6
-                unbal = sa["unbal"] + sb["unbal"]
-                cost = sa["cost"] + sb["cost"] + \
-                    (1000 if mismatch else 0) + 100 * unbal
-                if best is None or cost < best[0]:
-                    best = (cost, sa, sb)
-        if best is None:
-            continue
-        _, sa, sb = best
-        for sol, (up, down, staff) in ((sa, pairs[0]), (sb, pairs[1])):
-            if sol["unbal"]:
-                report.warn(f"p{page_no}: measure {mi + 1} of system at "
-                            f"y~{staff.top:.0f}: could not balance "
-                            f"{up}/{down} ({sol['cumU']} vs {sol['cumD']})")
-            _commit_solution(sy, sol, up, down, report)
-        if abs(sa["M"] - sb["M"]) > 1e-6:
-            report.warn(f"p{page_no}: measure {mi + 1}: staves disagree on "
-                        f"length ({sa['M']} vs {sb['M']} beats)")
+            # joint choice: same measure length across the staves, min cost
+            best = None
+            for sa in sols_per_pair[0]:
+                for sb in sols_per_pair[1]:
+                    mismatch = abs(sa["M"] - sb["M"]) > 1e-6
+                    unbal = sa["unbal"] + sb["unbal"]
+                    cost = sa["cost"] + sb["cost"] + \
+                        (1000 if mismatch else 0) + 100 * unbal
+                    if best is None or cost < best[0]:
+                        best = (cost, sa, sb)
+            if best is None:
+                continue
+            _, sa, sb = best
+            for sol, (up, down, staff) in ((sa, pairs[0]), (sb, pairs[1])):
+                if sol["unbal"]:
+                    report.warn(f"p{page_no}: measure {mi + 1} of system at "
+                                f"y~{staff.top:.0f}: could not balance "
+                                f"{up}/{down} ({sol['cumU']} vs {sol['cumD']})")
+                _commit_solution(sy, sol, up, down, report)
+            if abs(sa["M"] - sb["M"]) > 1e-6:
+                report.warn(f"p{page_no}: measure {mi + 1}: staves disagree on "
+                            f"length ({sa['M']} vs {sb['M']} beats)")
+        except IndexError:
+            report.stats["shared_measures_degraded"] += 1
+            report.warn(f"p{page_no}: measure {mi + 1} of system at "
+                        f"y~{sy.staves[0].top:.0f}: reconciliation failed "
+                        f"(ragged staff ranges) — routing ambiguous events to "
+                        f"primary voice")
+            for up, down, staff in pairs:
+                for e in pending_by_staff.get(id(staff), []):
+                    if lo <= e.x < hi and e.voice is None:
+                        e.voice = up
+                        sy.events.setdefault(up, []).append(e)
 
     for v in sy.events:
         sy.events[v].sort(key=lambda e: e.x)
@@ -1142,16 +1275,18 @@ def _merge_divisi(sy, report, page_no):
                    if e.staff is staff and lo <= e.x < hi]
             notes = [e for e in evs if e.kind == "note"]
             total = sum(e.total_beats for e in evs)
-            # consensus measure length from the other voices
+            # consensus measure length from the other voices. Guard each event
+            # against ITS OWN staff's range list — ragged final measures make
+            # some staves shorter, and indexing [mi] blindly used to IndexError.
             others = []
             for ov in sy.events:
                 if ov == v:
                     continue
-                oevs = [e for e in sy.events[ov]
-                        if mi < len(sranges) and
-                        _measure_ranges(e.staff, sy.bar_xs)[mi][0] <= e.x <
-                        _measure_ranges(e.staff, sy.bar_xs)[mi][1]]
-                osum = sum(e.total_beats for e in oevs)
+                osum = 0.0
+                for e in sy.events[ov]:
+                    er = _measure_ranges(e.staff, sy.bar_xs)
+                    if mi < len(er) and er[mi][0] <= e.x < er[mi][1]:
+                        osum += e.total_beats
                 if osum > 0:
                     others.append(round(osum, 4))
             if not others:
@@ -1479,9 +1614,9 @@ def _find_title(doc, first_music_page, first_staff_top, report):
         for l in b.get("lines", []):
             for s in l["spans"]:
                 t = s["text"].strip()
-                if "Bravura" in s["font"] or any(0xE000 <= ord(c) <= 0xF8FF
-                                                 for c in t):
-                    continue   # music glyphs, not words
+                if _music_font_family(s["font"]) is not None or \
+                        any(0xE000 <= ord(c) <= 0xF8FF for c in t):
+                    continue   # music glyphs (SMuFL or legacy Finale), not words
                 if s["bbox"][1] < first_staff_top and len(t) > 3 and \
                         s["size"] > bs:
                     best, bs = t, s["size"]
@@ -1793,6 +1928,14 @@ def run(pdf_path, out_path=None, report_path=None, pages=None, quiet=False):
     report = Report()
     result = build_score(pdf_path, pages=pages, report=report)
     xml = emit_musicxml(result)
+    # legacy-font coverage: if too many music glyphs went unmapped the Sonata
+    # map is likely incomplete for this piece — surface it as a warning.
+    unmapped = report.stats.get("unmapped_music_glyphs", 0)
+    denom = report.stats.get("music_glyphs_total", 0) + unmapped
+    if unmapped and denom and unmapped > 0.02 * denom:
+        report.warn(f"legacy-font coverage: {unmapped} unmapped music glyphs "
+                    f"= {100 * unmapped / denom:.1f}% of {denom} total — the "
+                    f"Sonata glyph map may be incomplete for this piece")
     if out_path:
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(xml)
