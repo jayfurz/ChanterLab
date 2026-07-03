@@ -189,9 +189,28 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
 .lib-list{position:relative;flex:1;overflow-y:auto;overflow-x:hidden;
   -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .lib-viewport{position:relative;width:100%}
-.lib-header{position:absolute;left:0;right:0;display:flex;align-items:center;
-  padding:0 14px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
-  color:var(--gold-soft);font-weight:700;background:var(--bg)}
+/* group section header — collapsible ones (Menaion, Theotokia) are tappable
+   and show a chevron + piece count */
+.lib-group{position:absolute;left:0;right:0;display:flex;align-items:center;gap:10px;
+  padding:0 14px;background:linear-gradient(180deg,#1b1d24,#15161c);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.lib-group-name{font-size:13px;font-weight:800;letter-spacing:.02em;color:var(--gold-soft);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lib-group-count{flex:1 1 auto;font-size:11px;color:var(--sub);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.lib-group.collapsible{cursor:pointer;touch-action:manipulation}
+.lib-group.collapsible:hover .lib-group-name{color:var(--gold)}
+.lib-group.collapsible:active{background:#20222b}
+.lib-group-chev{flex:0 0 auto;color:var(--gold-soft);font-size:13px;
+  transition:transform .18s ease;transform:rotate(90deg)}
+.lib-group.collapsed .lib-group-chev{transform:rotate(0deg)}
+
+/* sub-header inside a group (tone / month / service moment / bookName) */
+.lib-sub{position:absolute;left:0;right:0;display:flex;align-items:center;
+  padding:0 14px 0 20px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--sub);font-weight:700;background:var(--bg);
+  border-bottom:1px solid rgba(44,47,56,.6)}
+
 .lib-hint{position:absolute;left:0;right:0;padding:14px;color:var(--sub);
   font-size:13px;line-height:1.4}
 .lib-hint code{font-size:12px}

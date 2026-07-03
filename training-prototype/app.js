@@ -85,10 +85,16 @@
           libItems.push({
             id, title: it.title || '(untitled)', composer: (it.composer || '').trim(),
             tone: (it.tone != null && it.tone !== '') ? String(it.tone) : null,
+            toneClean: (typeof it.toneClean === 'number') ? it.toneClean : null,
             arrangement: it.arrangementType || '', liturgicalDate: it.liturgicalDate || '',
             pdfUrl: it.pdfUrl || null,
             section: 'lib',
-            norm: fold([it.title, it.composer, it.liturgicalDate, it.arrangementType].join(' ')),
+            // taxonomy from ingest_catalog.liturgical_group (see LIB_GROUP_ORDER)
+            group: it.group || 'Other services & misc',
+            sub: (it.sub != null && it.sub !== '') ? it.sub : null,
+            rank: (typeof it.rank === 'number') ? it.rank : 99000,
+            norm: fold([it.title, it.composer, it.liturgicalDate, it.arrangementType,
+                        it.bookName, it.group, it.sub].join(' ')),
           });
         });
       }
@@ -146,11 +152,23 @@
   let userHoldUntil = 0;     // auto-scroll suspended until this perf.now() ms
 
   // --- library browser state ---
-  const LIB_ROW_H = 66, LIB_HEADER_H = 34, LIB_HINT_H = 64;  // fixed heights (windowing math)
+  // fixed row heights (windowing math): piece row, group header, sub-header, hint
+  const LIB_ROW_H = 66, LIB_GROUP_H = 46, LIB_SUB_H = 30, LIB_HINT_H = 64;
+  // Canonical section order — mirrors ingest_catalog.LIB_GROUP_ORDER. Prototype
+  // is pinned above these; anything unlisted falls to the tail (defensive).
+  const LIB_GROUP_ORDER = [
+    'Divine Liturgy', 'Presanctified Liturgy', 'Anastasimatarion',
+    'Vespers', 'Orthros', 'Triodion', 'Pentecostarion',
+    'Menaion', 'Theotokia', 'Other services & misc',
+  ];
+  // Huge groups collapsed by default (tap the header to expand; a search hit
+  // inside auto-expands them).
+  const LIB_COLLAPSIBLE = new Set(['Menaion', 'Theotokia']);
+  const libCollapsed = new Set(['Menaion', 'Theotokia']);
   const libFacetDefs = { arrangement: [], tone: [], composer: [] };
   const libActive = { arrangement: new Set(), tone: new Set(), composer: new Set() };
   let libSearch = '';        // folded search string
-  let libFlat = [];          // [{type:'header'|'row'|'hint', ...}]
+  let libFlat = [];          // [{type:'group'|'sub'|'row'|'hint', ...}]
   let libOffsets = [];       // prefix pixel offset per flat index
   let libTotalH = 0;
   let libRange = [-1, -1];   // currently-rendered [start,end) window
@@ -845,13 +863,14 @@
       return { value: label, label, test, count };
     }).filter((b) => b.count > 0).sort((a, b) => b.count - a.count);
 
-    // tone: distinct non-null values, numeric first (1-8 + plagal/other as found)
+    // tone: ONLY clean tones 1-8 (toneClean) — junk/multi-tone chips dropped.
     const toneCounts = {};
-    libItems.forEach((it) => { if (it.tone) toneCounts[it.tone] = (toneCounts[it.tone] || 0) + 1; });
+    libItems.forEach((it) => {
+      if (it.toneClean) toneCounts[it.toneClean] = (toneCounts[it.toneClean] || 0) + 1;
+    });
     libFacetDefs.tone = Object.keys(toneCounts).map((v) => ({
-      value: v, label: /^\d+$/.test(v) ? 'Tone ' + v : v, count: toneCounts[v],
-      num: /^\d+$/.test(v) ? parseInt(v, 10) : 999,
-    })).sort((a, b) => a.num - b.num || a.label.localeCompare(b.label));
+      value: v, label: 'Tone ' + v, count: toneCounts[v], num: parseInt(v, 10),
+    })).sort((a, b) => a.num - b.num);
 
     // composer: top 8 by count
     const compCounts = {};
@@ -893,34 +912,70 @@
       });
       if (!ok) return false;
     }
-    if (libActive.tone.size && !libActive.tone.has(it.tone)) return false;
+    if (libActive.tone.size && !libActive.tone.has(String(it.toneClean))) return false;
     if (libActive.composer.size && !libActive.composer.has(it.composer)) return false;
     return true;
   }
 
-  // Recompute the filtered flat list, its offsets, the count line, and re-window.
-  function rebuildLib() {
+  const libFiltersActive = () =>
+    !!libSearch || libActive.arrangement.size || libActive.tone.size || libActive.composer.size;
+
+  const libRowH = (f) => f.type === 'group' ? LIB_GROUP_H
+    : f.type === 'sub' ? LIB_SUB_H : f.type === 'hint' ? LIB_HINT_H : LIB_ROW_H;
+
+  // Recompute the filtered, SECTIONED flat list, its offsets, the count line,
+  // and re-window. Sections render in LIB_GROUP_ORDER; each group's items are
+  // sorted by (rank, title) so sub-headers (tone / month / service) fall out
+  // contiguously and in order. Collapsible groups render header-only unless
+  // expanded; while filtering, every group with matches auto-expands so hits
+  // are always visible. keepScroll leaves the scroll position alone (used when
+  // toggling a group) instead of jumping back to the top.
+  function rebuildLib(keepScroll) {
+    const filtering = libFiltersActive();
     const proto = libProto.filter(itemPasses);
     const lib = libItems.filter(itemPasses);
+
+    const byGroup = new Map();
+    lib.forEach((it) => {
+      if (!byGroup.has(it.group)) byGroup.set(it.group, []);
+      byGroup.get(it.group).push(it);
+    });
+    // any group the manifest introduced that we don't order explicitly → tail
+    const order = LIB_GROUP_ORDER.slice();
+    [...byGroup.keys()].forEach((g) => { if (!order.includes(g)) order.push(g); });
+
     libFlat = [];
     if (proto.length) {
-      libFlat.push({ type: 'header', label: 'Prototype' });
+      libFlat.push({ type: 'group', group: 'Prototype', count: proto.length, collapsible: false, expanded: true });
       proto.forEach((it) => libFlat.push({ type: 'row', item: it }));
     }
-    libFlat.push({ type: 'header', label: 'Library' });
+    order.forEach((group) => {
+      const items = byGroup.get(group);
+      if (!items || !items.length) return;
+      const collapsible = LIB_COLLAPSIBLE.has(group);
+      // filtering forces open so matches show; else honor the collapse toggle
+      const expanded = filtering ? true : !libCollapsed.has(group);
+      libFlat.push({ type: 'group', group, count: items.length, collapsible, expanded });
+      if (!expanded) return;
+      items.sort((a, b) => (a.rank - b.rank) || a.title.localeCompare(b.title));
+      let curSub;
+      items.forEach((it) => {
+        if (it.sub && it.sub !== curSub) {
+          curSub = it.sub;
+          libFlat.push({ type: 'sub', label: it.sub });
+        }
+        libFlat.push({ type: 'row', item: it });
+      });
+    });
+
     if (!libItems.length) {
       libFlat.push({ type: 'hint', label: 'No library yet — run <code>omr/ingest_catalog.py</code> to populate.' });
-    } else if (!lib.length) {
+    } else if (!proto.length && !lib.length) {
       libFlat.push({ type: 'hint', label: 'No matches — clear the search or filter chips.' });
-    } else {
-      lib.forEach((it) => libFlat.push({ type: 'row', item: it }));
     }
 
     libOffsets = []; let off = 0;
-    for (const f of libFlat) {
-      libOffsets.push(off);
-      off += f.type === 'header' ? LIB_HEADER_H : f.type === 'hint' ? LIB_HINT_H : LIB_ROW_H;
-    }
+    for (const f of libFlat) { libOffsets.push(off); off += libRowH(f); }
     libTotalH = off;
     el.libViewport.style.height = libTotalH + 'px';
 
@@ -928,7 +983,8 @@
     const shown = proto.length + lib.length;
     el.libCount.textContent = `${total} piece${total === 1 ? '' : 's'} · ${shown} shown`;
 
-    el.libList.scrollTop = 0;
+    if (keepScroll) el.libList.scrollTop = Math.min(el.libList.scrollTop, Math.max(0, libTotalH - el.libList.clientHeight));
+    else el.libList.scrollTop = 0;
     libRange = [-1, -1];
     renderWindow(true);
   }
@@ -941,9 +997,22 @@
   }
 
   function makeFlatEl(f, top) {
-    if (f.type === 'header') {
-      const h = document.createElement('div'); h.className = 'lib-header';
-      h.style.top = top + 'px'; h.style.height = LIB_HEADER_H + 'px'; h.textContent = f.label;
+    if (f.type === 'group') {
+      const h = document.createElement('div');
+      h.className = 'lib-group' + (f.collapsible ? ' collapsible' : '')
+        + (f.collapsible && !f.expanded ? ' collapsed' : '');
+      h.style.top = top + 'px'; h.style.height = LIB_GROUP_H + 'px';
+      if (f.collapsible) { h.setAttribute('role', 'button'); h.tabIndex = 0; h.dataset.group = f.group; h.setAttribute('aria-expanded', String(f.expanded)); }
+      const name = document.createElement('span'); name.className = 'lib-group-name'; name.textContent = f.group;
+      const cnt = document.createElement('span'); cnt.className = 'lib-group-count';
+      cnt.textContent = `${f.count} piece${f.count === 1 ? '' : 's'}`;
+      h.appendChild(name); h.appendChild(cnt);
+      if (f.collapsible) { const chev = document.createElement('span'); chev.className = 'lib-group-chev'; chev.textContent = '▸'; h.appendChild(chev); }
+      return h;
+    }
+    if (f.type === 'sub') {
+      const h = document.createElement('div'); h.className = 'lib-sub';
+      h.style.top = top + 'px'; h.style.height = LIB_SUB_H + 'px'; h.textContent = f.label;
       return h;
     }
     if (f.type === 'hint') {
@@ -990,6 +1059,15 @@
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) frag.appendChild(makeFlatEl(libFlat[i], libOffsets[i]));
     el.libViewport.replaceChildren(frag);
+  }
+
+  // Expand / collapse a collapsible section (Menaion, Theotokia). No-op while
+  // filtering (groups are force-expanded then). Keeps the scroll position so
+  // the tapped header stays put.
+  function toggleGroup(group) {
+    if (!LIB_COLLAPSIBLE.has(group) || libFiltersActive()) return;
+    if (libCollapsed.has(group)) libCollapsed.delete(group); else libCollapsed.add(group);
+    rebuildLib(true);
   }
 
   function openLibrary() {
@@ -1066,12 +1144,16 @@
       rebuildLib();
     });
     el.libList.addEventListener('click', (e) => {
+      const grp = e.target.closest('.lib-group.collapsible');
+      if (grp) { toggleGroup(grp.dataset.group); return; }
       if (e.target.closest('.lib-pdf')) return;   // PDF link: let it open, don't select
       const row = e.target.closest('.lib-row'); if (!row) return;
       loadPieceById(row.dataset.id).then(() => closeLibrary());
     });
     el.libList.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      const grp = e.target.closest('.lib-group.collapsible');
+      if (grp) { e.preventDefault(); toggleGroup(grp.dataset.group); return; }
       const row = e.target.closest('.lib-row'); if (!row) return;
       e.preventDefault();
       loadPieceById(row.dataset.id).then(() => closeLibrary());
@@ -1230,6 +1312,20 @@
     shown: () => libFlat.filter((f) => f.type === 'row').length,
     domRows: () => el.libViewport.childElementCount,
     isOpen: () => libOpen,
+    // sectioned-UI introspection for the headless checks
+    sections: () => libFlat.filter((f) => f.type === 'group')
+      .map((f) => ({ group: f.group, count: f.count, collapsible: f.collapsible, expanded: f.expanded })),
+    subs: () => libFlat.filter((f) => f.type === 'sub').map((f) => f.label),
+    toggle: (group) => { toggleGroup(group); return libFlat.filter((f) => f.type === 'group' && f.group === group).map((f) => f.expanded)[0]; },
+    collapsed: () => [...libCollapsed],
+    toneFacets: () => libFacetDefs.tone.map((t) => t.value),
+    scrollToGroup: (group) => {
+      const i = libFlat.findIndex((f) => f.type === 'group' && f.group === group);
+      if (i < 0) return false;
+      el.libList.scrollTop = libOffsets[i];
+      renderWindow(true);
+      return true;
+    },
   };
 
   main();

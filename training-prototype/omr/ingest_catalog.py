@@ -123,6 +123,198 @@ def category_of(item):
         else "chant"
 
 
+# ------------------------------------------------------ liturgical taxonomy
+# A pure, deterministic classifier that maps a catalog item to a
+# {group, sub, rank} for the sectioned library UI.  Data-driven: it keys off
+# bookName first, then the liturgicalDate order-prefix / calendarMonth / name
+# keywords.  See app.js LIB_GROUP_ORDER for the matching UI section order.
+
+# Canonical UI section order (Prototype is pinned separately, in the UI).
+LIB_GROUP_ORDER = [
+    "Divine Liturgy", "Presanctified Liturgy", "Anastasimatarion",
+    "Vespers", "Orthros", "Triodion", "Pentecostarion",
+    "Menaion", "Theotokia", "Other services & misc",
+]
+
+_MONTHS = {1: "January", 2: "February", 3: "March", 4: "April", 5: "May",
+           6: "June", 7: "July", 8: "August", 9: "September", 10: "October",
+           11: "November", 12: "December"}
+_MONTH_NAME_NUM = {v.lower(): k for k, v in _MONTHS.items()}
+
+# Divine Liturgy fallback keyword -> rank (order of service).  Only used when a
+# DL item's liturgicalDate carries no numeric order-prefix; the prefix (e.g.
+# "14-Cherubic Hymn") is authoritative and already encodes this same order.
+_DL_KEYWORDS = [
+    ("great litany", 100), ("first antiphon", 200), ("little litany", 300),
+    ("second antiphon", 400), ("antiphon", 400), ("entrance", 500),
+    ("kontakion", 550), ("trisagion", 600), ("as many of you", 800),
+    ("before thy cross", 1000), ("epistle", 1300), ("gospel", 1300),
+    ("cherubic", 1400), ("litany of supplication", 1500), ("anaphora", 1600),
+    ("mercy of peace", 1600), ("holy, holy", 1600), ("we praise thee", 1600),
+    ("it is truly meet", 1700), ("hymn to the theotokos", 1700),
+    ("axion estin", 1700), ("megalynarion", 1700), ("all creation", 1800),
+    ("in thee rejoices", 1800), ("lord's prayer", 1900),
+    ("communion hymn", 2200), ("koinonikon", 2200), ("communion", 2200),
+    ("we have seen the true light", 3100), ("let our mouths", 3200),
+    ("blessed be the name", 3400), ("dismissal", 3500), ("many years", 3800),
+]
+
+# Other-services sub-header ordering (bookName -> priority); unknown books
+# fall after these, keyed by bookName.
+_OTHER_ORDER = ["Funeral", "Wedding", "Baptism", "Ordinations", "Paraklesis",
+                "Akathist to the Theotokos", "Psalter", "Horologion",
+                "Euchologion", "Responses", "Paraliturgical",
+                "Musical Instruction", "Rubrics"]
+
+
+def tone_clean(tone):
+    """Normalise a raw tone value to an int 1-8, or None.  Junk ('Russian',
+    'Znamenny', 'Various', ...) and multi-tone lists ('2,6') -> None."""
+    t = (tone or "").strip()
+    return int(t) if t in {"1", "2", "3", "4", "5", "6", "7", "8"} else None
+
+
+def _prefix_num(litdate):
+    """Leading 'NN[.N][a|b]' order token of a liturgicalDate -> float, or None.
+    Handles Divine Liturgy ('05.1-Kontakion', '14-Cherubic') and Presanctified
+    ('1.11a-...', '1.11b-...')."""
+    m = re.match(r"\s*(\d+(?:\.\d+)?)([a-z])?", litdate or "")
+    if not m:
+        return None
+    val = float(m.group(1)) * 1000.0
+    if m.group(2):
+        val += (ord(m.group(2)) - ord("a") + 1)
+    return val
+
+
+def _first_int(s):
+    m = re.search(r"\d+", s or "")
+    return int(m.group(0)) if m else 0
+
+
+def _dl_rank(item):
+    r = _prefix_num(item.get("liturgicalDate"))
+    if r is not None:
+        return int(r)
+    name = (item.get("name") or "").lower()
+    for kw, rank in _DL_KEYWORDS:
+        if kw in name:
+            return rank
+    return 99000  # unrankable -> trails, UI falls back to title sort
+
+
+def _month_of(item):
+    cm = (item.get("calendarMonth") or "").strip()
+    if cm.isdigit() and 1 <= int(cm) <= 12:
+        return int(cm)
+    m = re.match(r"\s*([A-Za-z]+)", item.get("liturgicalDate") or "")
+    if m:
+        return _MONTH_NAME_NUM.get(m.group(1).lower())
+    return None
+
+
+def _is_resurrectional(item):
+    blob = ((item.get("name") or "") + " "
+            + (item.get("liturgicalDate") or "")).lower()
+    return "resurrect" in blob
+
+
+def _alpha_rank(item):
+    """'J1-Palm Sunday' -> letter(A=0)*1000 + number, so the season sorts."""
+    m = re.match(r"\s*([A-Z])(\d+)", item.get("liturgicalDate") or "")
+    if m:
+        return (ord(m.group(1)) - ord("A")) * 1000 + int(m.group(2))
+    return 99000
+
+
+def _service_sub(item):
+    """Strip the 'NN-' order prefix off a Vespers/Orthros liturgicalDate to get
+    a readable service-moment sub-header."""
+    litd = (item.get("liturgicalDate") or "").strip()
+    m = re.match(r"\s*[0-9a-z.]+-\s*(.+)", litd)
+    label = (m.group(1) if m else litd).strip()
+    return label or "Other"
+
+
+def _service_rank(item):
+    r = _prefix_num(item.get("liturgicalDate"))
+    return int(r) if r is not None else 99000
+
+
+def liturgical_group(item):
+    """Pure classifier: catalog item -> {group, sub, rank}.  Deterministic.
+
+    `rank` orders items WITHIN a group; where a group has sub-headers the rank
+    is sub-major (sub_order*1000 + within-sub order) so that sorting a group's
+    items by (rank, title) yields contiguous, correctly ordered sub sections.
+    """
+    book = (item.get("bookName") or "").strip()
+    tclean = tone_clean(item.get("tone"))
+
+    # 1. Divine Liturgy / Presanctified — ordered by service (litDate prefix).
+    if book == "Divine Liturgy":
+        return {"group": "Divine Liturgy", "sub": None, "rank": _dl_rank(item)}
+    if book == "Presanctified Liturgy":
+        r = _prefix_num(item.get("liturgicalDate"))
+        return {"group": "Presanctified Liturgy", "sub": None,
+                "rank": int(r) if r is not None else 99000}
+
+    # 2. Anastasimatarion = Octoechos (+ Eothina) + clearly-resurrectional
+    #    Vespers/Orthros items that carry a clean tone.  Subdivided by the eight
+    #    tones; junk / multi-tone -> a trailing "Mixed / other tones" bucket.
+    resurrectional_move = (
+        book in ("Vespers", "Vespers-Litia", "Orthros")
+        and _is_resurrectional(item) and tclean is not None)
+    if book in ("Octoechos", "Octoechos Eothina") or resurrectional_move:
+        tone_order = tclean if tclean else 9   # 9 = mixed bucket, sorts last
+        sub = f"Tone {tclean}" if tclean else "Mixed / other tones"
+        within = min(_first_int(item.get("liturgicalDate")), 999)
+        return {"group": "Anastasimatarion", "sub": sub,
+                "rank": tone_order * 1000 + within}
+
+    # 3. Menaion (fixed calendar) — collapsed, church-year month buckets.
+    if book in ("Menaion", "Kazan Menaion"):
+        mon = _month_of(item)
+        if mon:
+            church = (mon - 9) % 12   # Sep=0 .. Aug=11
+            day = _first_int(item.get("calendarDay")) \
+                or _first_int(item.get("liturgicalDate"))
+            return {"group": "Menaion", "sub": _MONTHS[mon],
+                    "rank": church * 1000 + min(day, 99)}
+        return {"group": "Menaion", "sub": "Unknown date", "rank": 12000}
+
+    # Theotokia / Stavrotheotokia — collapsed; Theotokia then Stavro (Cross).
+    if book == "Theotokia-Stavrotheotokia":
+        litd = (item.get("liturgicalDate") or "").lower()
+        if "stavro" in litd or "cross" in litd:
+            return {"group": "Theotokia",
+                    "sub": "Stavro-Theotokia (of the Cross)",
+                    "rank": 2000 + (tclean or 9)}
+        return {"group": "Theotokia", "sub": "Theotokia",
+                "rank": 1000 + (tclean or 9)}
+
+    # 4. Triodion / Pentecostarion — one season group each, ordered by the
+    #    alpha-numeric liturgicalDate prefix (A1-Pascha, B1-Thomas, ...).
+    if book == "Lenten Triodion":
+        return {"group": "Triodion", "sub": None, "rank": _alpha_rank(item)}
+    if book == "Pentecostarion":
+        return {"group": "Pentecostarion", "sub": None, "rank": _alpha_rank(item)}
+
+    # 5. Vespers / Orthros — the non-resurrectional remainder, grouped by
+    #    service moment (cleaned litDate label), ordered by its numeric prefix.
+    if book in ("Vespers", "Vespers-Litia"):
+        return {"group": "Vespers", "sub": _service_sub(item),
+                "rank": _service_rank(item)}
+    if book == "Orthros":
+        return {"group": "Orthros", "sub": _service_sub(item),
+                "rank": _service_rank(item)}
+
+    # 6. Everything else -> Other services & misc, sub-headed by bookName.
+    pr = _OTHER_ORDER.index(book) if book in _OTHER_ORDER else len(_OTHER_ORDER)
+    return {"group": "Other services & misc", "sub": book or "Uncategorised",
+            "rank": pr * 1000}
+
+
 # --------------------------------------------------------------- state / manifest
 def load_state():
     if os.path.exists(STATE):
@@ -160,12 +352,16 @@ def write_manifest(state, catalog=None):
             guarded += 1
             continue
         cat = extra.get(r["id"], {})
+        cls = liturgical_group(cat)
         accepted.append(
             {"id": r["id"], "title": r["name"], "composer": r["composer"],
              "arrangementType": r["arrangementType"], "musicxml": r["musicxml"],
              "integrity_pct": r["integrity_pct"],
              "tone": (cat.get("tone") or "").strip() or None,
+             "toneClean": tone_clean(cat.get("tone")),
              "liturgicalDate": (cat.get("liturgicalDate") or "").strip() or None,
+             "bookName": (cat.get("bookName") or "").strip() or None,
+             "group": cls["group"], "sub": cls["sub"], "rank": cls["rank"],
              "pdfUrl": r.get("url")})
     if guarded:
         print(f"[manifest] {guarded} accepted item(s) held back by the "
@@ -310,6 +506,71 @@ def summarize(state):
             print(f"  {ip_s}  {str(w):>3} warn  {(r['name'] or '')[:52]}")
 
 
+def classify_report():
+    """Read-only sanity report: run liturgical_group() over the full cached
+    catalog and print the group/sub distribution + key assertions."""
+    from collections import defaultdict
+    cat = load_catalog(offline=True)
+    bygroup = Counter()
+    subs = defaultdict(Counter)
+    submin = defaultdict(lambda: defaultdict(lambda: 10 ** 9))
+    unranked_dl = []
+    men_total = men_month = 0
+    for it in cat:
+        g = liturgical_group(it)
+        bygroup[g["group"]] += 1
+        subs[g["group"]][g["sub"]] += 1
+        submin[g["group"]][g["sub"]] = min(submin[g["group"]][g["sub"]], g["rank"])
+        if g["group"] == "Divine Liturgy" and g["rank"] >= 99000:
+            unranked_dl.append(it.get("name"))
+        if g["group"] == "Menaion":
+            men_total += 1
+            men_month += (g["sub"] != "Unknown date")
+
+    print("=== group distribution (UI section order) ===")
+    for grp in LIB_GROUP_ORDER:
+        print(f"{bygroup.get(grp, 0):5d}  {grp}")
+    for grp in set(bygroup) - set(LIB_GROUP_ORDER):
+        print(f"{bygroup[grp]:5d}  !! UNORDERED {grp!r}")
+    print(f"total classified: {sum(bygroup.values())}/{len(cat)}")
+
+    print("\n=== sub-headers per group (in UI order) ===")
+    for grp in LIB_GROUP_ORDER:
+        if not subs[grp]:
+            continue
+        print(f"[{grp}]  {bygroup[grp]} items, {len(subs[grp])} sub(s)")
+        for s in sorted(subs[grp], key=lambda s: submin[grp][s]):
+            print(f"     {subs[grp][s]:4d}  {s}")
+
+    print("\n=== assertions ===")
+    pct = 100 * men_month // max(1, men_total)
+    print(f"Menaion month coverage: {men_month}/{men_total} = {pct}% "
+          f"({'OK' if pct >= 90 else 'FAIL <90%'})")
+    print(f"Divine Liturgy unrankable: {len(unranked_dl)} "
+          f"({'OK' if not unranked_dl else 'FAIL'})")
+    for n in unranked_dl:
+        print("   -", n)
+    # spot-check a few DL service-order slots landed in order
+    dl = sorted((liturgical_group(it)["rank"],
+                 (it.get("name") or "").lower()) for it in cat
+                if (it.get("bookName") == "Divine Liturgy"))
+    def rank_of(kw):
+        for r, n in dl:
+            if kw in n:
+                return r
+        return None
+    order = [("great litany", rank_of("great litany")),
+             ("trisagion", rank_of("trisagion")),
+             ("cherubic", rank_of("cherubic")),
+             ("anaphora", rank_of("anaphora")),
+             ("communion", rank_of("communion hymn")),
+             ("dismissal", rank_of("dismissal"))]
+    ranks = [r for _, r in order if r is not None]
+    ok = all(ranks[i] < ranks[i + 1] for i in range(len(ranks) - 1))
+    print("DL service order (litany<trisagion<cherubic<anaphora<communion"
+          f"<dismissal): {'OK' if ok else 'FAIL'}  {order}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--categories", default="choral",
@@ -320,7 +581,14 @@ def main():
                     help="reprocess items already in a terminal status")
     ap.add_argument("--report-only", action="store_true",
                     help="summarize existing state + rewrite manifest; no network")
+    ap.add_argument("--classify-report", action="store_true",
+                    help="print the liturgical_group() distribution over the "
+                         "full cached catalog and exit; read-only, no network")
     args = ap.parse_args()
+
+    if args.classify_report:
+        classify_report()
+        return
 
     state = load_state()
 
