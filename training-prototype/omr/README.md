@@ -54,14 +54,18 @@ confidence gate → `out/ingest/manifest.json` (accepted pieces; the training
 app lists them automatically) + review queue in `out/ingest/ingest_state.json`.
 Resumable and idempotent; `--report-only` summarizes without network.
 
-Validation run on 100 items (60 choral + 40 chant, 2026-07-02): **45
-accepted at 100% integrity**, 0 crashes/timeouts; 37/40 mixed chant books had
-Western pages auto-selected. Acceptance is bimodal — accepts land at exactly
-100%, everything else drops below 90% and queues for review. The review pile
-is dominated by multi-tone "series" books (same short response re-engraved
-per tone) whose dense shared-staff layouts trip voice-beat reconciliation —
-the known frontier. Extrapolated catalog yield: ~1,100–2,000 pieces
-acceptable today, ~1,450 in review.
+**Full-catalog run (2026-07-03, post staff-grouping fix):** all 3,793
+eligible items processed with zero download/extract errors. **1,487
+accepted** (mean integrity 99.6%, median 100%) → the app library, organized
+by the liturgical taxonomy (Menaion 892, Theotokia 125, Divine Liturgy 121,
+Triodion 107, Pentecostarion 101, Anastasimatarion 54, other services 87);
+1,996 in review; 300 non-Western/no-music; 10 Type3. A voice-collapse
+tripwire keeps choral-marked single-voice extractions out of the library
+(that failure mode passed the integrity gate vacuously before the
+connector-line staff-grouping fix). The review pile is dominated by the
+Joseph of Damascus service books and multi-tone "series" volumes whose
+dense shared-staff layouts trip voice-beat reconciliation — the known
+frontier for the next engine iteration.
 
 ## Usage
 
