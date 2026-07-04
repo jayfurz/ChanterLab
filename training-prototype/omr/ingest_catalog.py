@@ -329,6 +329,21 @@ def save_state(state):
         json.dump(state, f, indent=1, sort_keys=True)
 
 
+def read_sections(item_id):
+    """Section index from a piece's report.json, as the app-facing contract:
+    [{title, measure}] ascending by measure. Returned only when there are 2+
+    sections — a single-hymn piece needs no in-score index. [] otherwise."""
+    try:
+        with open(os.path.join(OUT_DIR, item_id + ".report.json")) as f:
+            secs = json.load(f).get("sections") or []
+    except Exception:
+        return []
+    clean = [{"title": s["title"], "measure": s["measure"]}
+             for s in secs if s.get("title") and s.get("measure") is not None]
+    clean.sort(key=lambda s: s["measure"])
+    return clean if len(clean) >= 2 else []
+
+
 def write_manifest(state, catalog=None):
     # join back to the catalog by id (blob filename stem) for the browse/filter
     # fields the state records don't carry (tone, liturgical date)
@@ -353,16 +368,20 @@ def write_manifest(state, catalog=None):
             continue
         cat = extra.get(r["id"], {})
         cls = liturgical_group(cat)
-        accepted.append(
-            {"id": r["id"], "title": r["name"], "composer": r["composer"],
-             "arrangementType": r["arrangementType"], "musicxml": r["musicxml"],
-             "integrity_pct": r["integrity_pct"],
-             "tone": (cat.get("tone") or "").strip() or None,
-             "toneClean": tone_clean(cat.get("tone")),
-             "liturgicalDate": (cat.get("liturgicalDate") or "").strip() or None,
-             "bookName": (cat.get("bookName") or "").strip() or None,
-             "group": cls["group"], "sub": cls["sub"], "rank": cls["rank"],
-             "pdfUrl": r.get("url")})
+        entry = {
+            "id": r["id"], "title": r["name"], "composer": r["composer"],
+            "arrangementType": r["arrangementType"], "musicxml": r["musicxml"],
+            "integrity_pct": r["integrity_pct"],
+            "tone": (cat.get("tone") or "").strip() or None,
+            "toneClean": tone_clean(cat.get("tone")),
+            "liturgicalDate": (cat.get("liturgicalDate") or "").strip() or None,
+            "bookName": (cat.get("bookName") or "").strip() or None,
+            "group": cls["group"], "sub": cls["sub"], "rank": cls["rank"],
+            "pdfUrl": r.get("url")}
+        sections = read_sections(r["id"])
+        if sections:                    # in-score index for multi-hymn scores
+            entry["sections"] = sections
+        accepted.append(entry)
     if guarded:
         print(f"[manifest] {guarded} accepted item(s) held back by the "
               f"voice-collapse guard (re-extract with --redo)")

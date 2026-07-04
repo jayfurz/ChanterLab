@@ -214,7 +214,7 @@ class Event:
     stem_dir: Optional[str] = None
     tie_start: bool = False
     tie_stop: bool = False
-    lyric: Optional[dict] = None
+    lyric: list = field(default_factory=list)   # verse dicts: {text,syllabic,number}
     unison_assumed: bool = False
     ambiguous: bool = False    # lone whole / centered rest on a shared staff
     beam_group: Optional[int] = None   # id shared by stems under one beam
@@ -355,8 +355,13 @@ def _mk_token(chars, span):
     x0 = chars[0]["bbox"][0]
     x1 = chars[-1]["bbox"][2]
     y = chars[0]["origin"][1]
+    font = span["font"]
+    # italic marks an *alternate verse* (roman verse 1 / italic verse 2) and
+    # corroborates expression text; PyMuPDF's italic flag (bit 1) and the ",Italic"
+    # font-name suffix agree in this corpus, so OR them for robustness.
+    italic = bool(span.get("flags", 0) & 2) or ("italic" in font.lower())
     return {"text": text, "x0": x0, "x1": x1, "cx": (x0 + x1) / 2, "y": y,
-            "size": span["size"], "font": span["font"]}
+            "size": span["size"], "font": font, "italic": italic}
 
 
 def _page_paths(page):
@@ -1445,31 +1450,105 @@ def _measure_ranges(staff, bar_xs):
     return out
 
 
-_NON_LYRIC_RE = re.compile(r"=|\d|^N\.?B\.?$|^\*|^rit\.*$", re.I)
+# ----------------------------------------------------------------- lyric text
+# The band below a staff holds sung syllables, but also leaks tempo/dynamic
+# marks ('cresc.', 'rit.', 'Slower', 'hold', 'breath'), navigation text
+# ('To Coda', 'D.C. al Coda'), metronome/copyright lines and big breath-comma
+# glyphs. Two robustness rules separate lyrics from that noise WITHOUT the
+# classic butchering traps (never filter on ALL-CAPS or word shape — 'LORD HAVE
+# MER-CY' is a real lyric; never drop a line merely for being italic — italic
+# marks an alternate verse):
+#   * an expression-VOCAB match only condemns a token when the token stands
+#     alone as its own short line of directions; a vocab string that is a real
+#     word syllable ('rit:' = the -rit of 'Spi-rit') rides a line with content
+#     words and survives untouched;
+#   * italic is available (Event/token level) as corroboration but is never the
+#     sole reason to drop.
+# _EXPR_VOCAB / _EXPR_EXTRA are defined just after _SECTION_STOPWORDS (which
+# they reuse); both are module globals resolved when these functions run.
+_EXPR_CONNECTIVE = {          # function words that carry a direction, not content
+    "a", "al", "il", "el", "la", "le", "lo", "e", "ed", "o", "di", "da",
+    "de", "del", "in", "con", "col", "sul", "su", "to", "of", "and", "the",
+    "non", "un", "una", "uno", "ma", "piu", "sempre", "au", "aux", "du", "et"}
+_FOOTNOTE_KILL = {"nb"}       # 'N.B.' — always an editorial footnote
+
+
+def _lyric_compact(text):
+    """Letters-only lowercase form of a token, for expression-vocab matching
+    ('rit:' -> 'rit', 'D.C.' -> 'dc', 'breath....' -> 'breath')."""
+    return re.sub(r"[^a-z]", "", text.lower())
+
+
+def _is_dash(text):
+    """A pure ASCII hyphen/underscore token — a syllable connector kept in the
+    line so _hyphen_between can see it, but never emitted as a lyric."""
+    return text != "" and all(c in "-_" for c in text)
+
+
+def _lyric_kill_token(text):
+    """A token that condemns its whole text line as non-lyric: a metronome mark
+    or dated copyright/footer line (contains a digit or '='), a footnote (leads
+    with '*' or is 'N.B.'). Matches the old =/digit/N.B./* backstop."""
+    if any(c.isdigit() for c in text) or "=" in text:
+        return True
+    if text.startswith("*"):
+        return True
+    return _lyric_compact(text) in _FOOTNOTE_KILL
 
 
 def _drop_non_lyric_lines(band):
-    """Group band tokens into text lines by y; drop lines that look like
-    tempo marks / editorial footnotes ('♩ = 98', 'N.B.', '*parenthetical
-    notes are optional') rather than sung text."""
-    lines = defaultdict(list)
-    for t in band:
-        key = None
-        for y in lines:
-            if abs(y - t["y"]) < 1.5:
-                key = y
-                break
-        lines[key if key is not None else t["y"]].append(t)
-    keep = []
-    for y, toks in lines.items():
-        if any(_NON_LYRIC_RE.search(t["text"]) for t in toks):
+    """Cluster band tokens into text lines by baseline y and return them ordered
+    top->bottom (each line a list of tokens) after removing non-sung text.
+    _attach_lyrics treats each returned line as a separate verse.
+
+    Filtering:
+      * junk tokens (no letter and not a hyphen connector) are removed in place
+        — big breath-comma glyphs, '(', U+2011/U+00AD pseudo-hyphens, digit runs;
+      * a whole line is dropped when _lyric_kill_token flags it (metronome mark,
+        dated copyright, '*'/N.B. footnote);
+      * a short line made entirely of directions + function words, with at least
+        one real direction and NO content word, is dropped ('cresc.', 'To Coda',
+        'D.C. al Coda', 'poco a poco rit.'). One content word keeps the line, so
+        'hold fast', 'the Son' and 'Glory ... Spi-rit:' survive.
+    """
+    lines = []                                   # [[repr_baseline_y, [tokens]]]
+    for t in sorted(band, key=lambda t: t["y"]):
+        if lines and t["y"] - lines[-1][0] <= 1.5:
+            grp = lines[-1][1]
+            grp.append(t)
+            lines[-1][0] = sum(x["y"] for x in grp) / len(grp)
+        else:
+            lines.append([t["y"], [t]])
+    kept = []
+    for _y, toks in lines:
+        toks = sorted(toks, key=lambda t: t["x0"])
+        if any(_lyric_kill_token(t["text"]) for t in toks):
             continue
-        keep.extend(toks)
-    return keep
+        toks = [t for t in toks
+                if _is_dash(t["text"]) or any(c.isalpha() for c in t["text"])]
+        words = [t for t in toks if not _is_dash(t["text"])]
+        if not words:
+            continue
+        if len(words) <= 5:
+            expr = content = 0
+            for t in words:
+                c = _lyric_compact(t["text"])
+                if c in _EXPR_VOCAB:
+                    expr += 1
+                elif c not in _EXPR_CONNECTIVE:
+                    content += 1
+            if expr >= 1 and content == 0:
+                continue          # a pure musical-direction / navigation line
+        kept.append(toks)
+    return kept
 
 
 def _attach_lyrics(sy, tokens, report, page_no):
-    """Lyric tokens live in the band below a staff; attach to nearest onset."""
+    """Lyric tokens live in the band below a staff. Each surviving text line in
+    that band is a separate verse (top line = verse 1); each verse's syllables
+    are x-sorted, hyphenated and attached to their own nearest note onsets, so
+    stacked verses (e.g. a roman verse 1 over an italic alternate verse 2) never
+    interleave into one garbled line."""
     for si, staff in enumerate(sy.staves):
         band_top = staff.bot + 0.5 * staff.sp
         nxt = sy.staves[si + 1] if si + 1 < len(sy.staves) else None
@@ -1479,41 +1558,64 @@ def _attach_lyrics(sy, tokens, report, page_no):
                 if band_top < t["y"] < band_bot
                 and staff.x0 - 2 <= t["cx"] <= staff.x1 + 2
                 and t["size"] > 6]
-        band = _drop_non_lyric_lines(band)
-        if not band:
+        lines = _drop_non_lyric_lines(band)
+        if not lines:
             continue
         # events that can carry a lyric: notes on this staff
         voices = [v for v, evs in sy.events.items()
                   if any(e.staff is staff for e in evs)]
-        carriers = defaultdict(list)
+        carriers = {v: [e for e in sy.events[v]
+                        if e.staff is staff and e.kind == "note"]
+                    for v in voices}
+        # verse index = baseline order (top line = verse 1), assigned only from
+        # its own tokens. Every real lyric line becomes a verse — never dropped:
+        # per the design, treating a lone continuation line as an extra verse
+        # garbles nothing because verse 1 stays coherent. The one line we skip
+        # (without dropping any *real* lyric) is a stray section title that fell
+        # into the last staff's tall band: it towers over the verse-1 text, so a
+        # line whose median glyph size far exceeds verse 1's is not a verse.
+        v1_size = None
+        verse_k = 0
+        for line in lines:
+            sizes = sorted(t["size"] for t in line)
+            med = sizes[len(sizes) // 2]
+            if v1_size is None:
+                v1_size = med
+            elif med > 1.6 * v1_size:
+                continue          # oversized => a title, not an alternate verse
+            verse_k += 1
+            _attach_verse_line(line, verse_k, staff, voices, carriers, report)
+
+
+def _attach_verse_line(line, k, staff, voices, carriers, report):
+    """X-sort, hyphenate and attach one verse line's syllables to nearest notes.
+    Each note carries at most one syllable per verse number k."""
+    line = sorted(line, key=lambda t: t["x0"])
+    words = [t for t in line if t["text"].strip("-_")]
+    for i, t in enumerate(words):
+        txt = t["text"]
+        prev_hyph = i > 0 and _hyphen_between(line, words[i - 1], t)
+        next_hyph = i + 1 < len(words) and _hyphen_between(line, t, words[i + 1])
+        if prev_hyph and next_hyph:
+            syl = "middle"
+        elif next_hyph:
+            syl = "begin"
+        elif prev_hyph:
+            syl = "end"
+        else:
+            syl = "single"
         for v in voices:
-            carriers[v] = [e for e in sy.events[v]
-                           if e.staff is staff and e.kind == "note"]
-        band.sort(key=lambda t: t["x0"])
-        words = [t for t in band if t["text"].strip("-_")]
-        for i, t in enumerate(words):
-            txt = t["text"]
-            prev_hyph = i > 0 and _hyphen_between(band, words[i - 1], t)
-            next_hyph = i + 1 < len(words) and _hyphen_between(band, t, words[i + 1])
-            if prev_hyph and next_hyph:
-                syl = "middle"
-            elif next_hyph:
-                syl = "begin"
-            elif prev_hyph:
-                syl = "end"
-            else:
-                syl = "single"
-            for v in voices:
-                evs = carriers[v]
-                if not evs:
-                    continue
-                best = min(evs, key=lambda e: abs(e.x - t["cx"]))
-                if abs(best.x - t["cx"]) > 6 * staff.sp:
-                    report.stats["lyric_tokens_unmatched"] += 1
-                    continue
-                if best.lyric is None:
-                    best.lyric = {"text": txt, "syllabic": syl}
-                    report.stats["lyric_syllables_attached"] += 1
+            evs = carriers[v]
+            if not evs:
+                continue
+            best = min(evs, key=lambda e: abs(e.x - t["cx"]))
+            if abs(best.x - t["cx"]) > 6 * staff.sp:
+                report.stats["lyric_tokens_unmatched"] += 1
+                continue
+            if any(l.get("number") == k for l in best.lyric):
+                continue
+            best.lyric.append({"text": txt, "syllabic": syl, "number": k})
+            report.stats["lyric_syllables_attached"] += 1
 
 
 def _hyphen_between(band, a, b):
@@ -1679,9 +1781,13 @@ def build_score(pdf_path, pages=None, report=None):
     if n_meas:
         report.stats["measure_integrity_pct"] = round(100 * consistent / n_meas, 1)
 
+    # per-piece section index (hymn titles -> section-start measure numbers) for
+    # jumping to a hymn inside a concatenated complete-service score.
+    sections = _find_sections(doc, measure_meta, title, report)
+
     return {"title": title, "voices": voices_present, "score": score,
             "meta": measure_meta, "tempo": tempo_state["bpm"],
-            "report": report, "systems": all_systems}
+            "report": report, "systems": all_systems, "sections": sections}
 
 
 def _find_title(doc, first_music_page, first_staff_top, report):
@@ -1699,6 +1805,215 @@ def _find_title(doc, first_music_page, first_staff_top, report):
                         s["size"] > bs:
                     best, bs = t, s["size"]
     return best or "Untitled"
+
+
+# ------------------------------------------------------------ section headers
+# Complete-service scores concatenate many hymns into one file. Each hymn is
+# introduced by a large title line engraved in the gap above the top staff of
+# the system where it starts ("The Great Litany", "Cherubic Hymn", ...). We
+# generalise _find_title to run per system across the whole document and attach
+# each detected title to the printed measure number of the first measure of the
+# system below it, producing a per-piece section index for in-score navigation.
+#
+# The heuristic is deliberately conservative — it is better to miss a marginal
+# header than to invent a section from stray text:
+#   * a header must tower over the ordinary lyric/body text (SECTION_SIZE_RATIO
+#     * the document's modal body font size) — this rejects running headers,
+#     composer credits and verse numbers, which sit at or below body size;
+#   * AND it must reach SECTION_MODE_RATIO * the document's own dominant title
+#     size — this rejects expression/tempo text ("slower", "in tempo") that is
+#     bigger than lyrics but smaller than a real hymn title;
+#   * it must read like a title (>= 3 ASCII letters, has a vowel, almost all
+#     ordinary title characters) — this rejects page tags like "13-F", bare
+#     verse numbers "3.", stray punctuation, and notehead runs that unrecognised
+#     music fonts emit as large "text" (e.g. 'Tamburo' -> 'œœœ˙');
+#   * a short exact-match stopword list drops any tempo mark ("rit.") that slips
+#     through at near-title size;
+#   * it must sit in the vertical gap above a system's top staff (below the
+#     previous system on the page), not over the music itself.
+SECTION_SIZE_RATIO = 1.5     # header font >= this * modal body size (recall gate)
+SECTION_MODE_RATIO = 0.8     # ... AND >= this * the doc's dominant title size,
+#   which separates real hymn titles from expression/tempo text (e.g. "slower",
+#   "in tempo") that is larger than lyrics but well short of a hymn title.
+SECTION_MIN_LETTERS = 3
+# punctuation that legitimately appears in hymn titles (straight + typographic)
+_TITLE_PUNCT = set(" .,:;!?#&/()+-*'\"") | {
+    "’", "‘", "“", "”", "–", "—"}
+# exact musical-direction tokens that are never hymn titles (backstop for marks
+# engraved at near-title size); matched against the letters-only normalised form
+_SECTION_STOPWORDS = {
+    "rit", "ritard", "ritardando", "accel", "accelerando", "rall",
+    "rallentando", "a tempo", "in tempo", "tempo", "meno mosso", "piu mosso",
+    "poco rit", "molto rit", "cresc", "crescendo", "dim", "diminuendo",
+    "da capo", "dc al fine", "dc al coda", "al coda", "al fine", "fine",
+    "coda", "segno", "tacet", "solo", "tutti", "unison"}
+
+# Expression/dynamic/tempo vocabulary for lyric filtering (see _drop_non_lyric_
+# lines). Built from the section stopwords in letters-only compact form, plus
+# dynamics/articulation/navigation words that leak into the lyric band but are
+# never used as hymn-section titles. Matched only against standalone tokens on
+# a direction-only line, so ambiguous English words (hold, breath, faster) that
+# also occur as real lyrics survive when they sit among content words.
+_EXPR_EXTRA = {
+    "hold", "breath", "slower", "faster", "poco", "molto", "meno", "mosso",
+    "legato", "staccato", "dolce", "marcato", "riten", "ritenuto", "ritard",
+    "ritardando", "decresc", "decrescendo", "sfz", "espress", "espressivo",
+    "div", "unis", "dc", "tocoda", "sostenuto", "simile", "rubato", "nb"}
+_EXPR_VOCAB = ({re.sub(r"[^a-z]", "", w) for w in _SECTION_STOPWORDS}
+               | _EXPR_EXTRA) - {""}
+
+
+def _section_norm(t):
+    """Letters-and-spaces-only lowercase form for stopword matching."""
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z ]", " ", t.lower())).strip()
+
+
+def _section_body_size(doc, pages):
+    """Char-weighted modal font size of ordinary (non-music, word-like) text on
+    the given music pages — the 'lyric/body' size headers must tower over."""
+    from collections import Counter
+    hist = Counter()
+    for pno in sorted(pages):
+        for b in doc[pno - 1].get_text("dict")["blocks"]:
+            for l in b.get("lines", []):
+                for s in l["spans"]:
+                    t = s["text"].strip()
+                    if len(t) < 2 or not any(ch.isalpha() for ch in t):
+                        continue
+                    if _music_font_family(s["font"]) is not None or \
+                            any(0xE000 <= ord(c) <= 0xF8FF for c in t):
+                        continue
+                    hist[round(s["size"], 1)] += len(t)
+    return hist.most_common(1)[0][0] if hist else 11.0
+
+
+def _looks_like_title(t):
+    """A title line reads as words, not a page tag / verse number / stray glyph
+    / run of unrecognised music-font notehead characters. Requires real Latin
+    words: enough ASCII letters, at least one vowel, and a body made almost
+    entirely of ordinary title characters. This rejects notehead runs that some
+    unrecognised music fonts (e.g. 'Tamburo' -> 'œœœ˙') emit as large text."""
+    if not t:
+        return False
+    ascii_letters = sum(1 for ch in t if "a" <= ch <= "z" or "A" <= ch <= "Z")
+    if ascii_letters < SECTION_MIN_LETTERS:
+        return False
+    if not any(ch in "aeiouAEIOU" for ch in t):
+        return False
+    ordinary = sum(1 for ch in t
+                   if (ch.isascii() and ch.isalnum()) or ch in _TITLE_PUNCT)
+    return ordinary / len(t) >= 0.8
+
+
+def _merge_title_lines(tlines):
+    """Join a title that is engraved across several stacked lines (e.g. 'Litany'
+    over 'In the Name of the Lord') into one string. Anchored on the largest
+    line, absorbing vertically-adjacent lines of comparable size; smaller or
+    far-away title-sized text is left out. tlines: [(y0, size, text)]. Returns
+    (title, anchor_size) or None."""
+    if not tlines:
+        return None
+    tlines = sorted(tlines)                     # top to bottom
+    smax = max(sz for _, sz, _ in tlines)
+    block, prev_y = [], None
+    for y0, sz, text in tlines:
+        if sz < 0.85 * smax:                    # sub-size text, not the title
+            continue
+        if prev_y is not None and y0 - prev_y > 3 * smax:
+            break                               # a separate block further down
+        block.append(text)
+        prev_y = y0
+    title = " ".join(block).strip()
+    return (title, smax) if title else None
+
+
+def _find_sections(doc, measure_meta, title, report):
+    """Detect hymn/section titles across the whole document and map each to the
+    printed measure number where it starts. Returns [{title, measure}] sorted
+    ascending by measure; the first entry is normally the work-title at m.1."""
+    if not measure_meta:
+        return []
+    pages = {m["system_page"] for m in measure_meta}
+    thresh = _section_body_size(doc, pages) * SECTION_SIZE_RATIO
+
+    # group measures into systems; the section start is the first (lowest-index,
+    # i.e. lowest printed number) measure kept for each system.
+    systems = {}
+    for mi, m in enumerate(measure_meta):
+        si = m["system_index"]
+        g = systems.get(si)
+        if g is None:
+            systems[si] = {"page": m["system_page"], "top": m["system_top"],
+                           "bot": m["system_bot"], "first_mi": mi}
+        else:
+            g["first_mi"] = min(g["first_mi"], mi)
+
+    raw_cache = {}
+    prev_bot = {}          # page -> bottom of the last system seen above
+    found = []             # (measure_number, title, size)
+    for si, g in systems.items():
+        page, top = g["page"], g["top"]
+        lo = prev_bot.get(page, 0.0)
+        raw = raw_cache.get(page)
+        if raw is None:
+            raw = raw_cache[page] = doc[page - 1].get_text("dict")
+        # collect title-sized text lines sitting in the gap above the staff
+        tlines = []        # (y0, size, text)
+        for b in raw["blocks"]:
+            for l in b.get("lines", []):
+                spans = []
+                for s in l["spans"]:
+                    if not s["text"].strip() or s["size"] < thresh:
+                        continue
+                    ts = s["text"].strip()
+                    if _music_font_family(s["font"]) is not None or \
+                            any(0xE000 <= ord(c) <= 0xF8FF for c in ts):
+                        continue
+                    yc = 0.5 * (s["bbox"][1] + s["bbox"][3])
+                    if lo - 2 <= yc < top - 2:      # in the gap above the staff
+                        spans.append(s)
+                if not spans:
+                    continue
+                spans.sort(key=lambda s: s["bbox"][0])
+                text = re.sub(r"\s+", " ",
+                              "".join(s["text"] for s in spans)).strip()
+                if _looks_like_title(text):        # drops page tags / stray glyphs
+                    tlines.append((min(s["bbox"][1] for s in spans),
+                                   max(s["size"] for s in spans), text))
+        merged = _merge_title_lines(tlines)
+        if merged:
+            found.append((g["first_mi"] + 1, merged[0], round(merged[1], 1)))
+        prev_bot[page] = max(prev_bot.get(page, 0.0), g["bot"])
+
+    # dominant title size for this document: real hymn titles recur at one large
+    # size; expression/tempo marks that clear the body threshold are smaller and
+    # fall below MODE_RATIO * that size, so they get dropped here.
+    from collections import Counter
+    mode_size = Counter(sz for _, _, sz in found).most_common(1)[0][0] \
+        if found else 0
+    found = [f for f in found
+             if f[2] >= SECTION_MODE_RATIO * mode_size
+             and _section_norm(f[1]) not in _SECTION_STOPWORDS]
+
+    found.sort(key=lambda x: x[0])
+    sections = []
+    for meas, ttl, _sz in found:
+        if sections and sections[-1]["measure"] == meas:
+            continue        # one header per measure
+        if sections and sections[-1]["title"].lower() == ttl.lower():
+            continue        # dedup consecutive identical titles (running heads)
+        sections.append({"title": ttl, "measure": meas})
+
+    # the index should open at the top of the piece: if detection did not place
+    # a header at measure 1, seed it with the work-title.
+    if not sections or sections[0]["measure"] > 1:
+        sections.insert(0, {"title": title, "measure": 1})
+        if len(sections) > 1 and \
+                sections[1]["title"].lower() == sections[0]["title"].lower():
+            sections.pop(1)
+
+    report.stats["sections"] = len(sections)
+    return sections
 
 
 # --------------------------------------------------------------- MusicXML emit
@@ -1840,6 +2155,10 @@ def _beam_xml(evs):
 def emit_musicxml(result):
     voices = result["voices"]
     lay = _layout_measures(result)
+    # section-start markers, keyed by printed measure number (first title wins)
+    section_words = {}
+    for sec in result.get("sections", []):
+        section_words.setdefault(sec["measure"], sec["title"])
     out = []
     w = out.append
     w('<?xml version="1.0" encoding="UTF-8"?>')
@@ -1885,6 +2204,14 @@ def emit_musicxml(result):
                 attrs.append(_clef_xml(v))
             if attrs:
                 w('      <attributes>' + "".join(attrs) + '</attributes>')
+            # section header marker on the top part's section-start measures, so
+            # the MusicXML is self-describing (the app's section index is built
+            # from report.json/manifest, but this keeps the score standalone).
+            if i == 0 and lm["first_of_printed"] and \
+                    lm["number"] in section_words:
+                w('      <direction placement="above"><direction-type>'
+                  f'<words>{_esc(section_words[lm["number"]])}</words>'
+                  '</direction-type></direction>')
             if lm["tempo"] and i == 0:   # metronome mark on the top part only
                 mk = lm["tempo"]
                 unit = BEAT_UNIT_NAMES.get(mk["unit"], "quarter")
@@ -1994,8 +2321,13 @@ def _emit_event(w, e, memory, key_fifths, beam_xml=""):
                 nots.append('<tied type="stop"/>')
             parts.append('<notations>' + "".join(nots) + '</notations>')
         if hi == 0 and e.lyric:
-            parts.append(f'<lyric><syllabic>{e.lyric["syllabic"]}</syllabic>'
-                         f'<text>{_esc(e.lyric["text"])}</text></lyric>')
+            # one <lyric number="k"> per verse, verse 1 first in document order
+            # (the app reads lyric[0]; OSMD stacks all by their number attr).
+            for ly in sorted(e.lyric, key=lambda d: d.get("number", 1)):
+                parts.append(
+                    f'<lyric number="{ly.get("number", 1)}">'
+                    f'<syllabic>{ly["syllabic"]}</syllabic>'
+                    f'<text>{_esc(ly["text"])}</text></lyric>')
         parts.append('</note>')
         w("".join(parts))
 
@@ -2021,10 +2353,17 @@ def run(pdf_path, out_path=None, report_path=None, pages=None, quiet=False):
     rep["title"] = result["title"]
     rep["voices"] = result["voices"]
     rep["tempo_qpm"] = result["tempo"]
+    rep["sections"] = result.get("sections", [])
     note_counts = {v: sum(len([e for e in m if e.kind == "note"])
                           for m in result["score"][v])
                    for v in result["voices"]}
     rep["note_events_per_voice"] = note_counts
+    # max number of stacked verse lines seen under any staff (for future app UI)
+    rep["lyric_verses"] = max(
+        (ly.get("number", 1)
+         for v in result["voices"] for m in result["score"][v]
+         for e in m for ly in e.lyric),
+        default=0)
     if report_path:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(rep, f, indent=2)
@@ -2036,6 +2375,11 @@ def run(pdf_path, out_path=None, report_path=None, pages=None, quiet=False):
               f"  integrity: {s.get('measure_integrity_pct')}% of measures "
               f"have all voices agreeing on beat sums")
         print(f"  note events per voice: {note_counts}")
+        secs = rep.get("sections") or []
+        if len(secs) > 1:
+            print(f"  sections: {len(secs)} detected")
+            for sec in secs:
+                print(f"    m{sec['measure']:>4}  {sec['title']}")
         print(f"  warnings: {len(rep['warnings'])}")
         for wmsg in rep["warnings"][:12]:
             print(f"    ! {wmsg}")
