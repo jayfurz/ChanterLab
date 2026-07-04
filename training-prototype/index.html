@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>ChanterLab — Choir Training (SATB) Prototype</title>
 <link rel="icon" href="data:," />
-<link rel="stylesheet" href="style.css?v=library1" />
+<link rel="stylesheet" href="style.css?v=loadperf1" />
 </head>
 <body class="view-split">
 <header class="app-head">
@@ -22,7 +22,22 @@
   <div id="scopeHint" class="scope-hint">🎤 tap Mic, press Play, and sing your gold line — your pitch draws in cyan, gold when you hit it</div>
 </section>
 
-<div id="osmd" class="score"></div>
+<div id="scoreArea" class="score-area">
+  <div id="osmd" class="score"></div>
+  <!-- Load/render progress overlay (spinner + phase text). Sits over the score
+       box; toggled by setBusy() during the phased loadScore pipeline. -->
+  <div id="scoreBusy" class="score-busy" hidden aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <span id="scoreBusyText" class="score-busy-text">Loading…</span>
+  </div>
+  <!-- Windowed-render footer: shown only for large scores that aren't fully
+       rendered. Scrolling to the bottom lazily extends the window; the button
+       renders the whole score on demand. -->
+  <div id="scoreMore" class="score-more" hidden>
+    <span id="scoreMoreText" class="score-more-text"></span>
+    <button id="renderFull" class="btn-mini" type="button">Render full score</button>
+  </div>
+</div>
 
 <footer class="app-foot">
   <span>Prototype only — see <code>docs/choir-training-roadmap.md</code>. Content: antiochian.org Sacred Music Library (used for research/demo) + a hand-made control sample.</span>
@@ -87,6 +102,21 @@
       <select id="pieceSelect" class="sr-only" aria-label="Built-in dev pieces"></select>
     </div>
 
+    <!-- Jump-to-section controls. Shown only for multi-section pieces (services
+         with ≥2 named sections). The button opens a bottom-sheet list; the
+         chevrons step section-by-section. -->
+    <div class="row row-sections" id="sectionsRow" hidden>
+      <span class="label">Section</span>
+      <button id="secPrev" class="btn-sec-nav" title="Previous section" aria-label="Previous section">‹</button>
+      <button id="sectionsBtn" class="btn sec-btn" aria-haspopup="dialog" aria-controls="sectionSheet"
+              title="Jump to a section">
+        <span class="sec-icon" aria-hidden="true">§</span>
+        <span id="sectionsLabel" class="sec-label">Sections</span>
+        <span class="sec-caret" aria-hidden="true">▾</span>
+      </button>
+      <button id="secNext" class="btn-sec-nav" title="Next section" aria-label="Next section">›</button>
+    </div>
+
     <p id="micNote" class="mic-note">🎧 raw mic: backing voices stay at constant volume while you sing.</p>
   </div>
 </section>
@@ -111,9 +141,21 @@
   </div>
 </div>
 
+<!-- Jump-to-section bottom sheet. Mobile-first: a scrollable list of "m N ·
+     Title" entries that slides up from the transport. Opened by #sectionsBtn. -->
+<div id="sectionSheet" class="sec-sheet" role="dialog" aria-modal="true" aria-label="Jump to section" hidden>
+  <div class="sec-sheet-panel" role="document">
+    <div class="sec-sheet-head">
+      <span class="sec-sheet-title">Jump to section</span>
+      <button id="sectionSheetClose" class="lib-close" aria-label="Close" title="Close (Esc)">✕</button>
+    </div>
+    <div id="sectionSheetList" class="sec-sheet-list" tabindex="0" role="listbox"></div>
+  </div>
+</div>
+
 <script src="vendor/opensheetmusicdisplay.min.js"></script>
 <script src="vendor/Tone.js"></script>
 <script src="scope.js?v=overlay1"></script>
-<script src="app.js?v=library1"></script>
+<script src="app.js?v=loadperf1"></script>
 </body>
 </html>

@@ -24,6 +24,15 @@
   const GOLD = '#d4af37';
   const DIM = '#9aa0a6';
 
+  // Windowed (lazy) rendering thresholds. Pieces with more SOURCE measures than
+  // WINDOW_THRESHOLD render only a window at a time so first paint stays fast;
+  // smaller pieces take the simple full-render path. INITIAL_WINDOW is the
+  // printed-measure span rendered on first paint / grown per lazy extension;
+  // WINDOW_BUFFER is the measure slack added around a jump target.
+  const WINDOW_THRESHOLD = 200;
+  const INITIAL_WINDOW = 100;
+  const WINDOW_BUFFER = 12;
+
   // Canonical SATB order + labels; matched to parts by index and by name.
   const VOICE_DEFS = [
     { key: 'S', label: 'S', name: 'Soprano' },
@@ -80,6 +89,9 @@
               label: `${it.title}${it.composer ? ' — ' + it.composer : ''}`,
               url: 'omr/' + it.musicxml,
               pdfUrl: it.pdfUrl || null,
+              // section index for the jump-to-section control (manifest source;
+              // ascending by printed measure). Absent for single-hymn pieces.
+              sections: Array.isArray(it.sections) ? it.sections : null,
             });
           }
           libItems.push({
@@ -137,6 +149,20 @@
     libCount: document.getElementById('libCount'),
     libList: document.getElementById('libList'),
     libViewport: document.getElementById('libViewport'),
+    scoreBusy: document.getElementById('scoreBusy'),
+    scoreBusyText: document.getElementById('scoreBusyText'),
+    scoreMore: document.getElementById('scoreMore'),
+    scoreMoreText: document.getElementById('scoreMoreText'),
+    renderFull: document.getElementById('renderFull'),
+    // jump-to-section controls
+    sectionsRow: document.getElementById('sectionsRow'),
+    sectionsBtn: document.getElementById('sectionsBtn'),
+    sectionsLabel: document.getElementById('sectionsLabel'),
+    secPrev: document.getElementById('secPrev'),
+    secNext: document.getElementById('secNext'),
+    sectionSheet: document.getElementById('sectionSheet'),
+    sectionSheetList: document.getElementById('sectionSheetList'),
+    sectionSheetClose: document.getElementById('sectionSheetClose'),
   };
 
   let osmd = null;
@@ -150,6 +176,27 @@
   let playState = 'stopped'; // 'stopped' | 'playing' | 'paused'
   let viewMode = 'split';    // 'split' | 'score' | 'scope'
   let userHoldUntil = 0;     // auto-scroll suspended until this perf.now() ms
+
+  // --- load + windowed-render state ---
+  let loadToken = 0;              // generation counter — stale loads bail on mismatch
+  let windowed = false;          // is the current piece using windowed rendering?
+  let sourceMeasureCount = 0;    // osmd.Sheet.SourceMeasures.length (≠ printed count)
+  let renderFromIdx = 0, renderToIdx = 0;  // rendered SOURCE-measure index window (inclusive)
+  let printedFirst = new Map();  // printed measure number -> FIRST source-measure index
+  let printedLast = new Map();   // printed measure number -> LAST  source-measure index
+  let lastPrinted = 1;           // highest printed measure number in the sheet
+  let extending = false;         // guard against re-entrant lazy extension
+  let resizeTimer = 0;
+  let loopRenderTimer = 0;       // debounce windowed re-render on loop-input edits
+
+  // --- jump-to-section state ---
+  // currentSections: [{title, measure}] ascending by printed measure for the
+  // loaded piece (manifest-first; XML <words> directions as fallback). Empty
+  // for single-hymn pieces → the Sections control stays hidden (zero overhead).
+  let currentSections = [];
+  let activeSectionIdx = -1;     // section the cursor/position currently sits in
+  let xmlScannedSections = [];   // fallback sections scanned from the loaded XML
+  let sectionSheetOpen = false;
 
   // --- library browser state ---
   // fixed row heights (windowing math): piece row, group header, sub-header, hint
@@ -178,6 +225,34 @@
 
   const setStatus = (m) => { el.status.textContent = m; };
 
+  // Yield to the browser between load phases so the status/spinner actually
+  // paints: rAF waits for the next frame, the nested setTimeout lets that frame
+  // paint before the next synchronous block runs.
+  const nextPaint = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+  // Busy state: status spinner + a spinner overlay on the score box, plus a
+  // disabled Play button. `text` (when busy) drives both the status line and the
+  // score overlay label.
+  function setBusy(busy, text) {
+    el.status.classList.toggle('busy', !!busy);
+    if (busy) {
+      if (text) setStatus(text);
+      if (el.scoreBusyText && text) el.scoreBusyText.textContent = text;
+      if (el.scoreBusy) el.scoreBusy.hidden = false;
+    } else if (el.scoreBusy) {
+      el.scoreBusy.hidden = true;
+    }
+    if (el.play) el.play.disabled = !!busy;
+    // Section jumps mid-load would race the incoming piece's parsed/osmd swap.
+    if (el.sectionsBtn) el.sectionsBtn.disabled = !!busy;
+    if (busy) {
+      if (el.secPrev) el.secPrev.disabled = true;
+      if (el.secNext) el.secNext.disabled = true;
+    } else {
+      updateSectionNav();
+    }
+  }
+
   /* ---------- MusicXML parsing ---------------------------------------- */
 
   const STEP_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
@@ -201,8 +276,9 @@
     return n ? n.textContent.trim() : null;
   }
 
-  function parseMusicXML(xmlText) {
-    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  // Takes an already-parsed MusicXML Document (the SAME Document handed to
+  // osmd.load, so the string is DOMParser'd exactly once per load).
+  function parseMusicXML(doc) {
     if (doc.getElementsByTagName('parsererror').length) throw new Error('XML parse error');
 
     const partNodes = Array.from(doc.getElementsByTagName('part'));
@@ -270,10 +346,16 @@
                 else if (key in localAlter) alter = localAlter[key];
                 else alter = keyMap[step] || 0;
                 const midi = midiOf(step, octave, alter);
-                // first lyric syllable, with a trailing dash on begin/middle
-                // syllables so the scope can show word continuation
+                // verse-1 lyric syllable (multi-verse scores carry number="2+"
+                // alternates), with a trailing dash on begin/middle syllables
+                // so the scope can show word continuation
                 let lyric = null;
-                const lyricEl = child.getElementsByTagName('lyric')[0];
+                const lyricEls = child.getElementsByTagName('lyric');
+                let lyricEl = lyricEls[0];
+                for (let li = 0; li < lyricEls.length; li++) {
+                  const num = lyricEls[li].getAttribute('number');
+                  if (!num || num === '1') { lyricEl = lyricEls[li]; break; }
+                }
                 if (lyricEl) {
                   const txt = textOf(lyricEl, 'text');
                   if (txt) {
@@ -369,21 +451,31 @@
     osmd.zoom = narrow ? 0.55 : 1.0;
   }
 
-  // Walk OSMD's cursor iterator once (after load+render) and record every
-  // step it will take: timestamp in quarter-note beats + printed measure
-  // number. OSMD steps on EVERY voice-entry timestep — including rest-only
-  // ones our note parse has no onset for — so the playback cursor must be
-  // scheduled from THIS table to stay 1:1 with cursor.next(); anything less
-  // leaves the score cursor progressively behind the audio on rest-heavy
-  // pieces (Cherubic: 7 such steps, Anaphora: 3, Trisagion: 0).
+  // Walk OSMD's cursor iterator once (after each render) and record every step
+  // it will take: timestamp in quarter-note beats + printed measure number.
+  // OSMD steps on EVERY voice-entry timestep — including rest-only ones our note
+  // parse has no onset for — so the playback cursor must be scheduled from THIS
+  // table to stay 1:1 with cursor.next(); anything less leaves the score cursor
+  // progressively behind the audio on rest-heavy pieces (Cherubic: 7 such steps,
+  // Anaphora: 3, Trisagion: 0).
+  //
+  // WINDOWED NOTE: OSMD clips the cursor iterator to [MinMeasureToDrawIndex,
+  // MaxMeasureToDrawIndex] (see Cursor.resetIterator), so in windowed mode this
+  // table covers only the rendered window — hence it is rebuilt on every render.
+  // Enrolled timestamps stay ABSOLUTE even when the window starts mid-piece (the
+  // iterator ctor fast-forwards with moveToNext, accumulating time), so beats
+  // stay in the same frame as parsed.parts / measureBeatRange. The cursor is
+  // HIDDEN during the walk so cursor.update() (which early-returns while hidden)
+  // never touches the graphics of measures outside the rendered window.
   function buildOsmdStepTable() {
     osmdSteps = [];
     const cur = osmd && osmd.cursor;
     if (!cur) return;
+    cur.hide();     // update() no-ops while hidden → walk never reads un-rendered graphics
     cur.reset();
     const it = cur.Iterator;
     let guard = 0;
-    while (!it.EndReached && guard++ < 20000) {
+    while (!it.EndReached && guard++ < 40000) {
       const ts = it.CurrentEnrolledTimestamp || it.currentTimeStamp;
       const sm = osmd.Sheet && osmd.Sheet.SourceMeasures
         ? osmd.Sheet.SourceMeasures[it.CurrentMeasureIndex] : null;
@@ -397,48 +489,280 @@
     cur.hide();
   }
 
-  async function loadScore(url) {
-    setStatus('Loading score…');
-    const xml = await (await fetch(url)).text();
-    parsed = parseMusicXML(xml);
-
-    if (!osmd) {
-      osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(el.osmd, {
-        autoResize: true,
-        backend: 'svg',
-        drawTitle: true,
-        drawPartNames: true,
-        // We do our own container-scoped following — OSMD's followCursor
-        // scrolls the PAGE, which made Pause unreachable on mobile.
-        followCursor: false,
-        newSystemFromXML: true,   // honor the engraving's line breaks from the extractor
-        drawMeasureNumbers: false, // OSMD ordinals diverge from printed numbers at split measures
-        cursorsOptions: [{ type: 0, color: GOLD, alpha: 0.4, follow: false }],
-      });
-    }
-    await osmd.load(xml);
-    // MUST come after load(): OSMD's load() resets zoom to 1, so a zoom set
-    // earlier is silently lost — phones then render at full desktop scale.
-    applyResponsiveOsmdOptions();
-    osmd.render();
-    buildOsmdStepTable();
-    buildVoicePicker();
-    applyVoiceColors();
-    // default loop = whole piece
-    el.loopFrom.value = 1;
-    el.loopTo.value = parsed.measureCount;
-    buildScopeLane();
-    fitScoreHeight();
-    setStatus(`Loaded: ${parsed.parts.length} voices, ${parsed.measureCount} measures. Pick a voice and press Play.`);
+  function ensureOsmd() {
+    if (osmd) return;
+    osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(el.osmd, {
+      // autoResize OFF: we drive re-layout ourselves (debounced, one render per
+      // settle) so OSMD's own resize handler can't stack extra renders on ours.
+      autoResize: false,
+      backend: 'svg',
+      drawTitle: true,
+      drawPartNames: true,
+      // We do our own container-scoped following — OSMD's followCursor
+      // scrolls the PAGE, which made Pause unreachable on mobile.
+      followCursor: false,
+      newSystemFromXML: true,   // honor the engraving's line breaks from the extractor
+      drawMeasureNumbers: false, // OSMD ordinals diverge from printed numbers at split measures
+      cursorsOptions: [{ type: 0, color: GOLD, alpha: 0.4, follow: false }],
+    });
   }
 
-  // Color the selected voice's noteheads gold, all others dim gray. OSMD keeps
-  // these colors across re-renders because we set them on the source notes.
-  function applyVoiceColors() {
-    const instruments = osmd.Sheet.Instruments;
-    instruments.forEach((instr, idx) => {
-      const isSelected = matchesSelected(idx, instr.Name);
-      const color = isSelected ? GOLD : DIM;
+  // Phased, painting load. Returns true on completion, false if a newer load
+  // superseded this one (the load token changed) — the caller must then skip
+  // its post-load work. Phases yield via nextPaint() so the spinner + status
+  // actually paint between the heavy synchronous blocks (parse, OSMD build,
+  // render). See setDrawRange/ensureRenderWindow for the windowed-render path.
+  async function loadScore(url) {
+    const myToken = ++loadToken;
+    const mine = () => myToken === loadToken;
+    xmlScannedSections = [];        // reset; re-derived from this load's Document
+    setBusy(true, 'Fetching score…');
+    try {
+      // Phase 1 — Fetching (the fetch is the only pre-existing event-loop yield)
+      const xml = await (await fetch(url)).text();
+      if (!mine()) return false;
+      await nextPaint();
+
+      // Phase 2 — Parsing. DOMParser ONCE: the resulting Document feeds both our
+      // own note model and osmd.load(doc) below (OSMD skips its DOMParser pass
+      // when handed a node instead of a string).
+      setBusy(true, 'Parsing…');
+      await nextPaint();
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      parsed = parseMusicXML(doc);
+      // Fallback section index: scan the top part's <words> directions now while
+      // the parsed Document is in hand. Used only when the manifest lacks
+      // sections for this piece (see resolveSectionsFor).
+      xmlScannedSections = scanXmlSections(doc);
+      if (!mine()) return false;
+
+      // Phase 3 — Building score (OSMD reads the Sheet model from the Document)
+      setBusy(true, 'Building score…');
+      await nextPaint();
+      ensureOsmd();
+      await osmd.load(doc);
+      if (!mine()) return false;
+      // MUST come after load(): OSMD's load() resets zoom to 1, so a zoom set
+      // earlier is silently lost — phones then render at full desktop scale.
+      applyResponsiveOsmdOptions();
+
+      sourceMeasureCount = osmd.Sheet.SourceMeasures.length;
+      buildPrintedIndexMap();
+      windowed = sourceMeasureCount > WINDOW_THRESHOLD;
+      // Color the Sheet model BEFORE the first render → one render per load
+      // (was two: render() then applyVoiceColors()→render() again).
+      colorSheet();
+      // default loop = whole piece (unchanged behavior)
+      el.loopFrom.value = 1;
+      el.loopTo.value = parsed.measureCount;
+
+      // Phase 4 — Rendering (windowed first paint for large scores)
+      if (windowed) {
+        renderFromIdx = 0;
+        renderToIdx = indexToPrinted(INITIAL_WINDOW);
+        setBusy(true, `Rendering ${sourceMeasureCount} measures (windowed)…`);
+        setDrawRange(renderFromIdx, renderToIdx);
+      } else {
+        renderFromIdx = 0;
+        renderToIdx = sourceMeasureCount - 1;
+        setBusy(true, `Rendering ${sourceMeasureCount} measures…`);
+        setDrawRange(0, Number.MAX_VALUE);
+      }
+      await nextPaint();
+      renderNow();                 // single render() + step table + fit
+      if (!mine()) return false;
+      buildVoicePicker();
+      updateScoreMore();
+
+      // Phase 5 — Preparing audio (non-visual work; Play was disabled until now)
+      setBusy(true, 'Preparing audio…');
+      await nextPaint();
+      buildScopeLane();
+      if (!mine()) return false;
+
+      setStatus(windowed
+        ? `Loaded: ${parsed.parts.length} voices, ${parsed.measureCount} measures (windowed — scroll or press Play to render more). Pick a voice and press Play.`
+        : `Loaded: ${parsed.parts.length} voices, ${parsed.measureCount} measures. Pick a voice and press Play.`);
+      return true;
+    } finally {
+      // Only the active load clears the busy state; a superseded load leaves it
+      // for the newer load that took over.
+      if (mine()) setBusy(false);
+    }
+  }
+
+  /* ---------- Windowed (lazy) rendering ------------------------------- *
+   * Large scores render one measure-window at a time so first paint is fast.
+   * The window is tracked as inclusive SOURCE-measure index bounds
+   * [renderFromIdx, renderToIdx]; ensureRenderWindow expands/replaces it and
+   * re-renders only when a requested printed range falls outside it. Beats in
+   * the step table stay absolute (see buildOsmdStepTable), so audio scheduling
+   * and the cursor stay correct across window changes. printedFirst/printedLast
+   * map printed numbers to source indices (Finley: 422 source measures, 371
+   * printed numbers — split continuations reuse the printed number).
+   *
+   * A follow-up "jump to section" feature drives this via window.__training:
+   *   __training.seekTo(fromPrinted, toPrinted)  // renders window + sets loop
+   * or the lower-level __training.ensureWindow(fromPrinted, toPrinted).
+   */
+
+  function buildPrintedIndexMap() {
+    printedFirst = new Map();
+    printedLast = new Map();
+    lastPrinted = 1;
+    const sms = (osmd.Sheet && osmd.Sheet.SourceMeasures) || [];
+    sms.forEach((sm, idx) => {
+      const n = (sm.MeasureNumberXML != null ? sm.MeasureNumberXML : sm.MeasureNumber) || (idx + 1);
+      if (!printedFirst.has(n)) printedFirst.set(n, idx);
+      printedLast.set(n, idx);
+      if (n > lastPrinted) lastPrinted = n;
+    });
+  }
+
+  // printed measure number -> first/last source-measure index (clamped; falls
+  // back to the nearest present number, then the sheet edge).
+  function indexFromPrinted(p) {
+    p = Math.max(1, Math.min(Math.round(p) || 1, lastPrinted));
+    for (let q = p; q >= 1; q--) if (printedFirst.has(q)) return printedFirst.get(q);
+    return 0;
+  }
+  function indexToPrinted(p) {
+    p = Math.max(1, Math.min(Math.round(p) || 1, lastPrinted));
+    for (let q = p; q <= lastPrinted; q++) if (printedLast.has(q)) return printedLast.get(q);
+    return sourceMeasureCount - 1;
+  }
+  // source-measure index -> its printed number (for the "showing through m N" UI)
+  function printedForIndex(idx) {
+    const sms = (osmd.Sheet && osmd.Sheet.SourceMeasures) || [];
+    const sm = sms[Math.max(0, Math.min(idx, sms.length - 1))];
+    return sm ? ((sm.MeasureNumberXML != null ? sm.MeasureNumberXML : sm.MeasureNumber) || idx + 1) : idx + 1;
+  }
+
+  // Set the render window on the engraving rules. Indices are 0-based SOURCE
+  // measure indices, inclusive. We ZERO the *Number fields so OSMD's
+  // ImplicitMeasure (pickup-bar) override in render() can't rewrite our indices
+  // from them; full render restores the default Number.MAX_VALUE upper bound.
+  function setDrawRange(fromIdx, toIdx) {
+    const R = osmd.EngravingRules;
+    const full = toIdx === Number.MAX_VALUE;
+    R.MinMeasureToDrawIndex = Math.max(0, fromIdx | 0);
+    R.MaxMeasureToDrawIndex = full ? Number.MAX_VALUE : Math.max(fromIdx | 0, toIdx | 0);
+    R.MinMeasureToDrawNumber = 0;
+    R.MaxMeasureToDrawNumber = full ? Number.MAX_VALUE : 0;
+  }
+
+  // One render + the rebuilds that depend on it. Colors already live on the
+  // Sheet model, so a single render() paints them (no second coloring render).
+  function renderNow() {
+    osmd.render();
+    buildOsmdStepTable();
+    fitScoreHeight();
+  }
+
+  // A re-layout is only safe while stopped: renderNow() rebuilds the step table
+  // and hides the cursor, desyncing the stepCursorTo callbacks already scheduled
+  // on the Transport. Callers that can fire mid-playback (voice change, resize)
+  // defer the render to the next stop().
+  let renderDeferred = false;
+  function requestRender() {
+    if (playState === 'stopped') renderNow();
+    else renderDeferred = true;
+  }
+
+  // Expand/replace the rendered window so [fromPrinted, toPrinted] is covered,
+  // then re-render. No-op for small (non-windowed) scores or when already
+  // covered. Grows generously so repeated small asks don't thrash: a contiguous
+  // extension roughly doubles the window (keeping the top so scroll position and
+  // already-read measures persist); a disjoint jump builds a fresh window around
+  // the target. Returns true if it re-rendered.
+  function ensureRenderWindow(fromPrinted, toPrinted) {
+    if (!windowed || !osmd || !osmd.Sheet) return false;
+    const wantFrom = indexFromPrinted(fromPrinted);
+    const wantTo = Math.max(wantFrom, indexToPrinted(toPrinted));
+    if (wantFrom >= renderFromIdx && wantTo <= renderToIdx) return false;   // covered
+    const last = sourceMeasureCount - 1;
+    let newFrom, newTo;
+    if (wantFrom >= renderFromIdx && wantFrom <= renderToIdx + 1) {
+      // contiguous extension downward — keep the current top
+      newFrom = renderFromIdx;
+      newTo = Math.max(wantTo, renderToIdx + (renderToIdx - renderFromIdx) + 1);
+    } else {
+      // disjoint jump (earlier, or far past the current window) — fresh window
+      newFrom = Math.max(0, wantFrom - WINDOW_BUFFER);
+      newTo = Math.max(wantTo, wantFrom + INITIAL_WINDOW);
+    }
+    renderFromIdx = Math.max(0, Math.min(newFrom, wantFrom));
+    renderToIdx = Math.min(last, newTo);
+    setBusy(true, 'Rendering more measures…');
+    setDrawRange(renderFromIdx, renderToIdx);
+    renderNow();
+    setBusy(false);
+    updateScoreMore();
+    return true;
+  }
+
+  // Render the entire score (drop windowing for this piece). Used by the
+  // "Render full score" action.
+  function renderFullScore() {
+    if (!windowed || renderToIdx >= sourceMeasureCount - 1) return;
+    if (playState !== 'stopped') return;   // unsafe mid-playback (see requestRender)
+    setBusy(true, `Rendering all ${sourceMeasureCount} measures…`);
+    renderFromIdx = 0;
+    renderToIdx = sourceMeasureCount - 1;
+    setDrawRange(0, Number.MAX_VALUE);
+    renderNow();
+    setBusy(false);
+    updateScoreMore();
+  }
+
+  // Windowed-render footer: visible only while a large score is partly rendered.
+  function updateScoreMore() {
+    if (!el.scoreMore) return;
+    if (windowed && renderToIdx < sourceMeasureCount - 1) {
+      el.scoreMore.hidden = false;
+      el.scoreMore.classList.remove('working');
+      if (el.scoreMoreText) {
+        el.scoreMoreText.textContent = `Showing through m ${printedForIndex(renderToIdx)} of ${lastPrinted} — scroll for more`;
+      }
+    } else {
+      el.scoreMore.hidden = true;
+    }
+  }
+
+  // Lazy extension when the user scrolls to the bottom of the rendered portion.
+  // Only while stopped: a re-render rebuilds the step table and hides the follow
+  // cursor, so we never do it mid-playback (playback already rendered its loop
+  // window up front via startPlayback → ensureRenderWindow).
+  function maybeExtendOnScroll() {
+    if (!windowed || extending || playState !== 'stopped') return;
+    if (renderToIdx >= sourceMeasureCount - 1) return;
+    const wrap = el.osmd;
+    if (!wrap) return;
+    if (wrap.scrollTop + wrap.clientHeight < wrap.scrollHeight - 80) return;  // not near bottom
+    extending = true;
+    if (el.scoreMore) {
+      el.scoreMore.hidden = false;
+      el.scoreMore.classList.add('working');
+      if (el.scoreMoreText) el.scoreMoreText.textContent = 'Rendering more…';
+    }
+    // let the "Rendering more…" label paint before the synchronous render
+    requestAnimationFrame(() => setTimeout(() => {
+      const grow = Math.max(INITIAL_WINDOW, renderToIdx - renderFromIdx);
+      renderToIdx = Math.min(sourceMeasureCount - 1, renderToIdx + grow);
+      setDrawRange(renderFromIdx, renderToIdx);
+      renderNow();
+      updateScoreMore();
+      extending = false;
+    }, 0));
+  }
+
+  // Color the selected voice's noteheads gold, all others dim gray, on the
+  // Sheet model. OSMD keeps these across re-renders (they live on the notes), so
+  // this can run once before the first render.
+  function colorSheet() {
+    if (!osmd || !osmd.Sheet) return;
+    osmd.Sheet.Instruments.forEach((instr, idx) => {
+      const color = matchesSelected(idx, instr.Name) ? GOLD : DIM;
       instr.Voices.forEach((voice) => {
         voice.VoiceEntries.forEach((ve) => {
           ve.Notes.forEach((note) => {
@@ -448,8 +772,14 @@
         });
       });
     });
-    osmd.render();
-    fitScoreHeight();
+  }
+
+  // Re-color + re-render (single render) for a later voice change. OSMD has no
+  // live notehead recolor, so a voice change re-renders the current window.
+  function applyVoiceColors() {
+    if (!osmd || !osmd.Sheet) return;
+    colorSheet();
+    requestRender();
   }
 
   function matchesSelected(partIndex, instrName) {
@@ -716,6 +1046,12 @@
     el.posOut.textContent = measure
       ? `m ${measure}/${parsed ? parsed.measureCount : '?'}`
       : 'm –';
+    // Keep the active-section label in step with the cursor's measure (cheap
+    // binary search; no-op for pieces without sections). measure===null (stop)
+    // leaves the last active section shown rather than blanking it.
+    if (currentSections.length && measure != null) {
+      setActiveSection(sectionIndexForMeasure(measure));
+    }
   }
 
   // Keep the follow cursor visible inside the scrollable score container.
@@ -726,9 +1062,14 @@
   //   - vertically prioritizes the SELECTED voice's staff (the cursor element
   //     spans the whole system, so the active staff sits at a fractional
   //     height within it — S top … B bottom).
-  function scrollCursorIntoView() {
-    if (playState !== 'playing') return;
-    if (performance.now() < userHoldUntil) return;
+  // force=true bypasses the playing-state + user-hold guards: a PAUSED jump-to-
+  // section needs to scroll the score to the parked cursor even though playback
+  // isn't running (the normal path only auto-scrolls while playing).
+  function scrollCursorIntoView(force) {
+    if (!force) {
+      if (playState !== 'playing') return;
+      if (performance.now() < userHoldUntil) return;
+    }
     const cEl = osmd && osmd.cursor && osmd.cursor.cursorElement;
     const wrap = el.osmd;
     if (!cEl || !wrap) return;
@@ -764,6 +1105,223 @@
 
   function noteUserTouch() { userHoldUntil = performance.now() + 3000; }
 
+  /* ---------- Jump to section ----------------------------------------- *
+   * Multi-section pieces (full liturgies) carry a section index — a list of
+   * {title, measure} in ascending printed-measure order. Source of truth is the
+   * manifest (piece.sections); a FALLBACK scans the loaded MusicXML's top part
+   * for <direction placement="above"><words>…</words></direction> markers.
+   * Selecting a section stops playback, sets the loop window to that section's
+   * measure span, renders + parks the cursor there, and scrolls it into view —
+   * without auto-playing. The active section is tracked live during playback.
+   */
+
+  // Fallback source: printed measure + title for every top-part <words>
+  // direction. ≥2 hits → usable as a section index (see resolveSectionsFor).
+  function scanXmlSections(doc) {
+    try {
+      const part = doc && doc.getElementsByTagName('part')[0];
+      if (!part) return [];
+      const out = [];
+      for (const meas of Array.from(part.getElementsByTagName('measure'))) {
+        const num = parseInt(meas.getAttribute('number'), 10);
+        if (!num) continue;
+        // only DIRECT-child <direction> of the measure; first words wins
+        for (const d of Array.from(meas.children)) {
+          if (d.tagName !== 'direction') continue;
+          if (d.getAttribute('placement') !== 'above') continue;
+          const w = d.getElementsByTagName('words')[0];
+          const txt = w && (w.textContent || '').trim();
+          if (txt) { out.push({ title: txt, measure: num }); break; }
+        }
+      }
+      // de-dupe consecutive same-measure entries defensively; keep ascending
+      return out.sort((a, b) => a.measure - b.measure);
+    } catch (e) { return []; }
+  }
+
+  // Manifest sections win when present (≥2); else the XML-scanned fallback (≥2);
+  // else none (control stays hidden).
+  function resolveSectionsFor(piece) {
+    const ms = piece && Array.isArray(piece.sections) ? piece.sections : null;
+    if (ms && ms.length >= 2) return ms.map((s) => ({ title: String(s.title), measure: s.measure }));
+    if (xmlScannedSections.length >= 2) return xmlScannedSections.slice();
+    return [];
+  }
+
+  // Recompute the section index for the just-loaded piece and (re)build the UI.
+  function applySections(piece) {
+    currentSections = resolveSectionsFor(piece);
+    activeSectionIdx = -1;
+    buildSectionSheet();
+    updateSectionsUI();
+  }
+
+  // Highest printed measure at/below `measure` → its section index (or -1).
+  function sectionIndexForMeasure(measure) {
+    if (!currentSections.length || measure == null) return -1;
+    let lo = 0, hi = currentSections.length - 1, ans = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (currentSections[mid].measure <= measure) { ans = mid; lo = mid + 1; }
+      else hi = mid - 1;
+    }
+    return ans;
+  }
+
+  function updateSectionsUI() {
+    const has = currentSections.length >= 2;
+    if (el.sectionsRow) el.sectionsRow.hidden = !has;
+    updateSectionLabel();
+    markActiveSectionItem();
+    updateSectionNav();
+  }
+
+  function updateSectionLabel() {
+    if (!el.sectionsLabel) return;
+    const s = activeSectionIdx >= 0 ? currentSections[activeSectionIdx] : null;
+    el.sectionsLabel.textContent = s ? s.title : 'Sections';
+    if (el.sectionsBtn) {
+      el.sectionsBtn.title = s ? `Section: ${s.title} (m${s.measure}) — tap to jump` : 'Jump to a section';
+    }
+  }
+
+  function updateSectionNav() {
+    const n = currentSections.length;
+    if (el.secPrev) el.secPrev.disabled = !n || activeSectionIdx <= 0;
+    if (el.secNext) el.secNext.disabled = !n || (activeSectionIdx >= 0 && activeSectionIdx >= n - 1);
+  }
+
+  // Set the active section index and refresh only the bits that depend on it.
+  function setActiveSection(idx) {
+    if (idx === activeSectionIdx) return;
+    activeSectionIdx = idx;
+    updateSectionLabel();
+    markActiveSectionItem();
+    updateSectionNav();
+  }
+
+  // (Re)build the bottom-sheet list. Small (≤ a few dozen rows) → no windowing.
+  function buildSectionSheet() {
+    const list = el.sectionSheetList;
+    if (!list) return;
+    list.innerHTML = '';
+    currentSections.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sec-item' + (i === activeSectionIdx ? ' active' : '');
+      b.dataset.idx = String(i);
+      b.setAttribute('role', 'option');
+      const mm = document.createElement('span');
+      mm.className = 'sec-item-m'; mm.textContent = 'm ' + s.measure;
+      const tt = document.createElement('span');
+      tt.className = 'sec-item-t'; tt.textContent = s.title;
+      b.append(mm, tt);
+      list.appendChild(b);
+    });
+  }
+
+  function markActiveSectionItem() {
+    if (!el.sectionSheetList) return;
+    el.sectionSheetList.querySelectorAll('.sec-item').forEach((node) => {
+      node.classList.toggle('active', Number(node.dataset.idx) === activeSectionIdx);
+    });
+  }
+
+  // Park the follow cursor at the loop-window start while PAUSED/STOPPED, then
+  // scroll it into view. Mirrors resetCursor's mid-piece parking but without any
+  // playback scheduling (cursorWindow isn't built until startPlayback).
+  function parkCursorAtWindowStart() {
+    if (!osmd || !osmd.cursor) return;
+    const cur = osmd.cursor;
+    if (cur.CursorOptions) {
+      cur.CursorOptions.color = GOLD;
+      cur.CursorOptions.alpha = 0.45;
+      cur.CursorOptions.follow = false;
+    }
+    cur.reset();
+    cur.show();
+    if (cur.update) cur.update();
+    cursorStep = 0;
+    const from = clampMeasure(Number(el.loopFrom.value));
+    const to = clampMeasure(Number(el.loopTo.value));
+    const { start: winStart } = measureBeatRange(from, to);
+    // first rendered step at/after the window start (the step table is clipped
+    // to the rendered window but beats stay absolute)
+    let target = 0;
+    for (let i = 0; i < osmdSteps.length; i++) {
+      if (osmdSteps[i].beat >= winStart - 1e-4) { target = i; break; }
+    }
+    while (cursorStep < target) { cur.next(); cursorStep++; }
+    updatePos(osmdSteps[target] ? osmdSteps[target].measure : from);
+    scrollCursorIntoView(true);   // force: we're paused, bypass the playing guard
+  }
+
+  // Core: seek to section i. Stops playback, sets loop = [measure, next-1]
+  // (last section → through the last printed measure), renders + parks the
+  // cursor, scrolls into view. Does NOT auto-play.
+  function jumpToSection(i) {
+    if (!currentSections.length) return false;
+    if (el.play && el.play.disabled) return false;   // busy: a load is in flight
+    i = Math.max(0, Math.min(i | 0, currentSections.length - 1));
+    const s = currentSections[i];
+    const next = currentSections[i + 1];
+    const from = Math.max(1, Math.round(s.measure) || 1);
+    const to = next
+      ? Math.max(from, Math.round(next.measure) - 1)
+      : Math.max(from, lastPrinted || (parsed ? parsed.measureCount : from));
+    if (playState !== 'stopped') stop();
+    ensureRenderWindow(from, to);            // large scores: render the range first
+    el.loopFrom.value = from;
+    el.loopTo.value = to;
+    buildScopeLane();
+    parkCursorAtWindowStart();
+    setActiveSection(i);
+    return true;
+  }
+
+  function openSectionSheet() {
+    if (currentSections.length < 2 || !el.sectionSheet) return;
+    sectionSheetOpen = true;
+    el.sectionSheet.hidden = false;
+    document.body.classList.add('sec-lock');
+    buildSectionSheet();
+    // scroll the active row (if any) into view within the sheet
+    requestAnimationFrame(() => {
+      const act = el.sectionSheetList && el.sectionSheetList.querySelector('.sec-item.active');
+      if (act) act.scrollIntoView({ block: 'center' });
+    });
+  }
+
+  function closeSectionSheet() {
+    if (!sectionSheetOpen) return;
+    sectionSheetOpen = false;
+    if (el.sectionSheet) el.sectionSheet.hidden = true;
+    document.body.classList.remove('sec-lock');
+  }
+
+  function initSections() {
+    if (el.sectionsBtn) el.sectionsBtn.addEventListener('click', () => {
+      if (sectionSheetOpen) closeSectionSheet(); else openSectionSheet();
+    });
+    if (el.secPrev) el.secPrev.addEventListener('click', () =>
+      jumpToSection(activeSectionIdx < 0 ? 0 : activeSectionIdx - 1));
+    if (el.secNext) el.secNext.addEventListener('click', () =>
+      jumpToSection(activeSectionIdx < 0 ? 0 : activeSectionIdx + 1));
+    if (el.sectionSheetClose) el.sectionSheetClose.addEventListener('click', () => closeSectionSheet());
+    if (el.sectionSheet) el.sectionSheet.addEventListener('click', (e) => {
+      if (e.target === el.sectionSheet) closeSectionSheet();   // scrim tap
+    });
+    if (el.sectionSheetList) el.sectionSheetList.addEventListener('click', (e) => {
+      const item = e.target.closest('.sec-item');
+      if (!item) return;
+      closeSectionSheet();
+      jumpToSection(Number(item.dataset.idx));
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && sectionSheetOpen) { e.stopPropagation(); closeSectionSheet(); }
+    });
+  }
+
   /* ---------- Transport ----------------------------------------------- */
 
   async function playPause() {
@@ -776,6 +1334,10 @@
     await Tone.start();
     if (!synths.length) buildAudio();
     applyMix();
+    // Windowed scores: make sure the loop range is actually rendered before we
+    // schedule cursor steps (the cursor iterator is clipped to the render
+    // window). No-op for small pieces / already-covered ranges.
+    ensureRenderWindow(Number(el.loopFrom.value), Number(el.loopTo.value));
     Tone.Transport.stop();
     Tone.Transport.position = 0;
     buildScopeLane();
@@ -811,6 +1373,7 @@
     clearSchedule();
     if (osmd && osmd.cursor) osmd.cursor.hide();
     playState = 'stopped';
+    if (renderDeferred) { renderDeferred = false; renderNow(); }
     updatePos(null);
     updatePlayUI();
     setOverlay(true);
@@ -1110,11 +1673,14 @@
     const p = PIECES.find((x) => x.id === id);
     if (!p) { setStatus('Unknown piece: ' + id); return; }
     try {
-      await loadScore(p.url);
+      const completed = await loadScore(p.url);
+      if (!completed) return;   // superseded by a newer load — skip stale post-load work
       buildAudio();
       setCurrentPiece(p);
+      applySections(p);
       if (!opts.fromSelect) syncSelect(id);
     } catch (e) {
+      setBusy(false);
       const hint = p.id !== 'control'
         ? ' — score is gitignored (copyrighted source); regenerate via omr/README.md.'
         : ' — ' + e.message;
@@ -1148,7 +1714,10 @@
       if (grp) { toggleGroup(grp.dataset.group); return; }
       if (e.target.closest('.lib-pdf')) return;   // PDF link: let it open, don't select
       const row = e.target.closest('.lib-row'); if (!row) return;
-      loadPieceById(row.dataset.id).then(() => closeLibrary());
+      // Close the overlay immediately so the phased load progress (status +
+      // score spinner) is visible in the main UI while the piece loads.
+      closeLibrary();
+      loadPieceById(row.dataset.id);
     });
     el.libList.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -1156,7 +1725,8 @@
       if (grp) { e.preventDefault(); toggleGroup(grp.dataset.group); return; }
       const row = e.target.closest('.lib-row'); if (!row) return;
       e.preventDefault();
-      loadPieceById(row.dataset.id).then(() => closeLibrary());
+      closeLibrary();
+      loadPieceById(row.dataset.id);
     });
     el.libList.addEventListener('scroll', () => {
       if (libScrollRaf) return;
@@ -1188,8 +1758,21 @@
     el.loopOn.addEventListener('change', () => {
       if (playState !== 'stopped') { stop(); startPlayback(); }
     });
-    el.loopFrom.addEventListener('change', buildScopeLane);
-    el.loopTo.addEventListener('change', buildScopeLane);
+    // Loop edits: refresh the scope immediately; render the new range (windowed
+    // scores) on a short debounce so editing the two fields one at a time
+    // doesn't render an intermediate wide/inverted range. startPlayback also
+    // ensures the window, so this is only to preview the range before Play.
+    const onLoopChange = () => {
+      buildScopeLane();
+      // Preview-render the loop range only while stopped (a re-render hides the
+      // follow cursor); startPlayback re-ensures the window before it schedules.
+      if (!windowed || playState !== 'stopped') return;
+      clearTimeout(loopRenderTimer);
+      loopRenderTimer = setTimeout(
+        () => ensureRenderWindow(Number(el.loopFrom.value), Number(el.loopTo.value)), 300);
+    };
+    el.loopFrom.addEventListener('change', onLoopChange);
+    el.loopTo.addEventListener('change', onLoopChange);
     el.micBtn.addEventListener('click', toggleMic);
     el.hpMode.addEventListener('change', onHeadphonesToggle);
     [...el.viewPicker.children].forEach((b) =>
@@ -1200,19 +1783,24 @@
     ['touchstart', 'touchmove', 'pointerdown', 'wheel'].forEach((ev) =>
       el.osmd.addEventListener(ev, noteUserTouch, { passive: true }));
 
-    // Re-apply responsive OSMD sizing when crossing the narrow/wide boundary.
+    // Windowed scores: scrolling to the bottom of the rendered portion lazily
+    // renders more.
+    el.osmd.addEventListener('scroll', maybeExtendOnScroll, { passive: true });
+    if (el.renderFull) el.renderFull.addEventListener('click', renderFullScore);
+
+    // Re-apply responsive OSMD sizing + re-layout on resize. Debounced to fire
+    // once per settle; autoResize is OFF so this is the ONLY render path on
+    // resize (colors already live on the model → one render, boundary or not).
     let wasNarrow = null;
     window.addEventListener('resize', () => {
       if (libOpen) renderWindow(true);
       if (!osmd) return;
-      const n = isNarrow();
-      if (n !== wasNarrow) {
-        wasNarrow = n;
-        applyResponsiveOsmdOptions();
-        osmd.render();
-        applyVoiceColors();
-      }
-      fitScoreHeight();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const n = isNarrow();
+        if (n !== wasNarrow) { wasNarrow = n; applyResponsiveOsmdOptions(); }
+        requestRender();
+      }, 180);
     });
   }
 
@@ -1261,6 +1849,7 @@
   async function main() {
     initControls();
     initLibrary();
+    initSections();
     loadLibraryManifest();  // async; feeds the library overlay (never the combobox)
     initOverlay();
     setView('split');
@@ -1275,10 +1864,10 @@
       }));
     }
     try {
-      await loadScore(PIECES[0].url);
-      buildAudio();
-      setCurrentPiece(PIECES[0]);
+      const completed = await loadScore(PIECES[0].url);
+      if (completed) { buildAudio(); setCurrentPiece(PIECES[0]); applySections(PIECES[0]); }
     } catch (e) {
+      setBusy(false);
       setStatus('Startup error: ' + e.message);
       console.error(e);
     }
@@ -1293,7 +1882,44 @@
     cursorStep: () => cursorStep,
     osmdSteps: () => osmdSteps.map((s) => ({ beat: s.beat, measure: s.measure })),
     parsedNoteCounts: () => (parsed ? parsed.parts.map((p) => p.notes.length) : []),
+    parsed: () => parsed,
     zoom: () => (osmd ? osmd.zoom : null),
+
+    // --- windowed-render + seek machinery (for a future "jump to section" UI) ---
+    // Current render window as printed measure numbers + whether the piece is
+    // windowed at all.
+    windowInfo: () => ({
+      windowed,
+      sourceMeasureCount,
+      lastPrinted,
+      fromIdx: renderFromIdx,
+      toIdx: renderToIdx,
+      fromPrinted: (osmd && osmd.Sheet) ? printedForIndex(renderFromIdx) : null,
+      toPrinted: (osmd && osmd.Sheet) ? printedForIndex(renderToIdx) : null,
+    }),
+    // Low-level: render whatever window is needed to cover [fromPrinted,toPrinted].
+    ensureWindow: (fromPrinted, toPrinted) => ensureRenderWindow(fromPrinted, toPrinted),
+    // High-level "jump to section": render the range, set the loop inputs to it,
+    // refresh the scope, and scroll the score to the target. Everything a
+    // jump-to-section button needs.
+    seekTo: (fromPrinted, toPrinted) => {
+      const to = toPrinted != null ? toPrinted : fromPrinted;
+      ensureRenderWindow(fromPrinted, to);
+      el.loopFrom.value = Math.max(1, Math.round(fromPrinted) || 1);
+      el.loopTo.value = Math.max(Number(el.loopFrom.value), Math.round(to) || Number(el.loopFrom.value));
+      buildScopeLane();
+      return true;
+    },
+    renderFull: () => renderFullScore(),
+    // printed -> source index and back (the map a jump UI would consult)
+    printedToIndex: (p) => indexFromPrinted(p),
+    indexToPrinted: (idx) => printedForIndex(idx),
+
+    // --- jump-to-section (headless checks) ---
+    sections: () => currentSections.map((s) => ({ title: s.title, measure: s.measure })),
+    jumpToSection: (i) => jumpToSection(i),
+    activeSection: () => activeSectionIdx,
+    xmlSections: () => xmlScannedSections.map((s) => ({ title: s.title, measure: s.measure })),
   };
 
   // Programmatic library hook (headless tests). select() resolves either the

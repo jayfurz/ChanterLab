@@ -22,6 +22,12 @@ body{background:var(--bg);color:var(--ink);
 .gold{color:var(--gold)}
 
 .status{padding:4px 14px;color:var(--sub);font-size:12px;min-height:18px}
+/* status spinner: shown while a load is in flight (setBusy) */
+.status.busy{display:flex;align-items:center;gap:8px}
+.status.busy::before{content:"";width:12px;height:12px;flex:0 0 auto;border-radius:50%;
+  border:2px solid rgba(212,175,55,.3);border-top-color:var(--gold);
+  animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ---------- shared control bits ---------- */
 .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -29,7 +35,9 @@ body{background:var(--bg);color:var(--ink);
 .label{font-size:10px;color:var(--sub);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
 select,input[type=number]{background:#12141a;color:var(--ink);border:1px solid var(--line);
   border-radius:8px;padding:8px 8px;font-size:15px}
-.mnum{width:48px;text-align:center}
+/* wide enough for 3-digit measure numbers (section jumps set these) incl. the
+   desktop number-input spinner arrows */
+.mnum{width:60px;text-align:center}
 .dash{color:var(--sub)}
 input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:28px}
 .chk{display:flex;align-items:center;gap:5px;color:var(--sub);font-size:13px;white-space:nowrap}
@@ -111,9 +119,37 @@ body.view-score .scope-hint{display:none}
 
 /* ---------- score (internal scroll only; JS adapts max-height to the
               rendered system height + view mode) ---------- */
-.score{position:relative;background:#fbfbf7;margin:0 10px 16px;border-radius:12px;padding:6px;
+/* .score-area is the positioning context for the busy overlay + windowed
+   footer; the margins moved here so those overlays align to the score box. */
+.score-area{position:relative;margin:0 10px 16px}
+.score{position:relative;background:#fbfbf7;border-radius:12px;padding:6px;
   overflow:auto;max-height:42vh;-webkit-overflow-scrolling:touch;
   overscroll-behavior:contain}
+
+/* load/render progress overlay over the score box */
+.score-busy{position:absolute;inset:0;z-index:5;display:flex;align-items:center;
+  justify-content:center;gap:10px;border-radius:12px;
+  background:rgba(20,21,26,.55);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  color:var(--ink);font-size:13px;font-weight:600;pointer-events:none}
+.score-busy[hidden]{display:none}
+.score-busy .spinner{width:20px;height:20px;flex:0 0 auto;border-radius:50%;
+  border:3px solid rgba(212,175,55,.25);border-top-color:var(--gold);
+  animation:spin .7s linear infinite}
+
+/* windowed-render footer pill (bottom of the score box) */
+.score-more{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:4;
+  display:flex;align-items:center;gap:10px;max-width:calc(100% - 20px);
+  padding:6px 8px 6px 12px;border-radius:999px;
+  background:rgba(24,26,33,.94);border:1px solid var(--line);
+  box-shadow:0 4px 16px rgba(0,0,0,.45);color:var(--sub);font-size:11px}
+.score-more[hidden]{display:none}
+.score-more.working{color:var(--gold-soft)}
+.score-more-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn-mini{flex:0 0 auto;background:#20232c;border:1px solid var(--line);color:var(--ink);
+  border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;
+  min-height:32px;touch-action:manipulation;white-space:nowrap}
+.btn-mini:hover{border-color:var(--gold-soft)}
+.btn:disabled,.btn-mini:disabled{opacity:.5;cursor:default}
 
 .app-foot{padding:0 14px 8px;color:var(--sub);font-size:11px}
 code{background:#12141a;padding:1px 5px;border-radius:5px}
@@ -129,7 +165,8 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
   #scope{height:200px;min-height:160px}
   body.view-split #scope{height:180px;min-height:140px;max-height:220px}
   body.view-score #scope{height:96px;min-height:96px}
-  .score{margin:0 20px 24px;padding:10px;max-height:48vh}
+  .score-area{margin:0 20px 24px}
+  .score{padding:10px;max-height:48vh}
   .app-foot{font-size:12px;padding:0 20px 10px}
 
   .transport{padding-left:20px;padding-right:20px}
@@ -246,4 +283,61 @@ body.lib-lock{overflow:hidden}
   .lib-close{width:44px;height:44px}
   .lib-row-title{font-size:16px}
   .lib-row-meta{font-size:13px}
+}
+
+/* ---------- jump-to-section (transport control + bottom sheet) ---------- */
+.row-sections[hidden]{display:none}
+.sec-btn{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;
+  background:#20232c;border:1px solid var(--line);color:var(--ink);
+  padding:11px 12px;border-radius:12px;font-size:15px;min-height:48px;cursor:pointer;
+  touch-action:manipulation}
+.sec-btn:hover{border-color:var(--gold-soft)}
+.sec-btn:active{transform:translateY(1px)}
+.sec-icon{flex:0 0 auto;color:var(--gold-soft);font-weight:800;font-size:16px}
+.sec-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;text-align:left;font-weight:600}
+.sec-caret{flex:0 0 auto;color:var(--sub);font-size:11px}
+.btn-sec-nav{flex:0 0 auto;width:44px;min-height:48px;background:#12141a;
+  border:1px solid var(--line);color:var(--ink);border-radius:12px;font-size:20px;
+  line-height:1;cursor:pointer;touch-action:manipulation}
+.btn-sec-nav:hover{border-color:var(--gold-soft)}
+.btn-sec-nav:active{transform:translateY(1px)}
+.btn-sec-nav:disabled{opacity:.4;cursor:default;border-color:var(--line);transform:none}
+
+/* bottom sheet: slides up from the bottom edge, dims the rest */
+.sec-sheet{position:fixed;inset:0;z-index:120;display:flex;align-items:flex-end;
+  background:rgba(10,11,15,.6);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.sec-sheet[hidden]{display:none}
+.sec-sheet-panel{width:100%;max-width:720px;margin:0 auto;
+  background:var(--panel);border:1px solid var(--line);border-bottom:none;
+  border-radius:16px 16px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.6);
+  display:flex;flex-direction:column;max-height:70vh;
+  padding-bottom:env(safe-area-inset-bottom);animation:secSheetUp .22s ease}
+@keyframes secSheetUp{from{transform:translateY(28px);opacity:.3}to{transform:none;opacity:1}}
+.sec-sheet-head{display:flex;align-items:center;gap:8px;padding:14px 14px 10px;
+  border-bottom:1px solid var(--line)}
+.sec-sheet-title{flex:1;font-size:15px;font-weight:700;color:var(--gold-soft)}
+.sec-sheet-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;padding:4px 0}
+.sec-item{display:flex;align-items:center;gap:12px;width:100%;
+  background:none;border:0;border-bottom:1px solid rgba(44,47,56,.6);
+  color:var(--ink);text-align:left;padding:13px 16px;cursor:pointer;
+  touch-action:manipulation;font-size:15px}
+.sec-item:hover{background:#191b22}
+.sec-item:active{background:#1d1f28}
+.sec-item-m{flex:0 0 auto;min-width:56px;color:var(--sub);font-size:12px;
+  font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.sec-item-t{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-weight:600}
+.sec-item.active{background:rgba(212,175,55,.12)}
+.sec-item.active .sec-item-t,.sec-item.active .sec-item-m{color:var(--gold-soft)}
+
+body.sec-lock{overflow:hidden}
+
+@media (min-width:760px){
+  .row-sections{flex:1 1 auto;min-width:260px}
+  .btn-sec-nav{min-height:44px}
+  .sec-btn{min-height:44px}
+  .sec-item-t{white-space:normal}
 }
