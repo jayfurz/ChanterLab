@@ -219,6 +219,10 @@ class Event:
     ambiguous: bool = False    # lone whole / centered rest on a shared staff
     beam_group: Optional[int] = None   # id shared by stems under one beam
     nbeams: int = 0                    # beam levels on this event's stem
+    whole_measure: bool = False        # SMuFL restWhole (U+E4E3): its true
+    # value is the length of the measure it sits in, NOT the fixed 4.0 in RESTS.
+    # The provisional 4.0 stays on `beats` but is corrected by the whole-measure-
+    # rest normalization pass in assemble() before metering/emission.
 
     @property
     def total_beats(self):
@@ -265,6 +269,9 @@ class System:
     bar_xs: list = field(default_factory=list)
     layout: str = "4staff"     # or 2staff
     events: dict = field(default_factory=dict)   # voice -> [Event] (x-sorted)
+    ts_beats: Optional[float] = None   # printed time-sig length (quarter units),
+    # captured but NOT used for metering (beat sums win — see the note in
+    # extract_page); a fallback for whole-measure-rest normalization only.
 
 
 # ------------------------------------------------------------------- extraction
@@ -580,6 +587,38 @@ def _assign_staff(g, staves, max_ledger=6.0):
     return best
 
 
+def _time_sig_beats(ts_digits):
+    """Best-effort measure length (in quarter-note beats) from printed time-sig
+    digit glyphs, e.g. a 3-over-4 stack -> 3.0. Returns None when the digits do
+    NOT form a single clean single-digit numerator-over-denominator pair — we
+    never guess (callers fall back to the documented 4.0 default). Used only as
+    a last resort by whole-measure-rest normalization when a measure has no
+    real-content voice to take the length from."""
+    if len(ts_digits) < 2:
+        return None
+    # cluster into vertical stacks by x proximity (numerator above denominator)
+    xs = sorted(ts_digits, key=lambda g: g.cx)
+    stacks, cur = [], [xs[0]]
+    for g in xs[1:]:
+        w = max(cur[-1].x1 - cur[-1].x0, g.x1 - g.x0, 1.0)
+        if abs(g.cx - cur[-1].cx) < 1.2 * w:
+            cur.append(g)
+        else:
+            stacks.append(cur)
+            cur = [g]
+    stacks.append(cur)
+    # accept only an unambiguous single stack of exactly two digits
+    stacks = [st for st in stacks if len(st) >= 2]
+    if len(stacks) != 1 or len(stacks[0]) != 2:
+        return None
+    st = sorted(stacks[0], key=lambda g: g.y)   # top (small y) = numerator
+    num = TIMESIG_DIGITS[st[0].cp]
+    den = TIMESIG_DIGITS[st[1].cp]
+    if num <= 0 or den <= 0:
+        return None
+    return num * 4.0 / den
+
+
 def extract_page(page, page_no, report, measure_offset, tempo_state):
     music, tokens = _page_glyphs(page, page_no, report)
     long_h, short_h, vlines, quads, curves = _page_paths(page)
@@ -676,6 +715,15 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
     if ts_digits:
         report.note(f"p{page_no}: time-signature digits present "
                     f"({len(ts_digits)}) — emitted from beat sums anyway")
+        # Capture (don't meter with) the printed length per system, as a
+        # fallback for whole-measure-rest normalization (see assemble()).
+        for sy in systems:
+            top = min(s.top for s in sy.staves)
+            bot = max(s.bot for s in sy.staves)
+            b = _time_sig_beats([g for g in ts_digits
+                                 if top - 2 < g.y < bot + 2])
+            if b is not None:
+                sy.ts_beats = b
 
     # ---- stems & barlines from vlines
     # A head attaches to the stem nearest one of its EDGES (up-stems sit at
@@ -944,7 +992,8 @@ def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
             s = _assign_staff(g, sy.staves, max_ledger=3)
             if s is None or id(s) not in staff_ids:
                 continue
-            ev = Event(x=g.x0, kind="rest", beats=RESTS[g.cp], staff=s)
+            ev = Event(x=g.x0, kind="rest", beats=RESTS[g.cp], staff=s,
+                       whole_measure=(g.cp == 0xE4E3))
             voices = sv[id(s)]
             if len(voices) == 1:
                 ev.voice = voices[0]
@@ -1007,7 +1056,8 @@ def _clone_event(ev, heads, voice):
     return Event(x=ev.x, kind=ev.kind, heads=list(heads), beats=ev.beats,
                  dots=ev.dots, staff=ev.staff, voice=voice,
                  stem_dir=ev.stem_dir, unison_assumed=ev.unison_assumed,
-                 beam_group=ev.beam_group, nbeams=ev.nbeams)
+                 beam_group=ev.beam_group, nbeams=ev.nbeams,
+                 whole_measure=ev.whole_measure)
 
 
 def _cluster_columns(events, sp):
@@ -1711,7 +1761,8 @@ def build_score(pdf_path, pages=None, report=None):
                     "system_index": si, "new_system": mi == 0,
                     "x_range": ranges[mi], "sp": ref_staff.sp,
                     "system_top": sy.staves[0].top,
-                    "system_bot": sy.staves[-1].bot}
+                    "system_bot": sy.staves[-1].bot,
+                    "ts_beats": sy.ts_beats}
             for v in voices_present:
                 evs = []
                 for e in sy.events.get(v, []):
@@ -1766,6 +1817,66 @@ def build_score(pdf_path, pages=None, report=None):
     if staff_counts:
         report.stats["staves_per_system_mode"] = max(
             set(staff_counts), key=staff_counts.count)
+
+    # ---- whole-measure-rest normalization -----------------------------------
+    # SMuFL restWhole (U+E4E3) is a *whole-measure* rest: its true value is the
+    # length of the measure it occupies, not the fixed 4-beat semibreve the
+    # RESTS table gives it (see Event.whole_measure). In free/mixed-meter chant
+    # a voice may rest a whole measure that is really 3 beats (implied 3/4)
+    # while other voices carry real 3-beat content; the provisional 4.0 would
+    # then win the per-measure max, mislabel the time signature (4/4 not 3/4)
+    # and force a spurious <forward> pad on the correct voices. The mirror
+    # defect grows the other way: a whole rest stuck at the 4.0 default in a bar
+    # whose real content runs LONGER (e.g. a 14-beat chant melisma) truncates
+    # the rest, cueing that voice's next entrance too EARLY. Rescale each
+    # whole-rest voice — UP or DOWN — to the measure's true length, taken from
+    # the voices that carry real (non-whole-rest) content. Growing never lifts
+    # the per-measure max (ref is already <= that max), so the emitted time
+    # signature is unchanged; only the rest's own length is corrected. Genuine
+    # full-measure rests that already agree with real content are left untouched.
+    wm_resized = 0        # rest-voice measures corrected
+    wm_no_ref = 0         # flagged measures with no real-content reference voice
+    for mi, meta in enumerate(measure_meta):
+        wm_voices = [v for v in voices_present
+                     if any(e.whole_measure for e in score[v][mi])]
+        if not wm_voices:
+            continue
+        # reference = longest real-content voice (no whole-rest, has content)
+        ref_sums = [meta["sums"][v] for v in voices_present
+                    if v not in wm_voices and meta["sums"].get(v, 0) > 1e-6]
+        if ref_sums:
+            ref = max(ref_sums)
+        else:
+            # no trustworthy reference: fall back to a captured printed time
+            # signature if we have one, else leave the 4.0 default (never guess).
+            ref = meta.get("ts_beats")
+            if ref is None:
+                if any(meta["sums"].get(v, 0) > 1e-6 for v in wm_voices):
+                    wm_no_ref += 1
+                continue
+        for v in wm_voices:
+            if abs(meta["sums"].get(v, 0) - ref) <= 1e-6:
+                continue   # rest already matches real content — genuine full-
+                           # measure rest (both the grow and shrink paths skip)
+            evs = score[v][mi]
+            wm = [e for e in evs if e.whole_measure]
+            others = sum(e.total_beats for e in evs if not e.whole_measure)
+            needed = ref - others
+            if needed < -1e-6:
+                continue   # real content already overflows ref; don't touch
+            share = needed / len(wm)
+            for e in wm:
+                e.beats = share
+                e.dots = 0
+            meta["sums"][v] = ref
+            wm_resized += 1
+    if wm_resized:
+        report.note(f"whole-measure-rest normalization: resized {wm_resized} "
+                    f"rest-voice measure(s) to the measure's true length")
+    if wm_no_ref:
+        report.note(f"whole-measure-rest normalization: {wm_no_ref} flagged "
+                    f"measure(s) had no reference voice — left at default")
+    report.stats["whole_measure_rests_resized"] = wm_resized
 
     # measure-integrity check
     consistent = 0
