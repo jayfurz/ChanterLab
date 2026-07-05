@@ -79,8 +79,19 @@ DYNAMICS = set(range(0xE520, 0xE550))
 # "smufl" is null means "drop this glyph" (dynamics / articulations the engine
 # must never see).
 
-_SMUFL_FONTS = ("Bravura", "Leland", "Petaluma", "Emmentaler")
+# "FinaleMaestro" / "Finale Maestro" is the SMuFL font shipped with Finale 27+
+# (it emits real SMuFL PUA codepoints, e.g. 0xE0A4 noteheadBlack) — NOT the old
+# Sonata-layout TrueType "Maestro". It must be classified smufl BEFORE the
+# legacy "Maestro" substring below, or its glyphs get run through the legacy map
+# (which has no 0xE0xx entries) and every note is dropped as unmapped.
+_SMUFL_FONTS = ("Bravura", "Leland", "Petaluma", "Emmentaler",
+                "FinaleMaestro", "Finale Maestro")
 _LEGACY_FONTS = ("Maestro", "Petrucci", "Sonata", "Opus", "Engraver")
+# The SMuFL musical PUA block. The legacy Sonata layout never emits codepoints
+# here (its glyphs live at ASCII/MacRoman plus 0xF000-0xF0FF PUA-twins), so a
+# codepoint in this range inside a legacy-classified span is a genuine SMuFL
+# glyph from a Finale-SMuFL hybrid and is passed through rather than dropped.
+_SMUFL_PUA = range(0xE000, 0xF000)
 _MUSIC_WHITESPACE = {0x20, 0xA0}   # space / no-break space: drop, never count
 
 
@@ -319,6 +330,12 @@ def _page_glyphs(page, page_no=0, report=None):
                                 if smufl is None:
                                     continue      # explicit ignore glyph
                                 cp = smufl
+                            elif cp in _SMUFL_PUA:
+                                # Finale-SMuFL hybrid: this span was classified
+                                # legacy by name, but the codepoint is a real
+                                # SMuFL glyph the legacy layout never uses. Pass
+                                # it through unchanged (see _SMUFL_PUA note).
+                                pass
                             else:
                                 # unknown legacy glyph: drop + record once/page
                                 if report is not None:
