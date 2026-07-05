@@ -60,6 +60,8 @@ window.TrainingScope = (() => {
   // live pitch state
   const hist3 = [];               // median-of-3 raw freq
   let emaMidi = null;
+  let pitchSink = null;           // optional subscriber: fn({tSec, midi, playing})
+                                  // called once per VOICED frame (scoring tap, #49)
   let trace = [];                 // [{wall, dispMidi, cents, hit, hasTarget}]
   const TRACE_KEEP_SEC = 12;
   let lastDetect = { name: '—', cents: null, hit: false, fresh: 0, quiet: false };
@@ -156,6 +158,10 @@ window.TrainingScope = (() => {
     m = emaMidi;
 
     const { playing, t } = timeSource();
+    // Scoring tap (#49): emit the raw smoothed sung MIDI in transport seconds so
+    // a subscriber can grade it against the lane. Octave folding is the scorer's
+    // job, so we hand it the un-folded pitch. No-op unless someone subscribed.
+    if (pitchSink) pitchSink({ tSec: t, midi: m, playing });
     let dispMidi, cents = null, hit = false, hasTarget = false;
     const target = (playing && t !== null) ? activeTargetAt(t) : null;
     if (target) {
@@ -382,6 +388,10 @@ window.TrainingScope = (() => {
 
   function setTimeSource(fn) { timeSource = fn; }
 
+  // Subscribe to the live voiced-pitch stream (scoring tap, #49). The callback
+  // fires once per voiced frame with {tSec, midi, playing}; pass null to detach.
+  function setPitchSink(fn) { pitchSink = typeof fn === 'function' ? fn : null; }
+
   async function micStart(audioCtx) {
     if (mic.on) return true;
     mic.ctx = audioCtx;
@@ -436,7 +446,7 @@ window.TrainingScope = (() => {
   }
 
   return {
-    attach, setLane, setTimeSource, micStart, micStop,
+    attach, setLane, setTimeSource, setPitchSink, micStart, micStop,
     setMicProcessing, getMicSettings,
     isMicOn: () => mic.on,
     getMicProcessing: () => mic.processing,

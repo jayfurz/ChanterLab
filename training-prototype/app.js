@@ -178,6 +178,13 @@
   let cursorWindow = [];     // absolute osmdSteps indices inside the current loop window
   let playState = 'stopped'; // 'stopped' | 'playing' | 'paused'
   let viewMode = 'split';    // 'split' | 'score' | 'scope'
+
+  // --- per-note scoring (SPIKE #49) ---
+  let currentPieceId = null; // id of the loaded piece (for history entries)
+  let practiceSamples = [];  // {tSec, midi} voiced pitch stream for the current playthrough
+  let scoringArmed = false;  // a play→end/stop cycle is pending a score (prevents double-scoring)
+  let lastScoreResult = null;// last scoreNotes() output (exposed via __training.lastScore)
+  const PRACTICE_HISTORY_KEY = 'chanterlab_practice_history';
   let userHoldUntil = 0;     // auto-scroll suspended until this perf.now() ms
 
   // --- load + windowed-render state ---
@@ -999,6 +1006,78 @@
     );
   }
 
+  /* ---------- Per-note scoring (SPIKE #49) ----------------------------- */
+
+  // The selected voice's target notes for the current loop window, in transport
+  // seconds. SAME beat×tempo math as buildScopeLane/scheduleAll, so a target's
+  // [startSec,endSec] lines up exactly with the sung samples' Transport.seconds.
+  function buildScoreTargets() {
+    if (!parsed) return [];
+    const spb = 60 / Number(el.bpm.value);
+    const from = clampMeasure(Number(el.loopFrom.value));
+    const to = clampMeasure(Number(el.loopTo.value));
+    const { start: winStart, end: winEnd } = measureBeatRange(from, to);
+    const sel = parsed.parts.find((p) => p.voiceKey === selectedVoice);
+    if (!sel) return [];
+    return sel.notes
+      .filter((n) => n.startBeat >= winStart - 1e-6 && n.startBeat < winEnd - 1e-6)
+      .map((n) => ({
+        midi: n.midi,
+        startSec: (n.startBeat - winStart) * spb,
+        endSec: (n.startBeat - winStart + n.durBeat) * spb,
+        lyric: n.lyric || null,
+      }));
+  }
+
+  // Run the pure scorer over the just-played window and surface the result:
+  // one-line summary, a console.table of per-note detail, and an appended
+  // localStorage history entry. Called from stop() when a play cycle armed it
+  // AND the mic actually produced samples — so it is zero-cost with the mic off.
+  function scorePractice() {
+    if (!window.ChanterScoring) return false;
+    const targets = buildScoreTargets();
+    const samples = practiceSamples;
+    if (!targets.length || !samples.length) return false;
+
+    const result = window.ChanterScoring.scoreNotes(targets, samples);
+    lastScoreResult = result;
+    setStatus(window.ChanterScoring.summaryLine(result));
+    try {
+      // eslint-disable-next-line no-console
+      console.table(result.details.map((d) => ({
+        '#': d.index, midi: d.midi, lyric: d.lyric,
+        start: +d.startSec.toFixed(2), end: +d.endSec.toFixed(2),
+        result: d.result, coverage: d.coverage, 'mean¢': d.meanCents, samples: d.samples,
+      })));
+    } catch (e) { /* console.table absent — ignore */ }
+
+    appendPracticeHistory({
+      ts: Date.now(),
+      pieceId: currentPieceId,
+      voice: selectedVoice,
+      loopFrom: clampMeasure(Number(el.loopFrom.value)),
+      loopTo: clampMeasure(Number(el.loopTo.value)),
+      verse: activeVerse,
+      totals: {
+        notes: result.notes, hit: result.hit, flat: result.flat,
+        sharp: result.sharp, missed: result.missed, hitPct: result.hitPct,
+      },
+    });
+    return true;
+  }
+
+  function appendPracticeHistory(entry) {
+    try {
+      const raw = localStorage.getItem(PRACTICE_HISTORY_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      const list = Array.isArray(arr) ? arr : [];
+      list.push(entry);
+      // cap at ~200 entries (drop oldest)
+      while (list.length > 200) list.shift();
+      localStorage.setItem(PRACTICE_HISTORY_KEY, JSON.stringify(list));
+    } catch (e) { /* storage disabled/full — non-fatal for the spike */ }
+  }
+
   /* ---------- Audio (Tone.js) ----------------------------------------- */
 
   function buildAudio() {
@@ -1444,6 +1523,10 @@
     Tone.Transport.position = 0;
     buildScopeLane();
     scheduleAll();
+    // Scoring (#49): start a fresh sample buffer and arm the score for this
+    // play→end/stop cycle. Samples only accrue while the mic is on (see sink).
+    practiceSamples = [];
+    scoringArmed = true;
     playState = 'playing';
     resetCursor();
     Tone.Transport.start('+0.1');
@@ -1474,12 +1557,16 @@
     Tone.Transport.position = 0;
     clearSchedule();
     if (osmd && osmd.cursor) osmd.cursor.hide();
+    // Score the window that just played (once per armed cycle). scorePractice
+    // no-ops when there are no mic samples, so this is free with the mic off.
+    let scored = false;
+    if (scoringArmed) { scoringArmed = false; scored = scorePractice(); }
     playState = 'stopped';
     if (renderDeferred) { renderDeferred = false; renderNow(); }
     updatePos(null);
     updatePlayUI();
     setOverlay(true);
-    setStatus('Stopped.');
+    if (!scored) setStatus('Stopped.');   // keep the score summary as the surface
   }
 
   function updatePlayUI() {
@@ -1755,6 +1842,7 @@
   }
 
   function setCurrentPiece(p) {
+    currentPieceId = p ? p.id : null;
     if (el.currentPiece) el.currentPiece.textContent = p ? (p.title || p.label || p.id) : '—';
     // show the original-engraving link for ingested pieces (transport bar)
     if (el.pdfLink) {
@@ -1964,6 +2052,14 @@
         // keep the lane frozen in place while paused (t survives the pause)
         t: playState === 'stopped' ? null : Tone.Transport.seconds,
       }));
+      // Scoring tap (#49): collect the live voiced-pitch stream ONLY while
+      // actively playing with the mic on. Nothing accrues otherwise, so the
+      // scoring path is entirely free when the mic is off.
+      TrainingScope.setPitchSink((s) => {
+        if (playState !== 'playing') return;
+        if (s.tSec == null || !isFinite(s.tSec)) return;
+        practiceSamples.push({ tSec: s.tSec, midi: s.midi });
+      });
     }
     try {
       const completed = await loadScore(PIECES[0].url);
@@ -1991,6 +2087,20 @@
     verse: () => activeVerse,
     setVerse: (v) => { setVerse(v); return activeVerse; },
     maxVerse: () => (parsed ? (parsed.maxVerse || 1) : 1),
+
+    // --- per-note scoring (SPIKE #49) ---
+    // lastScore(): the last per-note result array + totals (null before any run).
+    lastScore: () => lastScoreResult,
+    // scoreCore(): the pure scorer, for tests (delegates to ChanterScoring).
+    scoreCore: (targets, samples, opts) =>
+      (window.ChanterScoring ? window.ChanterScoring.scoreNotes(targets, samples, opts) : null),
+    // introspection: the current loop's targets + the collected sample stream.
+    scoreTargets: () => buildScoreTargets(),
+    practiceSamples: () => practiceSamples.slice(),
+    scoreHistory: () => {
+      try { return JSON.parse(localStorage.getItem(PRACTICE_HISTORY_KEY) || '[]'); }
+      catch (e) { return []; }
+    },
 
     // --- windowed-render + seek machinery (for a future "jump to section" UI) ---
     // Current render window as printed measure numbers + whether the piece is
