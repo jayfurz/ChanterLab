@@ -108,6 +108,34 @@
       <label class="chk"><input id="hearMine" type="checkbox" /> 🔊 Also play my part</label>
     </div>
 
+    <!-- In-app practice recording (issue #67). Mixes the accompaniment (tapped
+         after the master limiter) with the mic INSIDE WebAudio and records that
+         — so a content clip is a clean blend no matter how the singer monitors.
+         Enabled once recording is supported; with the mic off it captures the
+         accompaniment only ("music only"). The elapsed timer shows while
+         recording; the Save chip + file size appear after Stop and stay until
+         the next recording starts. -->
+    <div class="row row-record">
+      <button id="recBtn" class="btn rec" aria-pressed="false"
+              title="Record this practice — mixes the music and your mic in-app">⏺ Record</button>
+      <span id="recTime" class="rec-time" aria-live="off" hidden>0:00</span>
+      <a id="recSave" class="chip rec-save" hidden>⬇ Save recording</a>
+    </div>
+
+    <!-- Voice / Music balance of the RECORDING mix only (persisted). Does NOT
+         change what the singer hears — only the two recording legs. Shown while
+         the mic is on (a music-only capture has nothing to balance). -->
+    <div class="row row-recbal" id="recBalRow" hidden>
+      <span class="label">Rec mix</span>
+      <span class="recbal-end">🎤 Voice</span>
+      <input id="recBalance" type="range" min="0" max="100" value="50"
+             aria-label="Recording balance — voice versus music" />
+      <span class="recbal-end">Music 🎵</span>
+    </div>
+
+    <!-- One-time hint shown the first time you record with the mic on. -->
+    <p id="recHint" class="mic-note rec-hint" hidden>🎧 Headphones give the cleanest recording — the mic hears only you.</p>
+
     <!-- Scoring strictness (issue #55): Relaxed = the original spike defaults
          (±50¢, 50% coverage); Strict tightens both (±35¢, 75% coverage).
          Persisted; applied to every scoreNotes() call (see currentScoreOpts). -->

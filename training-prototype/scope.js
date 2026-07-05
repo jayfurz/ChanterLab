@@ -450,6 +450,13 @@ window.TrainingScope = (() => {
     setMicProcessing, getMicSettings,
     isMicOn: () => mic.on,
     getMicProcessing: () => mic.processing,
+    // The live MediaStreamAudioSourceNode (in the SAME AudioContext Tone was
+    // handed via micStart's rawContext). Exposed so the recording graph
+    // (js/recording.js, issue #67) can FAN OUT the mic into its own gain →
+    // record destination WITHOUT touching the analyser feed (scoring/pitch tap
+    // is unaffected). Null while the mic is off; changes when the stream is
+    // re-acquired (setMicProcessing) — recording re-taps on mic-state changes.
+    getMicSourceNode: () => mic.src,
     // for the headless checks + detector swap-in experiments
     _debug: {
       detectPitch,

@@ -30,6 +30,9 @@ import {
   loadLibraryManifest, openLibrary, closeLibrary, toggleGroup, renderWindow, initLibrary,
 } from './library.js';
 import { initOnboarding, markMicUsed } from './onboarding.js';
+import {
+  initRecording, startRecording, stopRecording, onMicChange, setBalance, recordingState,
+} from './recording.js';
 
 let resizeTimer = 0;
 let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
@@ -126,6 +129,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       TrainingScope.micStop();
       el.micBtn.classList.remove('on');
       el.micBtn.textContent = '🎤 Mic';
+      onMicChange();   // drop the mic leg from any live recording + relabel (issue #67)
       setStatus('Mic off.');
       return;
     }
@@ -137,6 +141,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       await TrainingScope.micStart(Tone.getContext().rawContext);
       el.micBtn.classList.add('on');
       el.micBtn.textContent = '🎤 On';
+      onMicChange();   // fan the live mic into any active recording + relabel (issue #67)
       markMicUsed();   // first-run onboarding (issue #64): skip the mic nudge
       if (el.scopeHint) el.scopeHint.textContent = 'sing your gold line — cyan is you, gold glow = on the note (±50¢, any octave)';
       setStatus('Mic on — sing your part. Headphones avoid feedback from the other voices.');
@@ -152,6 +157,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       : '🔊 speaker mode: echo cancellation on — the phone may duck the backing voices while you sing.';
     try {
       await TrainingScope.setMicProcessing(!hp);   // re-acquires the mic if it is live
+      onMicChange();   // re-tap the (possibly re-acquired) mic into any recording (issue #67)
       if (TrainingScope.isMicOn()) {
         setStatus(hp
           ? 'Headphones mode: raw mic — backing voices stay at constant volume.'
@@ -171,6 +177,9 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     updateInstrumentUI();
     initLibrary();
     initSections();
+    initRecording();    // in-app practice recording (issue #67) — wires the ⏺ toggle,
+                        // the Voice/Music balance slider, and the master-rebuild re-tap
+                        // hook; builds NO audio graph until the first Record.
     initOnboarding();   // first-run coach-marks (issue #64) — shows step (a) immediately
     // Kicked off now (parallel with everything below) but AWAITED just before
     // loadStartingPiece — issue #64's default-piece choice needs to know
@@ -312,6 +321,18 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     jumpToSection: (i) => jumpToSection(i),
     activeSection: () => activeSectionIdx,
     xmlSections: () => xmlScannedSections.map((s) => ({ title: s.title, measure: s.measure })),
+
+    // --- in-app practice recording (issue #67) ---
+    // recording(): full recorder state snapshot (support, live flag, mic flag,
+    // elapsedMs, negotiated mimeType + candidate-support matrix, balance + the
+    // two leg gains, and the last clip's object URL / size / type / filename).
+    recording: () => recordingState(),
+    // start/stop the mixed-audio recorder (same path the ⏺ toggle drives).
+    startRecording: () => startRecording(),
+    stopRecording: () => stopRecording(),
+    // set the Voice/Music RECORDING balance (0 = music only … 1 = voice only),
+    // persisted; returns the fresh recording() snapshot for a test to assert on.
+    setRecordBalance: (v) => { setBalance(v); return recordingState(); },
   };
 
   // Programmatic library hook (headless tests). select() resolves either the

@@ -17,6 +17,8 @@ let master = null;         // Tone.Limiter master bus — the only node between 
                            // summed voices and the speakers (issue #65)
 let builtMode = null;      // which mode `instruments` was actually built in ('synth'|'voices'),
                            // so startPlayback can tell a stale build from the live setting
+let onMasterRebuilt = null;// recording tap re-hook (issue #67), set at runtime by
+                           // js/recording.js — see setOnMasterRebuilt / buildAudio
 let scheduledIds = [];
 let cursorWindow = [];     // absolute osmdSteps indices inside the current loop window
 export let playState = 'stopped';
@@ -232,7 +234,26 @@ export function buildAudio() {
         gains.push(gain);
       });
     }
+    // Recording tap (issue #67): disposeAudio() above just destroyed the OLD
+    // `master`, severing any live recording graph's post-limiter tap; hand the
+    // brand-new master to whoever registered so it can re-tap. No-op until a
+    // recording graph exists (js/recording.js registers this). This is what
+    // keeps a recording alive across an instrument switch — buildAudio rebuilds
+    // the master, and the mix destination re-attaches to the new one.
+    if (onMasterRebuilt) { try { onMasterRebuilt(master); } catch (e) { /* recording graph optional */ } }
   }
+
+  // The master accompaniment bus (the Tone.Limiter whose output is what the
+  // singer hears). Exposed so the recording graph can tap it AFTER the limiter
+  // — "what you record is what you hear" (issue #67). Null before the first
+  // buildAudio (i.e. before any piece is loaded).
+export function masterBus() { return master; }
+
+  // Register a callback invoked with the freshly-built master node at the end
+  // of every buildAudio() (piece load, instrument switch, first Play). Runtime
+  // registration (not an ESM import) keeps transport.js free of any dependency
+  // on the recording module and sidesteps the loader↔transport import cycle.
+export function setOnMasterRebuilt(fn) { onMasterRebuilt = (typeof fn === 'function') ? fn : null; }
 
   function disposeAudio() {
     instruments.forEach((s) => s.dispose());

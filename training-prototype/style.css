@@ -88,6 +88,25 @@ input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:28px}
 .transport.collapsed .full{max-height:0;opacity:0;padding-bottom:0}
 .mic-note{margin:0;padding:0 2px;color:var(--sub);font-size:11px}
 
+/* ---------- in-app practice recording (issue #67) ---------- */
+.row-record{gap:10px}
+.btn.rec{flex:0 0 auto;min-width:124px}
+.btn.rec.recording{background:#3a1414;border-color:#c0392b;color:#ffd7d0}
+.btn.rec.recording::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;
+  background:#ff4b3e;margin-right:8px;vertical-align:middle;animation:recpulse 1.1s ease-in-out infinite}
+@keyframes recpulse{0%,100%{opacity:1}50%{opacity:.2}}
+.rec-time{color:#ff8a7a;font-size:13px;font-variant-numeric:tabular-nums;min-width:44px;
+  white-space:nowrap}
+.rec-time[hidden]{display:none}
+.chip.rec-save{background:var(--gold);color:#161616;text-decoration:none;
+  display:inline-flex;align-items:center;font-size:13px;padding:8px 12px}
+.chip.rec-save[hidden]{display:none}
+.row-recbal{gap:10px}
+.row-recbal[hidden]{display:none}
+.recbal-end{flex:0 0 auto;color:var(--sub);font-size:12px;white-space:nowrap}
+.rec-hint{color:var(--gold-soft)}
+.rec-hint[hidden]{display:none}
+
 /* library trigger (replaces the raw combobox as the primary selector) */
 .row-piece{gap:10px}
 .btn.lib{flex:0 0 auto;background:#20232c;border-color:var(--line);white-space:nowrap;

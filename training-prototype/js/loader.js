@@ -6,6 +6,7 @@ import { parseMusicXML, setParsed, parsed, isMonophonic } from './model.js';
 import { buildVoicePicker, buildVersePicker, buildScopeLane, resetVoiceStateForLoad, selectedVoice } from './voices.js';
 import { buildAudio, stop, playState } from './transport.js';
 import { applySections, updateSectionNav, prepareXmlSections, clearXmlSections } from './sections.js';
+import { onRecordingPieceSwitch } from './recording.js';
 
 export let osmd = null;
 export let osmdSteps = [];        // OSMD cursor step table (rebuilt every render)
@@ -490,6 +491,10 @@ export function setView(mode) {
   // Load any piece by id through the existing stop → loadScore → buildAudio flow.
 export async function loadPieceById(id, opts) {
     opts = opts || {};
+    // Piece switch mid-recording: finalize the clip cleanly (file preserved)
+    // BEFORE stop()/buildAudio disposes the tapped master (issue #67). No-op
+    // when nothing is recording.
+    onRecordingPieceSwitch();
     stop();
     const p = PIECES.find((x) => x.id === id);
     if (!p) { setStatus('Unknown piece: ' + id); return; }
