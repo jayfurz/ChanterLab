@@ -1707,7 +1707,8 @@ def _measure_ranges(staff, bar_xs):
 _EXPR_CONNECTIVE = {          # function words that carry a direction, not content
     "a", "al", "il", "el", "la", "le", "lo", "e", "ed", "o", "di", "da",
     "de", "del", "in", "con", "col", "sul", "su", "to", "of", "and", "the",
-    "non", "un", "una", "uno", "ma", "piu", "sempre", "au", "aux", "du", "et"}
+    "non", "un", "una", "uno", "ma", "piu", "sempre", "au", "aux", "du", "et",
+    "then"}
 _FOOTNOTE_KILL = {"nb"}       # 'N.B.' — always an editorial footnote
 
 
@@ -1734,19 +1735,51 @@ def _lyric_kill_token(text):
     return _lyric_compact(text) in _FOOTNOTE_KILL
 
 
+def _is_role_label_line(toks):
+    """A lyric-band baseline that is a speaker-label rubric (issue #77 PART A):
+    its left-most token is a liturgical role word (see _ROLE_LABELS) carrying a
+    trailing colon ("Deacon:", "Priest:", "CHANTER:"), or the role word followed
+    by a stand-alone ':' token. Such a baseline is a clergy/role's SPOKEN cue
+    engraved between staves ("Deacon: Dynamis!") mis-attached to choir notes, so
+    the whole baseline — label plus the cue that trails it — is dropped. The
+    colon AND the first-token position are both required, which protects a real
+    syllable that merely ends in a role word mid-line ("Prophets' choir:", "cry
+    to all:")."""
+    if not toks:
+        return False
+    first = toks[0]["text"]
+    m = re.match(r"^([^\W\d_]+):+$", first)
+    if m:
+        return m.group(1).lower() in _ROLE_LABELS
+    if len(toks) >= 2 and toks[1]["text"][:1] == ":" \
+            and re.fullmatch(r"[^\W\d_]+", first):
+        return first.lower() in _ROLE_LABELS
+    return False
+
+
 def _drop_non_lyric_lines(band):
     """Cluster band tokens into text lines by baseline y and return them ordered
     top->bottom (each line a list of tokens) after removing non-sung text.
     _attach_lyrics treats each returned line as a separate verse.
 
     Filtering:
+      * a bracketed rubric block ('[ ... ]', issue #77 PART E) is dropped in
+        full, even when it runs across several baselines ("[At the conclusion of
+        the Cherubic Hymn ... Alleluia.]") — brackets are effectively absent from
+        real sung text in this corpus, so once '[' opens every baseline is
+        dropped until ']' closes (only when the band's brackets balance, so a
+        stray bracket can never swallow real lyrics below it);
       * junk tokens (no letter and not a hyphen connector) are removed in place
         — big breath-comma glyphs, '(', U+2011/U+00AD pseudo-hyphens, digit runs;
       * a whole line is dropped when _lyric_kill_token flags it (metronome mark,
         dated copyright, '*'/N.B. footnote);
+      * a speaker-label baseline (_is_role_label_line: FIRST token is a role word
+        + colon) is dropped in full (issue #77 PART A);
       * a short line made entirely of directions + function words, with at least
         one real direction and NO content word, is dropped ('cresc.', 'To Coda',
-        'D.C. al Coda', 'poco a poco rit.'). One content word keeps the line, so
+        'D.C. al Coda', 'poco a poco rit.'); an italic performance direction that
+        doubles as a sung word ('gentle', 'build') condemns the line only when it
+        is engraved italic (issue #77 PART D). One content word keeps the line, so
         'hold fast', 'the Son' and 'Glory ... Spi-rit:' survive.
     """
     lines = []                                   # [[repr_baseline_y, [tokens]]]
@@ -1757,11 +1790,26 @@ def _drop_non_lyric_lines(band):
             lines[-1][0] = sum(x["y"] for x in grp) / len(grp)
         else:
             lines.append([t["y"], [t]])
+    # multi-baseline bracketed-rubric span only when the band's brackets balance
+    tot_open = sum(x["text"].count("[") for _y, ts in lines for x in ts)
+    tot_close = sum(x["text"].count("]") for _y, ts in lines for x in ts)
+    span_brackets = tot_open > 0 and tot_open == tot_close
     kept = []
+    bracket_depth = 0
     for _y, toks in lines:
         toks = sorted(toks, key=lambda t: t["x0"])
+        opens = sum(t["text"].count("[") for t in toks)
+        closes = sum(t["text"].count("]") for t in toks)
+        if span_brackets:
+            if bracket_depth > 0 or opens or closes:
+                bracket_depth = max(0, bracket_depth + opens - closes)
+                continue                         # inside a bracketed rubric block
+        elif opens or closes:
+            continue                             # stray bracketed rubric line
         if any(_lyric_kill_token(t["text"]) for t in toks):
             continue
+        if _is_role_label_line(toks):
+            continue                             # speaker-label rubric baseline
         toks = [t for t in toks
                 if _is_dash(t["text"]) or any(c.isalpha() for c in t["text"])]
         words = [t for t in toks if not _is_dash(t["text"])]
@@ -1771,7 +1819,8 @@ def _drop_non_lyric_lines(band):
             expr = content = 0
             for t in words:
                 c = _lyric_compact(t["text"])
-                if c in _EXPR_VOCAB:
+                if c in _EXPR_VOCAB or (c in _DIRECTION_VOCAB
+                                        and t.get("italic")):
                     expr += 1
                 elif c not in _EXPR_CONNECTIVE:
                     content += 1
@@ -1827,38 +1876,117 @@ def _attach_lyrics(sy, tokens, report, page_no):
 
 def _attach_verse_line(line, k, staff, voices, carriers, report):
     """X-sort, hyphenate and attach one verse line's syllables to nearest notes.
-    Each note carries at most one syllable per verse number k."""
+    Each note carries at most one syllable per verse number k. A token engraved
+    with an internal hyphen ('wor-ship', 'be-fore') is split into its syllables
+    and spread across the distinct notes under the printed span (issue #77 PART
+    C); a hyphenated word printed over a single note (a rare melisma) stays
+    merged."""
     line = sorted(line, key=lambda t: t["x0"])
     words = [t for t in line if t["text"].strip("-_")]
     for i, t in enumerate(words):
-        txt = t["text"]
-        prev_hyph = i > 0 and _hyphen_between(line, words[i - 1], t)
-        next_hyph = i + 1 < len(words) and _hyphen_between(line, t, words[i + 1])
-        if prev_hyph and next_hyph:
-            syl = "middle"
-        elif next_hyph:
-            syl = "begin"
-        elif prev_hyph:
-            syl = "end"
-        else:
-            syl = "single"
+        outer_prev = i > 0 and _hyphen_between(line, words[i - 1], t)
+        outer_next = i + 1 < len(words) and _hyphen_between(line, t,
+                                                            words[i + 1])
+        units = _split_word_syllables(t, outer_prev, outer_next)
+        merged_syl = _syl(outer_prev, outer_next)
         for v in voices:
-            evs = carriers[v]
-            if not evs:
-                continue
-            best = min(evs, key=lambda e: abs(e.x - t["cx"]))
-            if abs(best.x - t["cx"]) > 6 * staff.sp:
-                report.stats["lyric_tokens_unmatched"] += 1
-                continue
-            if any(l.get("number") == k for l in best.lyric):
-                continue
-            best.lyric.append({"text": txt, "syllabic": syl, "number": k})
-            report.stats["lyric_syllables_attached"] += 1
+            _attach_syllable_units(units, t, merged_syl, k, carriers[v],
+                                   staff, report)
 
 
 def _hyphen_between(band, a, b):
     return any(t["text"] == "-" and a["x1"] - 1 <= t["x0"] and
                t["x1"] <= b["x0"] + 1 for t in band)
+
+
+# a hyphen printed INSIDE a word (letter-hyphen-letter), as opposed to a
+# stand-alone '-' syllable-connector token that _hyphen_between reads
+_INTERNAL_HYPHEN = re.compile(r"(?<=[^\W\d_])-(?=[^\W\d_])")
+
+
+def _syl(prev_h, next_h):
+    """MusicXML <syllabic> value from whether this syllable is hyphen-joined to
+    the previous and/or next syllable."""
+    if prev_h and next_h:
+        return "middle"
+    if next_h:
+        return "begin"
+    if prev_h:
+        return "end"
+    return "single"
+
+
+def _split_word_syllables(t, outer_prev, outer_next):
+    """Break one lyric-band token into syllable units at INTERNAL hyphens (issue
+    #77 PART C). A word engraved as a contiguous span with the hyphen printed
+    inside it ('wor-ship', 'be-fore') arrives as a single token, so its trailing
+    syllable would otherwise never get a note. Returns [(text, cx, syllabic)];
+    a token with no internal hyphen returns a single unit whose syllabic comes
+    from the surrounding stand-alone-dash hyphenation (outer_prev/outer_next) —
+    i.e. byte-for-byte the pre-existing behaviour. Each split syllable's centre-x
+    is estimated by apportioning the token's printed x-span across its
+    characters, and its begin/middle/end syllabic follows the split (plus any
+    outer hyphenation at the two ends)."""
+    text = t["text"]
+    parts = _INTERNAL_HYPHEN.split(text)
+    if len(parts) == 1:
+        return [(text, t["cx"], _syl(outer_prev, outer_next))]
+    x0 = t["x0"]
+    width = t["x1"] - x0
+    length = len(text) or 1
+    n = len(parts)
+    units = []
+    idx = 0
+    for j, p in enumerate(parts):
+        start = text.index(p, idx)
+        end = start + len(p)
+        idx = end
+        cx = x0 + (start + end) / 2.0 / length * width
+        prev_h = outer_prev if j == 0 else True
+        next_h = outer_next if j == n - 1 else True
+        units.append((p, cx, _syl(prev_h, next_h)))
+    return units
+
+
+def _attach_syllable_units(units, token, merged_syl, k, evs, staff, report):
+    """Attach one lyric word's syllable units to the notes of one voice. A single
+    unit uses the original nearest-note rule (byte-identical to the pre-split
+    path). Several units (an internal-hyphen split) are placed one-per-note on
+    the distinct notes falling under the token's printed x-span, left to right;
+    if the span does not cover enough notes the word is kept merged (original
+    text on the nearest note) and counted as a hyphen-melisma."""
+    if not evs:
+        return
+
+    def place(ev, text, syl):
+        if any(l.get("number") == k for l in ev.lyric):
+            return
+        ev.lyric.append({"text": text, "syllabic": syl, "number": k})
+        report.stats["lyric_syllables_attached"] += 1
+
+    if len(units) == 1:
+        text, cx, syl = units[0]
+        best = min(evs, key=lambda e: abs(e.x - cx))
+        if abs(best.x - cx) > 6 * staff.sp:
+            report.stats["lyric_tokens_unmatched"] += 1
+            return
+        place(best, text, syl)
+        return
+
+    x0, x1 = token["x0"], token["x1"]
+    under = sorted((e for e in evs if x0 <= e.x <= x1), key=lambda e: e.x)
+    if len(under) >= len(units):
+        for (text, _cx, syl), ev in zip(units, under[:len(units)]):
+            place(ev, text, syl)
+        return
+    # too few distinct notes under the span -> a genuine melisma; keep merged
+    report.stats["lyric_hyphen_merged_melisma"] += 1
+    cx = token["cx"]
+    best = min(evs, key=lambda e: abs(e.x - cx))
+    if abs(best.x - cx) > 6 * staff.sp:
+        report.stats["lyric_tokens_unmatched"] += 1
+        return
+    place(best, token["text"], merged_syl)
 
 
 def _apply_ties(systems, curves, report, page_no):
@@ -2196,6 +2324,34 @@ _EXPR_EXTRA = {
     "div", "unis", "dc", "tocoda", "sostenuto", "simile", "rubato", "nb"}
 _EXPR_VOCAB = ({re.sub(r"[^a-z]", "", w) for w in _SECTION_STOPWORDS}
                | _EXPR_EXTRA) - {""}
+
+# Liturgical speaker-role labels (issue #77 PART A). A lyric-band baseline whose
+# FIRST token is one of these carrying a trailing colon ("Deacon:", "Priest:",
+# "CHANTER:") is a rubric — the role's SPOKEN cue engraved between staves
+# ("Deacon: Dynamis!") and mis-attached to the choir's notes. Enumerated from
+# the corpus (deacon/priest/bishop/clergy/chanter/choir all occur as first-token
+# colon labels); reader/people plus the clergy synonyms cantor/celebrant/
+# subdeacon/archdeacon are real liturgical speakers included for robustness
+# (they don't currently appear, and the colon + first-token gate keeps them
+# harmless). DELIBERATELY EXCLUDED: structural section labels that precede SUNG
+# text — "Verse:"/"Verses:"/"Refrain:"/"Stanza:"/"Antiphon:"/"Ison:" — dropping
+# those would delete the psalm verse chanted after them. Greek/Arabic/Slavonic
+# role words (Ἱερεύς, Διάκονος, Kahin, ...) were searched for and NOT found as
+# colon labels in this corpus, so none are hard-coded.
+_ROLE_LABELS = {
+    "deacon", "priest", "bishop", "reader", "subdeacon", "archdeacon",
+    "clergy", "celebrant", "cantor", "chanter", "choir", "people"}
+
+# Performance-direction vocabulary (issue #77 PART D). Unlike _EXPR_VOCAB these
+# double as ordinary sung words ("gentle" in an English hymn text; "loud" as the
+# -loud of "a-loud"), so they only condemn a line when the WHOLE line is engraved
+# ITALIC — the corroborating signal the corpus uses for these directions
+# ("gentle, then build"). A roman-font occurrence is treated as sung text and
+# left for the semantic QA pass (lyric_qa.py) to judge in context.
+_DIRECTION_VOCAB = {
+    "gentle", "gently", "build", "building", "sweetly", "softly", "soft",
+    "loud", "louder", "broad", "broadly", "broaden", "warmly", "smoothly",
+    "flowing", "driving", "intensity", "stronger", "gentler"}
 
 
 def _section_norm(t):
