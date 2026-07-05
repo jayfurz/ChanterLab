@@ -284,3 +284,23 @@ model needs cache discipline — fixed at the origin, permanently.
 (3) Fable tier earned its slot on design/synthesis tasks (spec,
 session analysis); opus stays right for bounded deep work. (4) One
 agent misfire (instant-exit) — respawn-on-anomaly worked; watch rate.
+
+## 15. Sprint 5 retrospective (completed 2026-07-05)
+
+Four issues, four closes, same-day: tone-aware library search (#76),
+per-note verdict coloring on the score (#79 — the practice loop is
+now sing → score → SEE which notes → tap to drill), the WASM detector
+spike (#80 — honest A/B kept JS as default: better clean-tone accuracy
+and latency; wasm's 13x CPU win waits on real-voice field evidence),
+and the consensus lyric-QA layer (#78 — the owner's "hymn types
+validate each other" insight: 94 translation-family consensuses,
+zero cross-language false flags, one new contamination class, and
+101 dropped-line candidates nothing else could see). Follow-ups
+filed: extractor iteration 4, metadata taxonomy, key/catalogCode
+ingest fields. Two agent anomalies this sprint: one instant-exit
+misfire (respawned clean) and one interleaved-file commit hold
+(resolved by committing after both agents landed, shared file in the
+second commit with attribution note).
+
+Owner-gated items open: #74 iPhone audio retest (+ detector A/B
+feel-test via ?detector=wasm), #68 business decisions.
