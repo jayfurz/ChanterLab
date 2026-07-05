@@ -209,3 +209,28 @@ harness let the riskiest OMR change of the project land with
 confidence same-day; (3) owner field-testing (Sprint 3's source)
 catches what headless audits cannot (audio unlock, sound quality,
 recording workflows).
+
+## 12. Sprint 3 retrospective (completed 2026-07-05)
+
+All seven issues closed (+ #70 added mid-sprint) — every one sourced
+from the owner's first real practice session. Audio-unlock guard +
+Trisagion 10B landing + first-run onboarding (#63/#64, one combined
+agent since they shared files); pops/crackles measured-and-fixed —
+headroom limiter + doubled scheduler lookahead, envelope clicks ruled
+OUT by data (#65); self-generated formant "Voices" instrument, 639KB,
+CC0-risk-free because the CC0 libraries had no vocal samples (#66);
+in-app mixed practice recording — the owner's UGC pipeline (#67);
+glyph-attachment fix landed with an honest negative result — 1
+crossing not 40-70, premise overturned by measurement, follow-up #69
+filed for the real dual-stem refactor (#59); business-model memo
+delivered, #68 left open for owner decisions; chanterlab.com now
+serves the app at ROOT via host-aware origin routing (#70, owner
+go-ahead mid-sprint). Catalog: 3,297 accepted.
+
+Retro lessons: (1) owner field-testing generated the whole sprint —
+institutionalize a "founder plays with it" session per sprint;
+(2) the CI fresh-checkout gate caught a real staging omission
+(state.js exports) that local verification structurally could not;
+(3) measurement-before-fixing paid again twice (#65's ruled-out
+envelope theory, #59's overturned premise) — cheaper than shipping
+plausible-but-wrong fixes.
