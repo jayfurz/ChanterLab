@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "engine_note": "Blessed 2026-07-04 against the current vector_extract.py / pipeline.py, the trusted post-fix state after commit 81bc3ba (FinaleMaestro SMuFL classification). Re-bless with UPDATE_EXPECTATIONS=1 or --bless after a deliberate, reviewed engine change -- justify the diff in the commit message. See tests/README.md.",
+  "engine_note": "Blessed 2026-07-04 against the current vector_extract.py / pipeline.py, the trusted post-fix state after commit 81bc3ba (FinaleMaestro SMuFL classification). Partially re-blessed 2026-07-05 for issue #69 (shared-notehead dual stems): 4 divided-staff pieces (finley_complete_liturgy, hilko_star_antiphon: byte-identical, warnings only; theophany_series1: dot de-dup byte change; holwey_divine_liturgy: +0.5% integrity) -- see each piece's per-piece note. Re-bless with UPDATE_EXPECTATIONS=1 or --bless after a deliberate, reviewed engine change -- justify the diff in the commit message. See tests/README.md.",
   "pieces": {
     "trisagion_satb": {
       "pdf": "01_trisagion_lozowchuk_satb.pdf",
@@ -31,7 +31,7 @@
     },
     "finley_complete_liturgy": {
       "pdf": "Complete-Liturgy-FrJohnFinley-choral.pdf",
-      "notes": "Large multi-section, multi-verse-lyric liturgy (sections=22, 371 measures) -- exercises section detection and lyric verse stacking at scale.",
+      "notes": "Large multi-section, multi-verse-lyric liturgy (sections=22, 371 measures) -- exercises section detection and lyric verse stacking at scale. RE-BLESSED (issue #69, shared-notehead dual stems): MusicXML is BYTE-IDENTICAL (sha unchanged); the divided S+A / T+B staves carry 143 dual-stem noteheads (up-stem + down-stem on one head) whose opposite-direction second stem was previously unclaimed, orphaning its flag. Recovering those second stems lets the flags be claimed, dropping warnings 94 -> 61. Integrity 97.6%, measures 371, and per-voice note counts all unchanged -- only warnings_count moves.",
       "sha256": "709460b210ed0ca82bf2bcf3ce9c0e4616f6d81169046e2bc0cd33f571706ec4",
       "stats": {
         "measures": 371,
@@ -52,13 +52,13 @@
           "B": 1182
         },
         "note_events_total": 4991,
-        "warnings_count": 94,
+        "warnings_count": 61,
         "exit_code": 0
       }
     },
     "hilko_star_antiphon": {
       "pdf": "04c1-2_refrain-trop_of_the_second_antiphon-hilko-star.pdf",
-      "notes": "Shared-staff T+B (2-staves-per-system) whole-measure-rest SHRINK case: measures 46 and 48 are genuinely 3.0 beats, and the T/B whole rest is resized down from the 4.0-beat default to match (see the dedicated spot-check in test_regression.py). Also validated byte-identical by the 81bc3ba commit message.",
+      "notes": "Shared-staff T+B (2-staves-per-system) whole-measure-rest SHRINK case: measures 46 and 48 are genuinely 3.0 beats, and the T/B whole rest is resized down from the 4.0-beat default to match (see the dedicated spot-check in test_regression.py). Also validated byte-identical by the 81bc3ba commit message. RE-BLESSED (issue #69): MusicXML remains BYTE-IDENTICAL (sha unchanged); one shared-notehead dual stem's previously-orphaned flag is now claimed by its recovered second stem, dropping warnings 4 -> 3. Integrity 100%, notes, measures, and the 3.0-beat SHRINK spot-check all unchanged -- only warnings_count moves.",
       "sha256": "5e7ea3a9fa9c5c1ecce323afb6b96ec1dd7b2ac56468fb37515128f5ab3f5a30",
       "stats": {
         "measures": 51,
@@ -79,7 +79,7 @@
           "B": 156
         },
         "note_events_total": 649,
-        "warnings_count": 4,
+        "warnings_count": 3,
         "exit_code": 0
       }
     },
@@ -106,8 +106,8 @@
     },
     "theophany_series1": {
       "pdf": "theophany_series1.pdf",
-      "notes": "Whole-measure-rest GROW case: part P1/P2 measure 36 resizes a whole rest up to 14.0 beats (a 14-beat chant melisma; the exact example in vector_extract.py's whole-measure-rest-normalization comment), P3/P4 measure 38 up to 14.25 beats -- see the dedicated spot-check in test_regression.py. Mixed Byzantine-chant + SATB multi-antiphon booklet. RE-BLESSED for issue #52: the chant-troparia pages are single-staff monophonic systems that the removed vertical-gap heuristic used to fuse into phantom multi-staff systems (Mode A); splitting them back to the single-staff systems actually engraved corrects those pages and renumbers the downstream SATB melisma bars (94 -> 116 measures, GROW spot-check measures 28/30 -> 36/38). Combined with the per-system integrity metric (Mode B) that no longer penalizes the single-voice chant measures against a piece-global 4-voice set, integrity rises 79.8% -> 95.7% (now above the 90% gate, exit 0). The residual failures are genuine SATB-page beat disagreements, still counted.",
-      "sha256": "564a49c166a6cbb4e1c4f7ec0da4706815d8b1ae7682892c99265b42a92f60af",
+      "notes": "Whole-measure-rest GROW case: part P1/P2 measure 36 resizes a whole rest up to 14.0 beats (a 14-beat chant melisma; the exact example in vector_extract.py's whole-measure-rest-normalization comment), P3/P4 measure 38 up to 14.25 beats -- see the dedicated spot-check in test_regression.py. Mixed Byzantine-chant + SATB multi-antiphon booklet. RE-BLESSED for issue #52: the chant-troparia pages are single-staff monophonic systems that the removed vertical-gap heuristic used to fuse into phantom multi-staff systems (Mode A); splitting them back to the single-staff systems actually engraved corrects those pages and renumbers the downstream SATB melisma bars (94 -> 116 measures, GROW spot-check measures 28/30 -> 36/38). Combined with the per-system integrity metric (Mode B) that no longer penalizes the single-voice chant measures against a piece-global 4-voice set, integrity rises 79.8% -> 95.7% (now above the 90% gate, exit 0). The residual failures are genuine SATB-page beat disagreements, still counted. RE-BLESSED again (issue #69, shared-notehead dual stems): a dual-stem dotted-half melisma note on page 8 ('word.') was engraved with a DUPLICATE aug-dot glyph and previously read as double-dotted (3.5); the per-voice dot resolution de-duplicates it to the correct dotted half (3.0), byte-changing only that measure's internal split. All tracked stats are unchanged -- integrity 95.7%, measures 116, warnings 98, note counts, AND the 14.0/14.25 GROW spot-checks at measures 36/38 -- only the sha moves. PDF-verified (pdftoppm p8) as a genuine up+down-stem unison melisma.",
+      "sha256": "2deb189bf1845a89716f5abc5f4ceb71c8976c8eef2af0503b4cbd0a572085e4",
       "stats": {
         "measures": 116,
         "sections": 13,
@@ -133,14 +133,14 @@
     },
     "holwey_divine_liturgy": {
       "pdf": "holwey_divine_liturgy-complete4a.pdf",
-      "notes": "Large liturgy, 20 sections detected, 581 measures -- the biggest piece in the corpus, stress-tests runtime and section detection at scale.",
-      "sha256": "574e790207895b13fe99eb00da89b4b0726cfa89fe02a7b12a72ffbd177d8e76",
+      "notes": "Large liturgy, 20 sections detected, 581 measures -- the biggest piece in the corpus, stress-tests runtime and section detection at scale. RE-BLESSED (issue #69, shared-notehead dual stems): 185 dual-stem noteheads on the divided S+A / T+B staves (PDF-verified up+down stems on one head). Resolving their flags/aug dots per voice corrects several unison measures, raising integrity 95.2% -> 95.7% and dropping warnings 84 -> 73; whole_measure_rests_resized falls 2 -> 0 because the corrected beat sums no longer need whole-rest padding. Per-voice note counts and 581 measures unchanged.",
+      "sha256": "fc20cb4d2d0442db0306573064e0510077f8912587465f9bb31e41e8b9b29507",
       "stats": {
         "measures": 581,
         "sections": 20,
         "lyric_verses": 4,
-        "whole_measure_rests_resized": 2,
-        "integrity_pct": 95.2,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 95.7,
         "voices": [
           "S",
           "A",
@@ -154,7 +154,7 @@
           "B": 1449
         },
         "note_events_total": 5929,
-        "warnings_count": 84,
+        "warnings_count": 73,
         "exit_code": 0
       }
     },

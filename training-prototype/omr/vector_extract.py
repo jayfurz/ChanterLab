@@ -180,7 +180,14 @@ class Head:
     step: int = 0      # diatonic number (sounding, incl. clef octave shift)
     acc: Optional[int] = None   # printed accidental alter
     stem: Optional["Stem"] = None
+    # A shared notehead written for two voices on a divided staff carries an
+    # up-stem AND a down-stem (issue #69). `stem` holds the nearer (primary)
+    # one; `stem2`, when set, the opposite-direction second stem. Genuine
+    # single-stem heads leave stem2 None and behave exactly as before.
+    stem2: Optional["Stem"] = None
     dots: int = 0
+    dot_ys: list = field(default_factory=list)  # y of each attached aug dot,
+    # so a dual-stem head can split its dots between the two voices by position
     grace: bool = False
 
 
@@ -807,6 +814,59 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
         else:
             bar_candidates.append((x, y0, y1))
 
+    # ---- shared-notehead DUAL stems (issue #69)
+    # A unison (or divided a2) written for two voices on ONE shared staff puts
+    # both an up-stem and a down-stem on the SAME notehead. The per-head match
+    # above claims only the nearer stem; the opposite one is left unclaimed and
+    # would otherwise orphan its flag ("flag matched no stem" — issue #59's
+    # measured signature). Rescue such an unclaimed vline as a genuine SECOND
+    # stem only on STRONG evidence: it sits at the head's OTHER edge, points the
+    # OPPOSITE way, terminates AT the notehead, and runs a real stem length away
+    # from it — and only on a 2-voices-per-staff (divided) staff, where a second
+    # stem actually means a second voice. This is deliberately conservative:
+    # marking a head dual re-routes its flag and aug dots per voice (see
+    # _build_system_events / _head_dots), so a spurious second stem would
+    # mis-duration a note that was fine. This pass ONLY appends to `stems` (for
+    # flag/beam matching); it leaves bar_candidates untouched, so barline
+    # detection stays byte-identical (a claimed vline is a short notehead stem,
+    # never staff-spanning, so its lingering in bar_candidates is a no-op).
+    # Every genuine single-stem head keeps stem2 None and stays byte-identical.
+    claimed_recs = {best_stem[id(h)][1] for h in heads if id(h) in best_stem}
+    for rec in stem_recs:
+        x, y0, y1, sp = rec
+        if rec in claimed_recs:
+            continue
+        best_h, best_de = None, 1e9
+        for h in heads:
+            if h.kind == "whole" or h.stem is None or h.stem2 is not None:
+                continue
+            if h.staff.system is None or len(h.staff.system.staves) != 2:
+                continue      # dual stem => two voices => only on a shared staff
+            if not (h.g.x0 - 1.0 <= x <= h.g.x1 + 1.0 and
+                    y0 - 0.75 * sp <= h.g.y <= y1 + 0.75 * sp):
+                continue
+            tdir = "up" if (h.g.y - y0) > (y1 - h.g.y) else "down"
+            if tdir == h.stem.direction:
+                continue      # must oppose the primary stem's direction
+            if tdir == "up":  # head at the stem's bottom, stem rising above it
+                if abs(y1 - h.g.y) > 0.5 * sp or (h.g.y - y0) < 1.3 * sp:
+                    continue
+                edge = h.g.x1
+            else:             # head at the stem's top, stem falling below it
+                if abs(y0 - h.g.y) > 0.5 * sp or (y1 - h.g.y) < 1.3 * sp:
+                    continue
+                edge = h.g.x0
+            de = abs(x - edge)
+            if de <= 1.0 and de < best_de:
+                best_de, best_h = de, h
+        if best_h is not None:
+            st = Stem(x=x, y0=y0, y1=y1, heads=[best_h])
+            best_h.stem2 = st
+            stems.append(st)
+            report.stats["dual_stems_recovered"] += 1
+        else:
+            bar_candidates.append((x, y0, y1))
+
     # systemic barlines (tall vlines spanning systems) + per-staff barlines
     for sy in systems:
         top, bot = sy.staves[0].top, sy.staves[-1].bot
@@ -938,6 +998,7 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
             if cands:
                 h = min(cands, key=lambda h: g.cx - h.g.x1)
                 h.dots += 1
+                h.dot_ys.append(g.y)
             else:
                 # The same dot glyph also draws repeat-barline dots (both
                 # legacy fonts reuse one "." for both -- see
@@ -1015,6 +1076,35 @@ def _staff_voices(sy):
     return out
 
 
+def _head_dots(h, st):
+    """Augmentation dots for head `h` as carried by stem `st` (`st` is h's
+    PRIMARY stem here; the partner voice is then filled by the reconciliation's
+    unison duplication, which copies this resolved count). A single-stem head
+    gives ALL its dots (unchanged -- keeps every non-dual note byte-identical,
+    quirks like duplicate dot glyphs included). A shared-notehead dual-stem
+    head (issue #69) resolves its dots PER VOICE:
+
+      * a divided pair prints one dot per voice, straddling the head -> the
+        stem's voice takes the dot on its side of the head center (e.g.
+        A_Precious_Adornment_II's dotted-half unison, else both dots merge onto
+        one head and mis-read as double-dotted, over by 0.5 a beat);
+      * a plain unison prints ONE dot for BOTH voices -> it counts for either
+        (else the note reads undotted, short by the dot's value).
+
+    Dots drawn as duplicate glyphs at the same spot (a born-digital quirk) are
+    de-duplicated first so the shared single dot isn't mistaken for a stack."""
+    if h.stem2 is None:
+        return h.dots
+    distinct = []
+    for y in sorted(h.dot_ys):
+        if not distinct or y - distinct[-1] > 1.5:
+            distinct.append(y)
+    if len(distinct) <= 1:
+        return len(distinct)          # a single shared dot -> both voices
+    up_dots = sum(1 for y in distinct if y <= h.g.y)
+    return up_dots if st.direction == "up" else len(distinct) - up_dots
+
+
 def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
     staff_ids = {id(s) for s in sy.staves}
     heads = [h for h in all_heads if id(h.staff) in staff_ids]
@@ -1022,12 +1112,28 @@ def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
     events = defaultdict(list)
     ambiguous_out = defaultdict(list)
 
-    # 1. stemmed events (chords grouped by stem)
+    # 1. stemmed events (chords grouped by stem). A head is matched to `st` as
+    # its primary stem OR (issue #69) its opposite-direction second stem, so a
+    # shared-notehead dual stem's flag is claimed and the head is recognised as
+    # dual; the second-stem-only event is then skipped (see below) and its
+    # partner voice filled by the reconciliation's unison duplication.
     used = set()
     for st in all_stems:
         st_heads = [h for h in st.heads if id(h.staff) in staff_ids
-                    and h.stem is st]
+                    and (h.stem is st or h.stem2 is st)]
         if not st_heads:
+            continue
+        # A recovered opposite-direction SECOND stem (issue #69) exists only to
+        # (a) claim its otherwise-orphaned flag ("flag matched no stem") and
+        # (b) mark its notehead as dual so the PRIMARY event below resolves aug
+        # dots to the right voice. The partner voice's note is then populated by
+        # the shared-staff reconciliation's unison duplication, which already
+        # balances beat sums. Emitting a separate event per stem instead
+        # double-read beamed unison runs -- the two stems of one notehead catch
+        # beam quads asymmetrically, desyncing a homophonic S+A eighth run into
+        # eighths vs quarters -- so skip the second-stem-only event here.
+        if all(h.stem2 is st for h in st_heads):
+            used.update(id(h) for h in st_heads)
             continue
         staff = st_heads[0].staff
         beats = st_heads[0].beats
@@ -1038,7 +1144,7 @@ def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
                 beats = 1.0 / (2 ** st.nbeams)
         ev = Event(x=min(h.g.x0 for h in st_heads), kind="note",
                    heads=sorted(st_heads, key=lambda h: -h.step),
-                   beats=beats, dots=max(h.dots for h in st_heads),
+                   beats=beats, dots=max(_head_dots(h, st) for h in st_heads),
                    staff=staff, stem_dir=st.direction,
                    beam_group=st.beam_group, nbeams=st.nbeams)
         used.update(id(h) for h in st_heads)
