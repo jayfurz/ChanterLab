@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "engine_note": "Blessed 2026-07-04 against the current vector_extract.py / pipeline.py, the trusted post-fix state after commit 81bc3ba (FinaleMaestro SMuFL classification). Re-bless with UPDATE_EXPECTATIONS=1 or --bless after a deliberate, reviewed engine change -- justify the diff in the commit message. See tests/README.md.",
+  "pieces": {
+    "trisagion_satb": {
+      "pdf": "01_trisagion_lozowchuk_satb.pdf",
+      "notes": "Small clean 4-staff SATB -- the original bake-off reference piece (docs/choir-training-roadmap.md).",
+      "sha256": "297c57e1e483bdc5b98af82daa9b2dea4f92379201c661cbf019d3655261fb8e",
+      "stats": {
+        "measures": 22,
+        "sections": 1,
+        "lyric_verses": 1,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 100.0,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 136, "A": 128, "T": 126, "B": 120},
+        "note_events_total": 510,
+        "warnings_count": 0,
+        "exit_code": 0
+      }
+    },
+    "finley_complete_liturgy": {
+      "pdf": "Complete-Liturgy-FrJohnFinley-choral.pdf",
+      "notes": "Large multi-section, multi-verse-lyric liturgy (sections=22, 371 measures) -- exercises section detection and lyric verse stacking at scale.",
+      "sha256": "709460b210ed0ca82bf2bcf3ce9c0e4616f6d81169046e2bc0cd33f571706ec4",
+      "stats": {
+        "measures": 371,
+        "sections": 22,
+        "lyric_verses": 2,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 97.6,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 1313, "A": 1213, "T": 1283, "B": 1182},
+        "note_events_total": 4991,
+        "warnings_count": 133,
+        "exit_code": 0
+      }
+    },
+    "hilko_star_antiphon": {
+      "pdf": "04c1-2_refrain-trop_of_the_second_antiphon-hilko-star.pdf",
+      "notes": "Shared-staff T+B (2-staves-per-system) whole-measure-rest SHRINK case: measures 46 and 48 are genuinely 3.0 beats, and the T/B whole rest is resized down from the 4.0-beat default to match (see the dedicated spot-check in test_regression.py). Also validated byte-identical by the 81bc3ba commit message.",
+      "sha256": "5e7ea3a9fa9c5c1ecce323afb6b96ec1dd7b2ac56468fb37515128f5ab3f5a30",
+      "stats": {
+        "measures": 51,
+        "sections": 2,
+        "lyric_verses": 2,
+        "whole_measure_rests_resized": 4,
+        "integrity_pct": 100.0,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 170, "A": 168, "T": 155, "B": 156},
+        "note_events_total": 649,
+        "warnings_count": 8,
+        "exit_code": 0
+      }
+    },
+    "joseph_damascus_first_kathisma": {
+      "pdf": "11-Joseph-Damascus-First_Kathisma-WNBN.pdf",
+      "notes": "Genuine 'FinaleMaestro' SMuFL font (confirmed via embedded font names) revived by commit 81bc3ba; one of the 9 Joseph-of-Damascus booklets that now extract at 100% integrity. Single-voice (monophonic chant transcription), 2 Western pages auto-selected out of a mixed Western/Byzantine-neume booklet.",
+      "sha256": "3be34e44c436ef77d0f0989b8904ea684403cc4464ec70586a6d43fa0f9928cf",
+      "stats": {
+        "measures": 12,
+        "sections": 1,
+        "lyric_verses": 1,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 100.0,
+        "voices": ["S"],
+        "note_events_per_voice": {"S": 179},
+        "note_events_total": 179,
+        "warnings_count": 12,
+        "exit_code": 0
+      }
+    },
+    "theophany_series1": {
+      "pdf": "theophany_series1.pdf",
+      "notes": "Whole-measure-rest GROW case: part P1/P2 measure 28 resizes a whole rest up to 14.0 beats (a 14-beat chant melisma; the exact example in vector_extract.py's whole-measure-rest-normalization comment), P3/P4 measure 30 up to 14.25 beats -- see the dedicated spot-check in test_regression.py. Messy large multi-antiphon piece below the 90% integrity gate (exit 2) -- that is the CURRENT, trusted state, not a target to fix here.",
+      "sha256": "d2af1c7414cc29367ae8721ce9a124802c84244e87680db0cb3b5ea180405558",
+      "stats": {
+        "measures": 94,
+        "sections": 13,
+        "lyric_verses": 2,
+        "whole_measure_rests_resized": 8,
+        "integrity_pct": 79.8,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 694, "A": 553, "T": 551, "B": 525},
+        "note_events_total": 2323,
+        "warnings_count": 80,
+        "exit_code": 2
+      }
+    },
+    "holwey_divine_liturgy": {
+      "pdf": "holwey_divine_liturgy-complete4a.pdf",
+      "notes": "Large liturgy, 20 sections detected, 581 measures -- the biggest piece in the corpus, stress-tests runtime and section detection at scale.",
+      "sha256": "7027b75a50b70f0ef4193576ee87121887e536fa27acf3388665144b64962cee",
+      "stats": {
+        "measures": 581,
+        "sections": 20,
+        "lyric_verses": 4,
+        "whole_measure_rests_resized": 2,
+        "integrity_pct": 95.2,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 1501, "A": 1486, "T": 1493, "B": 1449},
+        "note_events_total": 5929,
+        "warnings_count": 157,
+        "exit_code": 0
+      }
+    },
+    "cherubic_2staff_reduction": {
+      "pdf": "02_cherubichymn_lozowchuk_adapted_satb.pdf",
+      "notes": "The documented 2-staff choral-reduction case (docs/choir-training-roadmap.md, 'The tie-breaker: the Cherubic Hymn's 2-staff reduction pages'): S+A share the treble staff, T+B the bass, with a mid-piece switch to 4-staff. Voice separation resolved by the per-measure constrained search. 3 known divisi-drop warnings (correction-UI material, not a regression).",
+      "sha256": "5f729e1b2d7c0acec921c0656454be8a448c0cf5c7373ec82b872524ce32546a",
+      "stats": {
+        "measures": 29,
+        "sections": 1,
+        "lyric_verses": 1,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 100.0,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 141, "A": 123, "T": 108, "B": 107},
+        "note_events_total": 479,
+        "warnings_count": 3,
+        "exit_code": 0
+      }
+    },
+    "finley_little_litany_legacy_maestro": {
+      "pdf": "03f_little_litany-finley.pdf",
+      "notes": "TRUE legacy TrueType 'Maestro' (Sonata-codepoint) font, routed through legacy_glyph_map.json -- contrasts with joseph_damascus_first_kathisma's genuine SMuFL 'FinaleMaestro'. Small, clean, 0 warnings; substituted for the Joseph-Damascus 01-08 set named in the issue brief, none of which currently extract cleanly (all in the known shared-staff voice-beat-reconciliation review pile, exit 2, 0-20% integrity) -- see joseph_01_08_review_pile note below.",
+      "sha256": "7ec9b2cac33592083708be31a6dc06118952572f9752c94973336b52a311d5a3",
+      "stats": {
+        "measures": 4,
+        "sections": 1,
+        "lyric_verses": 1,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 100.0,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 16, "A": 16, "T": 16, "B": 15},
+        "note_events_total": 63,
+        "warnings_count": 0,
+        "exit_code": 0
+      }
+    },
+    "receive_ye_tikey_zes": {
+      "pdf": "receive_ye-tikey_zes.pdf",
+      "notes": "Genuine agreeing 4/4 whole rests: whole_measure_rests_resized=0 (rests already match real content -- the 'genuine full-measure rest' path in vector_extract.py's normalization is a no-op here). Third variant alongside the shrink (hilko_star_antiphon) and grow (theophany_series1) cases.",
+      "sha256": "0e737768455412f651d106629ef3672513f132e3109f9b03cfba55db78374ccc",
+      "stats": {
+        "measures": 29,
+        "sections": 1,
+        "lyric_verses": 1,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 100.0,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 86, "A": 80, "T": 77, "B": 53},
+        "note_events_total": 296,
+        "warnings_count": 16,
+        "exit_code": 0
+      }
+    },
+    "finley_entrance_hymn_multiverse": {
+      "pdf": "07f_entrance_hymn-finley.pdf",
+      "notes": "Multi-verse standalone piece (lyric_verses=2) -- exercises the verse toggle feature's data path (commit a1d2749) on a small, clean, 0-warning piece.",
+      "sha256": "3b1821eda8fc2571179fc8c34e7f16b8015563d8d0a744c980a4d90c45cdbaaf",
+      "stats": {
+        "measures": 15,
+        "sections": 1,
+        "lyric_verses": 2,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 100.0,
+        "voices": ["S", "A", "T", "B"],
+        "note_events_per_voice": {"S": 49, "A": 44, "T": 48, "B": 45},
+        "note_events_total": 186,
+        "warnings_count": 0,
+        "exit_code": 0
+      }
+    }
+  },
+  "joseph_01_08_review_pile": {
+    "explanation": "The issue brief's item 8 suggested 'one of the Joseph 01-08 set that's stable' as a legacy-Maestro example. As of this suite's creation, none of 01_joseph-damascus-olihc_1-3-wnbn.pdf .. 08-Joseph-Damascus-Glory-Aposticha-WNBN.pdf extract above 20% measure integrity (all exit 2, all in the known shared-staff voice-beat-reconciliation frontier -- see README.md 'Full-catalog run' notes and issue #52). finley_little_litany_legacy_maestro.pdf was substituted as a stable legacy-Maestro piece instead. Once #52 lands, one of the Joseph 01-08 pieces could be added as an additional corpus entry."
+  }
+}
