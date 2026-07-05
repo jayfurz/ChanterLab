@@ -65,10 +65,11 @@ export async function loadLibraryManifest() {
               sections: Array.isArray(it.sections) ? it.sections : null,
             });
           }
+          const toneClean = (typeof it.toneClean === 'number') ? it.toneClean : null;
           libItems.push({
             id, title: it.title || '(untitled)', composer: (it.composer || '').trim(),
             tone: (it.tone != null && it.tone !== '') ? String(it.tone) : null,
-            toneClean: (typeof it.toneClean === 'number') ? it.toneClean : null,
+            toneClean,
             arrangement: it.arrangementType || '', liturgicalDate: it.liturgicalDate || '',
             bookName: (it.bookName || '').trim() || null,
             pdfUrl: it.pdfUrl || null,
@@ -77,8 +78,16 @@ export async function loadLibraryManifest() {
             group: it.group || 'Other services & misc',
             sub: (it.sub != null && it.sub !== '') ? it.sub : null,
             rank: (typeof it.rank === 'number') ? it.rank : 99000,
+            // search index (issue #76): fold in the QA'd tone (toneClean only —
+            // the raw `tone` field is littered with junk like "Carpathian" /
+            // "1,2,3,4,5,6,7,8" that would pollute free-text matches) as
+            // "Tone N" so a search like "cherubic tone 3" or "tone 3" can find
+            // it — see itemPasses()/searchMatches() below, which AND search
+            // terms independently across this string rather than requiring a
+            // contiguous phrase.
             norm: fold([it.title, it.composer, it.liturgicalDate, it.arrangementType,
-                        it.bookName, it.group, it.sub].join(' ')),
+                        it.bookName, it.group, it.sub,
+                        toneClean ? ('Tone ' + toneClean) : ''].join(' ')),
           });
         });
       }
@@ -148,8 +157,30 @@ export async function loadLibraryManifest() {
     group('Composer', libFacetDefs.composer, 'composer');
   }
 
+  // Purely-numeric search tokens ("3") are matched at a word boundary so they
+  // don't also hit digits embedded in unrelated text — a catalog code like
+  // "13A" contains the character "3" but a search for tone "3" shouldn't
+  // treat it as a hit (issue #76). Non-numeric tokens keep the existing loose
+  // substring match (so "cheru" still finds "Cherubic" mid-word).
+  function tokenMatches(norm, token) {
+    if (/^\d+$/.test(token)) return new RegExp('(^|[^a-z0-9])' + token + '($|[^a-z0-9])').test(norm);
+    return norm.includes(token);
+  }
+
+  // Splits the (already folded) query on whitespace and requires every token
+  // to appear SOMEWHERE in the item's norm string — an AND across fields, not
+  // a contiguous phrase. This is what lets "cherubic tone 3" find a piece
+  // whose tone comes from a different part of norm than its title (issue
+  // #76); it's strictly more permissive than the old plain .includes() check,
+  // so every query that matched before still matches (a contiguous phrase
+  // trivially contains each of its own words).
+  function searchMatches(it) {
+    if (!libSearch) return true;
+    return libSearch.split(/\s+/).filter(Boolean).every((t) => tokenMatches(it.norm, t));
+  }
+
   function itemPasses(it) {
-    if (libSearch && !it.norm.includes(libSearch)) return false;
+    if (!searchMatches(it)) return false;
     if (libActive.arrangement.size) {
       const ok = [...libActive.arrangement].some((v) => {
         const b = libFacetDefs.arrangement.find((x) => x.value === v);
@@ -274,16 +305,24 @@ export async function loadLibraryManifest() {
     const t = document.createElement('div'); t.className = 'lib-row-title'; t.textContent = it.title;
     const m = document.createElement('div'); m.className = 'lib-row-meta';
     if (it.composer) { const c = document.createElement('span'); c.className = 'composer'; c.textContent = it.composer; m.appendChild(c); }
+    // Tone (issue #76) — right after composer, quiet/muted (not the old gold
+    // "badge" pill). Only the QA'd toneClean (1-8): the raw `tone` field is
+    // littered with junk ("Carpathian", "Chant", multi-tone lists like
+    // "1,2,3,4,5,6,7,8") that doesn't scan on a row — toneClean already
+    // exists to filter that out (see buildFacets), so reuse it here instead
+    // of re-deriving. Absent for ordinary chants and for the Western choral
+    // settings that make up most of the "Cherubic Hymn" title cluster — rows
+    // without a tone render exactly as before (no gap, no reflow: this span
+    // simply isn't created, same as bookName/arrangement already do above).
+    if (it.toneClean) {
+      const tb = document.createElement('span'); tb.className = 'tone'; tb.textContent = 'Tone ' + it.toneClean; m.appendChild(tb);
+    }
     // Source book — only when it adds information beyond what the group
     // header / sub-header above this row already say (e.g. Menaion collapses
     // "Menaion" + "Kazan Menaion" under one group; Anastasimatarion never
     // surfaces the underlying Octoechos/Octoechos Eothina book name).
     if (it.bookName && it.bookName !== it.group && it.bookName !== it.sub) {
       const bk = document.createElement('span'); bk.className = 'book'; bk.textContent = it.bookName; m.appendChild(bk);
-    }
-    if (it.tone) {
-      const tb = document.createElement('span'); tb.className = 'badge tone';
-      tb.textContent = /^\d+$/.test(it.tone) ? 'T' + it.tone : it.tone; m.appendChild(tb);
     }
     if (it.arrangement) { const a = document.createElement('span'); a.className = 'arr'; a.textContent = it.arrangement; m.appendChild(a); }
     b.appendChild(t); b.appendChild(m);

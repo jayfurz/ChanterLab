@@ -374,9 +374,12 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
 .lib-row-meta .composer{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib-row-meta .arr{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85}
 .lib-row-meta .book{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.7;font-style:italic}
-.badge.tone{flex:0 0 auto;background:rgba(212,175,55,.16);color:var(--gold-soft);
-  border:1px solid rgba(212,175,55,.35);border-radius:6px;padding:1px 6px;
-  font-size:11px;font-weight:700}
+/* tone label (issue #76) — quiet, plain-text like composer/book/arr rather
+   than the old gold "badge" pill; same flex/ellipsis treatment as its
+   neighbors so it shrinks gracefully alongside them instead of hogging
+   fixed width on long rows. */
+.lib-row-meta .tone{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;opacity:.85}
 
 body.lib-lock{overflow:hidden}
 
