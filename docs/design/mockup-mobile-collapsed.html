@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calm Surface — mobile collapsed (mockup)</title>
+<style>
+/* ==== app tokens (copied from training-prototype/style.css) ==== */
+:root{--bg:#14151a;--panel:#1e2027;--ink:#e8e6df;--sub:#9aa0a6;--gold:#d4af37;
+      --gold-soft:#e7c96b;--line:#2c2f38;--cyan:#4dd7ff}
+*{box-sizing:border-box}
+body{margin:0;background:#0b0c10;color:var(--ink);
+     font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+     display:flex;gap:28px;align-items:flex-start;justify-content:center;
+     padding:28px;flex-wrap:wrap}
+
+/* ==== phone frame ==== */
+.phone{width:390px;height:780px;background:var(--bg);border:1px solid var(--line);
+       border-radius:22px;overflow:hidden;display:flex;flex-direction:column;
+       position:relative;flex:0 0 auto;box-shadow:0 18px 60px rgba(0,0,0,.6)}
+
+/* header: h1 only — sub-paragraph and footer DELETED (spec §9-8) */
+.app-head{padding:10px 14px 6px}
+.app-head h1{margin:0;font-size:16px;font-weight:650;white-space:nowrap;
+             overflow:hidden;text-overflow:ellipsis}
+.app-head .piece{color:var(--sub);font-weight:500}
+
+/* singscope */
+.scope{margin:6px 10px;border:1px solid var(--line);border-radius:12px;
+       background:#14161c;height:170px;position:relative;overflow:hidden}
+.lane{position:absolute;height:9px;border-radius:3px;background:var(--gold)}
+.lane.dim{background:#3a3d46;height:6px}
+.lyric{position:absolute;color:var(--gold-soft);font-size:10px}
+.nowline{position:absolute;top:0;bottom:0;left:34%;width:1px;background:#555a66}
+.readout{position:absolute;top:8px;right:10px;color:var(--cyan);font-weight:700;font-size:18px}
+
+/* score */
+.score{margin:0 10px;background:#fbfbf7;border-radius:12px;flex:1;min-height:0;
+       color:#222;padding:12px;overflow:hidden;position:relative}
+.staff{height:34px;margin:16px 8px;position:relative;
+       background:repeating-linear-gradient(#0000 0 6px,#777 6px 7px);border-top:1px solid #777}
+.staff::after{content:"";position:absolute;left:31%;top:-8px;bottom:-8px;width:8px;
+              background:rgba(212,175,55,.35);border-radius:2px}
+.staff .w{position:absolute;top:38px;font-size:12px;color:#333}
+
+/* ==== transport: collapsed = handle-row + mini-row only ==== */
+.transport{background:rgba(24,26,33,.97);border-top:1px solid var(--line);
+           box-shadow:0 -8px 28px rgba(0,0,0,.5);padding:0 10px 10px}
+.handle-row{display:flex;align-items:center;gap:8px;padding:5px 4px 3px;cursor:pointer}
+.handle-row .status{flex:1;min-width:0;color:var(--sub);font-size:12px;
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.handle-row .chev{flex:0 0 auto;color:var(--sub);font-size:15px;line-height:1;
+                  transform:rotate(180deg)}
+.mini-row{display:flex;align-items:center;gap:8px;padding:2px 0 2px}
+.btn{background:#20232c;border:1px solid var(--line);color:var(--ink);
+     padding:12px 14px;border-radius:12px;font-weight:600;font-size:16px;min-height:52px}
+.btn.primary{background:var(--gold);color:#161616;border-color:var(--gold);
+             flex:1;font-size:17px}
+.btn.icon{flex:0 0 auto;width:46px;padding:12px 0;text-align:center}
+.pos{color:var(--sub);font-size:13px;font-variant-numeric:tabular-nums;
+     min-width:40px;text-align:center;white-space:nowrap}
+.chip{background:var(--gold);color:#161616;font-weight:700;border:none;
+      border-radius:999px;padding:10px 12px;font-size:14px;white-space:nowrap}
+
+/* ==== annotations ==== */
+.dot{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--cyan);
+     color:#062830;font-size:13px;font-weight:800;display:flex;align-items:center;
+     justify-content:center;box-shadow:0 0 0 3px rgba(77,215,255,.25);z-index:5}
+.notes{max-width:430px;flex:1 1 340px}
+.notes h2{font-size:18px;margin:0 0 4px;color:var(--gold-soft)}
+.notes p.sub2{color:var(--sub);font-size:13px;margin:0 0 14px}
+.note{display:flex;gap:10px;margin:0 0 12px;font-size:13.5px;line-height:1.5}
+.note b{color:var(--gold-soft)}
+.nd{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--cyan);
+    color:#062830;font-size:13px;font-weight:800;display:flex;align-items:center;
+    justify-content:center;margin-top:1px}
+code{background:#12141a;border:1px solid var(--line);padding:1px 5px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="app-head"><h1>ChanterLab <span class="piece">· Trisagion Hymn (10-B)</span></h1></div>
+  <div class="dot" style="top:14px;left:352px">5</div>
+
+  <div class="scope">
+    <div class="nowline"></div>
+    <div class="readout">A4 ♪</div>
+    <div class="lane" style="top:64px;left:10%;width:14%"></div>
+    <div class="lane" style="top:64px;left:26%;width:9%"></div>
+    <div class="lane" style="top:58px;left:37%;width:18%"></div>
+    <div class="lane" style="top:58px;left:57%;width:16%"></div>
+    <div class="lane" style="top:70px;left:75%;width:12%"></div>
+    <div class="lane dim" style="top:96px;left:10%;width:24%"></div>
+    <div class="lane dim" style="top:104px;left:37%;width:36%"></div>
+    <div class="lane dim" style="top:118px;left:10%;width:63%"></div>
+    <div class="lyric" style="top:76px;left:10%">Lord,</div>
+    <div class="lyric" style="top:76px;left:26%">have</div>
+    <div class="lyric" style="top:70px;left:37%">mer-</div>
+    <div class="lyric" style="top:70px;left:57%">cy.</div>
+  </div>
+
+  <div class="score">
+    <div style="font-weight:700;font-size:15px;margin:0 4px 2px">The Trisagion Hymn</div>
+    <div class="staff"><span class="w" style="left:8%">Lord,</span><span class="w" style="left:26%">have</span><span class="w" style="left:44%">mer&nbsp;-&nbsp;cy.</span><span class="w" style="left:74%">A&nbsp;-&nbsp;men.</span></div>
+    <div class="staff"><span class="w" style="left:8%">Lord,</span><span class="w" style="left:26%">have</span><span class="w" style="left:44%">mer&nbsp;-&nbsp;cy.</span></div>
+    <div class="staff"></div>
+    <div class="staff"></div>
+  </div>
+
+  <div class="transport">
+    <div class="handle-row">
+      <span class="status">Playing — Soprano muted (sing it). Follow the gold cursor.</span>
+      <span class="chev">⌄</span>
+    </div>
+    <div class="mini-row">
+      <button class="btn primary">⏸ Pause</button>
+      <button class="btn icon" title="Stop and rewind">■</button>
+      <output class="pos">m 12</output>
+      <button class="btn icon" title="Jump to a section">§</button>
+      <button class="chip" title="Your part is muted — tap to hear it">🔇 S · Sop</button>
+    </div>
+  </div>
+  <div class="dot" style="top:688px;left:8px">1</div>
+  <div class="dot" style="top:716px;left:196px">2</div>
+  <div class="dot" style="top:716px;left:250px">3</div>
+  <div class="dot" style="top:716px;left:322px">4</div>
+</div>
+
+<div class="notes">
+  <h2>Mobile · collapsed (playing)</h2>
+  <p class="sub2">The default surface — cold load and during playback. Everything else is behind the handle. Spec §2, §6.</p>
+  <div class="note"><span class="nd">1</span><div><b>Status line moves into the handle row.</b> Same <code>#status</code> node the smoke test reads; lap results and play state now appear next to Play instead of at the page top. The whole row is the expand target (bigger than today's bare chevron).</div></div>
+  <div class="note"><span class="nd">2</span><div><b>Position readout</b> unchanged (<code>#posOut</code>), narrowed to 40px min-width.</div></div>
+  <div class="note"><span class="nd">3</span><div><b>§ sections button (new, <code>#sectionsMini</code>)</b> — opens the existing bottom sheet. Only rendered for multi-section pieces; hidden for short hymns. Fixes the clipped-sections-row defect by promoting long-service navigation to the always-visible tier.</div></div>
+  <div class="note"><span class="nd">4</span><div><b>Voice chip = one-tap mute (#61).</b> Tap toggles your part audible/muted (🔇⇄🔊). Multi-voice pieces flip the “Also play my part” state; mono pieces flip Playing/Muted. It no longer expands the transport — the handle row does.</div></div>
+  <div class="note"><span class="nd">5</span><div><b>Header is one line:</b> app name + piece title. The tagline paragraph and page footer are deleted (onboarding coach-marks carry the paradigm now) — ~100px returned to score.</div></div>
+</div>
+
+</body>
+</html>

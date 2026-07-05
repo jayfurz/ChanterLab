@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calm Surface — desktop two-column (mockup)</title>
+<style>
+/* ==== app tokens (copied from training-prototype/style.css) ==== */
+:root{--bg:#14151a;--panel:#1e2027;--ink:#e8e6df;--sub:#9aa0a6;--gold:#d4af37;
+      --gold-soft:#e7c96b;--line:#2c2f38;--cyan:#4dd7ff}
+*{box-sizing:border-box}
+body{margin:0;background:#0b0c10;color:var(--ink);
+     font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+.frame{max-width:1360px;margin:0 auto;background:var(--bg);border:1px solid var(--line);
+       border-radius:14px;box-shadow:0 18px 60px rgba(0,0,0,.6);overflow:hidden;position:relative}
+
+/* ==== the ≥1000px grid: score column + 380px rail ==== */
+.grid{display:grid;grid-template-columns:1fr 380px;min-height:820px}
+
+/* left column */
+.main{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--line)}
+.app-head{padding:14px 20px 8px}
+.app-head h1{margin:0;font-size:18px;font-weight:650}
+.app-head .piece{color:var(--sub);font-weight:500}
+.scope{margin:8px 20px;border:1px solid var(--line);border-radius:12px;
+       background:#14161c;height:170px;position:relative;overflow:hidden;flex:0 0 auto}
+.lane{position:absolute;height:9px;border-radius:3px;background:var(--gold)}
+.lane.dim{background:#3a3d46;height:6px}
+.trace{position:absolute;height:3px;border-radius:2px;background:var(--cyan)}
+.lyric{position:absolute;color:var(--gold-soft);font-size:10px}
+.nowline{position:absolute;top:0;bottom:0;left:32%;width:1px;background:#555a66}
+.readout{position:absolute;top:8px;right:10px;color:var(--cyan);font-weight:700;font-size:18px}
+.score{margin:0 20px 20px;background:#fbfbf7;border-radius:12px;flex:1;color:#222;
+       padding:18px;overflow:hidden;position:relative}
+.staff{height:40px;margin:22px 12px;position:relative;
+       background:repeating-linear-gradient(#0000 0 7px,#777 7px 8px);border-top:1px solid #777}
+.staff::after{content:"";position:absolute;left:24%;top:-10px;bottom:-10px;width:9px;
+              background:rgba(212,175,55,.35);border-radius:2px}
+.staff .nm{position:absolute;left:-2px;top:-18px;font-size:12px;color:#555}
+
+/* ==== right rail = #transport, position:static, grid-placed ==== */
+.rail{display:flex;flex-direction:column;gap:10px;padding:14px 14px 18px;
+      background:rgba(24,26,33,.5);overflow-y:auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.mini-row{display:flex;align-items:center;gap:8px}
+.btn{background:#20232c;border:1px solid var(--line);color:var(--ink);
+     padding:10px 12px;border-radius:12px;font-weight:600;font-size:14px;min-height:44px;cursor:pointer}
+.btn:hover{border-color:var(--gold-soft)}
+.btn.primary{background:var(--gold);color:#161616;border-color:var(--gold);flex:1;font-size:15px}
+.btn.icon{flex:0 0 auto;width:42px;padding:10px 0;text-align:center}
+.btn.mic{min-width:84px}
+.pos{color:var(--sub);font-size:13px;min-width:38px;text-align:center}
+.chip{background:var(--gold);color:#161616;font-weight:700;border:none;border-radius:999px;
+      padding:9px 11px;font-size:13px;white-space:nowrap;cursor:pointer}
+.status{color:var(--sub);font-size:12px;padding:7px 2px 0;min-height:18px}
+
+.glabel{font-size:10px;color:var(--gold-soft);text-transform:uppercase;letter-spacing:.08em;
+        font-weight:800;padding:2px 2px 0}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.row:first-of-type{margin-top:6px}
+.label{font-size:10px;color:var(--sub);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:1}
+.segbtn{flex:1;background:#12141a;border:none;color:var(--sub);padding:8px 4px;font-size:12.5px;min-height:36px}
+.segbtn.active{background:var(--gold);color:#161616;font-weight:700}
+.vbtn{flex:0 0 auto;width:42px;height:42px;border-radius:12px;border:1px solid var(--line);
+      background:#12141a;color:var(--ink);font-weight:700;font-size:15px}
+.vbtn.active{background:var(--gold);color:#161616;border-color:var(--gold);
+             box-shadow:0 0 0 3px rgba(212,175,55,.25)}
+input[type=range]{accent-color:var(--gold);flex:1;min-width:80px;height:24px}
+.mnum{width:52px;text-align:center;background:#12141a;color:var(--ink);
+      border:1px solid var(--line);border-radius:8px;padding:7px 4px;font-size:14px}
+.chk{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:12.5px;white-space:nowrap}
+.chk input{width:16px;height:16px;accent-color:var(--gold)}
+.dash{color:var(--sub)}
+.sec-btn{flex:1;display:flex;align-items:center;gap:8px;background:#20232c;
+         border:1px solid var(--line);color:var(--ink);padding:9px 10px;border-radius:12px;
+         font-size:13px;min-height:42px}
+.sec-btn .si{color:var(--gold-soft);font-weight:800}
+.sec-btn .sl{flex:1;text-align:left;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.btn-sec-nav{width:38px;min-height:42px;background:#12141a;border:1px solid var(--line);
+             color:var(--ink);border-radius:12px;font-size:17px}
+.piece-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.current-piece{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.piece-attrib{color:var(--sub);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pdf-link{padding:7px 9px;border:1px solid var(--line);border-radius:8px;color:var(--sub);
+          font-size:11.5px;text-decoration:none;white-space:nowrap}
+
+/* report card (same node as the mobile strip, laid into the rail) */
+.report-totals{font-size:12px;font-weight:600;line-height:1.35;flex:1}
+.report-close{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);
+              background:#12141a;color:var(--sub);font-size:12px}
+.spots{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.spot{display:flex;align-items:center;gap:10px;background:#12141a;border:1px solid var(--line);
+      border-radius:8px;padding:7px 9px;font-size:12px;min-height:32px;color:var(--ink);text-align:left}
+.spot:hover{border-color:var(--gold-soft)}
+.spot-m{min-width:38px;color:var(--gold-soft);font-weight:700}
+.spot-d{flex:1;color:var(--sub)}
+
+kbd{background:#12141a;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+    padding:1px 6px;font-size:11px;font-family:inherit;color:var(--ink)}
+.keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--sub);margin-top:6px}
+.keys span{white-space:nowrap}
+
+/* annotations */
+.dot{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--cyan);
+     color:#062830;font-size:13px;font-weight:800;display:flex;align-items:center;
+     justify-content:center;box-shadow:0 0 0 3px rgba(77,215,255,.25);z-index:9}
+.notes{max-width:1360px;margin:20px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px 24px}
+.note{display:flex;gap:10px;font-size:13.5px;line-height:1.5}
+.note b{color:var(--gold-soft)}
+.nd{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--cyan);
+    color:#062830;font-size:13px;font-weight:800;display:flex;align-items:center;
+    justify-content:center;margin-top:1px}
+code{background:#12141a;border:1px solid var(--line);padding:1px 5px;border-radius:5px;font-size:12px}
+h2{max-width:1360px;margin:26px auto 6px;font-size:18px;color:var(--gold-soft)}
+p.sub2{max-width:1360px;margin:0 auto 14px;color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="grid">
+    <!-- LEFT: header + scope + score -->
+    <div class="main">
+      <div class="app-head"><h1>ChanterLab <span class="piece">· Divine Liturgy — Fr. John Finley</span></h1></div>
+      <div class="scope">
+        <div class="nowline"></div>
+        <div class="readout">A4 ♪</div>
+        <div class="lane" style="top:62px;left:6%;width:10%"></div>
+        <div class="lane" style="top:62px;left:18%;width:7%"></div>
+        <div class="lane" style="top:56px;left:27%;width:13%"></div>
+        <div class="lane" style="top:56px;left:42%;width:12%"></div>
+        <div class="lane" style="top:66px;left:56%;width:9%"></div>
+        <div class="lane" style="top:60px;left:67%;width:12%"></div>
+        <div class="trace" style="top:66px;left:6%;width:10%"></div>
+        <div class="trace" style="top:64px;left:18%;width:6%"></div>
+        <div class="trace" style="top:60px;left:27%;width:12%"></div>
+        <div class="lane dim" style="top:96px;left:6%;width:34%"></div>
+        <div class="lane dim" style="top:106px;left:27%;width:38%"></div>
+        <div class="lane dim" style="top:120px;left:6%;width:59%"></div>
+        <div class="lyric" style="top:74px;left:6%">Ho-</div>
+        <div class="lyric" style="top:74px;left:18%">ly</div>
+        <div class="lyric" style="top:68px;left:27%">God,</div>
+      </div>
+      <div class="score">
+        <div style="font-weight:700;font-size:16px;margin:0 6px 4px">The Trisagion Hymn</div>
+        <div class="staff"><span class="nm">Soprano</span></div>
+        <div class="staff"><span class="nm">Alto</span></div>
+        <div class="staff"><span class="nm">Tenor</span></div>
+        <div class="staff"><span class="nm">Bass</span></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: the rail (= #transport, static) -->
+    <div class="rail">
+      <div class="card">
+        <div class="mini-row">
+          <button class="btn primary" title="Play/Pause (Space)">▶ Play</button>
+          <button class="btn icon" title="Stop and rewind">■</button>
+          <output class="pos">m –</output>
+          <button class="btn icon" title="Jump to a section (←/→ steps)">§</button>
+          <button class="chip" title="Your part is muted — click to hear it (chip = one-tap mute)">🔇 S · Sop</button>
+        </div>
+        <div class="status">Lap 3: 78% · best 82%</div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="report-totals">Lap 3: 14 hit · 2 flat · 1 sharp · 1 missed of 18 (78%)</span>
+          <button class="report-close">✕</button>
+        </div>
+        <div class="spots">
+          <button class="spot"><span class="spot-m">m 12</span><span class="spot-d">2 flat</span></button>
+          <button class="spot"><span class="spot-m">m 7</span><span class="spot-d">1 missed</span></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="glabel">Practice</div>
+        <div class="row"><span class="label">Your voice</span>
+          <button class="vbtn active" title="Practise Soprano (1)">S</button>
+          <button class="vbtn" title="(2)">A</button><button class="vbtn" title="(3)">T</button>
+          <button class="vbtn" title="(4)">B</button>
+        </div>
+        <div class="row"><span class="label">Verse</span>
+          <div class="seg"><button class="segbtn active" title="(V cycles)">Verse 1</button><button class="segbtn">Verse 2</button></div>
+        </div>
+        <div class="row"><span class="label">Tempo 70</span><input type="range" min="30" max="160" value="70"></div>
+        <div class="row"><span class="label">Loop</span>
+          <input class="mnum" value="6"><span class="dash">–</span><input class="mnum" value="8">
+          <label class="chk" title="(L)"><input type="checkbox" checked> on</label>
+        </div>
+        <div class="row"><span class="label">Section</span>
+          <button class="btn-sec-nav" title="Previous section (←)">‹</button>
+          <button class="sec-btn"><span class="si">§</span><span class="sl">The Trisagion Hymn</span><span style="color:var(--sub);font-size:10px">▾</span></button>
+          <button class="btn-sec-nav" title="Next section (→)">›</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="glabel">Sound</div>
+        <div class="row">
+          <button class="btn mic" title="Practice with mic (M)">🎤 Mic</button>
+          <label class="chk" title="Raw mic — backing voices keep constant volume"><input type="checkbox" checked> 🎧 Headphones</label>
+          <label class="chk" title="Same as clicking the voice chip"><input type="checkbox"> 🔊 My part</label>
+        </div>
+        <div class="row"><span class="label">Sound</span>
+          <div class="seg" style="flex:0 0 auto;min-width:140px"><button class="segbtn active">Synth</button><button class="segbtn">Voices</button></div>
+          <button class="btn" title="Record this practice (R)" style="margin-left:auto">⏺ Record</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="glabel">More</div>
+        <div class="row">
+          <button class="btn">📚 Library</button>
+          <span class="piece-info">
+            <span class="current-piece">Divine Liturgy - 4-part, choral</span>
+            <span class="piece-attrib">Fr. John Finley — Divine Liturgy</span>
+          </span>
+          <a class="pdf-link" href="#">𝄞 PDF</a>
+        </div>
+        <div class="row"><span class="label">Scoring</span>
+          <div class="seg" style="flex:0 0 auto;min-width:140px"><button class="segbtn active">Relaxed</button><button class="segbtn">Strict</button></div>
+          <span class="label" style="margin-left:auto">View</span>
+          <div class="seg" style="flex:0 0 auto;min-width:150px"><button class="segbtn active">Split</button><button class="segbtn">Score</button><button class="segbtn">Scope</button></div>
+        </div>
+      </div>
+
+      <div class="card" style="background:none;border-style:dashed">
+        <div class="glabel" style="color:var(--sub)">Keyboard</div>
+        <div class="keys">
+          <span><kbd>Space</kbd> play/pause</span><span><kbd>←</kbd><kbd>→</kbd> sections</span>
+          <span><kbd>V</kbd> verse</span><span><kbd>M</kbd> mic</span><span><kbd>R</kbd> record</span>
+          <span><kbd>L</kbd> loop</span><span><kbd>1–4</kbd> voice</span><span><kbd>Esc</kbd> close</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dot" style="top:200px;left:14px">1</div>
+  <div class="dot" style="top:420px;left:14px">2</div>
+  <div class="dot" style="top:24px;right:369px">3</div>
+  <div class="dot" style="top:150px;right:369px">4</div>
+  <div class="dot" style="top:294px;right:369px">5</div>
+  <div class="dot" style="bottom:110px;right:369px">6</div>
+</div>
+
+<h2>Desktop ≥1000px · two-column (#72)</h2>
+<p class="sub2">Same DOM as mobile — the media query re-homes the transport into a right rail and stacks the three groups (tab strip hidden). Below the annotations map to the numbered dots.</p>
+<div class="notes">
+  <div class="note"><span class="nd">1</span><div><b>Singscope stays in the score column</b>, full width — its time axis is horizontal; a 380px rail would crush it. Now-line stays vertically adjacent to the score's gold cursor.</div></div>
+  <div class="note"><span class="nd">2</span><div><b>Score fills the column</b> (one contained <code>fitScoreHeight()</code> budget change at ≥1000px). <code>isNarrow()</code> is already container-based, so OSMD's responsive sizing keeps working in the narrower column.</div></div>
+  <div class="note"><span class="nd">3</span><div><b>Rail = <code>#transport</code> made static</b> at 380px on the right. No fixed bottom bar, no auto-collapse needed — the rail never covers the score, which is the collapse behavior's whole purpose (spirit preserved by construction).</div></div>
+  <div class="note"><span class="nd">4</span><div><b>Report card</b> — the same <code>#scoreReport</code> node, grid-placed under the transport card instead of floating. Worst-spot click sets the loop; Play is directly above.</div></div>
+  <div class="note"><span class="nd">5</span><div><b>Groups stack open</b> with small caps labels (Practice / Sound / More) — desktop has the vertical room; the mobile tab strip is hidden here, so the tab JS is never load-bearing on desktop. Rail scrolls if the window is short.</div></div>
+  <div class="note"><span class="nd">6</span><div><b>Keyboard map</b> (js/keys.js): tooltips carry the shortcut on desktop (native <code>title</code>, no tooltip component). Guarded against typing contexts and open overlays; <kbd>Esc</kbd> already works today.</div></div>
+</div>
+
+</body>
+</html>
