@@ -127,3 +127,32 @@ Retire: "Phase 1: Core Drills", "Phase 2: Interval Training",
 - [ ] Branch decision executed later under M4 (merge or default-branch flip +
       local main reset)
 - [ ] PR #38 stays open; absorbed by the M3 "One App" epic
+
+## 8. Sprint 1 retrospective (completed 2026-07-04)
+
+All five issues shipped and closed in one orchestrated day (#47-#51):
+verse toggle (a1d2749), scoring spike (41521b8), CI smoke (016f7e1,
+green from run 1), licensing + attribution (9e9a8bc), and the
+FinaleMaestro font fix (81bc3ba) which grew the accepted library
+1,491 → 1,539 (+48 pieces, 9 Joseph-of-Damascus booklets at 100%).
+Model tiering: opus on the two open-ended tasks (both paid off —
+the font root-cause and the scoring-coverage design call), sonnet on
+the three well-scoped ones (all first-pass clean).
+
+Retro lesson: three of five tasks serialized on app.js — the monolith
+is now the orchestration bottleneck. Addressed in Sprint 2's stretch.
+
+## 9. Sprint 2 (filed 2026-07-04, label `sprint-2`)
+
+Wave A (parallel): #53 OMR regression harness (pytest, locks the
+byte-identical bar — prerequisite for risky OMR work) · #54
+review-queue triage (find the next FinaleMaestro-scale systemic win
+among 1,944 rejects) · #55 scoring v1 (per-lap scoring, on-screen
+report, strictness setting) · #56 exposure canary + screenshot scrub.
+Wave B (after #53): #52 residual Joseph failures — first-system staff
+mis-grouping + the unmetered-chant integrity model.
+Wave C (stretch, after #55 frees app.js): #57 modularize app.js into
+native ES modules so future sprints can parallelize app work.
+
+Suggested tiers: opus for #52 and #54 (open-ended diagnosis), sonnet
+for #53/#55/#56, opus for #57 (large refactor with a no-regression bar).
