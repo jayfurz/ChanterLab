@@ -147,12 +147,15 @@ is now the orchestration bottleneck. Addressed in Sprint 2's stretch.
 Wave A (parallel): #53 OMR regression harness (pytest, locks the
 byte-identical bar — prerequisite for risky OMR work) · #54
 review-queue triage (find the next FinaleMaestro-scale systemic win
-among 1,944 rejects) · #55 scoring v1 (per-lap scoring, on-screen
-report, strictness setting) · #56 exposure canary + screenshot scrub.
-Wave B (after #53): #52 residual Joseph failures — first-system staff
-mis-grouping + the unmetered-chant integrity model.
-Wave C (stretch, after #55 frees app.js): #57 modularize app.js into
-native ES modules so future sprints can parallelize app work.
+among 1,944 rejects) · #58 monophonic playback UX (play the melody by
+default — tester-reported: Psalm 135 "shows notes but doesn't play";
+first in the app.js queue, small + users actively confused) · #56
+exposure canary + screenshot scrub.
+Wave B: #52 residual Joseph failures (after #53) · #55 scoring v1
+(per-lap scoring, on-screen report, strictness setting; after #58
+frees app.js).
+Wave C (stretch, after #55): #57 modularize app.js into native ES
+modules so future sprints can parallelize app work.
 
 Suggested tiers: opus for #52 and #54 (open-ended diagnosis), sonnet
-for #53/#55/#56, opus for #57 (large refactor with a no-regression bar).
+for #53/#55/#56/#58, opus for #57 (large refactor, no-regression bar).
