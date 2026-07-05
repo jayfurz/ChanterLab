@@ -79,3 +79,10 @@ TESSDATA_PREFIX=/mnt/data/tools/tessdata \
 Results on this corpus: perfect on 4-staff pages, but 2-staff choral
 reductions come out as 2 parts × 2 internal voices (not S/A/T/B) — see the
 bake-off table. ~20–45 s per piece on CPU.
+
+## Screenshots
+
+Rendered-score screenshots (e.g. `shots/`, `shots/mobile/`) show copyrighted
+notation and must not be committed to git — they're local-only and
+regenerable from the OMR/verification steps above; delete them from the
+working tree instead of adding them to a commit.
