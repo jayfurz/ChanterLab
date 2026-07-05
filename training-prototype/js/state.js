@@ -93,6 +93,11 @@ export const PRACTICE_HISTORY_KEY = 'chanterlab_practice_history';
 export const STRICTNESS_KEY = 'chanterlab_scoring_strictness';
 export const ONBOARDING_KEY = 'chanterlab_onboarded';
 export const INSTRUMENT_KEY = 'chanterlab_instrument';
+  // In-app practice recording (issue #67): the Voice/Music balance of the
+  // RECORDING mix (0..1), and a one-time "headphones give the cleanest
+  // recording" hint flag. Both persisted; the balance never touches playback.
+export const REC_BALANCE_KEY = 'chanterlab_rec_balance';
+export const REC_HINT_KEY = 'chanterlab_rec_hint_seen';
 
 export const el = {
     osmd: document.getElementById('osmd'),
@@ -111,6 +116,13 @@ export const el = {
     micBtn: document.getElementById('micBtn'),
     hpMode: document.getElementById('hpMode'),
     micNote: document.getElementById('micNote'),
+    // in-app practice recording (issue #67)
+    recBtn: document.getElementById('recBtn'),
+    recTime: document.getElementById('recTime'),
+    recSave: document.getElementById('recSave'),
+    recBalRow: document.getElementById('recBalRow'),
+    recBalance: document.getElementById('recBalance'),
+    recHint: document.getElementById('recHint'),
     strictnessPicker: document.getElementById('strictnessPicker'),
     instrumentPicker: document.getElementById('instrumentPicker'),
     scope: document.getElementById('scope'),
