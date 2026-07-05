@@ -451,7 +451,17 @@ export function setView(mode) {
     const svg = el.osmd.querySelector('svg');
     if (!svg) return;
     const vh = window.innerHeight / 100;
-    const budget = { split: 44 * vh, score: 66 * vh, scope: 32 * vh }[viewMode];
+    // Desktop two-column layout (Calm Surface #73/§5, issue #72): the score
+    // is the ONLY thing in its column (the singscope sits above it, the
+    // transport lives in the right rail), so 'split' can use the same
+    // generous budget as 'score' mode and the column fills — matches the
+    // mockup's "score fills the column" note. Gated strictly on the
+    // >=1000px breakpoint (§7.4 risk 7) so every mobile/tablet budget is
+    // untouched; isNarrow()'s own container-width check (unrelated, <560px)
+    // keeps doing its own thing independently.
+    const isDesktop = !!(window.matchMedia && window.matchMedia('(min-width:1000px)').matches);
+    const splitVh = isDesktop ? 66 : 44;
+    const budget = { split: splitVh * vh, score: 66 * vh, scope: 32 * vh }[viewMode];
     const hardCap = (viewMode === 'scope' ? 44 : 72) * vh;
     const svgH = svg.getBoundingClientRect().height + 14; // + container padding
     let h = Math.min(svgH, budget);

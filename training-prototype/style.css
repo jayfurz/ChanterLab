@@ -492,3 +492,93 @@ body.sec-lock{overflow:hidden}
   color:#bfe0ff;border-bottom:1px solid #2c2f38;flex:0 0 auto}
 .ad-log{margin:0;padding:8px;white-space:pre-wrap;word-break:break-word;
   overflow:auto;flex:1 1 auto;color:#c8ccd4;opacity:.95}
+
+/* ======================================================================= *
+ * Calm Surface (#73/§5, issue #72) — DESKTOP TWO-COLUMN SHELL, >=1000px.
+ * Wave B2's seam: APPEND-ONLY from here down. Nothing above this fence was
+ * modified — every rule below only wins because it is later in the cascade
+ * (equal-or-matching specificity to what it overrides), never via
+ * !important. Same DOM as mobile (§7.1) — no index.html body changes.
+ *
+ * Two-column technique: FLOATS, not CSS Grid. Grid's row auto-placement
+ * couples row heights ACROSS columns (the header's row would stretch to
+ * match the rail's ~600px content unless every element got its own
+ * exclusive row, which then stacks columns vertically instead of side by
+ * side). Floats stack same-side siblings purely by their own content
+ * height, independent of the other side — exactly what a header+scope+
+ * score column and a separately-tall rail column need, with zero wrapper
+ * elements (which would require restructuring the body — out of B2's seam).
+ * ======================================================================= */
+@media (min-width:1000px){
+  body{padding-bottom:0}                 /* fixed-overlay reservation is mobile/tablet-only */
+  body::after{content:"";display:table;clear:both}   /* contain the floats below */
+
+  /* ---- left column: header + singscope + score (document order unchanged) */
+  .app-head{float:left;clear:left;width:calc(100% - 380px)}
+  /* scope-wrap/score-area carry their own 20px L/R margin (>=760px block
+     above) — subtract the rail's 380px AND that 40px so the two floated
+     columns sum to exactly 100% instead of overflowing/wrapping. */
+  .scope-wrap{float:left;clear:left;width:calc(100% - 420px)}
+  .score-area{float:left;clear:left;width:calc(100% - 420px)}
+
+  /* ---- right column: report card, then the rail (#transport) ----
+   * DOM order is #scoreReport THEN #transport (see index.html — the report
+   * strip sits just above the transport section) — floats preserve that
+   * document order, so the (usually-hidden, only-after-a-scored-lap) report
+   * card lands at the TOP of the rail with the transport rail beneath it.
+   * Both are exactly 380px, so neither can float beside the other;
+   * clear:right on #transport makes that explicit rather than relying on
+   * the width fit alone. */
+  #scoreReport{
+    position:static;float:right;clear:right;width:380px;
+    left:auto;right:auto;bottom:auto;z-index:auto;margin:0 0 10px;
+  }
+  #transport{
+    position:static;float:right;clear:right;width:380px;
+    left:auto;right:auto;bottom:auto;z-index:auto;
+    max-height:100vh;overflow-y:auto;
+    border-top:none;border-left:1px solid var(--line);
+    box-shadow:none;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  /* Collapse mechanics neutralized VISUALLY ONLY (§5): the rail never
+   * covers the score, so auto-collapse is unnecessary. setOverlay() keeps
+   * firing (Play still toggles .collapsed on #transport, Pause/Stop still
+   * clear it) — JS behavior is untouched — but both states below compute to
+   * the identical box, so the toggle has zero visible effect. */
+  .full,.transport.collapsed .full{max-height:none;opacity:1;padding-bottom:8px;overflow:visible}
+
+  /* Tab strip hidden; all three panes stack open (§5 — "stacking means the
+   * tab JS is mobile-only sugar, not a load-bearing dependency"): the strip
+   * click handler in transport.js keeps running, just unreachable. Small-caps
+   * group labels reuse the existing data-pane attribute B1 already put on
+   * each pane div, styled like the mockup's gold-soft .glabel. */
+  #paneStrip{display:none}
+  .pane{display:flex}
+  .pane::before{
+    content:attr(data-pane);display:block;
+    font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--gold-soft);
+  }
+
+  /* Handle row (§6): the chevron is meaningless once collapse has no visual
+   * effect; the status line stays — "on desktop the handle row is the
+   * rail's status row." */
+  #expandHandle{display:none}
+
+  /* Mini-row (Play/Stop/pos/§/chip) pinned at the rail's scrolled top (per
+   * the build brief: "mini-row pinned at the rail top") so it stays
+   * reachable even when Practice+Sound+More push the rail past the
+   * viewport and #transport scrolls internally. */
+  .mini-row{position:sticky;top:0;z-index:2;background:rgba(24,26,33,.96);
+    padding-top:4px;padding-bottom:8px}
+
+  /* Onboarding bubble (§6): the rail isn't height-tracked the way the mobile
+   * fixed overlay is (--transport-h), so anchor near the viewport bottom
+   * instead. positionHint()'s left-clamp already reads getBoundingClientRect
+   * on the anchor (el.play / el.voiceChip, both now inside the rail) — no JS
+   * change needed for correct horizontal placement. */
+  .onboard-hint{bottom:24px}
+}
+/* ===================== end Calm Surface desktop fence ==================== */

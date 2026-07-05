@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>ChanterLab — Choir Training (SATB) Prototype</title>
 <link rel="icon" href="data:," />
+<!-- Desktop shell / PWA (Calm Surface #73/§5, issue #72). manifest.webmanifest
+     + every icon it names are committed static files (js/keys.js's sibling
+     change) — the smoke test's zero-unexpected-404 budget depends on that. No
+     service worker this wave (§11) — manifest + icons only. -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#14151a" />
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
 <link rel="stylesheet" href="style.css?v=scoringv1" />
 </head>
 <body class="view-split">

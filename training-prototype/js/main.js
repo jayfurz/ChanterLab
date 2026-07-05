@@ -36,6 +36,7 @@ import { initOnboarding, markMicUsed } from './onboarding.js';
 import {
   initRecording, startRecording, stopRecording, onMicChange, setBalance, recordingState,
 } from './recording.js';
+import { initKeys } from './keys.js';
 
 let resizeTimer = 0;
 let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
@@ -650,6 +651,8 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     initOverlay();
     initAudioDebug();   // iOS audio diagnostics (issue #74) — inert unless opened
                         // via ?audiodebug=1 or a triple-tap on the status line.
+    initKeys();         // desktop keyboard shortcuts (Calm Surface #73/§5) — active at
+                        // all widths, harmless on mobile (no hardware keyboard).
     setView('split');
     updatePlayUI();
     setOverlay(true);
