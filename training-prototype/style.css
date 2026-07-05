@@ -285,6 +285,9 @@ body.lib-lock{overflow:hidden}
   .lib-row-meta{font-size:13px}
 }
 
+/* ---------- verse toggle (multi-verse lyrics) ---------- */
+.row-verse[hidden]{display:none}
+
 /* ---------- jump-to-section (transport control + bottom sheet) ---------- */
 .row-sections[hidden]{display:none}
 .sec-btn{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;

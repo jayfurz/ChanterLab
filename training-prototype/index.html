@@ -62,6 +62,14 @@
       <div id="voicePicker" class="voice-picker" role="tablist" aria-label="Voice selector"></div>
     </div>
 
+    <!-- Verse toggle. Shown only for pieces whose lyrics carry a 2nd (or
+         later) <lyric number="N"> verse on the same notes (e.g. Sunday vs.
+         weekday antiphon texts) — hidden entirely for single-verse pieces. -->
+    <div class="row row-verse" id="verseRow" hidden>
+      <span class="label">Verse</span>
+      <div id="versePicker" class="seg" role="tablist" aria-label="Verse selector"></div>
+    </div>
+
     <div class="row row-fine">
       <span class="group">
         <span class="label">Tempo <output id="bpmOut">70</output></span>

@@ -139,6 +139,8 @@
     posOut: document.getElementById('posOut'),
     voiceChip: document.getElementById('voiceChip'),
     viewPicker: document.getElementById('viewPicker'),
+    verseRow: document.getElementById('verseRow'),
+    versePicker: document.getElementById('versePicker'),
     currentPiece: document.getElementById('currentPiece'),
     pdfLink: document.getElementById('pdfLink'),
     libraryBtn: document.getElementById('libraryBtn'),
@@ -166,8 +168,9 @@
   };
 
   let osmd = null;
-  let parsed = null;         // { parts: [ {voiceKey, notes:[{midi,startBeat,durBeat,measure}]} ], measureCount }
+  let parsed = null;         // { parts: [ {voiceKey, notes:[{midi,startBeat,durBeat,measure}]} ], measureCount, maxVerse }
   let selectedVoice = 'S';
+  let activeVerse = 1;       // 1-based; which lyric verse n.lyric currently reflects (reset on every load)
   let synths = [];           // Tone.PolySynth per part
   let gains = [];            // Tone.Gain per part
   let scheduledIds = [];
@@ -289,6 +292,7 @@
     });
 
     let measureCount = 0;
+    let maxVerse = 1;   // highest lyric <number="N"> seen anywhere in the piece
     const parts = partNodes.map((partNode, idx) => {
       const id = partNode.getAttribute('id');
       const name = partNames[id] || `Part ${idx + 1}`;
@@ -346,9 +350,11 @@
                 else if (key in localAlter) alter = localAlter[key];
                 else alter = keyMap[step] || 0;
                 const midi = midiOf(step, octave, alter);
-                // verse-1 lyric syllable (multi-verse scores carry number="2+"
-                // alternates), with a trailing dash on begin/middle syllables
-                // so the scope can show word continuation
+                // ACTIVE-verse lyric syllable — unchanged selection (missing
+                // number or "1" wins), so single-verse pieces and the default
+                // load state are byte-identical to pre-multi-verse behavior.
+                // Trailing dash on begin/middle syllables shows word
+                // continuation in the scope lane.
                 let lyric = null;
                 const lyricEls = child.getElementsByTagName('lyric');
                 let lyricEl = lyricEls[0];
@@ -362,6 +368,29 @@
                     const syl = textOf(lyricEl, 'syllabic');
                     lyric = (syl === 'begin' || syl === 'middle') ? txt + '-' : txt;
                   }
+                }
+                // Per-verse syllable map for the verse toggle. Verse 1 mirrors
+                // `lyric` above exactly (same element, same fallback) so
+                // restoring verse 1 after a toggle reproduces the default
+                // exactly, edge cases included. Verse 2+ read their own
+                // <lyric number="N"> element independently.
+                let lyricVerses = null;
+                for (let li = 0; li < lyricEls.length; li++) {
+                  const elI = lyricEls[li];
+                  const num = elI.getAttribute('number');
+                  const vnum = num ? (parseInt(num, 10) || 1) : 1;
+                  if (vnum === 1) continue; // covered by `lyric` below
+                  const txt = textOf(elI, 'text');
+                  if (!txt) continue;
+                  const syl = textOf(elI, 'syllabic');
+                  const syllable = (syl === 'begin' || syl === 'middle') ? txt + '-' : txt;
+                  if (!lyricVerses) lyricVerses = {};
+                  if (!(vnum in lyricVerses)) lyricVerses[vnum] = syllable; // first wins on dup
+                  if (vnum > maxVerse) maxVerse = vnum;
+                }
+                if (lyric != null) {
+                  if (!lyricVerses) lyricVerses = {};
+                  lyricVerses[1] = lyric;
                 }
                 // <tie type="stop"> = continuation of a held note: extend the
                 // note it continues instead of re-attacking it in playback
@@ -386,6 +415,7 @@
                     durBeat,
                     measure: measureNumber,
                     lyric,
+                    lyricVerses,
                   });
                 }
                 lastNoteOnset = onset;
@@ -402,7 +432,7 @@
     });
 
     propagateLyrics(parts);
-    return { parts, measureCount };
+    return { parts, measureCount, maxVerse };
   }
 
   // Engravings often print the shared text under only one staff (or a subset)
@@ -431,6 +461,32 @@
         if (!n.lyric) n.lyric = best.get(r3(n.startBeat)) || null;
       });
     });
+  }
+
+  // Switch which verse's syllables live in n.lyric (the field everything else
+  // — the scope lane, propagateLyrics — reads). Re-derives n.lyric on every
+  // note from its lyricVerses map, then re-runs propagateLyrics so parts that
+  // carry no lyrics of their own (borrowed at parse time) re-borrow from the
+  // NEW verse's donor text instead of staying stuck on verse 1's borrow.
+  //
+  // FALLBACK DECISION: when a note has no syllable recorded for the selected
+  // verse, we fall back to its verse-1 syllable rather than leaving it blank.
+  // Alternate-verse markings (e.g. Sunday vs. weekday antiphon texts) usually
+  // diverge for only a phrase or two and share the rest of the text; a visible
+  // gap mid-passage would read as "the app broke" to a singer following the
+  // gold lane, whereas the verse-1 text is still correct/singable there just
+  // not verse-2-specific. Continuous-but-sometimes-verse-1 reads better than
+  // honest-but-broken-looking gaps.
+  function applyVerseLyrics(verse) {
+    if (!parsed) return;
+    parsed.parts.forEach((p) => {
+      p.notes.forEach((n) => {
+        if (!n.lyricVerses) { n.lyric = null; return; }
+        if (n.lyricVerses[verse] != null) { n.lyric = n.lyricVerses[verse]; return; }
+        n.lyric = n.lyricVerses[1] != null ? n.lyricVerses[1] : null;
+      });
+    });
+    propagateLyrics(parsed.parts);
   }
 
   /* ---------- OSMD rendering + coloring ------------------------------- */
@@ -530,6 +586,7 @@
       await nextPaint();
       const doc = new DOMParser().parseFromString(xml, 'application/xml');
       parsed = parseMusicXML(doc);
+      activeVerse = 1;   // reset to verse 1 on every load; nothing persists
       // Fallback section index: scan the top part's <words> directions now while
       // the parsed Document is in hand. Used only when the manifest lacks
       // sections for this piece (see resolveSectionsFor).
@@ -572,6 +629,7 @@
       renderNow();                 // single render() + step table + fit
       if (!mine()) return false;
       buildVoicePicker();
+      buildVersePicker();
       updateScoreMore();
 
       // Phase 5 — Preparing audio (non-visual work; Play was disabled until now)
@@ -820,6 +878,50 @@
   function updateVoiceChip() {
     const def = VOICE_DEFS.find((v) => v.key === selectedVoice);
     el.voiceChip.textContent = def ? `${def.label} · ${def.name}` : selectedVoice;
+  }
+
+  /* ---------- Verse toggle ---------------------------------------------- *
+   * Multi-verse pieces (Sunday vs. weekday antiphon texts etc.) carry a
+   * second (or later) lyric line on the same notes. The toggle is built fresh
+   * per piece — hidden entirely (zero DOM, zero overhead) for the ~2/3 of the
+   * library that only ever has one verse.
+   */
+
+  function buildVersePicker() {
+    if (!el.verseRow || !el.versePicker) return;
+    const max = (parsed && parsed.maxVerse) || 1;
+    el.versePicker.innerHTML = '';
+    if (max < 2) { el.verseRow.hidden = true; return; }
+    el.verseRow.hidden = false;
+    for (let v = 1; v <= max; v++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'segbtn' + (v === activeVerse ? ' active' : '');
+      b.textContent = 'Verse ' + v;
+      b.title = `Show verse ${v}'s lyrics on the singscope`;
+      b.setAttribute('role', 'tab');
+      b.addEventListener('click', () => setVerse(v));
+      el.versePicker.appendChild(b);
+    }
+  }
+
+  // Switch the ACTIVE verse: re-derive n.lyric for every note (with cross-part
+  // borrowing re-run for the new verse — see applyVerseLyrics) and rebuild the
+  // scope lane. Data-only (same as the bpm/loop-range handlers, which already
+  // call buildScopeLane unconditionally during playback) — OSMD is untouched
+  // (the staff already shows both verses stacked) and playback scheduling is
+  // untouched, so this is safe to call whether stopped, playing, or paused.
+  function setVerse(v) {
+    if (!parsed) return;
+    const max = parsed.maxVerse || 1;
+    v = Math.max(1, Math.min(Math.round(v) || 1, max));
+    if (v === activeVerse) return;
+    activeVerse = v;
+    applyVerseLyrics(activeVerse);
+    buildScopeLane();
+    if (el.versePicker) {
+      [...el.versePicker.children].forEach((b, i) => b.classList.toggle('active', i + 1 === v));
+    }
   }
 
   /* ---------- View modes + adaptive score height ----------------------- */
@@ -1884,6 +1986,11 @@
     parsedNoteCounts: () => (parsed ? parsed.parts.map((p) => p.notes.length) : []),
     parsed: () => parsed,
     zoom: () => (osmd ? osmd.zoom : null),
+
+    // --- verse toggle (multi-verse lyrics) ---
+    verse: () => activeVerse,
+    setVerse: (v) => { setVerse(v); return activeVerse; },
+    maxVerse: () => (parsed ? (parsed.maxVerse || 1) : 1),
 
     // --- windowed-render + seek machinery (for a future "jump to section" UI) ---
     // Current render window as printed measure numbers + whether the piece is
