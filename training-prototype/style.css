@@ -439,3 +439,27 @@ body.sec-lock{overflow:hidden}
   .sec-btn{min-height:44px}
   .sec-item-t{white-space:normal}
 }
+
+/* ---------- iOS audio diagnostics overlay (issue #74) ---------- *
+ * Read-only field tool, hidden and inert unless ?audiodebug=1 or a triple-tap
+ * on the status line reveals it. Fixed top-left, monospace, scrollable; never
+ * part of the normal UI. See docs/IOS-AUDIO-TEST.md. */
+.audio-debug{position:fixed;top:0;left:0;z-index:9999;
+  width:min(440px,94vw);max-height:60vh;display:flex;flex-direction:column;
+  background:rgba(10,11,15,.94);color:#d6f5c8;border:1px solid #3a3d47;
+  border-radius:0 0 10px 0;box-shadow:0 6px 24px rgba(0,0,0,.5);
+  font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.audio-debug[hidden]{display:none}
+.ad-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:6px 8px;border-bottom:1px solid #2c2f38;flex:0 0 auto}
+.ad-title{color:#ffd95e;font-weight:600;font-size:11px}
+.ad-sub{color:var(--sub);font-weight:400}
+.ad-actions{display:flex;gap:6px}
+.ad-btn{background:#20232c;color:#e8e6df;border:1px solid #3a3d47;border-radius:6px;
+  padding:5px 9px;font:inherit;cursor:pointer;touch-action:manipulation;min-height:30px}
+.ad-btn:active{background:#2b2f3a}
+.ad-stats{margin:0;padding:8px;white-space:pre-wrap;word-break:break-word;
+  color:#bfe0ff;border-bottom:1px solid #2c2f38;flex:0 0 auto}
+.ad-log{margin:0;padding:8px;white-space:pre-wrap;word-break:break-word;
+  overflow:auto;flex:1 1 auto;color:#c8ccd4;opacity:.95}

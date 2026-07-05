@@ -15,6 +15,11 @@ export let gains = [];     // Tone.Gain per part — instrument-agnostic; mute/m
                            // these, never `instruments` directly (issue #66 requirement)
 let master = null;         // Tone.Limiter master bus — the only node between the
                            // summed voices and the speakers (issue #65)
+let masterAnalyser = null; // observe-only native AnalyserNode fanned off `master`
+                           // (issue #74 discriminator): lets the diagnostics read
+                           // whether the GRAPH is producing samples while the
+                           // SPEAKER is silent — the one bit that separates a
+                           // route/session-level silence from a scheduling one.
 let builtMode = null;      // which mode `instruments` was actually built in ('synth'|'voices'),
                            // so startPlayback can tell a stale build from the live setting
 let onMasterRebuilt = null;// recording tap re-hook (issue #67), set at runtime by
@@ -158,6 +163,128 @@ export function audioContextState() {
     return (typeof Tone !== 'undefined' && Tone.getContext) ? Tone.getContext().state : 'unknown';
   }
 
+  // Richer AudioContext snapshot for the iOS audio diagnostics (issue #74).
+  // baseLatency/outputLatency live on the raw BaseAudioContext (not the Tone
+  // wrapper) and aren't reported by every engine, so they're guarded. Read-only:
+  // the diagnostics overlay (main.js) is the sole consumer and it never mutates
+  // anything here.
+export function audioContextInfo() {
+    if (typeof Tone === 'undefined' || !Tone.getContext) return null;
+    const c = Tone.getContext();
+    const raw = c.rawContext || c;
+    return {
+      sampleRate: raw.sampleRate,
+      state: raw.state,
+      baseLatency: (typeof raw.baseLatency === 'number') ? raw.baseLatency : null,
+      outputLatency: (typeof raw.outputLatency === 'number') ? raw.outputLatency : null,
+      lookAhead: (typeof c.lookAhead === 'number') ? c.lookAhead : null,
+    };
+  }
+
+  // iOS route-flip mitigation (issue #74). getUserMedia flips the AVAudioSession
+  // to play-and-record, which on iOS can reroute output (headphones→speaker) and
+  // move the hardware sample rate (e.g. 48k speaker → 24k on AirPods); an audio
+  // graph created under the OLD session then resamples badly and crackles
+  // (WebKit #154538: "the output unit will request fewer samples when moving from
+  // a higher sample rate to a lower one, and the Web Audio engine chokes").
+  // Rebuilding the playback graph while the session is ALREADY in play-and-record
+  // ("born under the mic") side-steps that. SILENT + idempotent — the exact same
+  // dispose+recreate an instrument switch already does (buildAudio + applyMix) —
+  // and deliberately a NO-OP while playing (a rebuild would cut the sound) or
+  // before any piece is loaded. Zero behavior change off iOS: desktop sessions
+  // never flip, so this just recreates an identical graph, inaudibly, while
+  // stopped. main.js calls it on mic on/off and on devicechange.
+export function rebuildAudioForMic(reason) {
+    const sampleRate = (typeof Tone !== 'undefined' && Tone.getContext)
+      ? Tone.getContext().rawContext.sampleRate : null;
+    if (!parsed || playState !== 'stopped') {
+      return { rebuilt: false, reason, playState, sampleRate };
+    }
+    buildAudio();
+    applyMix();
+    return { rebuilt: true, reason, playState, sampleRate };
+  }
+
+  /* ---------- iOS "silent unless mic" mitigation (issue #74) ----------- *
+   * Plain WebAudio on iOS routes through the ambient/solo-ambient audio-session
+   * category, which the hardware mute/silent switch SILENCES — so playback is
+   * inaudible with the switch on and no mic, even though Tone.start() reports a
+   * 'running' context (#63's unlock genuinely succeeds; audibility is a separate
+   * axis). getUserMedia is what flips the session to play-and-record, which
+   * IGNORES the mute switch — which is exactly why the owner hears sound only
+   * with the mic on. The accepted fix (unmute.js / feross/unmute-ios-audio) is
+   * to keep a SILENT looping <audio> HTMLMediaElement playing: a media element
+   * forces the app onto the MEDIA channel, so WebAudio is heard through the mute
+   * switch WITHOUT needing the mic. iOS-gated by UA (incl. iPadOS, which reports
+   * as macOS — disambiguated by maxTouchPoints); the element is never even
+   * constructed off iOS, so desktop and the headless CI run stay byte-identical.
+   */
+  const IS_IOS = (() => {
+    try {
+      const ua = navigator.userAgent || '';
+      if (/iPad|iPhone|iPod/.test(ua)) return true;
+      // iPadOS 13+ reports as "Macintosh"; a touch-capable Mac is really an iPad.
+      return ua.includes('Macintosh') && (navigator.maxTouchPoints || 0) > 1;
+    } catch (e) { return false; }
+  })();
+  let silentEl = null;              // looping silent HTMLAudioElement (iOS only)
+  let silentUnlockEngaged = false;  // has .play() resolved at least once?
+
+  // A runtime-built silent 8-bit mono WAV as a data URI — no network request, no
+  // embedded asset, and guaranteed decodable by Safari's HTMLMediaElement. 0.5s
+  // is long enough to loop cleanly (very short clips loop unreliably on iOS).
+  function silentWavDataUri(seconds = 0.5, rate = 8000) {
+    const n = Math.floor(seconds * rate);
+    const b = new Uint8Array(44 + n);
+    const dv = new DataView(b.buffer);
+    const wr = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
+    wr(0, 'RIFF'); dv.setUint32(4, 36 + n, true); wr(8, 'WAVE');
+    wr(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+    dv.setUint16(22, 1, true); dv.setUint32(24, rate, true); dv.setUint32(28, rate, true);
+    dv.setUint16(32, 1, true); dv.setUint16(34, 8, true);
+    wr(36, 'data'); dv.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) b[44 + i] = 128;   // 8-bit PCM silence = midpoint
+    let bin = '';
+    for (let i = 0; i < b.length; i++) bin += String.fromCharCode(b[i]);
+    return 'data:audio/wav;base64,' + btoa(bin);
+  }
+
+  // Engage the media-channel unlock. MUST be called synchronously inside a user
+  // gesture (unlockAudio / the mic tap both do, before any await). iOS-only and
+  // idempotent — play() on an already-playing element is a no-op. Never throws
+  // into the play path.
+export function iosMediaUnlock() {
+    if (!IS_IOS) return;
+    try {
+      if (!silentEl) {
+        silentEl = new Audio(silentWavDataUri());
+        silentEl.loop = true;
+        silentEl.preload = 'auto';
+        silentEl.volume = 1;                 // the samples themselves are silent
+        silentEl.setAttribute('playsinline', '');
+        silentEl.setAttribute('webkit-playsinline', '');
+        // Belt-and-braces: some iOS builds drop loop on sub-second clips.
+        silentEl.addEventListener('ended', () => {
+          try { silentEl.currentTime = 0; silentEl.play().catch(() => {}); } catch (e) { /* ignore */ }
+        });
+      }
+      const p = silentEl.play();
+      if (p && p.then) p.then(() => { silentUnlockEngaged = true; }).catch(() => { /* may need another gesture */ });
+      else silentUnlockEngaged = true;
+    } catch (e) { /* never let the unlock break playback */ }
+  }
+export function isIOS() { return IS_IOS; }
+  // Diagnostics read-out (issue #74): is the media-channel unlock actually live?
+  // 'running but silent' is precisely the state the owner will otherwise report.
+export function silentUnlockState() {
+    return {
+      ios: IS_IOS,
+      engaged: silentUnlockEngaged,
+      playing: !!(silentEl && !silentEl.paused),
+      readyState: silentEl ? silentEl.readyState : null,
+    };
+  }
+
   // Unlock the browser AudioContext SYNCHRONOUSLY within the calling gesture's
   // handler chain (iOS Safari requirement — no detours through setTimeout/rAF
   // before this call). Every audio-starting user-gesture path (Play/Resume —
@@ -169,6 +296,8 @@ export function audioContextState() {
   // that case: no scheduling, no transport start, just prompt a retry tap
   // (issue #63).
   async function unlockAudio() {
+    iosMediaUnlock();   // iOS media-channel unlock (issue #74) — no-op off iOS,
+                        // synchronous so the <audio>.play() stays in the gesture.
     await Tone.start();
     if (Tone.getContext().state !== 'running') {
       setStatus('Tap again to enable sound.');
@@ -206,6 +335,18 @@ export function buildAudio() {
     // the mic (scope.js), never this bus, so scoring is unaffected. Shared by
     // both instrument modes.
     master = new Tone.Limiter(-1).toDestination();
+    // Graph-output discriminator (issue #74): fan the master into an observe-only
+    // AnalyserNode (NOT routed to the destination, so it can't affect what's
+    // heard). masterOutputLevel() reads it so the diagnostics can answer "is the
+    // graph producing samples right now?" independently of whether anything is
+    // audible. Recreated with the graph, so it survives every rebuild.
+    try {
+      const raw = Tone.getContext().rawContext;
+      masterAnalyser = raw.createAnalyser();
+      masterAnalyser.fftSize = 1024;
+      try { master.connect(masterAnalyser); }
+      catch (e) { if (Tone.connect) Tone.connect(master, masterAnalyser); }
+    } catch (e) { masterAnalyser = null; }
     builtMode = effectiveMode();
     if (builtMode === 'voices') {
       parsed.parts.forEach(() => {
@@ -258,8 +399,65 @@ export function setOnMasterRebuilt(fn) { onMasterRebuilt = (typeof fn === 'funct
   function disposeAudio() {
     instruments.forEach((s) => s.dispose());
     gains.forEach((g) => g.dispose());
+    if (masterAnalyser) { try { masterAnalyser.disconnect(); } catch (e) { /* already gone */ } masterAnalyser = null; }
     if (master) { master.dispose(); master = null; }
     instruments = []; gains = [];
+  }
+
+  // Graph-output discriminator read-out (issue #74). RMS/peak of the master
+  // (post-limiter) signal — i.e. exactly what's being sent to the speakers. If
+  // the owner reports silence while these are NON-zero during playback, the
+  // graph IS producing audio and the silence is route/session-level (the fix is
+  // to recreate the context — see recreateAudioContext). If they're ~zero during
+  // playback, it's a graph/scheduling problem instead. Null before any build.
+export function masterOutputLevel() {
+    if (!masterAnalyser) return { rms: null, peak: null };
+    const buf = new Float32Array(masterAnalyser.fftSize);
+    masterAnalyser.getFloatTimeDomainData(buf);
+    let acc = 0, peak = 0;
+    for (let i = 0; i < buf.length; i++) { const v = buf[i]; acc += v * v; const a = Math.abs(v); if (a > peak) peak = a; }
+    return { rms: Math.sqrt(acc / buf.length), peak };
+  }
+
+  // "Running but silent" recovery (issue #74). The WebKit silent-context class:
+  // an AudioContext reports state='running' yet outputs silence because it was
+  // bound to a stale sample-rate/output route at creation; a fresh context is
+  // born at the CURRENT hardware rate/route and outputs correctly (this is the
+  // documented close-and-recreate workaround, WebKit #154538). Owner-triggered
+  // ONLY (a button in the diagnostics overlay) — never auto-run, so it can't
+  // false-positive on desktop. Stops playback, swaps Tone onto a brand-new
+  // context via Tone.setContext, rebuilds the graph on it, and closes the old
+  // one. The mic (if it was on) lived on the OLD context — main.js drops it
+  // first and the owner re-enables it. Returns the before/after sample rates.
+export async function recreateAudioContext() {
+    if (typeof Tone === 'undefined' || !Tone.setContext || !Tone.getContext) {
+      return { ok: false, reason: 'Tone.setContext unavailable' };
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return { ok: false, reason: 'no AudioContext constructor' };
+    const before = Tone.getContext().rawContext.sampleRate;
+    try {
+      try { stop(); } catch (e) { /* ignore */ }
+      const old = Tone.getContext();
+      const raw = new AC();                    // born at the current hardware rate/route
+      if (raw.resume) { try { await raw.resume(); } catch (e) { /* may need a fresh gesture */ } }
+      Tone.setContext(raw);
+      Tone.getContext().lookAhead = 0.2;       // match buildAudio's scheduler headroom
+      if (parsed) { buildAudio(); applyMix(); }
+      // Leave the OLD context idle rather than close()-ing it: after buildAudio's
+      // disposeAudio the old graph is gone and Tone's clock has moved to the new
+      // context, so it pulls no more audio — and closing it races Tone's
+      // scheduler ("Cannot resume a closed AudioContext"). A best-effort suspend
+      // frees the hardware unit without that race; a few idle contexts across a
+      // handful of manual taps stay well under iOS's per-page limit.
+      try {
+        if (old && old.rawContext && old.rawContext !== raw && old.rawContext.suspend) old.rawContext.suspend().catch(() => {});
+      } catch (e) { /* best-effort */ }
+      const after = Tone.getContext().rawContext.sampleRate;
+      return { ok: true, before, after, changed: before !== after, state: raw.state };
+    } catch (e) {
+      return { ok: false, reason: (e && e.message) || String(e), before };
+    }
   }
 
   /* ---------- Offline A/B capture (verification/listening aid, #66) ----- *

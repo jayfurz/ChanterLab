@@ -245,6 +245,29 @@
   </div>
 </div>
 
+<!-- iOS audio diagnostics overlay (issue #74). A read-only field tool for the
+     "crackle ONLY when the mic is on during playback" report that reproduces
+     only on a real iPhone. Hidden and completely inert by default; revealed by
+     appending ?audiodebug=1 to the URL or by triple-tapping the status line. It
+     shows live AudioContext rate/state/latency, the granted mic-track settings,
+     a clock-health underrun proxy, and a timestamped event log (statechange,
+     devicechange, sample-rate mismatches, graph rebuilds). The Copy button dumps
+     the whole thing to the clipboard so the owner can paste it back. Purely
+     diagnostic — no effect on playback (see docs/IOS-AUDIO-TEST.md). -->
+<div id="audioDebug" class="audio-debug" hidden aria-live="off" aria-label="Audio diagnostics">
+  <div class="ad-head">
+    <span class="ad-title">🎛 audio diagnostics <span class="ad-sub">#74</span></span>
+    <span class="ad-actions">
+      <button id="adRecreate" class="ad-btn" type="button" title="Close and recreate the AudioContext on the current hardware route (test the running-but-silent fix)">Recreate ctx</button>
+      <button id="adProbe" class="ad-btn" type="button" title="Probe the current hardware sample rate">HW rate</button>
+      <button id="adCopy" class="ad-btn" type="button" title="Copy the full report to the clipboard">Copy</button>
+      <button id="adClose" class="ad-btn" type="button" title="Hide (triple-tap the status line to reopen)">✕</button>
+    </span>
+  </div>
+  <pre id="adStats" class="ad-stats"></pre>
+  <pre id="adLog" class="ad-log"></pre>
+</div>
+
 <script src="vendor/opensheetmusicdisplay.min.js"></script>
 <script src="vendor/Tone.js"></script>
 <script src="scoring.js?v=scoringv1"></script>
