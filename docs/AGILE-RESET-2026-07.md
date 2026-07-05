@@ -159,3 +159,30 @@ modules so future sprints can parallelize app work.
 
 Suggested tiers: opus for #52 and #54 (open-ended diagnosis), sonnet
 for #53/#55/#56/#58, opus for #57 (large refactor, no-regression bar).
+
+## 10. Sprint 3 (filed 2026-07-04, label `sprint-3`) — owner field-testing feedback
+
+Sourced from the owner's first real practice session on the live site:
+- #63 audio unlock — first Play is silent until the mic button is
+  touched (root cause found: Tone.start() only fires in the mic
+  handler; Play never unlocks the AudioContext)
+- #64 landing experience — default piece becomes Trisagion 10A
+  (10a_trisagion_hymn-hilko-t3_0) with fallback to the control fixture
+  (which stays CI-only; it also truncates "have mercy on") + first-run
+  onboarding (absorbs the coach-mark from #61)
+- #65 sound engine: diagnose + fix popping/crackling (envelopes,
+  master limiter, main-thread contention) — measured, not by-ear
+- #66 sampled voices behind a toggle (licensing-clean set, ≤3 MB,
+  synth stays the fallback) — after #65, same module
+- #67 in-app practice recording (mic + accompaniment mixed via
+  MediaStreamDestination) — solves the owner's UGC screen-recording
+  mix problem and gives users a share feature
+- #68 business model & market research memo — Orthodox beachhead →
+  generic "upload your repertoire" choir market; competitive scan;
+  pricing candidates; docs/BUSINESS-MODEL memo for owner decisions
+- #59 (carried in) glyph-attachment tolerances — the ~40-70-piece
+  SATB quick win; the OMR slot is free all sprint
+
+Waves (post-#57 modules permitting): A: #63 + #64 (parallel: audio vs
+library/main modules) + #68 research + #59 omr · B: #65 → #66 · C: #67.
+Tiers: opus #65/#67/#68, sonnet #63/#64/#66/#59.
