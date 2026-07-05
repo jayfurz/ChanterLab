@@ -234,3 +234,26 @@ institutionalize a "founder plays with it" session per sprint;
 (3) measurement-before-fixing paid again twice (#65's ruled-out
 envelope theory, #59's overturned premise) — cheaper than shipping
 plausible-but-wrong fixes.
+
+## 13. Sprint 4 (filed 2026-07-05, label `sprint-4`) — "Calm Surface"
+
+Anchored on two independent tester reports ("screen is pretty busy" on
+mobile; "how would it look as a desktop program?"). Design-first
+because #62/#72/#61/#60 all share index.html/style.css:
+- Wave A (parallel): #73 UI design spec — control inventory, grouping
+  (Practice/Sound/Advanced), always-visible set, desktop two-column
+  rail, keyboard map, scoring-report placement; owner reviews before
+  implementation. Running as the FABLE-subagent experiment (judgment/
+  synthesis task, vs opus for bounded execution). · #69 dual-stem OMR
+  refactor (opus, disjoint, behind the regression harness).
+- Wave B (post-spec, post-owner-review): implement #62 mobile
+  de-densify + #72 desktop mode/shortcuts/PWA manifest, absorbing #61
+  one-tap mute and #60 results panel into the new layout.
+- Floating: #71 outcome may spawn "voices v2" (pending owner listen).
+
+Orchestration retro note (3 sprints in): the stable division of labor
+is agents for bounded deep work, orchestrator for glue (verify/commit/
+GitHub/one-liners). Diagnosis-heavy tasks earn subagent cost (they
+keep returning more than the brief); tokens are the real overhead —
+every agent re-acquires context. Sprint 4 tests whether a fable-tier
+subagent moves the needle on a pure design-judgment task.
