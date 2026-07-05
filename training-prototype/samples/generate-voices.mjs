@@ -81,6 +81,18 @@ function synthNote(midi) {
   const out = new Float32Array(n);
   const maxHarmonic = Math.min(48, Math.floor(17000 / f0));
   let jitter = 0;
+  // Running phase of the FUNDAMENTAL, integrated sample-by-sample. Harmonic h
+  // reuses it as phase*h. This is the whole ballgame for a time-varying pitch:
+  // an earlier version wrote sin(2π·fInst·h·t) with fInst carrying the vibrato
+  // and jitter — but multiplying a *time-varying* instantaneous frequency by
+  // absolute time t does NOT give the intended phase. Its derivative is
+  // fInst·h + t·fInst'·h, so the spurious t·fInst' term makes the effective
+  // frequency error grow without bound as the note sustains (the random-walk
+  // jitter's derivative alone smears each harmonic by ±kHz within a second) —
+  // the additive tone dissolved into broadband, harsh white noise (issue #71).
+  // Integrating phase (phase += 2π·fInst/SR) modulates frequency correctly, so
+  // vibrato/jitter stay the few-cent wobble they're meant to be.
+  let phase = 0;
 
   for (let i = 0; i < n; i++) {
     const t = i / SR;
@@ -93,17 +105,19 @@ function synthNote(midi) {
     jitter += (Math.random() - 0.5) * 0.0006;
     jitter = Math.max(-0.004, Math.min(0.004, jitter));
     const fInst = f0 * (1 + vibrato + jitter);
+    phase += (2 * Math.PI * fInst) / SR;   // integrate the fundamental's phase
 
     let s = 0;
     for (let h = 1; h <= maxHarmonic; h++) {
       const freq = fInst * h;
       if (freq > 17000) break;
-      s += (1 / h) * formantGain(freq) * Math.sin(2 * Math.PI * freq * t);
+      s += (1 / h) * formantGain(freq) * Math.sin(phase * h);
     }
 
-    // Onset breathiness: filtered-by-ear as "just noise" (kept low so it
-    // reads as breath, not hiss), decaying quickly from the attack.
-    const breathEnv = 0.03 * Math.exp(-t * 2.2) + 0.008;
+    // Onset breathiness only: a light noise transient at the attack (reads as
+    // breath, gone by ~0.3s), with NO sustained noise floor — the earlier
+    // constant +0.008 term left an always-on hiss layered over the sustain.
+    const breathEnv = 0.012 * Math.exp(-t * 8);
     s += breathEnv * (Math.random() * 2 - 1);
 
     // Amplitude envelope: soft 60ms attack, gentle 4.7Hz shimmer through the
