@@ -549,8 +549,8 @@ def _group_systems(staves, music_glyphs, vlines, page_no, report):
          staff height. The gap heuristic then reads every staff as its own
          1-staff system, so `_system_layout` maps them all to Soprano in turn
          and the whole score collapses into one concatenated voice;
-      3. vertical-gap heuristic (last resort) — only when no bracket glyph and
-         no connector line is drawn at all."""
+      3. no evidence at all -> each staff is its own single-staff system.
+         There is deliberately NO vertical-gap fallback here (see below)."""
     tops = sorted(g.y for g in music_glyphs if g.cp == 0xE003)
     bots = sorted(g.y for g in music_glyphs if g.cp == 0xE004)
     ss = sorted(staves, key=lambda s: s.top)
@@ -579,16 +579,27 @@ def _group_systems(staves, music_glyphs, vlines, page_no, report):
                         f"{len(systems)} systems via {multi} connector "
                         f"line(s) (no bracket glyphs)")
         else:
-            # (3) gap heuristic: same system if vertical gap < 2.5 staff heights
-            cur = []
+            # (3) no bracket glyph and no connector line joins ANY two staves:
+            # there is no positive evidence that any staves share a system, so
+            # each staff is emitted as its own single-staff system.
+            #
+            # A vertical-gap heuristic used to live here (merge adjacent staves
+            # when their gap < 2.5 staff heights). For the born-digital chant
+            # corpus it was actively harmful (issue #52, Mode A): single-line
+            # troparia are engraved ~2.0-2.6 staff-heights apart -- straddling
+            # any fixed multiple -- so the heuristic fused N stacked single-staff
+            # chant systems into one phantom N-staff "system", which
+            # _system_layout then mapped to S/A/T/B/X4..., inventing voices that
+            # never existed on the page and collapsing the melody. A 150-piece
+            # sweep found 74 pieces hit this false merge; every genuinely
+            # multi-staff piece in the corpus is instead grouped by the
+            # connector-line evidence in branch (2) (the system-start barline
+            # spans exactly the staves of one system -- commit 62e54ee), so
+            # nothing here should ever have been merged. Staves with no
+            # connector are exactly the single-staff systems of monophonic
+            # chant; keep them separate.
             for s in ss:
-                if cur and s.top - cur[-1].bot > \
-                        2.5 * (cur[-1].bot - cur[-1].top):
-                    systems.append(System(staves=cur, page=page_no))
-                    cur = []
-                cur.append(s)
-            if cur:
-                systems.append(System(staves=cur, page=page_no))
+                systems.append(System(staves=[s], page=page_no))
     systems.sort(key=lambda sy: sy.staves[0].top)
     return systems
 
@@ -1896,16 +1907,52 @@ def build_score(pdf_path, pages=None, report=None):
     report.stats["whole_measure_rests_resized"] = wm_resized
 
     # measure-integrity check
+    #
+    # A measure is "consistent" when every voice it is expected to carry is
+    # present and all of them agree on their beat sum. The set of expected
+    # voices is taken PER SYSTEM, not piece-global (issue #52, Mode B): a
+    # piece-global set makes every genuinely single-voice measure of a
+    # monophonic chant -- or of the chant sections of a mixed chant+SATB
+    # booklet -- fail merely because some OTHER system somewhere in the piece
+    # has 4 staves. So a GENUINELY MONOPHONIC system (a single staff = one
+    # melody line) is scored against the single voice it carries (Soprano).
+    #
+    # Every MULTI-staff system keeps the strict piece-global expectation and is
+    # scored against all of voices_present, exactly as before. This is
+    # deliberately conservative (the issue's "no phantom leniency" bar): the
+    # relief is granted ONLY where the page unambiguously shows one line of
+    # music, never to a multi-staff system -- so a genuine voice collapse, a
+    # wrong note duration, or a dropped voice in a real SATB/2-staff system
+    # still disagrees and still fails, and a piece with a mis-detected N-staff
+    # system (e.g. a 3-staff S/A/shared-T-B engraving whose bottom Bass isn't
+    # split out yet) is held to the full voice set rather than let off.
+    vp_set = set(voices_present)
+    sys_expected = []
+    for sy in all_systems:
+        if len(sy.staves) == 1:
+            sv = _staff_voices(sy)
+            mono = {v for s in sy.staves for v in sv[id(s)]}
+            sys_expected.append((mono & vp_set) or vp_set)
+        else:
+            sys_expected.append(vp_set)
     consistent = 0
+    multivoice_measures = 0
     for i, meta in enumerate(measure_meta):
-        sums = {v: round(meta["sums"].get(v, 0), 4) for v in voices_present}
+        expected = sys_expected[meta["system_index"]]
+        if len(expected) > 1:
+            multivoice_measures += 1
+        sums = {v: round(meta["sums"].get(v, 0), 4)
+                for v in voices_present if v in expected}
         nonzero = [s for s in sums.values() if s > 0]
         if nonzero and max(nonzero) - min(nonzero) < 1e-6 and \
-                len(nonzero) == len(voices_present):
+                len(nonzero) == len(expected):
             consistent += 1
         else:
             report.warn(f"measure {i + 1}: voice beat sums disagree: {sums}")
     report.stats["measures_with_consistent_beat_sums"] = consistent
+    # how many measures are scored as multi-voice (downstream gate can tell a
+    # clean monophonic extraction from a collapsed/penalized polyphonic one).
+    report.stats["multivoice_measures"] = multivoice_measures
     if n_meas:
         report.stats["measure_integrity_pct"] = round(100 * consistent / n_meas, 1)
 

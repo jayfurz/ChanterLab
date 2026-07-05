@@ -72,19 +72,19 @@
     },
     "theophany_series1": {
       "pdf": "theophany_series1.pdf",
-      "notes": "Whole-measure-rest GROW case: part P1/P2 measure 28 resizes a whole rest up to 14.0 beats (a 14-beat chant melisma; the exact example in vector_extract.py's whole-measure-rest-normalization comment), P3/P4 measure 30 up to 14.25 beats -- see the dedicated spot-check in test_regression.py. Messy large multi-antiphon piece below the 90% integrity gate (exit 2) -- that is the CURRENT, trusted state, not a target to fix here.",
-      "sha256": "d2af1c7414cc29367ae8721ce9a124802c84244e87680db0cb3b5ea180405558",
+      "notes": "Whole-measure-rest GROW case: part P1/P2 measure 36 resizes a whole rest up to 14.0 beats (a 14-beat chant melisma; the exact example in vector_extract.py's whole-measure-rest-normalization comment), P3/P4 measure 38 up to 14.25 beats -- see the dedicated spot-check in test_regression.py. Mixed Byzantine-chant + SATB multi-antiphon booklet. RE-BLESSED for issue #52: the chant-troparia pages are single-staff monophonic systems that the removed vertical-gap heuristic used to fuse into phantom multi-staff systems (Mode A); splitting them back to the single-staff systems actually engraved corrects those pages and renumbers the downstream SATB melisma bars (94 -> 116 measures, GROW spot-check measures 28/30 -> 36/38). Combined with the per-system integrity metric (Mode B) that no longer penalizes the single-voice chant measures against a piece-global 4-voice set, integrity rises 79.8% -> 95.7% (now above the 90% gate, exit 0). The residual failures are genuine SATB-page beat disagreements, still counted.",
+      "sha256": "564a49c166a6cbb4e1c4f7ec0da4706815d8b1ae7682892c99265b42a92f60af",
       "stats": {
-        "measures": 94,
+        "measures": 116,
         "sections": 13,
         "lyric_verses": 2,
         "whole_measure_rests_resized": 8,
-        "integrity_pct": 79.8,
+        "integrity_pct": 95.7,
         "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 694, "A": 553, "T": 551, "B": 525},
-        "note_events_total": 2323,
-        "warnings_count": 80,
-        "exit_code": 2
+        "note_events_per_voice": {"S": 980, "A": 513, "T": 515, "B": 489},
+        "note_events_total": 2497,
+        "warnings_count": 106,
+        "exit_code": 0
       }
     },
     "holwey_divine_liturgy": {

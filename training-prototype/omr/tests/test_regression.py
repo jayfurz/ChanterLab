@@ -228,12 +228,22 @@ def test_whole_measure_rest_shrink_hilko_star(tmp_path):
 
 
 def test_whole_measure_rest_grow_theophany(tmp_path):
-    """theophany_series1: measure 28 (parts P1/P2) is a 14-beat chant
-    melisma bar -- the exact example in vector_extract.py's
-    whole-measure-rest-normalization comment -- so the whole rest there must
-    GROW from the 4.0-beat default up to 14.0, not stay truncated at 4.0
-    (which would cue the next entrance early). Measure 30 (parts P3/P4)
-    covers the same grow path at 14.25 beats."""
+    """theophany_series1: a 14-beat chant melisma bar (parts P1/P2) -- the
+    exact example in vector_extract.py's whole-measure-rest-normalization
+    comment -- so the whole rest there must GROW from the 4.0-beat default up
+    to 14.0, not stay truncated at 4.0 (which would cue the next entrance
+    early). Parts P3/P4 cover the same grow path at 14.25 beats.
+
+    Measure NUMBERS updated 28->36 (P1/P2, 14.0) and 30->38 (P3/P4, 14.25) for
+    the issue #52 staff-grouping fix: theophany is a mixed chant+SATB booklet;
+    its Byzantine-chant troparia pages (single-staff systems) were previously
+    fused into phantom multi-staff systems by the removed vertical-gap
+    heuristic, undercounting their measures. Splitting them back into the
+    single-staff systems actually engraved renumbers the later SATB melisma
+    bars downstream (94 -> 116 total measures). The GROW physics is unchanged
+    -- the two melismas still normalize to exactly 14.0 and 14.25 beats, only
+    their sequential measure index moved. These are hand-verified beat counts,
+    not blessable stats (see tests/README.md)."""
     piece_id = "theophany_series1"
     entry = _PIECES[piece_id]
     pdf_path = PDF_DIR / entry["pdf"]
@@ -241,12 +251,12 @@ def test_whole_measure_rest_grow_theophany(tmp_path):
 
     _, xml_path, _ = run_pipeline(pdf_path, tmp_path)
     for part_id in ("P1", "P2"):
-        beats = _measure_total_beats(xml_path, part_id, "28")
+        beats = _measure_total_beats(xml_path, part_id, "36")
         assert beats == pytest.approx(14.0), (
-            f"{piece_id}: part {part_id} measure 28 expected 14.0 beats "
+            f"{piece_id}: part {part_id} measure 36 expected 14.0 beats "
             f"(grown whole rest), got {beats}")
     for part_id in ("P3", "P4"):
-        beats = _measure_total_beats(xml_path, part_id, "30")
+        beats = _measure_total_beats(xml_path, part_id, "38")
         assert beats == pytest.approx(14.25), (
-            f"{piece_id}: part {part_id} measure 30 expected 14.25 beats "
+            f"{piece_id}: part {part_id} measure 38 expected 14.25 beats "
             f"(grown whole rest), got {beats}")
