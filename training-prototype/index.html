@@ -102,7 +102,10 @@
 
     <div class="row row-piece">
       <button id="libraryBtn" class="btn lib" aria-haspopup="dialog" aria-controls="libraryOverlay">📚 Library</button>
-      <span id="currentPiece" class="current-piece" title="Current piece">—</span>
+      <span class="piece-info">
+        <span id="currentPiece" class="current-piece" title="Current piece">—</span>
+        <span id="pieceAttrib" class="piece-attrib" title="Attribution" hidden></span>
+      </span>
       <a id="pdfLink" class="pdf-link" target="_blank" rel="noopener"
          title="Open the original sheet music (PDF)" hidden>𝄞 PDF</a>
       <!-- Kept for the headless tests (selectOption). Visually hidden; holds the
@@ -145,6 +148,9 @@
     <div id="libCount" class="lib-count" aria-live="polite"></div>
     <div id="libList" class="lib-list" tabindex="0">
       <div id="libViewport" class="lib-viewport"></div>
+    </div>
+    <div class="lib-foot">
+      <a id="licensingLink" href="licensing.html" target="_blank" rel="noopener">About &amp; licensing</a>
     </div>
   </div>
 </div>

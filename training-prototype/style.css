@@ -89,8 +89,14 @@ input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:28px}
 .row-piece{gap:10px}
 .btn.lib{flex:0 0 auto;background:#20232c;border-color:var(--line);white-space:nowrap;
   padding:11px 14px;font-size:15px}
-.current-piece{flex:1;min-width:0;color:var(--ink);font-size:13px;font-weight:600;
+.piece-info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.current-piece{min-width:0;color:var(--ink);font-size:13px;font-weight:600;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.92}
+/* subtle attribution line (composer — source book) for library pieces that
+   carry manifest attribution; stays hidden/empty otherwise (see setCurrentPiece) */
+.piece-attrib{min-width:0;color:var(--sub);font-size:10px;letter-spacing:.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
+.piece-attrib[hidden]{display:none}
 
 /* visually-hidden but still actionable — keeps #pieceSelect for the headless
    tests (Playwright selectOption needs a non-empty box, not visibility:hidden) */
@@ -225,6 +231,12 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
    each absolutely positioned at its precomputed offset */
 .lib-list{position:relative;flex:1;overflow-y:auto;overflow-x:hidden;
   -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+
+/* unobtrusive footer strip — provenance/licensing, opens in a new tab */
+.lib-foot{flex:0 0 auto;padding:8px 14px calc(8px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--line);text-align:center}
+.lib-foot a{color:var(--sub);font-size:11px;text-decoration:none}
+.lib-foot a:hover{color:var(--gold-soft)}
 .lib-viewport{position:relative;width:100%}
 /* group section header — collapsible ones (Menaion, Theotokia) are tappable
    and show a chevron + piece count */
@@ -273,6 +285,7 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
   overflow:hidden;color:var(--sub);font-size:12px}
 .lib-row-meta .composer{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib-row-meta .arr{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85}
+.lib-row-meta .book{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.7;font-style:italic}
 .badge.tone{flex:0 0 auto;background:rgba(212,175,55,.16);color:var(--gold-soft);
   border:1px solid rgba(212,175,55,.35);border-radius:6px;padding:1px 6px;
   font-size:11px;font-weight:700}

@@ -89,6 +89,13 @@
               label: `${it.title}${it.composer ? ' — ' + it.composer : ''}`,
               url: 'omr/' + it.musicxml,
               pdfUrl: it.pdfUrl || null,
+              // Manifest attribution (composer/book of the original source
+              // engraving). Only ever set for ingest_* library items — the 5
+              // hard-coded Prototype PIECES above never carry a bookName, and
+              // that's exactly the signal setCurrentPiece() uses to decide
+              // whether to show the attribution line (see there).
+              attribComposer: (it.composer || '').trim() || null,
+              bookName: (it.bookName || '').trim() || null,
               // section index for the jump-to-section control (manifest source;
               // ascending by printed measure). Absent for single-hymn pieces.
               sections: Array.isArray(it.sections) ? it.sections : null,
@@ -99,6 +106,7 @@
             tone: (it.tone != null && it.tone !== '') ? String(it.tone) : null,
             toneClean: (typeof it.toneClean === 'number') ? it.toneClean : null,
             arrangement: it.arrangementType || '', liturgicalDate: it.liturgicalDate || '',
+            bookName: (it.bookName || '').trim() || null,
             pdfUrl: it.pdfUrl || null,
             section: 'lib',
             // taxonomy from ingest_catalog.liturgical_group (see LIB_GROUP_ORDER)
@@ -142,6 +150,7 @@
     verseRow: document.getElementById('verseRow'),
     versePicker: document.getElementById('versePicker'),
     currentPiece: document.getElementById('currentPiece'),
+    pieceAttrib: document.getElementById('pieceAttrib'),
     pdfLink: document.getElementById('pdfLink'),
     libraryBtn: document.getElementById('libraryBtn'),
     overlay: document.getElementById('libraryOverlay'),
@@ -1781,6 +1790,13 @@
     const t = document.createElement('div'); t.className = 'lib-row-title'; t.textContent = it.title;
     const m = document.createElement('div'); m.className = 'lib-row-meta';
     if (it.composer) { const c = document.createElement('span'); c.className = 'composer'; c.textContent = it.composer; m.appendChild(c); }
+    // Source book — only when it adds information beyond what the group
+    // header / sub-header above this row already say (e.g. Menaion collapses
+    // "Menaion" + "Kazan Menaion" under one group; Anastasimatarion never
+    // surfaces the underlying Octoechos/Octoechos Eothina book name).
+    if (it.bookName && it.bookName !== it.group && it.bookName !== it.sub) {
+      const bk = document.createElement('span'); bk.className = 'book'; bk.textContent = it.bookName; m.appendChild(bk);
+    }
     if (it.tone) {
       const tb = document.createElement('span'); tb.className = 'badge tone';
       tb.textContent = /^\d+$/.test(it.tone) ? 'T' + it.tone : it.tone; m.appendChild(tb);
@@ -1844,6 +1860,16 @@
   function setCurrentPiece(p) {
     currentPieceId = p ? p.id : null;
     if (el.currentPiece) el.currentPiece.textContent = p ? (p.title || p.label || p.id) : '—';
+    // Attribution line (composer + source book). Gated on p.bookName, which
+    // only manifest-derived library pieces ever carry — the 5 hard-coded
+    // Prototype PIECES (incl. the control piece) never set it, so this is a
+    // strict no-op (hidden, empty text) for every piece without real
+    // attribution data.
+    if (el.pieceAttrib) {
+      const bits = (p && p.bookName) ? [p.attribComposer, p.bookName].filter(Boolean) : [];
+      if (bits.length) { el.pieceAttrib.textContent = bits.join(' — '); el.pieceAttrib.hidden = false; }
+      else { el.pieceAttrib.textContent = ''; el.pieceAttrib.hidden = true; }
+    }
     // show the original-engraving link for ingested pieces (transport bar)
     if (el.pdfLink) {
       if (p && p.pdfUrl) { el.pdfLink.href = p.pdfUrl; el.pdfLink.hidden = false; }
