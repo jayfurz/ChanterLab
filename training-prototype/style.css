@@ -13,23 +13,24 @@ body{background:var(--bg);color:var(--ink);
   padding-bottom:calc(var(--transport-h) + 12px)}
 
 /* ---------- header (compact on mobile) ---------- */
+/* Calm Surface (#73/§9): the app name only. The tagline paragraph (redundant
+   with the #64 coach-marks) and the "SATB prototype" tag were deleted; the live
+   piece title lives in the More pane's #currentPiece. */
 .app-head{padding:10px 14px 4px}
 .app-head h1{margin:0;font-size:16px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;
-  background:var(--gold);color:#161616;padding:2px 6px;border-radius:999px;vertical-align:middle}
-.sub{margin:4px 0 0;color:var(--sub);font-size:12px}
-.hint-hp{opacity:.75}
-.gold{color:var(--gold)}
 
-.status{padding:4px 14px;color:var(--sub);font-size:12px;min-height:18px}
-/* status spinner: shown while a load is in flight (setBusy) */
+/* status line — Calm Surface (#73/§6) relocated it into the transport handle
+   row (.handle-row below). It stays the single #status text node setStatus()
+   writes and setBusy() decorates with the .busy spinner. */
+.status{flex:1;min-width:0;color:var(--sub);font-size:12px;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .status.busy{display:flex;align-items:center;gap:8px}
 .status.busy::before{content:"";width:12px;height:12px;flex:0 0 auto;border-radius:50%;
   border:2px solid rgba(212,175,55,.3);border-top-color:var(--gold);
   animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* retry affordance for a failed initial load — sits just under #status */
-#retryStart{margin:2px 14px 6px}
+/* retry affordance for a failed initial load — sits inline next to #status */
+#retryStart{flex:0 0 auto}
 #retryStart[hidden]{display:none}
 
 /* ---------- shared control bits ---------- */
@@ -69,24 +70,45 @@ input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:28px}
   border-top:1px solid var(--line);
   box-shadow:0 -8px 28px rgba(0,0,0,.5);
   padding:0 10px calc(8px + env(safe-area-inset-bottom))}
-.handle{display:block;width:100%;background:none;border:none;color:var(--sub);
-  padding:3px 0 1px;cursor:pointer;font-size:15px;line-height:1;min-height:24px;
+/* handle row (Calm Surface #73/§6): status text (flex) + expand chevron. The
+   whole row is the collapse/expand target (transport.initOverlay), a bigger hit
+   area than the bare chevron; status keeps its own #74 triple-tap gesture. */
+.handle-row{display:flex;align-items:center;gap:8px;padding:4px 2px 2px;
+  cursor:pointer;min-height:26px}
+.handle{flex:0 0 auto;background:none;border:none;color:var(--sub);
+  padding:2px 6px;cursor:pointer;font-size:15px;line-height:1;min-height:24px;
   touch-action:manipulation}
 .handle .chev{display:inline-block;transition:transform .25s ease}
 .transport.collapsed .chev{transform:rotate(180deg)}
 
 .mini-row{display:flex;align-items:center;gap:8px;padding:2px 0 6px}
-.btn.big{flex:1;font-size:17px;min-height:52px}
+.btn.big{flex:1;font-size:17px;min-height:52px;min-width:96px}
+/* mini-row § shortcut (Calm Surface #73/§2): compact icon button, gold glyph */
+.btn.sec-mini{flex:0 0 auto;min-width:44px;padding-left:12px;padding-right:12px;
+  color:var(--gold-soft);font-weight:800}
+.btn.sec-mini[hidden]{display:none}
 .pos{color:var(--sub);font-size:13px;font-variant-numeric:tabular-nums;
-  min-width:56px;text-align:center;white-space:nowrap}
+  min-width:40px;text-align:center;white-space:nowrap}
+/* voice chip shrinks + ellipsizes before it can starve Play on a 390px row */
 .chip{background:var(--gold);color:#161616;font-weight:700;border:none;border-radius:999px;
-  padding:9px 12px;font-size:14px;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+  padding:9px 12px;font-size:14px;cursor:pointer;white-space:nowrap;touch-action:manipulation;
+  min-width:0;max-width:48vw;overflow:hidden;text-overflow:ellipsis}
 
 .full{display:flex;flex-direction:column;gap:8px;padding-bottom:4px;
-  overflow:hidden;max-height:70vh;opacity:1;
+  overflow:hidden;max-height:78vh;opacity:1;
   transition:max-height .3s ease,opacity .22s ease,padding .3s ease}
 .transport.collapsed .full{max-height:0;opacity:0;padding-bottom:0}
-.mic-note{margin:0;padding:0 2px;color:var(--sub);font-size:11px}
+
+/* tabbed control panes (Calm Surface #73/§3) — reuse the .seg/.segbtn look;
+   each pane is BOUNDED + scrollable so no row is ever clipped unreachable
+   (the measured Sections-row defect). Default pane = Practice, set in markup. */
+.pane-strip{display:flex;border:1px solid var(--line);border-radius:10px;
+  overflow:hidden;margin-top:2px}
+.pane-strip .segbtn{flex:1;min-height:44px;font-size:13.5px;font-weight:600}
+.pane{display:none;flex-direction:column;gap:8px;
+  max-height:min(46vh,420px);overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;padding:2px 2px 4px}
+.pane.active{display:flex}
 
 /* ---------- in-app practice recording (issue #67) ---------- */
 .row-record{gap:10px}
@@ -104,7 +126,9 @@ input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:28px}
 .row-recbal{gap:10px}
 .row-recbal[hidden]{display:none}
 .recbal-end{flex:0 0 auto;color:var(--sub);font-size:12px;white-space:nowrap}
-.rec-hint{color:var(--gold-soft)}
+/* Calm Surface (#73/§9-8): recHint no longer shares the deleted .mic-note class,
+   so it carries its own compact-paragraph styling. */
+.rec-hint{margin:0;padding:0 2px;color:var(--gold-soft);font-size:11px}
 .rec-hint[hidden]{display:none}
 
 /* library trigger (replaces the raw combobox as the primary selector) */
@@ -179,16 +203,20 @@ body.view-score .scope-hint{display:none}
 .btn-mini:hover{border-color:var(--gold-soft)}
 .btn:disabled,.btn-mini:disabled{opacity:.5;cursor:default}
 
-.app-foot{padding:0 14px 8px;color:var(--sub);font-size:11px}
 code{background:#12141a;padding:1px 5px;border-radius:5px}
 
 /* ---------- post-lap score report (issue #55) ---------- *
  * A small dismissible strip (not a modal) — sits inline near the top so it's
  * visible without scrolling right after a scored lap/Stop. Reuses the panel/
- * line/pill vocabulary already established by .score-more and .lib-panel. */
-.score-report{margin:6px 14px;padding:9px 11px;border-radius:12px;
+ * line/pill vocabulary already established by .score-more and .lib-panel.
+ * Calm Surface (#73/§4): floats FIXED just above the transport — the same slot
+ * the onboarding bubble uses — directly above the Play/loop controls that react
+ * to it. --transport-h already incorporates the safe-area inset (no double
+ * count). Desktop (≥1000px, wave B2) re-lays this same node as a rail card. */
+.score-report{position:fixed;left:8px;right:8px;bottom:calc(var(--transport-h) + 8px);
+  z-index:55;padding:9px 11px;border-radius:12px;
   background:var(--panel);border:1px solid var(--line);
-  box-shadow:0 4px 16px rgba(0,0,0,.35)}
+  box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .score-report[hidden]{display:none}
 .score-report-head{display:flex;align-items:center;gap:8px}
 .score-report-totals{flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--ink);
@@ -218,35 +246,29 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
 .row-instrument .seg{flex:0 0 auto;min-width:150px}
 
 /* ---------- desktop ---------- */
+/* ---------- tablet (760–999px) ---------- *
+ * Calm Surface (#73): the tabbed transport is kept — the tablet layer is just a
+ * roomier phone. (Desktop's stacked right-rail arrives in the ≥1000px block,
+ * wave B2.) */
 @media (min-width: 760px){
   .app-head{padding:16px 20px 6px}
   .app-head h1{font-size:20px}
-  .tag{font-size:11px;padding:2px 7px}
-  .sub{font-size:13px}
-  .status{padding:6px 20px}
-  #retryStart{margin-left:20px;margin-right:20px}
-  .score-report{margin:8px 20px}
+  .score-report{left:20px;right:20px}
   .scope-wrap{margin:8px 20px 12px}
   #scope{height:200px;min-height:160px}
   body.view-split #scope{height:180px;min-height:140px;max-height:220px}
   body.view-score #scope{height:96px;min-height:96px}
   .score-area{margin:0 20px 24px}
   .score{padding:10px;max-height:48vh}
-  .app-foot{font-size:12px;padding:0 20px 10px}
 
   .transport{padding-left:20px;padding-right:20px}
   .btn{min-height:44px;padding:9px 14px}
-  .btn.big{flex:0 0 auto;min-width:200px;min-height:48px}
-  .mini-row{gap:14px}
+  .mini-row{gap:12px}
   .pos{font-size:14px}
-  .full{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 22px;padding:4px 0 8px}
-  .row{flex:0 0 auto}
-  .voice-picker{flex:0 0 auto}
-  .vbtn{flex:0 0 auto;width:44px;height:44px;font-size:16px}
-  .row-piece{flex:1 1 auto;min-width:280px}
-  .seg{flex:0 0 auto}
-  .segbtn{flex:0 0 auto;padding:9px 14px;min-height:36px}
-  .mic-note{flex-basis:100%}
+  /* a touch more pane room on a taller tablet viewport */
+  .pane{max-height:min(52vh,460px)}
+  /* keep the tabbed controls from stretching edge-to-edge on a wide tablet */
+  .handle-row,.mini-row,.full{max-width:820px;margin-left:auto;margin-right:auto;width:100%}
 }
 
 /* ---------- library browser overlay ---------- */

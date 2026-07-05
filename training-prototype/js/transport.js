@@ -4,7 +4,7 @@
 import { el, setStatus, GOLD, VOICE_DEFS, INSTRUMENT_KEY } from './state.js';
 import { parsed, clampMeasure, measureBeatRange, isMonophonic } from './model.js';
 import { osmd, osmdSteps, ensureRenderWindow, flushDeferredRender } from './loader.js';
-import { selectedVoice, melodyMuted, buildScopeLane } from './voices.js';
+import { selectedVoice, melodyMuted, buildScopeLane, toggleChipMute } from './voices.js';
 import { beginScoringSession, scoreLapAndRoll, finalizeScoringOnStop, scoreSummaryShown } from './scoring-ui.js';
 import { currentSections, setActiveSection, sectionIndexForMeasure } from './sections.js';
 import { onPlaySucceeded, onStopped } from './onboarding.js';
@@ -884,9 +884,35 @@ export function setOverlay(expanded) {
   }
 
 export function initOverlay() {
-    el.expandHandle.addEventListener('click', () =>
+    // Calm Surface (#73): the whole handle row is the expand/collapse target
+    // (bigger than the bare chevron). Skip taps on the status text — it owns its
+    // own triple-tap gesture (audiodebug, #74) — and on the Retry button.
+    const toggleFromHandle = (e) => {
+      if (e.target.closest('#status') || e.target.closest('#retryStart')) return;
+      setOverlay(el.transport.classList.contains('collapsed'));
+    };
+    if (el.handleRow) el.handleRow.addEventListener('click', toggleFromHandle);
+    else el.expandHandle.addEventListener('click', () =>
       setOverlay(el.transport.classList.contains('collapsed')));
-    el.voiceChip.addEventListener('click', () => setOverlay(true));
+    // One-tap mute (#61): the voice chip no longer expands the transport — it
+    // toggles whether your part is audible (logic owned by voices.js).
+    el.voiceChip.addEventListener('click', toggleChipMute);
+    // Tabbed panes (§3): three .segbtn tabs switch the visible pane. Default
+    // Practice on every load; no persistence. The ResizeObserver below keeps
+    // --transport-h live as the expanded height changes with the active pane.
+    if (el.paneStrip) el.paneStrip.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pane]');
+      if (!b) return;
+      const name = b.dataset.pane;
+      [...el.paneStrip.children].forEach((x) => {
+        const on = x === b;
+        x.classList.toggle('active', on);
+        x.setAttribute('aria-selected', String(on));
+      });
+      [el.panePractice, el.paneSound, el.paneMore].forEach((p) => {
+        if (p) p.classList.toggle('active', p.dataset.pane === name);
+      });
+    });
     // Reserve page bottom padding = live overlay height, so the overlay never
     // covers the singscope's now-line (or any content) at full page scroll.
     const sync = () => document.documentElement.style.setProperty(

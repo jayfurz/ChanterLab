@@ -115,7 +115,6 @@ export const el = {
     hearMine: document.getElementById('hearMine'),
     micBtn: document.getElementById('micBtn'),
     hpMode: document.getElementById('hpMode'),
-    micNote: document.getElementById('micNote'),
     // in-app practice recording (issue #67)
     recBtn: document.getElementById('recBtn'),
     recTime: document.getElementById('recTime'),
@@ -129,9 +128,17 @@ export const el = {
     scopeReadout: document.getElementById('scopeReadout'),
     scopeHint: document.getElementById('scopeHint'),
     transport: document.getElementById('transport'),
+    handleRow: document.getElementById('handleRow'),
     expandHandle: document.getElementById('expandHandle'),
     posOut: document.getElementById('posOut'),
     voiceChip: document.getElementById('voiceChip'),
+    // Calm Surface (issue #73): mini-row § shortcut + the three tabbed panes
+    // inside the expandable transport (Practice / Sound / More).
+    sectionsMini: document.getElementById('sectionsMini'),
+    paneStrip: document.getElementById('paneStrip'),
+    panePractice: document.getElementById('panePractice'),
+    paneSound: document.getElementById('paneSound'),
+    paneMore: document.getElementById('paneMore'),
     viewPicker: document.getElementById('viewPicker'),
     verseRow: document.getElementById('verseRow'),
     versePicker: document.getElementById('versePicker'),

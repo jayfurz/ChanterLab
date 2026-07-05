@@ -8,30 +8,13 @@
 <link rel="stylesheet" href="style.css?v=scoringv1" />
 </head>
 <body class="view-split">
+<!-- Calm Surface (#73/§9): header shrunk to the app name only. The tagline
+     paragraph (redundant with the #64 onboarding coach-marks) and the dev
+     "Prototype only…" footer were deleted this wave; the live status line moved
+     into the transport handle row (below). ~100px of phone height returned. -->
 <header class="app-head">
-  <h1>ChanterLab · Choir Training <span class="tag">SATB prototype</span></h1>
-  <p class="sub">Pick your voice — it turns <b class="gold">gold</b> and is <b>muted</b> so you sing it.
-     Tap 🎤 to see your pitch hit the gold notes. <span class="hint-hp">Headphones recommended.</span></p>
+  <h1>ChanterLab</h1>
 </header>
-
-<div id="status" class="status">Loading…</div>
-<!-- Retry affordance for a failed initial load (hidden until the startup catch
-     shows it; clicking re-attempts loadStartingPiece). Kept OUTSIDE #status
-     because setStatus() overwrites that node's textContent. -->
-<button id="retryStart" class="btn-mini" type="button" hidden>Retry</button>
-
-<!-- Lightweight post-lap score report (issue #55) — NOT a modal. Appears after
-     a scored lap/stop: totals + up to ~3 "worst spots" (measures with the most
-     missed/flat/sharp notes). Tapping a spot loops that measure's
-     neighborhood. Dismissed by the X (sticks until the next Play) or by
-     starting a fresh Play. The richer per-note-coloring panel is #60. -->
-<div id="scoreReport" class="score-report" hidden aria-live="polite">
-  <div class="score-report-head">
-    <span id="scoreReportTotals" class="score-report-totals"></span>
-    <button id="scoreReportClose" class="score-report-close" aria-label="Dismiss report" title="Dismiss">✕</button>
-  </div>
-  <div id="scoreReportSpots" class="score-report-spots"></div>
-</div>
 
 <section id="scopeWrap" class="scope-wrap">
   <canvas id="scope"></canvas>
@@ -56,147 +39,193 @@
   </div>
 </div>
 
-<footer class="app-foot">
-  <span>Prototype only — see <code>docs/choir-training-roadmap.md</code>. Content: antiochian.org Sacred Music Library (used for research/demo) + a hand-made control sample.</span>
-</footer>
+<!-- Lightweight post-lap score report (issue #55/#60). NOT a modal. Appears
+     after a scored lap/stop: totals + up to ~3 "worst spots" (measures with the
+     most missed/flat/sharp notes). Tapping a spot loops that measure's
+     neighborhood. Dismissed by the X (sticks until the next Play) or by a fresh
+     Play. Calm Surface (#73/§4) relocated it here — adjacent to #transport —
+     and fixes it just above the controls that react to it (see .score-report in
+     style.css). The richer per-note-coloring layer of #60 is phase 2. -->
+<div id="scoreReport" class="score-report" hidden aria-live="polite">
+  <div class="score-report-head">
+    <span id="scoreReportTotals" class="score-report-totals"></span>
+    <button id="scoreReportClose" class="score-report-close" aria-label="Dismiss report" title="Dismiss">✕</button>
+  </div>
+  <div id="scoreReportSpots" class="score-report-spots"></div>
+</div>
 
-<!-- Fixed transport overlay: mini row always visible; full controls expand when
-     paused/stopped (or via the handle, even during playback). -->
+<!-- Fixed transport overlay: handle row (status + expand) + mini row are always
+     visible; the full controls (three tabbed panes) expand when paused/stopped
+     or via the handle, even during playback. -->
 <section id="transport" class="transport" aria-label="Playback controls">
-  <button id="expandHandle" class="handle" aria-expanded="true" aria-controls="fullControls"
-          title="Show / hide controls"><span class="chev">⌄</span></button>
+  <!-- Handle row (Calm Surface #73/§6): the app's single status line moved here,
+       next to the controls that produce it; tapping the row expands/collapses
+       (status text keeps its own #74 triple-tap gesture). Retry sits adjacent to
+       the status it explains (failed-startup surface). -->
+  <div id="handleRow" class="handle-row">
+    <span id="status" class="status">Loading…</span>
+    <button id="retryStart" class="btn-mini" type="button" hidden>Retry</button>
+    <button id="expandHandle" class="handle" type="button" aria-expanded="true" aria-controls="fullControls"
+            title="Show / hide controls"><span class="chev">⌄</span></button>
+  </div>
 
   <div class="mini-row">
     <button id="play" class="btn primary big">▶ Play</button>
     <button id="stop" class="btn" title="Stop and rewind">■</button>
     <output id="posOut" class="pos" aria-label="Position">m –</output>
-    <button id="voiceChip" class="chip" title="Selected voice — tap to open controls">S</button>
+    <!-- Mini-row § (Calm Surface #73/§2): opens the existing #sectionSheet.
+         Shown only for multi-section pieces (sections.js), hidden for hymns. -->
+    <button id="sectionsMini" class="btn sec-mini" title="Jump to a section"
+            aria-haspopup="dialog" aria-controls="sectionSheet" hidden>§</button>
+    <!-- Voice chip = one-tap mute (#61): tap toggles whether your part is
+         audible (voices.toggleChipMute); the 🔇/🔊 glyph is the feedback. -->
+    <button id="voiceChip" class="chip" title="Your part — tap to mute or hear it">S</button>
   </div>
 
+  <!-- Expandable controls, grouped into three tabbed panes (Calm Surface
+       #73/§3). Each pane is bounded + independently scrollable so no row is ever
+       clipped unreachable (the measured Sections-row defect). Rows are MOVED,
+       not rebuilt — every id/attribute is unchanged; contextual rows (Verse,
+       Sections, Rec mix) hide exactly as before. -->
   <div id="fullControls" class="full">
-    <div class="row row-voice">
-      <span class="label">Your voice</span>
-      <div id="voicePicker" class="voice-picker" role="tablist" aria-label="Voice selector"></div>
+    <div id="paneStrip" class="pane-strip" role="tablist" aria-label="Control groups">
+      <button type="button" class="segbtn active" data-pane="practice" role="tab" aria-selected="true">Practice</button>
+      <button type="button" class="segbtn" data-pane="sound" role="tab" aria-selected="false">Sound</button>
+      <button type="button" class="segbtn" data-pane="more" role="tab" aria-selected="false">More</button>
     </div>
 
-    <!-- Verse toggle. Shown only for pieces whose lyrics carry a 2nd (or
-         later) <lyric number="N"> verse on the same notes (e.g. Sunday vs.
-         weekday antiphon texts) — hidden entirely for single-verse pieces. -->
-    <div class="row row-verse" id="verseRow" hidden>
-      <span class="label">Verse</span>
-      <div id="versePicker" class="seg" role="tablist" aria-label="Verse selector"></div>
-    </div>
+    <!-- PRACTICE: voice · verse · tempo · loop · sections -->
+    <div id="panePractice" class="pane active" data-pane="practice">
+      <div class="row row-voice">
+        <span class="label">Your voice</span>
+        <div id="voicePicker" class="voice-picker" role="tablist" aria-label="Voice selector"></div>
+      </div>
 
-    <div class="row row-fine">
-      <span class="group">
-        <span class="label">Tempo <output id="bpmOut">70</output></span>
-        <input id="bpm" type="range" min="30" max="160" value="70" />
-      </span>
-      <span class="group">
-        <span class="label">Loop</span>
-        <input id="loopFrom" type="number" min="1" value="1" class="mnum" aria-label="Loop from measure" />
-        <span class="dash">–</span>
-        <input id="loopTo" type="number" min="1" value="1" class="mnum" aria-label="Loop to measure" />
-        <label class="chk"><input id="loopOn" type="checkbox" /> on</label>
-      </span>
-    </div>
+      <!-- Verse toggle. Shown only for pieces whose lyrics carry a 2nd (or
+           later) <lyric number="N"> verse on the same notes (e.g. Sunday vs.
+           weekday antiphon texts) — hidden entirely for single-verse pieces. -->
+      <div class="row row-verse" id="verseRow" hidden>
+        <span class="label">Verse</span>
+        <div id="versePicker" class="seg" role="tablist" aria-label="Verse selector"></div>
+      </div>
 
-    <div class="row row-mic">
-      <button id="micBtn" class="btn mic" title="Practice with mic — see your pitch on the singscope">🎤 Mic</button>
-      <label class="chk" title="Raw mic (no echo cancellation) — backing voices keep a constant volume. Turn off only when practising on speakers.">
-        <input id="hpMode" type="checkbox" checked /> 🎧 Headphones mode</label>
-      <label class="chk"><input id="hearMine" type="checkbox" /> 🔊 Also play my part</label>
-    </div>
+      <div class="row row-fine">
+        <span class="group">
+          <span class="label">Tempo <output id="bpmOut">70</output></span>
+          <input id="bpm" type="range" min="30" max="160" value="70" />
+        </span>
+        <span class="group">
+          <span class="label">Loop</span>
+          <input id="loopFrom" type="number" min="1" value="1" class="mnum" aria-label="Loop from measure" />
+          <span class="dash">–</span>
+          <input id="loopTo" type="number" min="1" value="1" class="mnum" aria-label="Loop to measure" />
+          <label class="chk"><input id="loopOn" type="checkbox" /> on</label>
+        </span>
+      </div>
 
-    <!-- In-app practice recording (issue #67). Mixes the accompaniment (tapped
-         after the master limiter) with the mic INSIDE WebAudio and records that
-         — so a content clip is a clean blend no matter how the singer monitors.
-         Enabled once recording is supported; with the mic off it captures the
-         accompaniment only ("music only"). The elapsed timer shows while
-         recording; the Save chip + file size appear after Stop and stay until
-         the next recording starts. -->
-    <div class="row row-record">
-      <button id="recBtn" class="btn rec" aria-pressed="false"
-              title="Record this practice — mixes the music and your mic in-app">⏺ Record</button>
-      <span id="recTime" class="rec-time" aria-live="off" hidden>0:00</span>
-      <a id="recSave" class="chip rec-save" hidden>⬇ Save recording</a>
-    </div>
-
-    <!-- Voice / Music balance of the RECORDING mix only (persisted). Does NOT
-         change what the singer hears — only the two recording legs. Shown while
-         the mic is on (a music-only capture has nothing to balance). -->
-    <div class="row row-recbal" id="recBalRow" hidden>
-      <span class="label">Rec mix</span>
-      <span class="recbal-end">🎤 Voice</span>
-      <input id="recBalance" type="range" min="0" max="100" value="50"
-             aria-label="Recording balance — voice versus music" />
-      <span class="recbal-end">Music 🎵</span>
-    </div>
-
-    <!-- One-time hint shown the first time you record with the mic on. -->
-    <p id="recHint" class="mic-note rec-hint" hidden>🎧 Headphones give the cleanest recording — the mic hears only you.</p>
-
-    <!-- Scoring strictness (issue #55): Relaxed = the original spike defaults
-         (±50¢, 50% coverage); Strict tightens both (±35¢, 75% coverage).
-         Persisted; applied to every scoreNotes() call (see currentScoreOpts). -->
-    <div class="row row-strictness">
-      <span class="label">Scoring</span>
-      <div id="strictnessPicker" class="seg" role="tablist" aria-label="Scoring strictness">
-        <button type="button" data-strictness="relaxed" class="segbtn active" role="tab">Relaxed</button>
-        <button type="button" data-strictness="strict" class="segbtn" role="tab">Strict</button>
+      <!-- Jump-to-section controls. Shown only for multi-section pieces (services
+           with ≥2 named sections). The button opens a bottom-sheet list; the
+           chevrons step section-by-section. -->
+      <div class="row row-sections" id="sectionsRow" hidden>
+        <span class="label">Section</span>
+        <button id="secPrev" class="btn-sec-nav" title="Previous section" aria-label="Previous section">‹</button>
+        <button id="sectionsBtn" class="btn sec-btn" aria-haspopup="dialog" aria-controls="sectionSheet"
+                title="Jump to a section">
+          <span class="sec-icon" aria-hidden="true">§</span>
+          <span id="sectionsLabel" class="sec-label">Sections</span>
+          <span class="sec-caret" aria-hidden="true">▾</span>
+        </button>
+        <button id="secNext" class="btn-sec-nav" title="Next section" aria-label="Next section">›</button>
       </div>
     </div>
 
-    <!-- Instrument sound (issue #66): Synth (Tone.PolySynth, default) vs.
-         Voices (sampled "ah" pad, lazy-loaded on first switch/Play). Persisted
-         in localStorage; see js/transport.js's switchInstrumentMode. -->
-    <div class="row row-instrument">
-      <span class="label">Sound</span>
-      <div id="instrumentPicker" class="seg" role="tablist" aria-label="Instrument sound">
-        <button type="button" data-instrument="synth" class="segbtn active" role="tab">Synth</button>
-        <button type="button" data-instrument="voices" class="segbtn" role="tab">Voices</button>
+    <!-- SOUND: mic + headphones + also-play-my-part · instrument · record · rec mix -->
+    <div id="paneSound" class="pane" data-pane="sound">
+      <div class="row row-mic">
+        <button id="micBtn" class="btn mic" title="Practice with mic — see your pitch on the singscope">🎤 Mic</button>
+        <label class="chk" title="Raw mic (no echo cancellation) — backing voices keep a constant volume while you sing. Turn off only when practising on speakers.">
+          <input id="hpMode" type="checkbox" checked /> 🎧 Headphones mode</label>
+        <label class="chk" title="Hear your own part in the mix (learning stage); untick once you can sing it — the same toggle as tapping the voice chip.">
+          <input id="hearMine" type="checkbox" /> 🔊 Also play my part</label>
+      </div>
+
+      <!-- Instrument sound (issue #66): Synth (Tone.PolySynth, default) vs.
+           Voices (sampled "ah" pad, lazy-loaded on first switch/Play). Persisted
+           in localStorage; see js/transport.js's switchInstrumentMode. -->
+      <div class="row row-instrument">
+        <span class="label">Sound</span>
+        <div id="instrumentPicker" class="seg" role="tablist" aria-label="Instrument sound">
+          <button type="button" data-instrument="synth" class="segbtn active" role="tab">Synth</button>
+          <button type="button" data-instrument="voices" class="segbtn" role="tab">Voices</button>
+        </div>
+      </div>
+
+      <!-- In-app practice recording (issue #67). Mixes the accompaniment (tapped
+           after the master limiter) with the mic INSIDE WebAudio and records
+           that — a clean blend no matter how the singer monitors. With the mic
+           off it captures the accompaniment only ("music only"). The elapsed
+           timer shows while recording; the Save chip + file size appear after
+           Stop and stay until the next recording starts. -->
+      <div class="row row-record">
+        <button id="recBtn" class="btn rec" aria-pressed="false"
+                title="Record this practice — mixes the music and your mic in-app">⏺ Record</button>
+        <span id="recTime" class="rec-time" aria-live="off" hidden>0:00</span>
+        <a id="recSave" class="chip rec-save" hidden>⬇ Save recording</a>
+      </div>
+
+      <!-- Voice / Music balance of the RECORDING mix only (persisted). Does NOT
+           change what the singer hears — only the two recording legs. Shown
+           while the mic is on (a music-only capture has nothing to balance). -->
+      <div class="row row-recbal" id="recBalRow" hidden>
+        <span class="label">Rec mix</span>
+        <span class="recbal-end">🎤 Voice</span>
+        <input id="recBalance" type="range" min="0" max="100" value="50"
+               aria-label="Recording balance — voice versus music" />
+        <span class="recbal-end">Music 🎵</span>
+      </div>
+
+      <!-- One-time hint shown the first time you record with the mic on. -->
+      <p id="recHint" class="rec-hint" hidden>🎧 Headphones give the cleanest recording — the mic hears only you.</p>
+    </div>
+
+    <!-- MORE: library + piece + PDF · scoring strictness · view -->
+    <div id="paneMore" class="pane" data-pane="more">
+      <div class="row row-piece">
+        <button id="libraryBtn" class="btn lib" aria-haspopup="dialog" aria-controls="libraryOverlay">📚 Library</button>
+        <span class="piece-info">
+          <span id="currentPiece" class="current-piece" title="Current piece">—</span>
+          <span id="pieceAttrib" class="piece-attrib" title="Attribution" hidden></span>
+        </span>
+        <a id="pdfLink" class="pdf-link" target="_blank" rel="noopener"
+           title="Open the original sheet music (PDF)" hidden>𝄞 PDF</a>
+      </div>
+
+      <!-- Scoring strictness (issue #55): Relaxed = the original spike defaults
+           (±50¢, 50% coverage); Strict tightens both (±35¢, 75% coverage).
+           Persisted; applied to every scoreNotes() call (see currentScoreOpts). -->
+      <div class="row row-strictness">
+        <span class="label">Scoring</span>
+        <div id="strictnessPicker" class="seg" role="tablist" aria-label="Scoring strictness">
+          <button type="button" data-strictness="relaxed" class="segbtn active" role="tab">Relaxed</button>
+          <button type="button" data-strictness="strict" class="segbtn" role="tab">Strict</button>
+        </div>
+      </div>
+
+      <div class="row row-view">
+        <span class="label">View</span>
+        <div id="viewPicker" class="seg" role="tablist" aria-label="View mode">
+          <button data-view="split" class="segbtn active" role="tab">Split</button>
+          <button data-view="score" class="segbtn" role="tab">Score focus</button>
+          <button data-view="scope" class="segbtn" role="tab">Scope focus</button>
+        </div>
       </div>
     </div>
-
-    <div class="row row-view">
-      <span class="label">View</span>
-      <div id="viewPicker" class="seg" role="tablist" aria-label="View mode">
-        <button data-view="split" class="segbtn active" role="tab">Split</button>
-        <button data-view="score" class="segbtn" role="tab">Score focus</button>
-        <button data-view="scope" class="segbtn" role="tab">Scope focus</button>
-      </div>
-    </div>
-
-    <div class="row row-piece">
-      <button id="libraryBtn" class="btn lib" aria-haspopup="dialog" aria-controls="libraryOverlay">📚 Library</button>
-      <span class="piece-info">
-        <span id="currentPiece" class="current-piece" title="Current piece">—</span>
-        <span id="pieceAttrib" class="piece-attrib" title="Attribution" hidden></span>
-      </span>
-      <a id="pdfLink" class="pdf-link" target="_blank" rel="noopener"
-         title="Open the original sheet music (PDF)" hidden>𝄞 PDF</a>
-      <!-- Kept for the headless tests (selectOption). Visually hidden; holds the
-           5 built-in dev pieces only — the library (2,000+) lives in the overlay. -->
-      <select id="pieceSelect" class="sr-only" aria-label="Built-in dev pieces"></select>
-    </div>
-
-    <!-- Jump-to-section controls. Shown only for multi-section pieces (services
-         with ≥2 named sections). The button opens a bottom-sheet list; the
-         chevrons step section-by-section. -->
-    <div class="row row-sections" id="sectionsRow" hidden>
-      <span class="label">Section</span>
-      <button id="secPrev" class="btn-sec-nav" title="Previous section" aria-label="Previous section">‹</button>
-      <button id="sectionsBtn" class="btn sec-btn" aria-haspopup="dialog" aria-controls="sectionSheet"
-              title="Jump to a section">
-        <span class="sec-icon" aria-hidden="true">§</span>
-        <span id="sectionsLabel" class="sec-label">Sections</span>
-        <span class="sec-caret" aria-hidden="true">▾</span>
-      </button>
-      <button id="secNext" class="btn-sec-nav" title="Next section" aria-label="Next section">›</button>
-    </div>
-
-    <p id="micNote" class="mic-note">🎧 raw mic: backing voices stay at constant volume while you sing.</p>
   </div>
+  <!-- Hidden built-in dev-piece selector. Kept OUTSIDE the tabbed panes so it is
+       always actionable for the headless tests — Playwright selectOption fails on
+       a display:none pane. .sr-only = invisible but focusable; the 📚 library
+       overlay is the real (2,000+ piece) picker. Holds the 5 built-in ids only. -->
+  <select id="pieceSelect" class="sr-only" aria-label="Built-in dev pieces"></select>
 </section>
 
 <!-- Full-screen library browser. Opened by the 📚 Library button; built for

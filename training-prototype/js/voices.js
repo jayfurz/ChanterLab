@@ -81,6 +81,9 @@ export function updateVoiceChip() {
     if (isMonophonic()) {
       // 1-voice piece: the sole line is the melody. Show 🔇 only when muted.
       el.voiceChip.textContent = (melodyMuted ? '🔇 ' : '') + 'Melody';
+      el.voiceChip.title = melodyMuted
+        ? 'Melody muted — tap to hear it'
+        : 'Melody playing — tap to mute it (you sing it)';
       return;
     }
     const def = VOICE_DEFS.find((v) => v.key === selectedVoice);
@@ -89,6 +92,25 @@ export function updateVoiceChip() {
     // "Also play my part" is checked — prefix 🔇 so the chip advertises it.
     const muted = !el.hearMine.checked;
     el.voiceChip.textContent = (muted ? '🔇 ' : '') + base;
+    // One-tap mute (#61): the chip's tap toggles whether your part is audible.
+    el.voiceChip.title = muted
+      ? 'Your part is muted — tap to hear it'
+      : 'Your part is playing — tap to mute it (you sing it)';
+  }
+
+  /* ---------- One-tap mute (#61) ---------------------------------------- *
+   * The mini-row voice chip toggles whether YOUR part is audible. The
+   * "Also play my part" checkbox (#hearMine) stays the single source of truth
+   * for multi-voice pieces, so chip + checkbox can never desync; monophonic
+   * pieces flip the melody-mute flag. Wired to the chip click by
+   * transport.initOverlay (replacing the old chip→expand binding). */
+export function toggleChipMute() {
+    if (isMonophonic()) { setMelodyMuted(!melodyMuted); return; }
+    if (!el.hearMine) return;
+    el.hearMine.checked = !el.hearMine.checked;
+    applyMix();
+    updateVoiceChip();
+    if (playState === 'playing') setStatus(statusForPlaying());
   }
 
   /* ---------- Verse toggle ---------------------------------------------- *

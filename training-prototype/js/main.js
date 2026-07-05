@@ -197,7 +197,10 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
 
   async function onHeadphonesToggle() {
     const hp = el.hpMode.checked;
-    el.micNote.textContent = hp
+    // Calm Surface (#73/§9-8): the standing #micNote paragraph was deleted; its
+    // guidance now lives in the checkbox title + the status messages below. Kept
+    // as a no-op guard so a future re-introduction still updates it.
+    if (el.micNote) el.micNote.textContent = hp
       ? '🎧 raw mic: backing voices stay at constant volume while you sing.'
       : '🔊 speaker mode: echo cancellation on — the phone may duck the backing voices while you sing.';
     try {

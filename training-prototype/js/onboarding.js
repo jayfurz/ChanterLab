@@ -91,7 +91,7 @@ export function onPlaySucceeded() {
   hideHint();
   const text = isMonophonic()
     ? 'Follow the melody — tap 🎤 to get scored.'
-    : 'Your voice is muted — that’s the practice. Pick a different part here.';
+    : 'Your part is muted — you sing it. Tap the chip to hear it; pick parts under ⌄.';
   showHint(text, el.voiceChip);
 }
 

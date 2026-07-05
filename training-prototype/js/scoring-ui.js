@@ -151,12 +151,20 @@ export function updateStrictnessUI() {
 
   function showReport(entry) {
     if (reportDismissed || !el.scoreReport) return;
+    // Calm Surface (#73/§4): the report now floats at the transport's doorstep,
+    // the same slot the first-run coach-mark uses — a report is better
+    // onboarding than the bubble, so dismiss the bubble if it's up.
+    if (el.onboardHint) el.onboardHint.hidden = true;
     const spots = (window.ChanterScoring && window.ChanterScoring.worstSpots)
       ? window.ChanterScoring.worstSpots(entry, 3) : [];
     if (el.scoreReportTotals) {
+      // Looping sessions append the running best (§4); a single play-through omits
+      // it (there is no "best" to compare a lone lap against).
+      const best = (el.loopOn && el.loopOn.checked && entry.best >= 0)
+        ? ` · best ${entry.best}%` : '';
       el.scoreReportTotals.textContent =
         `Lap ${entry.lap}: ${entry.hit} hit · ${entry.flat} flat · ${entry.sharp} sharp · ` +
-        `${entry.missed} missed of ${entry.notes} (${entry.hitPct}%)`;
+        `${entry.missed} missed of ${entry.notes} (${entry.hitPct}%)${best}`;
     }
     if (el.scoreReportSpots) {
       el.scoreReportSpots.innerHTML = '';

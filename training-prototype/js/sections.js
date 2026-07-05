@@ -78,6 +78,9 @@ export function sectionIndexForMeasure(measure) {
   function updateSectionsUI() {
     const has = currentSections.length >= 2;
     if (el.sectionsRow) el.sectionsRow.hidden = !has;
+    // Calm Surface (#73): the always-visible mini-row § shortcut tracks the same
+    // "multi-section piece" condition — hidden entirely for short hymns.
+    if (el.sectionsMini) el.sectionsMini.hidden = !has;
     updateSectionLabel();
     markActiveSectionItem();
     updateSectionNav();
@@ -179,6 +182,10 @@ export function jumpToSection(i) {
 
 export function initSections() {
     if (el.sectionsBtn) el.sectionsBtn.addEventListener('click', () => {
+      if (sectionSheetOpen) closeSectionSheet(); else openSectionSheet();
+    });
+    // Calm Surface (#73): the mini-row § opens the same bottom sheet.
+    if (el.sectionsMini) el.sectionsMini.addEventListener('click', () => {
       if (sectionSheetOpen) closeSectionSheet(); else openSectionSheet();
     });
     if (el.secPrev) el.secPrev.addEventListener('click', () =>
