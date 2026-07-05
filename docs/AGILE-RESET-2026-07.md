@@ -186,3 +186,26 @@ Sourced from the owner's first real practice session on the live site:
 Waves (post-#57 modules permitting): A: #63 + #64 (parallel: audio vs
 library/main modules) + #68 research + #59 omr · B: #65 → #66 · C: #67.
 Tiers: opus #65/#67/#68, sonnet #63/#64/#66/#59.
+
+## 11. Sprint 2 retrospective (completed 2026-07-04)
+
+All seven issues + one owner side-quest shipped in one orchestrated
+day. Headline: **the accepted library more than doubled — 1,539 →
+3,296 pieces** (#52: per-system integrity + evidence-only staff
+grouping, gated behind #53's new 14-test regression harness), after
+#54's triage proved 91% of the review queue was the SATB metric
+mis-scoring chant, not extraction failure. The UX audit (#58) found
+the monophonic-silence bug affected 82% of the library; wave-1 fixes
+shipped same-day (melody-plays-by-default, audio/status desync,
+mobile-collapsed transport, friendly errors). Scoring v1 (#55):
+per-lap results, tappable worst-spots, strictness presets. #56:
+exposure canary timer + screenshot scrub. #57: app.js split into nine
+ES modules, zero behavior change, opening parallel-work seams.
+Side-quest: full corpus archived to truenas (additive daily mirror).
+
+Retro lessons: (1) triage-before-fix paid off enormously — #54
+re-scoped #52 mid-flight from ~13 pieces to ~1,600; (2) the regression
+harness let the riskiest OMR change of the project land with
+confidence same-day; (3) owner field-testing (Sprint 3's source)
+catches what headless audits cannot (audio unlock, sound quality,
+recording workflows).
