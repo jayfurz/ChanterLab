@@ -23,6 +23,18 @@ let currentPieceId = null;
 
 export { currentPieceId };
 
+export let renderCount = 0;        // # of renderNow() calls — verification hook (issue #79)
+
+  // Per-note score coloring (issue #79). `scoreColoringOn` = verdict tints are
+  // currently overlaid on the Sheet model (a per-report, non-persisted overlay
+  // on top of the normal gold/dim voice coloring); `lastColoringResult`
+  // snapshots the last apply for the __training.scoreColoring() test hook. Owned
+  // here (loader owns ALL model coloring) so the same flag reset rides every
+  // baseline-restore path — voice switch (applyVoiceColors), piece switch
+  // (loadScore) — without a scoring-ui⇄loader import cycle. See applyScoreColoring.
+let scoreColoringOn = false;
+let lastColoringResult = clearedColoring();
+
   // Yield to the browser between load phases so the status/spinner actually
   // paints: rAF waits for the next frame, the nested setTimeout lets that frame
   // paint before the next synchronous block runs.
@@ -170,7 +182,10 @@ export function applyResponsiveOsmdOptions() {
       windowed = sourceMeasureCount > WINDOW_THRESHOLD;
       // Color the Sheet model BEFORE the first render → one render per load
       // (was two: render() then applyVoiceColors()→render() again).
+      scoreColoringOn = false;   // fresh model: drop any prior verdict-tint state (issue #79)
+      lastColoringResult = clearedColoring();
       colorSheet();
+      emitColoringChange();      // sync the report's toggle chip to the fresh (off) state
       // default loop = whole piece (unchanged behavior)
       el.loopFrom.value = 1;
       el.loopTo.value = parsed.measureCount;
@@ -280,6 +295,7 @@ export function printedForIndex(idx) {
   // Sheet model, so a single render() paints them (no second coloring render).
   function renderNow() {
     osmd.render();
+    renderCount++;
     buildOsmdStepTable();
     fitScoreHeight();
   }
@@ -404,6 +420,12 @@ export function maybeExtendOnScroll() {
 export function applyVoiceColors() {
     if (!osmd || !osmd.Sheet) return;
     colorSheet();
+    // A voice change re-colors the whole model gold/dim, wiping any verdict
+    // tints — so drop the score-coloring flag too (issue #79). One requestRender
+    // paints the fresh baseline; the change event re-syncs the report toggle chip.
+    scoreColoringOn = false;
+    lastColoringResult = clearedColoring();
+    emitColoringChange();
     requestRender();
   }
 
@@ -414,6 +436,136 @@ export function applyVoiceColors() {
     const def = VOICE_DEFS.find((v) => v.key === selectedVoice);
     return def && (instrName || '').toLowerCase().startsWith(def.name.toLowerCase());
   }
+
+  /* ---------- Per-note score coloring (issue #79) --------------------- *
+   * After a scored lap the report strip's "Show on score" toggle paints each
+   * scored notehead of the SINGER'S voice by its verdict, using the SAME
+   * model-level NoteheadColor pathway voice-coloring uses — so a single
+   * render() applies it and windowed re-renders re-read it from the model
+   * (tints survive window growth automatically). This is a STOPPED-state
+   * action (requestRender defers during playback); the overlay is per-report
+   * and persisted nowhere.
+   */
+
+  // Verdict tints. Same VALUE FORMAT OSMD reliably honors for NoteheadColor as
+  // GOLD/DIM above — a plain #RRGGBB hex string. Chosen for legibility on the
+  // cream (#fbfbf7) score paper the noteheads sit on and clear mutual hue
+  // separation, with flat/sharp a colorblind-friendly cool-blue / warm-orange
+  // pair and hit a green-leaning gold that reads distinctly from the plain GOLD
+  // an un-scored singer note keeps:
+  //   hit    green-leaning gold  (on pitch)
+  //   flat   cool blue           (under pitch)
+  //   sharp  warm orange         (over pitch)
+  //   missed muted gray-red      (little/no voiced audio landed on the note)
+export const VERDICT_TINTS = {
+    hit: '#4f9d2e',
+    flat: '#2f7fc4',
+    sharp: '#e07a1c',
+    missed: '#a35050',
+  };
+
+  function clearedColoring() {
+    return { on: false, applied: false, matched: false, painted: 0, targets: 0, from: null, to: null, colors: [] };
+  }
+
+  function emitColoringChange() {
+    // Let the report strip's toggle chip re-sync from ANY flag change — apply,
+    // clear, voice/piece switch — without a loader⇄scoring-ui import cycle.
+    try { document.dispatchEvent(new CustomEvent('chanterlab:scorecoloring')); } catch (e) { /* non-DOM env */ }
+  }
+
+  // The selected voice's SOUNDING model notes in printed measures [from,to], in
+  // document order: the SAME Instruments→Voices→VoiceEntries→Notes traversal
+  // colorSheet uses, minus rests and tie-continuations. parsed (model.js) skips
+  // rests and merges tie-stops into the note they continue, so dropping those
+  // here makes this walk line up 1:1 with parsed's note stream for the selected
+  // part — hence with buildScoreTargets()'s targets and the scorer's details[]
+  // (index-based mapping; no coordinate matching). Each note's own SourceMeasure
+  // supplies the printed measure used to bound the range.
+  function selectedScoredNotes(from, to) {
+    const out = [];
+    if (!osmd || !osmd.Sheet) return out;
+    osmd.Sheet.Instruments.forEach((instr, idx) => {
+      if (!matchesSelected(idx, instr.Name)) return;
+      instr.Voices.forEach((voice) => {
+        voice.VoiceEntries.forEach((ve) => {
+          ve.Notes.forEach((note) => {
+            if (note.isRest && note.isRest()) return;
+            const tie = note.NoteTie;
+            if (tie && tie.StartNote && tie.StartNote !== note) return;  // held-note continuation
+            const sm = note.SourceMeasure;
+            const m = sm ? (sm.MeasureNumberXML != null ? sm.MeasureNumberXML : sm.MeasureNumber) : null;
+            if (m == null || m < from || m > to) return;
+            out.push(note);
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  // Overlay verdict tints for a scored lap's details[]. Resets the gold/dim
+  // baseline FIRST (other voices DIM, the singer's out-of-range notes GOLD),
+  // then tints the scored range by walking selectedScoredNotes over the range
+  // details[] actually covers and mapping BY INDEX (details[i] ↔ i-th note) —
+  // both are the selected voice's notes in document order over the same
+  // measures. An exact count match is required: a mismatch means the model walk
+  // drifted from parsed (unexpected tie/rest topology), so we keep the clean
+  // baseline rather than mis-tint. Mutates the model only; the caller renders.
+export function applyScoreColoring(details) {
+    lastColoringResult = clearedColoring();
+    if (!osmd || !osmd.Sheet || !Array.isArray(details) || !details.length) { emitColoringChange(); return lastColoringResult; }
+    const measures = details.map((d) => d.measure).filter((m) => m != null);
+    if (!measures.length) { emitColoringChange(); return lastColoringResult; }
+    const from = Math.min.apply(null, measures);
+    const to = Math.max.apply(null, measures);
+    colorSheet();                               // baseline first
+    const notes = selectedScoredNotes(from, to);
+    const matched = notes.length === details.length;
+    const colors = [];
+    let painted = 0;
+    if (matched) {
+      for (let i = 0; i < details.length; i++) {
+        const tint = VERDICT_TINTS[details[i].result];
+        const note = notes[i];
+        if (tint) {
+          note.NoteheadColor = tint;
+          if ('NoteheadColorXml' in note) note.NoteheadColorXml = tint;
+          painted++;
+        }
+        colors.push(note.NoteheadColor);
+      }
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('[score-coloring] model/score note-count mismatch (' + notes.length +
+        ' model vs ' + details.length + ' scored) — baseline kept, no tint');
+      notes.forEach((n) => colors.push(n.NoteheadColor));
+    }
+    scoreColoringOn = true;
+    lastColoringResult = { on: true, applied: matched, matched: matched, painted: painted, targets: details.length, from: from, to: to, colors: colors };
+    emitColoringChange();
+    return lastColoringResult;
+  }
+
+  // Restore the normal gold/dim voice coloring (drop the verdict overlay) and
+  // re-render. No-op (no wasted render) when no overlay is active. requestRender
+  // defers during playback, so a lap-wrap clear paints on the next stop.
+export function clearScoreColoring() {
+    if (!scoreColoringOn) return false;
+    colorSheet();
+    scoreColoringOn = false;
+    lastColoringResult = clearedColoring();
+    emitColoringChange();
+    requestRender();
+    return true;
+  }
+
+export function scoreColoringActive() { return scoreColoringOn; }
+  // Snapshot for the __training.scoreColoring() hook: on/applied/matched flags,
+  // painted vs targets counts, the covered measure range, and the resulting
+  // NoteheadColor of each scored-voice note in range (so a test can assert
+  // exactly which noteheads carry a verdict tint).
+export function scoreColoringInfo() { return Object.assign({}, lastColoringResult, { on: scoreColoringOn }); }
 
   /* ---------- View modes + adaptive score height ----------------------- */
 

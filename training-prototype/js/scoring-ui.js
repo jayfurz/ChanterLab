@@ -7,7 +7,10 @@
 import { el, setStatus, STRICTNESS_KEY, PRACTICE_HISTORY_KEY } from './state.js';
 import { parsed, clampMeasure, measureBeatRange } from './model.js';
 import { selectedVoice, activeVerse, buildScopeLane } from './voices.js';
-import { currentPieceId, ensureRenderWindow } from './loader.js';
+import {
+  currentPieceId, ensureRenderWindow, requestRender,
+  applyScoreColoring, clearScoreColoring, scoreColoringActive, VERDICT_TINTS,
+} from './loader.js';
 import { playState, stop, parkCursorAtWindowStart } from './transport.js';
 
 export let practiceSamples = [];   // {tSec,midi} voiced pitch stream for the CURRENT lap
@@ -149,6 +152,59 @@ export function updateStrictnessUI() {
    * render/park machinery jumpToSection already relies on.
    */
 
+  /* ---------- Per-note score coloring toggle (issue #79) -------------- *
+   * The "Show on score" chip in the report head paints this lap's scored
+   * noteheads by verdict onto the notation (loader.applyScoreColoring), then a
+   * single requestRender(). Per-report: reset OFF for every fresh report, cleared
+   * on the next Play / voice / verse / piece switch (all of which restore the
+   * gold/dim baseline — see loader). The chip re-syncs from loader's flag via the
+   * 'chanterlab:scorecoloring' event, so switches made elsewhere update it too. */
+  const colorToggleEl = document.getElementById('scoreColorToggle');
+  const colorKeyEl = document.getElementById('scoreColorKey');
+
+  // Build the little verdict legend once, straight from loader's VERDICT_TINTS
+  // (single source of truth for the four colors).
+  function buildColorKey() {
+    if (!colorKeyEl || colorKeyEl.childElementCount) return;
+    [['hit', 'Hit'], ['flat', 'Flat'], ['sharp', 'Sharp'], ['missed', 'Missed']].forEach(([k, label]) => {
+      const item = document.createElement('span');
+      item.className = 'ck-item';
+      const dot = document.createElement('span');
+      dot.className = 'ck-dot';
+      dot.style.background = VERDICT_TINTS[k];
+      const t = document.createElement('span');
+      t.className = 'ck-lbl';
+      t.textContent = label;
+      item.append(dot, t);
+      colorKeyEl.appendChild(item);
+    });
+  }
+
+  // Reflect loader's coloring flag on the chip + legend (called on every toggle
+  // and on the change event).
+  function syncColoringChip() {
+    if (!colorToggleEl) return;
+    const on = scoreColoringActive();
+    colorToggleEl.classList.toggle('on', on);
+    colorToggleEl.setAttribute('aria-pressed', on ? 'true' : 'false');
+    colorToggleEl.textContent = on ? '🎨 On score' : '🎨 Show on score';
+    if (colorKeyEl) colorKeyEl.hidden = !on;
+  }
+
+  // Chip tap: paint / clear the latest lap's verdicts on the score.
+  export function toggleScoreColoring() {
+    const details = lastScoreResult && lastScoreResult.details;
+    if (!details || !details.length) return scoreColoringActive();
+    if (scoreColoringActive()) {
+      clearScoreColoring();          // restore gold/dim baseline + render
+    } else {
+      applyScoreColoring(details);   // overlay verdict tints on the model…
+      requestRender();               // …then one render (deferred if mid-playback)
+    }
+    syncColoringChip();
+    return scoreColoringActive();
+  }
+
   function showReport(entry) {
     if (reportDismissed || !el.scoreReport) return;
     // Calm Surface (#73/§4): the report now floats at the transport's doorstep,
@@ -193,6 +249,13 @@ export function updateStrictnessUI() {
         });
       }
     }
+    // Per-note coloring (issue #79): each report is a fresh, OFF-by-default
+    // overlay. Restore the baseline if a previous report left tints painted,
+    // then show the chip only when this lap actually scored notes.
+    if (scoreColoringActive()) clearScoreColoring();
+    buildColorKey();
+    if (colorToggleEl) colorToggleEl.hidden = !(entry && entry.details && entry.details.length);
+    syncColoringChip();
     el.scoreReport.hidden = false;
   }
 
@@ -229,6 +292,13 @@ export function beginScoringSession() {
   scoreSummaryShown = false;
   reportDismissed = false;
   hideReport();
+  // Next Play restores normal coloring (issue #79): drop any verdict overlay
+  // left on from the previous lap's report. clearScoreColoring is a no-op (no
+  // wasted render) when nothing was painted — the common mic-off path. Runs
+  // while still 'stopped' (startPlayback sets 'playing' after this), so the
+  // baseline repaints immediately; the chip re-syncs via the change event.
+  clearScoreColoring();
+  syncColoringChip();
 }
 
 // Score the finished lap (if armed) and roll the sample buffer to the next lap.
@@ -249,4 +319,9 @@ export function finalizeScoringOnStop() {
 
 // Dismiss the report strip (X button); sticks until the next Play.
 export function dismissReport() { reportDismissed = true; hideReport(); }
+
+// Wire the "Show on score" chip and keep it synced with loader's coloring flag
+// (fires on toggles here AND on clears triggered by voice/verse/piece switches).
+if (colorToggleEl) colorToggleEl.addEventListener('click', toggleScoreColoring);
+document.addEventListener('chanterlab:scorecoloring', syncColoringChip);
 

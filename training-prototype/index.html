@@ -59,6 +59,13 @@
     <span id="scoreReportTotals" class="score-report-totals"></span>
     <button id="scoreReportClose" class="score-report-close" aria-label="Dismiss report" title="Dismiss">✕</button>
   </div>
+  <!-- Per-note score coloring (issue #79): tint this lap's scored noteheads by
+       verdict on the notation itself. Per-report (off by default); the legend
+       (populated from loader's VERDICT_TINTS) appears while it's on. -->
+  <div class="score-report-color">
+    <button id="scoreColorToggle" class="score-color-toggle" type="button" aria-pressed="false" hidden>🎨 Show on score</button>
+    <span id="scoreColorKey" class="score-color-key" hidden></span>
+  </div>
   <div id="scoreReportSpots" class="score-report-spots"></div>
 </div>
 
