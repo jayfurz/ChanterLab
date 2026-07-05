@@ -257,3 +257,30 @@ GitHub/one-liners). Diagnosis-heavy tasks earn subagent cost (they
 keep returning more than the brief); tokens are the real overhead —
 every agent re-acquires context. Sprint 4 tests whether a fable-tier
 subagent moves the needle on a pure design-judgment task.
+
+## 14. Sprint 4 retrospective (completed 2026-07-05)
+
+All planned issues closed (+3 owner-reported mid-sprint): calm-surface
+spec (fable, #73 — the fable-tier experiment produced a spec that
+found a live clipping defect and specified two clean implementation
+waves) → B1 mobile tabs/mini-row/one-tap-mute (#62/#61) → B2 desktop
+rail/keyboard/PWA (#72); dual-stem OMR refactor (#69: +17 accepted →
+3,314, ~6,200 noteheads recovered); iOS audio arc (#74, still open
+for owner retest): silent-context fix confirmed in the field, then
+the 📞 call-mode mechanism traced to WebKit source (fable analysis) →
+session-type management + auto-recreate + in-app volume; the lyric
+campaign (#77): four owner-reported contamination classes fixed with
+a three-layer QA stack (structural filters, semantic pass, consensus
+layer filed as #78); business memo delivered (#68 open for owner);
+chanterlab.com root routing (#70); stale-edge-cache incident fixed
+structurally (origin no-cache).
+
+Retro lessons: (1) the owner's field loop is now the primary quality
+instrument — every mid-sprint report (silent iOS, 📞 icon, Deacon,
+wor-ship, instruction blocks, stale CSS) converted to a measured fix
+within hours; institutionalized via SendMessage scope-additions to
+in-flight agents rather than new spawns. (2) The live-tree serving
+model needs cache discipline — fixed at the origin, permanently.
+(3) Fable tier earned its slot on design/synthesis tasks (spec,
+session analysis); opus stays right for bounded deep work. (4) One
+agent misfire (instant-exit) — respawn-on-anomaly worked; watch rate.
