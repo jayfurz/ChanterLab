@@ -28,6 +28,9 @@ body{background:var(--bg);color:var(--ink);
   border:2px solid rgba(212,175,55,.3);border-top-color:var(--gold);
   animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* retry affordance for a failed initial load — sits just under #status */
+#retryStart{margin:2px 14px 6px}
+#retryStart[hidden]{display:none}
 
 /* ---------- shared control bits ---------- */
 .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -167,6 +170,7 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
   .tag{font-size:11px;padding:2px 7px}
   .sub{font-size:13px}
   .status{padding:6px 20px}
+  #retryStart{margin-left:20px;margin-right:20px}
   .scope-wrap{margin:8px 20px 12px}
   #scope{height:200px;min-height:160px}
   body.view-split #scope{height:180px;min-height:140px;max-height:220px}

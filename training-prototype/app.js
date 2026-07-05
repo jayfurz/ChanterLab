@@ -126,6 +126,7 @@
   const el = {
     osmd: document.getElementById('osmd'),
     status: document.getElementById('status'),
+    retryStart: document.getElementById('retryStart'),
     piece: document.getElementById('pieceSelect'),
     voicePicker: document.getElementById('voicePicker'),
     bpm: document.getElementById('bpm'),
@@ -180,6 +181,11 @@
   let parsed = null;         // { parts: [ {voiceKey, notes:[{midi,startBeat,durBeat,measure}]} ], measureCount, maxVerse }
   let selectedVoice = 'S';
   let activeVerse = 1;       // 1-based; which lyric verse n.lyric currently reflects (reset on every load)
+  // Monophonic (single-voice chant) mute flag. ~82% of the library is one voice
+  // — for those pieces the sole line IS the melody, so there is no "your part vs.
+  // the others" mix: this flag alone decides whether that melody is audible.
+  // Reset to false (audible) on every load. Ignored for multi-voice pieces.
+  let melodyMuted = false;
   let synths = [];           // Tone.PolySynth per part
   let gains = [];            // Tone.Gain per part
   let scheduledIds = [];
@@ -193,6 +199,11 @@
   let practiceSamples = [];  // {tSec, midi} voiced pitch stream for the current playthrough
   let scoringArmed = false;  // a play→end/stop cycle is pending a score (prevents double-scoring)
   let lastScoreResult = null;// last scoreNotes() output (exposed via __training.lastScore)
+  // A "Scored N notes…" summary is currently on the status line and must survive
+  // repeated Stops until the next Play (a manual Stop after an auto-stop must not
+  // clobber it with "Stopped."). Set when scorePractice() paints a summary; the
+  // next startPlayback() clears it.
+  let scoreSummaryShown = false;
   const PRACTICE_HISTORY_KEY = 'chanterlab_practice_history';
   let userHoldUntil = 0;     // auto-scroll suspended until this perf.now() ms
 
@@ -603,6 +614,7 @@
       const doc = new DOMParser().parseFromString(xml, 'application/xml');
       parsed = parseMusicXML(doc);
       activeVerse = 1;   // reset to verse 1 on every load; nothing persists
+      melodyMuted = false;   // single-voice pieces start with the melody audible
       // Fallback section index: scan the top part's <words> directions now while
       // the parsed Document is in hand. Used only when the manifest lacks
       // sections for this piece (see resolveSectionsFor).
@@ -654,9 +666,14 @@
       buildScopeLane();
       if (!mine()) return false;
 
+      const nVoices = parsed.parts.length;
+      const voicesLabel = `${nVoices} ${nVoices === 1 ? 'voice' : 'voices'}`;
+      const loadTail = isMonophonic()
+        ? 'Press Play for the melody, or mute it and sing along.'
+        : 'Pick a voice and press Play.';
       setStatus(windowed
-        ? `Loaded: ${parsed.parts.length} voices, ${parsed.measureCount} measures (windowed — scroll or press Play to render more). Pick a voice and press Play.`
-        : `Loaded: ${parsed.parts.length} voices, ${parsed.measureCount} measures. Pick a voice and press Play.`);
+        ? `Loaded: ${voicesLabel}, ${parsed.measureCount} measures (windowed — scroll or press Play to render more). ${loadTail}`
+        : `Loaded: ${voicesLabel}, ${parsed.measureCount} measures. ${loadTail}`);
       return true;
     } finally {
       // Only the active load clears the busy state; a superseded load leaves it
@@ -864,9 +881,21 @@
     return def && (instrName || '').toLowerCase().startsWith(def.name.toLowerCase());
   }
 
+  // A single-<part> chant: the sole line is the melody, so the S/A/T/B "which is
+  // yours" picker is meaningless — we show a Playing/Muted toggle instead and
+  // key the mix off melodyMuted (see applyMix).
+  function isMonophonic() { return !!parsed && parsed.parts.length === 1; }
+
   function buildVoicePicker() {
     el.voicePicker.innerHTML = '';
     const present = parsed.parts.map((p) => p.voiceKey);
+    // ensure the selected voice actually exists (recolors gold if it changed) —
+    // for a 1-voice piece this pins selectedVoice to the sole part so scoring
+    // targets + gold coloring track it even when it isn't Soprano.
+    if (!present.includes(selectedVoice) && present.length) selectVoice(present[0]);
+
+    if (isMonophonic()) { buildMelodyToggle(); updateVoiceChip(); return; }
+
     VOICE_DEFS.filter((v) => present.includes(v.key)).forEach((v) => {
       const b = document.createElement('button');
       b.className = 'vbtn' + (v.key === selectedVoice ? ' active' : '');
@@ -876,9 +905,41 @@
       b.addEventListener('click', () => selectVoice(v.key));
       el.voicePicker.appendChild(b);
     });
-    // ensure selected voice actually exists
-    if (!present.includes(selectedVoice) && present.length) selectVoice(present[0]);
     updateVoiceChip();
+  }
+
+  // 2-segment Playing/Muted control shown in place of the voice picker for
+  // single-voice pieces. Reuses the .seg/.segbtn styles.
+  function buildMelodyToggle() {
+    el.voicePicker.innerHTML = '';
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.setAttribute('role', 'tablist');
+    seg.setAttribute('aria-label', 'Melody playback');
+    [['🔊 Playing', false], ['🔇 Muted', true]].forEach(([label, muted]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'segbtn' + (muted === melodyMuted ? ' active' : '');
+      b.textContent = label;
+      b.title = muted ? 'Mute the melody so you sing it yourself'
+                      : 'Play the melody so you can follow (or sing) along';
+      b.setAttribute('role', 'tab');
+      b.addEventListener('click', () => setMelodyMuted(muted));
+      seg.appendChild(b);
+    });
+    el.voicePicker.appendChild(seg);
+  }
+
+  function setMelodyMuted(muted) {
+    melodyMuted = !!muted;
+    if (el.voicePicker) {
+      const segs = el.voicePicker.querySelectorAll('.segbtn');
+      if (segs[0]) segs[0].classList.toggle('active', !melodyMuted);
+      if (segs[1]) segs[1].classList.toggle('active', melodyMuted);
+    }
+    applyMix();
+    updateVoiceChip();
+    if (playState === 'playing') setStatus(statusForPlaying());
   }
 
   function selectVoice(key) {
@@ -892,8 +953,17 @@
   }
 
   function updateVoiceChip() {
+    if (isMonophonic()) {
+      // 1-voice piece: the sole line is the melody. Show 🔇 only when muted.
+      el.voiceChip.textContent = (melodyMuted ? '🔇 ' : '') + 'Melody';
+      return;
+    }
     const def = VOICE_DEFS.find((v) => v.key === selectedVoice);
-    el.voiceChip.textContent = def ? `${def.label} · ${def.name}` : selectedVoice;
+    const base = def ? `${def.label} · ${def.name}` : selectedVoice;
+    // Persistent mute affordance: the selected voice is muted in the mix unless
+    // "Also play my part" is checked — prefix 🔇 so the chip advertises it.
+    const muted = !el.hearMine.checked;
+    el.voiceChip.textContent = (muted ? '🔇 ' : '') + base;
   }
 
   /* ---------- Verse toggle ---------------------------------------------- *
@@ -1115,10 +1185,13 @@
   // solely on voice selection — never on mic input/level (see Headphones mode
   // in scope.js for the OS-level ducking story).
   function applyMix() {
+    const mono = parsed.parts.length === 1;
     parsed.parts.forEach((p, idx) => {
       if (!gains[idx]) return;
       const isSelected = p.voiceKey === selectedVoice;
-      const mute = isSelected && !el.hearMine.checked;
+      // 1-voice piece: the sole line follows melodyMuted (no "your part" mix).
+      // Multi-voice: mute only your selected voice unless you opt to hear it.
+      const mute = mono ? melodyMuted : (isSelected && !el.hearMine.checked);
       gains[idx].gain.rampTo(mute ? 0 : 0.25, 0.05);
     });
   }
@@ -1233,9 +1306,10 @@
 
   function updatePos(measure) {
     if (!el.posOut) return;
-    el.posOut.textContent = measure
-      ? `m ${measure}/${parsed ? parsed.measureCount : '?'}`
-      : 'm –';
+    // Just the current measure — the windowed-render pill ("of N") is the sole
+    // denominator, and it uses the PRINTED count (updatePos used the SOURCE
+    // count, so the two disagreed at split measures).
+    el.posOut.textContent = measure ? `m ${measure}` : 'm –';
     // Keep the active-section label in step with the cursor's measure (cheap
     // binary search; no-op for pieces without sections). measure===null (stop)
     // leaves the last active section shown rather than blanking it.
@@ -1514,6 +1588,21 @@
 
   /* ---------- Transport ----------------------------------------------- */
 
+  // Single source of truth for the "Playing…" status line, so a mid-play toggle
+  // of the melody Playing/Muted seg or the "Also play my part" checkbox can
+  // repaint it truthfully (they used to only re-mix, leaving the line lying).
+  function statusForPlaying() {
+    if (isMonophonic()) {
+      return melodyMuted
+        ? 'Melody muted — sing it yourself. Follow the gold cursor.'
+        : 'Playing the melody — follow along or sing with it.';
+    }
+    const name = VOICE_DEFS.find((v) => v.key === selectedVoice)?.name;
+    return el.hearMine.checked
+      ? `Playing — ${name} audible (practising along).`
+      : `Playing — ${name} muted (sing it). Follow the gold cursor.`;
+  }
+
   async function playPause() {
     if (playState === 'playing') { pause(); return; }
     if (playState === 'paused') { await resume(); return; }
@@ -1536,12 +1625,13 @@
     // play→end/stop cycle. Samples only accrue while the mic is on (see sink).
     practiceSamples = [];
     scoringArmed = true;
+    scoreSummaryShown = false;   // a fresh Play clears the last score summary
     playState = 'playing';
     resetCursor();
     Tone.Transport.start('+0.1');
     updatePlayUI();
     setOverlay(false);
-    setStatus(`Playing — ${VOICE_DEFS.find((v) => v.key === selectedVoice)?.name} muted (sing it). Follow the gold cursor.`);
+    setStatus(statusForPlaying());
   }
 
   function pause() {
@@ -1558,7 +1648,7 @@
     Tone.Transport.start();
     updatePlayUI();
     setOverlay(false);
-    setStatus(`Playing — ${VOICE_DEFS.find((v) => v.key === selectedVoice)?.name} muted (sing it).`);
+    setStatus(statusForPlaying());
   }
 
   function stop() {
@@ -1570,12 +1660,16 @@
     // no-ops when there are no mic samples, so this is free with the mic off.
     let scored = false;
     if (scoringArmed) { scoringArmed = false; scored = scorePractice(); }
+    if (scored) scoreSummaryShown = true;
     playState = 'stopped';
     if (renderDeferred) { renderDeferred = false; renderNow(); }
     updatePos(null);
     updatePlayUI();
     setOverlay(true);
-    if (!scored) setStatus('Stopped.');   // keep the score summary as the surface
+    // Keep a just-produced score summary on the surface across this Stop and any
+    // repeated Stops (e.g. a manual Stop after an auto-stop) — only fall back to
+    // "Stopped." when no summary is showing. Cleared by the next Play.
+    if (!scored && !scoreSummaryShown) setStatus('Stopped.');
   }
 
   function updatePlayUI() {
@@ -1897,10 +1991,9 @@
       if (!opts.fromSelect) syncSelect(id);
     } catch (e) {
       setBusy(false);
-      const hint = p.id !== 'control'
-        ? ' — score is gitignored (copyrighted source); regenerate via omr/README.md.'
-        : ' — ' + e.message;
-      setStatus('Could not load ' + p.url + hint);
+      // Technical detail to the console; a friendly, actionable line to the singer.
+      console.error(`Could not load piece "${p.id}" (${p.url}):`, e);
+      setStatus(`Could not load "${p.title || p.label || p.id}". Try another piece or reload.`);
     }
   }
 
@@ -1970,7 +2063,13 @@
     });
     el.play.addEventListener('click', playPause);
     el.stop.addEventListener('click', stop);
-    el.hearMine.addEventListener('change', applyMix);
+    if (el.retryStart) el.retryStart.addEventListener('click', loadStartingPiece);
+    el.hearMine.addEventListener('change', () => {
+      applyMix();
+      updateVoiceChip();   // keep the 🔇 chip glyph in sync
+      // Mid-play, the status line otherwise lies about whether your part is audible.
+      if (playState === 'playing') setStatus(statusForPlaying());
+    });
     el.loopOn.addEventListener('change', () => {
       if (playState !== 'stopped') { stop(); startPlayback(); }
     });
@@ -2062,6 +2161,20 @@
     }
   }
 
+  // Initial piece load, factored out so the Retry button can re-attempt it.
+  async function loadStartingPiece() {
+    if (el.retryStart) el.retryStart.hidden = true;
+    try {
+      const completed = await loadScore(PIECES[0].url);
+      if (completed) { buildAudio(); setCurrentPiece(PIECES[0]); applySections(PIECES[0]); }
+    } catch (e) {
+      setBusy(false);
+      setStatus('Could not load the starting piece — check your connection.');
+      if (el.retryStart) el.retryStart.hidden = false;   // offer a retry
+      console.error(e);
+    }
+  }
+
   async function main() {
     initControls();
     initLibrary();
@@ -2071,6 +2184,11 @@
     setView('split');
     updatePlayUI();
     setOverlay(true);
+    // Mobile cold-load: collapse the transport so the score is visible on first
+    // paint — the expanded controls otherwise cover the whole sheet on a phone.
+    // setOverlay(false) is the transport's own collapse API (toggles .collapsed);
+    // the always-visible mini-row (Play/Stop/position) stays reachable.
+    if (window.matchMedia && window.matchMedia('(max-width:759px)').matches) setOverlay(false);
     if (window.TrainingScope && el.scope) {
       TrainingScope.attach(el.scope, el.scopeReadout, el.scopeHint);
       TrainingScope.setTimeSource(() => ({
@@ -2087,14 +2205,7 @@
         practiceSamples.push({ tSec: s.tSec, midi: s.midi });
       });
     }
-    try {
-      const completed = await loadScore(PIECES[0].url);
-      if (completed) { buildAudio(); setCurrentPiece(PIECES[0]); applySections(PIECES[0]); }
-    } catch (e) {
-      setBusy(false);
-      setStatus('Startup error: ' + e.message);
-      console.error(e);
-    }
+    await loadStartingPiece();
   }
 
   // Tiny debug/verification hook (used by the headless checks; harmless in prod).

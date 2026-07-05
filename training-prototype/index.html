@@ -15,6 +15,10 @@
 </header>
 
 <div id="status" class="status">Loading…</div>
+<!-- Retry affordance for a failed initial load (hidden until the startup catch
+     shows it; clicking re-attempts loadStartingPiece). Kept OUTSIDE #status
+     because setStatus() overwrites that node's textContent. -->
+<button id="retryStart" class="btn-mini" type="button" hidden>Retry</button>
 
 <section id="scopeWrap" class="scope-wrap">
   <canvas id="scope"></canvas>
@@ -88,7 +92,7 @@
       <button id="micBtn" class="btn mic" title="Practice with mic — see your pitch on the singscope">🎤 Mic</button>
       <label class="chk" title="Raw mic (no echo cancellation) — backing voices keep a constant volume. Turn off only when practising on speakers.">
         <input id="hpMode" type="checkbox" checked /> 🎧 Headphones mode</label>
-      <label class="chk"><input id="hearMine" type="checkbox" /> hear my part</label>
+      <label class="chk"><input id="hearMine" type="checkbox" /> 🔊 Also play my part</label>
     </div>
 
     <div class="row row-view">
