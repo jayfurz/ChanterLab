@@ -107,7 +107,12 @@ export function parseMusicXML(doc) {
                 // continuation in the scope lane.
                 let lyric = null;
                 const lyricEls = child.getElementsByTagName('lyric');
-                let lyricEl = lyricEls[0];
+                // Verse 1 = an UNNUMBERED or number="1" element ONLY. No
+                // first-element fallback: on multilingual scores the verses
+                // syllabify differently, so a note inside a verse-1 melisma
+                // often carries only verse-2/3 elements — borrowing them
+                // interleaves languages in the scope lane ("Ho- du- os ly").
+                let lyricEl = null;
                 for (let li = 0; li < lyricEls.length; li++) {
                   const num = lyricEls[li].getAttribute('number');
                   if (!num || num === '1') { lyricEl = lyricEls[li]; break; }
@@ -220,20 +225,34 @@ export function parseMusicXML(doc) {
   // NEW verse's donor text instead of staying stuck on verse 1's borrow.
   //
   // FALLBACK DECISION: when a note has no syllable recorded for the selected
-  // verse, we fall back to its verse-1 syllable rather than leaving it blank.
-  // Alternate-verse markings (e.g. Sunday vs. weekday antiphon texts) usually
-  // diverge for only a phrase or two and share the rest of the text; a visible
-  // gap mid-passage would read as "the app broke" to a singer following the
-  // gold lane, whereas the verse-1 text is still correct/singable there just
-  // not verse-2-specific. Continuous-but-sometimes-verse-1 reads better than
-  // honest-but-broken-looking gaps.
+  // verse, whether to fall back to verse 1 depends on WHAT KIND of verse it
+  // is, measured by coverage:
+  //   - PARTIAL alternates (e.g. Sunday vs. weekday antiphon refrain — verse 2
+  //     covers a phrase or two of an otherwise-shared text): fall back, or the
+  //     gold lane shows broken-looking gaps through the shared passages.
+  //   - FULL parallel verses (multilingual settings — English/Arabic/Greek
+  //     stacked, each a complete text syllabified differently): NEVER fall
+  //     back; borrowing interleaves languages ("Ho- du- os ly" instead of
+  //     "Ho-ly"). A gap there is a genuine melisma of the chosen language.
+  // Coverage ratio (verse-N syllables / verse-1 syllables) splits the cases:
+  // Finley's alternate refrains sit ~4%, multilingual verses near 100%; the
+  // 0.5 threshold has wide margin on both sides.
 export function applyVerseLyrics(verse) {
     if (!parsed) return;
+    let v1Count = 0, vNCount = 0;
+    if (verse !== 1) {
+      parsed.parts.forEach((p) => p.notes.forEach((n) => {
+        if (!n.lyricVerses) return;
+        if (n.lyricVerses[1] != null) v1Count++;
+        if (n.lyricVerses[verse] != null) vNCount++;
+      }));
+    }
+    const fullVerse = verse !== 1 && v1Count > 0 && vNCount / v1Count >= 0.5;
     parsed.parts.forEach((p) => {
       p.notes.forEach((n) => {
         if (!n.lyricVerses) { n.lyric = null; return; }
         if (n.lyricVerses[verse] != null) { n.lyric = n.lyricVerses[verse]; return; }
-        n.lyric = n.lyricVerses[1] != null ? n.lyricVerses[1] : null;
+        n.lyric = (!fullVerse && n.lyricVerses[1] != null) ? n.lyricVerses[1] : null;
       });
     });
     propagateLyrics(parsed.parts);
