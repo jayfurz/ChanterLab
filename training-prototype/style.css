@@ -163,6 +163,38 @@ body.view-score .scope-hint{display:none}
 .app-foot{padding:0 14px 8px;color:var(--sub);font-size:11px}
 code{background:#12141a;padding:1px 5px;border-radius:5px}
 
+/* ---------- post-lap score report (issue #55) ---------- *
+ * A small dismissible strip (not a modal) — sits inline near the top so it's
+ * visible without scrolling right after a scored lap/Stop. Reuses the panel/
+ * line/pill vocabulary already established by .score-more and .lib-panel. */
+.score-report{margin:6px 14px;padding:9px 11px;border-radius:12px;
+  background:var(--panel);border:1px solid var(--line);
+  box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.score-report[hidden]{display:none}
+.score-report-head{display:flex;align-items:center;gap:8px}
+.score-report-totals{flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--ink);
+  line-height:1.35}
+.score-report-close{flex:0 0 auto;width:28px;height:28px;border-radius:8px;
+  border:1px solid var(--line);background:#12141a;color:var(--sub);font-size:13px;
+  cursor:pointer;touch-action:manipulation}
+.score-report-close:hover{color:var(--gold-soft);border-color:rgba(212,175,55,.35)}
+.score-report-close:active{transform:translateY(1px)}
+.score-report-spots{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.spot-row{display:flex;align-items:center;gap:10px;width:100%;background:#12141a;
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--ink);
+  text-align:left;cursor:pointer;touch-action:manipulation;font-size:12px;min-height:34px}
+.spot-row:hover{border-color:var(--gold-soft)}
+.spot-row:active{transform:translateY(1px)}
+.spot-row.spot-empty{color:var(--sub);cursor:default}
+.spot-row.spot-empty:hover{border-color:var(--line);transform:none}
+.spot-m{flex:0 0 auto;min-width:40px;color:var(--gold-soft);font-weight:700;
+  font-variant-numeric:tabular-nums}
+.spot-detail{flex:1;min-width:0;color:var(--sub);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+
+/* ---------- scoring strictness control (issue #55) ---------- */
+.row-strictness .seg{flex:0 0 auto;min-width:150px}
+
 /* ---------- desktop ---------- */
 @media (min-width: 760px){
   .app-head{padding:16px 20px 6px}
@@ -171,6 +203,7 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
   .sub{font-size:13px}
   .status{padding:6px 20px}
   #retryStart{margin-left:20px;margin-right:20px}
+  .score-report{margin:8px 20px}
   .scope-wrap{margin:8px 20px 12px}
   #scope{height:200px;min-height:160px}
   body.view-split #scope{height:180px;min-height:140px;max-height:220px}

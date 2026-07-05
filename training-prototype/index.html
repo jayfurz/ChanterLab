@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>ChanterLab — Choir Training (SATB) Prototype</title>
 <link rel="icon" href="data:," />
-<link rel="stylesheet" href="style.css?v=loadperf1" />
+<link rel="stylesheet" href="style.css?v=scoringv1" />
 </head>
 <body class="view-split">
 <header class="app-head">
@@ -19,6 +19,19 @@
      shows it; clicking re-attempts loadStartingPiece). Kept OUTSIDE #status
      because setStatus() overwrites that node's textContent. -->
 <button id="retryStart" class="btn-mini" type="button" hidden>Retry</button>
+
+<!-- Lightweight post-lap score report (issue #55) — NOT a modal. Appears after
+     a scored lap/stop: totals + up to ~3 "worst spots" (measures with the most
+     missed/flat/sharp notes). Tapping a spot loops that measure's
+     neighborhood. Dismissed by the X (sticks until the next Play) or by
+     starting a fresh Play. The richer per-note-coloring panel is #60. -->
+<div id="scoreReport" class="score-report" hidden aria-live="polite">
+  <div class="score-report-head">
+    <span id="scoreReportTotals" class="score-report-totals"></span>
+    <button id="scoreReportClose" class="score-report-close" aria-label="Dismiss report" title="Dismiss">✕</button>
+  </div>
+  <div id="scoreReportSpots" class="score-report-spots"></div>
+</div>
 
 <section id="scopeWrap" class="scope-wrap">
   <canvas id="scope"></canvas>
@@ -93,6 +106,17 @@
       <label class="chk" title="Raw mic (no echo cancellation) — backing voices keep a constant volume. Turn off only when practising on speakers.">
         <input id="hpMode" type="checkbox" checked /> 🎧 Headphones mode</label>
       <label class="chk"><input id="hearMine" type="checkbox" /> 🔊 Also play my part</label>
+    </div>
+
+    <!-- Scoring strictness (issue #55): Relaxed = the original spike defaults
+         (±50¢, 50% coverage); Strict tightens both (±35¢, 75% coverage).
+         Persisted; applied to every scoreNotes() call (see currentScoreOpts). -->
+    <div class="row row-strictness">
+      <span class="label">Scoring</span>
+      <div id="strictnessPicker" class="seg" role="tablist" aria-label="Scoring strictness">
+        <button type="button" data-strictness="relaxed" class="segbtn active" role="tab">Relaxed</button>
+        <button type="button" data-strictness="strict" class="segbtn" role="tab">Strict</button>
+      </div>
     </div>
 
     <div class="row row-view">
@@ -173,8 +197,8 @@
 
 <script src="vendor/opensheetmusicdisplay.min.js"></script>
 <script src="vendor/Tone.js"></script>
-<script src="scoring.js?v=spike49"></script>
+<script src="scoring.js?v=scoringv1"></script>
 <script src="scope.js?v=overlay1"></script>
-<script src="app.js?v=loadperf1"></script>
+<script src="app.js?v=scoringv1"></script>
 </body>
 </html>

@@ -1,4 +1,7 @@
-/* ChanterScoring — pure, dependency-free per-note hit detection (SPIKE, issue #49).
+/* ChanterScoring — pure, dependency-free per-note hit detection.
+ * Graduated from the #49 spike to Scoring v1 for issue #55 (per-lap scoring +
+ * a worst-spots helper + strictness presets); the core note-scoring model is
+ * unchanged from the spike.
  *
  * Loaded in the browser (attaches window.ChanterScoring) AND importable in node
  * (module.exports) so the unit tests can drive the exact same code the app runs.
@@ -6,10 +9,18 @@
  *
  *   scoreNotes(targets, pitchSamples, opts) -> { notes, hit, flat, sharp, missed,
  *                                                hitPct, details:[...] }
+ *   worstSpots(result, limit) -> the `limit` (default 3) measures with the most
+ *                                non-hit notes, sorted worst-first — for the
+ *                                lightweight post-lap report (issue #55).
+ *   PRESETS.relaxed / PRESETS.strict — opts objects for the strictness toggle.
  *
  * INPUTS
- *   targets:      [{ midi, startSec, endSec, lyric? }]  — the loop's selected-voice
- *                 notes, derived from beat×tempo exactly as playback schedules them.
+ *   targets:      [{ midi, startSec, endSec, lyric?, measure? }]  — the loop's
+ *                 selected-voice notes, derived from beat×tempo exactly as
+ *                 playback schedules them. `measure` (printed measure number)
+ *                 is optional — passed through to details[].measure so a
+ *                 caller can group results by measure (see worstSpots); scoring
+ *                 itself never reads it.
  *   pitchSamples: [{ tSec, midi }]  — the singer's VOICED pitch estimates in
  *                 transport seconds (unvoiced frames simply produce no sample).
  *                 `midi` is the raw sung pitch (float); octave folding happens here.
@@ -114,6 +125,7 @@
     return {
       midi: target.midi,
       lyric: target.lyric != null ? target.lyric : null,
+      measure: target.measure != null ? target.measure : null,
       startSec: startSec,
       endSec: endSec,
       result: result,
@@ -166,10 +178,48 @@
       r.missed + ' missed (' + r.hitPct + '%)';
   }
 
+  // Strictness presets (issue #55). `relaxed` is deliberately an empty object
+  // — scoreNotes()'s own opt() fallback already resolves every key to
+  // DEFAULTS when absent, so `{}` and "the historical no-opts call" score
+  // identically (no behavior change for existing callers/history rows).
+  var PRESETS = {
+    relaxed: {},
+    strict: { centsTol: 35, minCoverage: 0.75 },
+  };
+
+  // Group a scored result's non-hit notes by measure and return the `limit`
+  // worst (most non-hit notes first, ties broken by ascending measure) — the
+  // "worst spots" the post-lap report points a singer at. Notes without a
+  // `measure` (targets that omitted it) are skipped: there is nothing to
+  // group them under. Pure function of `result.details`; safe to call with
+  // any scoreNotes() output, including opts variants.
+  function worstSpots(result, limit) {
+    limit = limit == null ? 3 : limit;
+    var details = (result && Array.isArray(result.details)) ? result.details : [];
+    var byMeasure = {};
+    var order = [];
+    for (var i = 0; i < details.length; i++) {
+      var d = details[i];
+      if (d.measure == null || d.result === 'hit') continue;
+      var key = d.measure;
+      if (!byMeasure[key]) {
+        byMeasure[key] = { measure: key, bad: 0, flat: 0, sharp: 0, missed: 0 };
+        order.push(key);
+      }
+      byMeasure[key].bad += 1;
+      byMeasure[key][d.result] += 1;
+    }
+    var spots = order.map(function (k) { return byMeasure[k]; });
+    spots.sort(function (a, b) { return b.bad - a.bad || a.measure - b.measure; });
+    return spots.slice(0, limit);
+  }
+
   return {
     scoreNotes: scoreNotes,
     summaryLine: summaryLine,
+    worstSpots: worstSpots,
     centsToTarget: centsToTarget,
     DEFAULTS: DEFAULTS,
+    PRESETS: PRESETS,
   };
 }));

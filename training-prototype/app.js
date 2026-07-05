@@ -140,6 +140,7 @@
     micBtn: document.getElementById('micBtn'),
     hpMode: document.getElementById('hpMode'),
     micNote: document.getElementById('micNote'),
+    strictnessPicker: document.getElementById('strictnessPicker'),
     scope: document.getElementById('scope'),
     scopeReadout: document.getElementById('scopeReadout'),
     scopeHint: document.getElementById('scopeHint'),
@@ -166,6 +167,11 @@
     scoreMore: document.getElementById('scoreMore'),
     scoreMoreText: document.getElementById('scoreMoreText'),
     renderFull: document.getElementById('renderFull'),
+    // lightweight post-lap report strip (issue #55)
+    scoreReport: document.getElementById('scoreReport'),
+    scoreReportTotals: document.getElementById('scoreReportTotals'),
+    scoreReportSpots: document.getElementById('scoreReportSpots'),
+    scoreReportClose: document.getElementById('scoreReportClose'),
     // jump-to-section controls
     sectionsRow: document.getElementById('sectionsRow'),
     sectionsBtn: document.getElementById('sectionsBtn'),
@@ -194,17 +200,31 @@
   let playState = 'stopped'; // 'stopped' | 'playing' | 'paused'
   let viewMode = 'split';    // 'split' | 'score' | 'scope'
 
-  // --- per-note scoring (SPIKE #49) ---
+  // --- per-note scoring (Scoring v1, issue #55 — graduated from the #49 spike) ---
+  // Loop mode overlays every lap into the SAME 0..duration transport window (see
+  // scheduleAll's Tone.Transport.loop), so `practiceSamples` now holds only the
+  // CURRENT lap's voiced pitch stream: it is scored and reset at every lap
+  // boundary (see onLapWrap) instead of accumulating for the whole session (the
+  // #49 spike's known limitation — laps landing on top of each other).
   let currentPieceId = null; // id of the loaded piece (for history entries)
-  let practiceSamples = [];  // {tSec, midi} voiced pitch stream for the current playthrough
+  let practiceSamples = [];  // {tSec, midi} voiced pitch stream for the CURRENT lap
   let scoringArmed = false;  // a play→end/stop cycle is pending a score (prevents double-scoring)
-  let lastScoreResult = null;// last scoreNotes() output (exposed via __training.lastScore)
-  // A "Scored N notes…" summary is currently on the status line and must survive
-  // repeated Stops until the next Play (a manual Stop after an auto-stop must not
-  // clobber it with "Stopped."). Set when scorePractice() paints a summary; the
-  // next startPlayback() clears it.
+  let lastScoreResult = null;// latest lap's scoreNotes() output + {lap,best,laps} (see scoreCurrentLap)
+  let sessionLaps = [];      // every scored lap this play session, oldest first (__training.scoreLaps)
+  let currentLapNum = 1;     // 1-based — which lap is currently accumulating samples
+  let bestLapHitPct = -1;    // best hitPct seen this session; -1 = no lap scored yet
+  // A "Scored N notes…"/"Lap N: …" summary is currently on the status line and
+  // must survive repeated Stops until the next Play (a manual Stop after an
+  // auto-stop must not clobber it with "Stopped."). Set when scoreCurrentLap()
+  // paints a summary; the next startPlayback() clears it.
   let scoreSummaryShown = false;
   const PRACTICE_HISTORY_KEY = 'chanterlab_practice_history';
+  const STRICTNESS_KEY = 'chanterlab_scoring_strictness';
+  let scoringStrictness = 'relaxed'; // 'relaxed' | 'strict' — persisted, see loadStrictness/setStrictness
+  // Lightweight post-lap report strip (issue #55): totals + up to ~3 worst
+  // spots for the most recently scored lap. reportDismissed sticks until the
+  // next Play (tapping X, not just re-scoring, should keep it hidden).
+  let reportDismissed = false;
   let userHoldUntil = 0;     // auto-scroll suspended until this perf.now() ms
 
   // --- load + windowed-render state ---
@@ -1085,11 +1105,13 @@
     );
   }
 
-  /* ---------- Per-note scoring (SPIKE #49) ----------------------------- */
+  /* ---------- Per-note scoring (Scoring v1, issue #55) ------------------ */
 
   // The selected voice's target notes for the current loop window, in transport
   // seconds. SAME beat×tempo math as buildScopeLane/scheduleAll, so a target's
   // [startSec,endSec] lines up exactly with the sung samples' Transport.seconds.
+  // `measure` (printed measure number) rides along so scoreNotes()'s details[]
+  // can say "m 12" — the report strip's worst-spots grouping (see worstSpots).
   function buildScoreTargets() {
     if (!parsed) return [];
     const spb = 60 / Number(el.bpm.value);
@@ -1105,26 +1127,69 @@
         startSec: (n.startBeat - winStart) * spb,
         endSec: (n.startBeat - winStart + n.durBeat) * spb,
         lyric: n.lyric || null,
+        measure: n.measure,
       }));
   }
 
-  // Run the pure scorer over the just-played window and surface the result:
-  // one-line summary, a console.table of per-note detail, and an appended
-  // localStorage history entry. Called from stop() when a play cycle armed it
-  // AND the mic actually produced samples — so it is zero-cost with the mic off.
-  function scorePractice() {
-    if (!window.ChanterScoring) return false;
-    const targets = buildScoreTargets();
-    const samples = practiceSamples;
-    if (!targets.length || !samples.length) return false;
+  // Strictness preset (issue #55): two named presets, persisted so a singer's
+  // choice survives reload. `currentScoreOpts()` feeds straight into
+  // scoreNotes()'s opts param — this is the ONLY place strictness plugs in.
+  function loadStrictness() {
+    try {
+      const v = localStorage.getItem(STRICTNESS_KEY);
+      if (v === 'strict' || v === 'relaxed') scoringStrictness = v;
+    } catch (e) { /* storage disabled — default (relaxed) stands */ }
+  }
+  function currentScoreOpts() {
+    const presets = window.ChanterScoring && window.ChanterScoring.PRESETS;
+    return (presets && presets[scoringStrictness]) || null;
+  }
+  function setStrictness(s) {
+    scoringStrictness = (s === 'strict') ? 'strict' : 'relaxed';
+    try { localStorage.setItem(STRICTNESS_KEY, scoringStrictness); } catch (e) { /* non-fatal */ }
+    updateStrictnessUI();
+  }
+  function updateStrictnessUI() {
+    if (!el.strictnessPicker) return;
+    [...el.strictnessPicker.children].forEach((b) =>
+      b.classList.toggle('active', b.dataset.strictness === scoringStrictness));
+  }
 
-    const result = window.ChanterScoring.scoreNotes(targets, samples);
-    lastScoreResult = result;
-    setStatus(window.ChanterScoring.summaryLine(result));
+  // Score the CURRENT LAP's accumulated samples (practiceSamples) against the
+  // loop's target notes, record it as lap `currentLapNum`, roll the running
+  // best, paint the status line + report strip, and append one per-lap
+  // history entry. Called from TWO places: onLapWrap() (a completed lap,
+  // mid-session) and stop() (the session's final/only lap, possibly partial).
+  // Samples-first check keeps this genuinely zero-cost with the mic off (no
+  // buildScoreTargets() call at all when there is nothing to score).
+  function scoreCurrentLap() {
+    if (!window.ChanterScoring) return false;
+    const samples = practiceSamples;
+    if (!samples.length) return false;
+    const targets = buildScoreTargets();
+    if (!targets.length) return false;
+
+    const opts = currentScoreOpts();
+    const result = window.ChanterScoring.scoreNotes(targets, samples, opts);
+    const lap = currentLapNum;
+    if (result.hitPct > bestLapHitPct) bestLapHitPct = result.hitPct;
+    const entry = Object.assign({ lap: lap, best: bestLapHitPct }, result);
+    sessionLaps.push(entry);
+    // lastScore() exposes the latest lap WITH the running laps[] alongside —
+    // a shallow copy (not the live `entry`) so a caller mutating what
+    // lastScore() returned can't corrupt sessionLaps' own bookkeeping copy.
+    lastScoreResult = Object.assign({}, entry, { laps: sessionLaps });
+
+    // Loop sessions get the compact "Lap N: X% · best Y%" line (the report
+    // strip carries the detail); a single non-loop play-through keeps the
+    // original spike wording verbatim — no regression there (issue #55 verify d).
+    setStatus(el.loopOn.checked
+      ? `Lap ${lap}: ${result.hitPct}% · best ${bestLapHitPct}%`
+      : window.ChanterScoring.summaryLine(result));
     try {
       // eslint-disable-next-line no-console
       console.table(result.details.map((d) => ({
-        '#': d.index, midi: d.midi, lyric: d.lyric,
+        '#': d.index, midi: d.midi, lyric: d.lyric, m: d.measure,
         start: +d.startSec.toFixed(2), end: +d.endSec.toFixed(2),
         result: d.result, coverage: d.coverage, 'mean¢': d.meanCents, samples: d.samples,
       })));
@@ -1137,11 +1202,15 @@
       loopFrom: clampMeasure(Number(el.loopFrom.value)),
       loopTo: clampMeasure(Number(el.loopTo.value)),
       verse: activeVerse,
+      lap: lap,
+      strictness: scoringStrictness,
       totals: {
         notes: result.notes, hit: result.hit, flat: result.flat,
         sharp: result.sharp, missed: result.missed, hitPct: result.hitPct,
       },
     });
+
+    showReport(entry);
     return true;
   }
 
@@ -1154,7 +1223,75 @@
       // cap at ~200 entries (drop oldest)
       while (list.length > 200) list.shift();
       localStorage.setItem(PRACTICE_HISTORY_KEY, JSON.stringify(list));
-    } catch (e) { /* storage disabled/full — non-fatal for the spike */ }
+    } catch (e) { /* storage disabled/full — non-fatal */ }
+  }
+
+  /* ---------- Lightweight post-lap report strip (issue #55) ------------- *
+   * A small, dismissible, non-modal strip (NOT the rich per-note-coloring
+   * panel — that's deferred to #60 after modularization): the lap's totals +
+   * up to 3 "worst spots" (measures with the most non-hit notes). Tapping a
+   * spot loops that measure's neighborhood, reusing the same loop-input +
+   * render/park machinery jumpToSection already relies on.
+   */
+
+  function showReport(entry) {
+    if (reportDismissed || !el.scoreReport) return;
+    const spots = (window.ChanterScoring && window.ChanterScoring.worstSpots)
+      ? window.ChanterScoring.worstSpots(entry, 3) : [];
+    if (el.scoreReportTotals) {
+      el.scoreReportTotals.textContent =
+        `Lap ${entry.lap}: ${entry.hit} hit · ${entry.flat} flat · ${entry.sharp} sharp · ` +
+        `${entry.missed} missed of ${entry.notes} (${entry.hitPct}%)`;
+    }
+    if (el.scoreReportSpots) {
+      el.scoreReportSpots.innerHTML = '';
+      if (!spots.length) {
+        const p = document.createElement('div');
+        p.className = 'spot-row spot-empty';
+        p.textContent = 'Clean lap — no rough spots.';
+        el.scoreReportSpots.appendChild(p);
+      } else {
+        spots.forEach((s) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'spot-row';
+          b.title = `Loop measure ${s.measure} to drill this spot`;
+          const bits = [];
+          if (s.missed) bits.push(`${s.missed} missed`);
+          if (s.flat) bits.push(`${s.flat} flat`);
+          if (s.sharp) bits.push(`${s.sharp} sharp`);
+          const m = document.createElement('span');
+          m.className = 'spot-m'; m.textContent = 'm ' + s.measure;
+          const d = document.createElement('span');
+          d.className = 'spot-detail'; d.textContent = bits.join(' · ');
+          b.append(m, d);
+          b.addEventListener('click', () => loopWorstSpot(s.measure));
+          el.scoreReportSpots.appendChild(b);
+        });
+      }
+    }
+    el.scoreReport.hidden = false;
+  }
+
+  function hideReport() {
+    if (el.scoreReport) el.scoreReport.hidden = true;
+  }
+
+  // Set the loop to a ±1-measure neighborhood around a worst-spot measure and
+  // park the cursor there (stopping playback first if needed) so the singer
+  // can immediately re-Play just that spot. Mirrors jumpToSection's pattern.
+  function loopWorstSpot(measure) {
+    if (!parsed) return;
+    const from = clampMeasure(measure - 1);
+    const to = clampMeasure(measure + 1);
+    if (playState !== 'stopped') stop();
+    ensureRenderWindow(from, to);
+    el.loopFrom.value = from;
+    el.loopTo.value = to;
+    el.loopOn.checked = true;
+    buildScopeLane();
+    parkCursorAtWindowStart();
+    hideReport();
   }
 
   /* ---------- Audio (Tone.js) ----------------------------------------- */
@@ -1240,13 +1377,40 @@
       Tone.Transport.loop = true;
       Tone.Transport.loopStart = 0;
       Tone.Transport.loopEnd = total;
-      const id = Tone.Transport.schedule(() => resetCursor(), total - 1e-3);
+      // LAP-BOUNDARY DETECTION (issue #55): Tone.Transport re-fires every
+      // event scheduled inside [loopStart,loopEnd) on each pass — that's
+      // already how the pre-#55 spike's resetCursor() call here kept
+      // resetting the cursor once per lap, and how the note/cursor-step
+      // schedules above keep replaying each lap. So the exact same "just
+      // before the wrap" instant is the one boundary signal a lap needs: no
+      // separate polling/rAF watcher, just score-and-reset piggybacked onto
+      // the schedule that already existed for the cursor reset.
+      const id = Tone.Transport.schedule(() => onLapWrap(), total - 1e-3);
       scheduledIds.push(id);
     } else {
       Tone.Transport.loop = false;
       const id = Tone.Transport.schedule(() => stop(), total + 0.3);
       scheduledIds.push(id);
     }
+  }
+
+  // Fires ~1ms before the transport wraps back to loopStart (see the comment
+  // above). Scores the lap that just finished (no-op if the mic produced no
+  // samples this lap — see scoreCurrentLap), rolls the sample buffer over to
+  // the next lap, and resets the follow cursor.
+  //
+  // KNOWN EDGE CASE: this callback runs on Tone's audio-clock schedule, which
+  // can fire a few ms ahead of the pitch tracker's rAF-driven sample stream
+  // (real mic latency). A straggler sample or two from the very tail of the
+  // finishing lap can therefore land in the NEXT lap's buffer instead. In
+  // practice this only ever brushes the last note of a lap, whose target
+  // pitch is identical lap-to-lap (same passage repeating), so the practical
+  // effect is negligible — a deliberate v1 tradeoff, not an oversight.
+  function onLapWrap() {
+    if (scoringArmed) scoreCurrentLap();
+    practiceSamples = [];
+    currentLapNum += 1;
+    resetCursor();
   }
 
   function clampMeasure(m) { return Math.min(Math.max(1, m || 1), parsed.measureCount); }
@@ -1621,11 +1785,17 @@
     Tone.Transport.position = 0;
     buildScopeLane();
     scheduleAll();
-    // Scoring (#49): start a fresh sample buffer and arm the score for this
-    // play→end/stop cycle. Samples only accrue while the mic is on (see sink).
+    // Scoring v1: start a fresh sample buffer + a fresh lap session, and arm
+    // the score for this play→end/stop cycle. Samples only accrue while the
+    // mic is on (see sink).
     practiceSamples = [];
+    sessionLaps = [];
+    currentLapNum = 1;
+    bestLapHitPct = -1;
     scoringArmed = true;
     scoreSummaryShown = false;   // a fresh Play clears the last score summary
+    reportDismissed = false;     // a fresh Play un-sticks a dismissed report strip
+    hideReport();
     playState = 'playing';
     resetCursor();
     Tone.Transport.start('+0.1');
@@ -1656,10 +1826,12 @@
     Tone.Transport.position = 0;
     clearSchedule();
     if (osmd && osmd.cursor) osmd.cursor.hide();
-    // Score the window that just played (once per armed cycle). scorePractice
-    // no-ops when there are no mic samples, so this is free with the mic off.
+    // Score whatever's left of the current lap (once per armed cycle) — the
+    // session's only lap for a non-loop play, or a partial final lap for a
+    // manual Stop mid-loop. scoreCurrentLap no-ops when there are no mic
+    // samples, so this is free with the mic off.
     let scored = false;
-    if (scoringArmed) { scoringArmed = false; scored = scorePractice(); }
+    if (scoringArmed) { scoringArmed = false; scored = scoreCurrentLap(); }
     if (scored) scoreSummaryShown = true;
     playState = 'stopped';
     if (renderDeferred) { renderDeferred = false; renderNow(); }
@@ -2092,6 +2264,16 @@
     el.hpMode.addEventListener('change', onHeadphonesToggle);
     [...el.viewPicker.children].forEach((b) =>
       b.addEventListener('click', () => setView(b.dataset.view)));
+    if (el.strictnessPicker) {
+      [...el.strictnessPicker.children].forEach((b) =>
+        b.addEventListener('click', () => setStrictness(b.dataset.strictness)));
+    }
+    if (el.scoreReportClose) {
+      el.scoreReportClose.addEventListener('click', () => {
+        reportDismissed = true;
+        hideReport();
+      });
+    }
 
     // auto-scroll etiquette: user touch on the score container suspends
     // cursor-follow for ~3 s (each event refreshes the window)
@@ -2176,7 +2358,9 @@
   }
 
   async function main() {
+    loadStrictness();
     initControls();
+    updateStrictnessUI();
     initLibrary();
     initSections();
     loadLibraryManifest();  // async; feeds the library overlay (never the combobox)
@@ -2225,18 +2409,36 @@
     setVerse: (v) => { setVerse(v); return activeVerse; },
     maxVerse: () => (parsed ? (parsed.maxVerse || 1) : 1),
 
-    // --- per-note scoring (SPIKE #49) ---
-    // lastScore(): the last per-note result array + totals (null before any run).
+    // --- per-note scoring (Scoring v1, issue #55) ---
+    // lastScore(): the latest scored lap (result + {lap,best}) with a laps[]
+    // array of every lap this session alongside it (null before any run).
     lastScore: () => lastScoreResult,
+    // scoreLaps(): every scored lap this play session, oldest first.
+    scoreLaps: () => sessionLaps.slice(),
     // scoreCore(): the pure scorer, for tests (delegates to ChanterScoring).
     scoreCore: (targets, samples, opts) =>
       (window.ChanterScoring ? window.ChanterScoring.scoreNotes(targets, samples, opts) : null),
-    // introspection: the current loop's targets + the collected sample stream.
+    // introspection: the current loop's targets + the CURRENT lap's collected
+    // sample stream (reset at every lap boundary — see onLapWrap).
     scoreTargets: () => buildScoreTargets(),
     practiceSamples: () => practiceSamples.slice(),
     scoreHistory: () => {
       try { return JSON.parse(localStorage.getItem(PRACTICE_HISTORY_KEY) || '[]'); }
       catch (e) { return []; }
+    },
+    // strictness preset: 'relaxed' (default) or 'strict' — persisted.
+    strictness: () => scoringStrictness,
+    setStrictness: (s) => { setStrictness(s); return scoringStrictness; },
+    // Test-only pitch injection: headless checks (and any dev box without a
+    // real mic) have no way to drive TrainingScope's actual pitch detector,
+    // so this pushes straight into the CURRENT lap's sample buffer exactly as
+    // the real pitch sink does (see main()'s setPitchSink), letting a test
+    // exercise the real lap-scoring/report code against synthetic samples.
+    // No-op while not playing; never called by the app itself.
+    injectSample: (tSec, midi) => {
+      if (playState !== 'playing') return false;
+      practiceSamples.push({ tSec, midi });
+      return true;
     },
 
     // --- windowed-render + seek machinery (for a future "jump to section" UI) ---
