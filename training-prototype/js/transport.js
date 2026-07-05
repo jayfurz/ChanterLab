@@ -7,6 +7,7 @@ import { osmd, osmdSteps, ensureRenderWindow, flushDeferredRender } from './load
 import { selectedVoice, melodyMuted, buildScopeLane } from './voices.js';
 import { beginScoringSession, scoreLapAndRoll, finalizeScoringOnStop, scoreSummaryShown } from './scoring-ui.js';
 import { currentSections, setActiveSection, sectionIndexForMeasure } from './sections.js';
+import { onPlaySucceeded, onStopped } from './onboarding.js';
 
 let synths = [];           // Tone.PolySynth per part
 export let gains = [];     // Tone.Gain per part
@@ -16,6 +17,33 @@ export let playState = 'stopped';
 export let userHoldUntil = 0;
 
   /* ---------- Audio (Tone.js) ----------------------------------------- */
+
+  // Current Tone AudioContext state ('running' | 'suspended' | 'closed' | …).
+  // Exposed for headless tests via window.__training.audioContextState()
+  // (issue #63) — a post-Play assertion that doesn't rely on actually
+  // hearing sound (CI has no audio device).
+export function audioContextState() {
+    return (typeof Tone !== 'undefined' && Tone.getContext) ? Tone.getContext().state : 'unknown';
+  }
+
+  // Unlock the browser AudioContext SYNCHRONOUSLY within the calling gesture's
+  // handler chain (iOS Safari requirement — no detours through setTimeout/rAF
+  // before this call). Every audio-starting user-gesture path (Play/Resume —
+  // see startPlayback/resume below — and anywhere else audio starts from a
+  // tap/click/change) must call this FIRST, before touching the transport.
+  // Returns true once the context is actually running; false means the
+  // browser's autoplay policy still blocked it (rare, but real on some mobile
+  // browsers even after a genuine tap) — callers must NOT pretend to play in
+  // that case: no scheduling, no transport start, just prompt a retry tap
+  // (issue #63).
+  async function unlockAudio() {
+    await Tone.start();
+    if (Tone.getContext().state !== 'running') {
+      setStatus('Tap again to enable sound.');
+      return false;
+    }
+    return true;
+  }
 
 export function buildAudio() {
     disposeAudio();
@@ -289,7 +317,7 @@ export async function playPause() {
   }
 
 export async function startPlayback() {
-    await Tone.start();
+    if (!(await unlockAudio())) return;   // suspended-context guard (issue #63)
     if (!synths.length) buildAudio();
     applyMix();
     // Windowed scores: make sure the loop range is actually rendered before we
@@ -308,6 +336,7 @@ export async function startPlayback() {
     updatePlayUI();
     setOverlay(false);
     setStatus(statusForPlaying());
+    onPlaySucceeded();   // first-run onboarding (issue #64) — no-op after the first time
   }
 
   function pause() {
@@ -319,12 +348,13 @@ export async function startPlayback() {
   }
 
   async function resume() {
-    await Tone.start();
+    if (!(await unlockAudio())) return;   // suspended-context guard (issue #63)
     playState = 'playing';
     Tone.Transport.start();
     updatePlayUI();
     setOverlay(false);
     setStatus(statusForPlaying());
+    onPlaySucceeded();   // no-op after the first successful Play this browser
   }
 
 export function stop() {
@@ -344,6 +374,7 @@ export function stop() {
     // repeated Stops (e.g. a manual Stop after an auto-stop) — only fall back to
     // "Stopped." when no summary is showing. Cleared by the next Play.
     if (!scored && !scoreSummaryShown) setStatus('Stopped.');
+    onStopped();   // first-run onboarding (issue #64) — no-op before the first Play
   }
 
 export function updatePlayUI() {

@@ -17,6 +17,7 @@
  *                  sectionSheetOpen
  *   library.js   : libProto, libItems, libSearch, libFlat, libOffsets, libTotalH,
  *                  libRange, libOpen, libPushed, libCollapsed, libFacetDefs, ...
+ *   onboarding.js: onboarded, playedOnce, micEverUsed, done (all private)
  *   main.js      : resizeTimer, loopRenderTimer (private)
  * Cross-module resets go through the owner's exported helpers (resetVoiceState-
  * ForLoad, beginScoringSession, flushDeferredRender, prepare/clearXmlSections).
@@ -44,12 +45,22 @@ export const VOICE_DEFS = [
 
   // The 5 built-in dev pieces (the "Prototype" group). These stay reachable via
   // the hidden #pieceSelect (headless tests) AND appear in the library overlay.
+  // 'control' is listed LAST on purpose (issue #64): libProto (library.js)
+  // mirrors this array's order verbatim for the Prototype group, and the
+  // control fixture is a hand-made CI/dev regression sample, not a real chant
+  // — it shouldn't be the first thing a visitor sees ahead of actual pieces.
 export const PIECES = [
-    { id: 'control', title: 'Control — clean SATB', composer: 'ChanterLab · dev', arrangement: '4-part, Full choir', label: 'Control — hand-made clean SATB', url: 'content/control_satb.musicxml' },
     { id: 'trisagion_v', title: 'Trisagion', composer: 'antiochian.org · vector', arrangement: 'Choral', label: 'Trisagion (antiochian.org, vector extraction)', url: 'content/trisagion_vector.musicxml' },
     { id: 'cherubic_v', title: 'Cherubic Hymn', composer: 'antiochian.org · vector', arrangement: 'Choral', label: 'Cherubic Hymn (antiochian.org, vector extraction)', url: 'content/cherubic_vector.musicxml' },
     { id: 'anaphora_v', title: 'Anaphora', composer: 'antiochian.org · vector', arrangement: 'Choral', label: 'Anaphora (antiochian.org, vector extraction)', url: 'content/anaphora_vector.musicxml' },
     { id: 'trisagion', title: 'Trisagion — OMR', composer: 'antiochian.org · OMR', arrangement: 'Choral', label: 'Trisagion (oemer OMR — kept for comparison)', url: 'content/trisagion_omr.musicxml' },
+    // Hand-made regression fixture (NOT a real chant): its ending is musically
+    // truncated — it skips "have mercy on" — so it is not for practice, only
+    // for scoring/CI smoke checks that need a small, always-committed score.
+    // See loader.loadStartingPiece for why it's still the guaranteed fallback
+    // when the library manifest (gitignored) isn't present, e.g. every CI
+    // checkout / fresh clone.
+    { id: 'control', title: 'Test fixture — SATB control', composer: 'ChanterLab · dev', arrangement: '4-part, Full choir', label: 'Test fixture — SATB control (hand-made, CI/dev only)', url: 'content/control_satb.musicxml' },
   ];
 export const N_BUILTIN = PIECES.length;
 
@@ -62,12 +73,21 @@ export const N_BUILTIN = PIECES.length;
    */
 export const DEFAULT_MANIFEST = 'omr/out/ingest/manifest.json';
 
+  // Preferred landing piece for first paint (issue #64) — a real chant from
+  // the ingested library rather than the 'control' dev fixture above.
+  // loader.loadStartingPiece uses this ONLY when the manifest actually loaded
+  // and lists this id (see loadLibraryManifest, library.js); every other case
+  // — most notably every CI checkout / fresh clone, which has no manifest at
+  // all — falls back to 'control' exactly as before this feature existed.
+export const DEFAULT_STARTING_PIECE_ID = '10a_trisagion_hymn-hilko-t3_0';
+
   // Diacritic- and case-insensitive fold for search + facet matching.
 export const fold = (s) => (s == null ? '' : String(s))
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 export const PRACTICE_HISTORY_KEY = 'chanterlab_practice_history';
 export const STRICTNESS_KEY = 'chanterlab_scoring_strictness';
+export const ONBOARDING_KEY = 'chanterlab_onboarded';
 
 export const el = {
     osmd: document.getElementById('osmd'),
@@ -127,6 +147,10 @@ export const el = {
     sectionSheet: document.getElementById('sectionSheet'),
     sectionSheetList: document.getElementById('sectionSheetList'),
     sectionSheetClose: document.getElementById('sectionSheetClose'),
+    // first-run onboarding coach-mark (issue #64) — one reusable bubble
+    onboardHint: document.getElementById('onboardHint'),
+    onboardHintText: document.getElementById('onboardHintText'),
+    onboardHintClose: document.getElementById('onboardHintClose'),
   };
 
 export const setStatus = (m) => { el.status.textContent = m; };

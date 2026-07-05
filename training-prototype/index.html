@@ -183,6 +183,17 @@
   </div>
 </div>
 
+<!-- First-run onboarding coach-mark (issue #64). One lightweight, dismissible
+     bubble reused for all 3 onboarding moments (never stacks) — js/onboarding.js
+     retexts + repositions it near the relevant control (Play, then the voice
+     chip, then a mic nudge). Sits just above the fixed transport overlay via
+     --transport-h so it never shifts/covers it. Hidden forever once
+     localStorage's 'chanterlab_onboarded' flag is set. -->
+<div id="onboardHint" class="onboard-hint" hidden role="status" aria-live="polite">
+  <span id="onboardHintText" class="onboard-hint-text"></span>
+  <button id="onboardHintClose" class="onboard-hint-close" aria-label="Dismiss" title="Dismiss">✕</button>
+</div>
+
 <!-- Jump-to-section bottom sheet. Mobile-first: a scrollable list of "m N ·
      Title" entries that slides up from the transport. Opened by #sectionsBtn. -->
 <div id="sectionSheet" class="sec-sheet" role="dialog" aria-modal="true" aria-label="Jump to section" hidden>

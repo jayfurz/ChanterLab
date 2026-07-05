@@ -1,7 +1,7 @@
 /* loader.js — phased score load, OSMD build, windowed rendering, coloring,
  * view/fit sizing, and piece switching. Owns osmd + the render-window state.
  */
-import { el, setStatus, GOLD, DIM, VOICE_DEFS, PIECES, WINDOW_THRESHOLD, INITIAL_WINDOW, WINDOW_BUFFER } from './state.js';
+import { el, setStatus, GOLD, DIM, VOICE_DEFS, PIECES, WINDOW_THRESHOLD, INITIAL_WINDOW, WINDOW_BUFFER, DEFAULT_STARTING_PIECE_ID } from './state.js';
 import { parseMusicXML, setParsed, parsed, isMonophonic } from './model.js';
 import { buildVoicePicker, buildVersePicker, buildScopeLane, resetVoiceStateForLoad, selectedVoice } from './voices.js';
 import { buildAudio, stop, playState } from './transport.js';
@@ -514,17 +514,53 @@ export function resolvePieceId(id) {
     return null;
   }
 
+  // One landing-piece load attempt: loadScore + the same post-load wiring
+  // loadPieceById does (buildAudio/setCurrentPiece/applySections). Shared by
+  // loadStartingPiece's preferred-piece attempt and its control fallback.
+  async function loadStartingCandidate(p) {
+    const completed = await loadScore(p.url);
+    if (completed) { buildAudio(); setCurrentPiece(p); applySections(p); }
+    return completed;
+  }
+
   // Initial piece load, factored out so the Retry button can re-attempt it.
+  //
+  // Issue #64: the default landing piece is the library's 10A Trisagion Hymn
+  // (Hilko) — but ONLY when the library manifest actually loaded and lists it
+  // (resolvePieceId resolves DEFAULT_STARTING_PIECE_ID against PIECES, which
+  // library.loadLibraryManifest populates; main.js awaits that manifest fetch
+  // before calling loadStartingPiece so this check is meaningful). Every other
+  // case — most notably every CI checkout / fresh clone, which has no
+  // manifest at all (it's gitignored) — falls back to the 'control' fixture
+  // exactly as before this feature existed, with no extra network round-trip.
 export async function loadStartingPiece() {
     if (el.retryStart) el.retryStart.hidden = true;
+    const control = PIECES.find((p) => p.id === 'control') || PIECES[0];
+    const preferredId = resolvePieceId(DEFAULT_STARTING_PIECE_ID);
+    const primary = (preferredId && PIECES.find((p) => p.id === preferredId)) || control;
     try {
-      const completed = await loadScore(PIECES[0].url);
-      if (completed) { buildAudio(); setCurrentPiece(PIECES[0]); applySections(PIECES[0]); }
+      await loadStartingCandidate(primary);
     } catch (e) {
-      setBusy(false);
-      setStatus('Could not load the starting piece — check your connection.');
-      if (el.retryStart) el.retryStart.hidden = false;   // offer a retry
-      console.error(e);
+      if (primary === control) {
+        setBusy(false);
+        setStatus('Could not load the starting piece — check your connection.');
+        if (el.retryStart) el.retryStart.hidden = false;   // offer a retry
+        console.error(e);
+        return;
+      }
+      // The manifest listed the preferred landing piece but its MusicXML
+      // didn't actually fetch (e.g. a stale/partial local ingest) — fall back
+      // to the always-committed control fixture rather than stranding the
+      // app on a broken retry loop for a piece CI never even guarantees.
+      console.error(`Could not load preferred starting piece "${primary.id}" (${primary.url}); falling back to control:`, e);
+      try {
+        await loadStartingCandidate(control);
+      } catch (e2) {
+        setBusy(false);
+        setStatus('Could not load the starting piece — check your connection.');
+        if (el.retryStart) el.retryStart.hidden = false;
+        console.error(e2);
+      }
     }
   }
 

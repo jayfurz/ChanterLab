@@ -338,6 +338,29 @@ body.lib-lock{overflow:hidden}
 /* ---------- verse toggle (multi-verse lyrics) ---------- */
 .row-verse[hidden]{display:none}
 
+/* ---------- first-run onboarding coach-mark (issue #64) ---------- *
+ * One reusable floating bubble, repositioned/retexted per moment by
+ * js/onboarding.js. `left` is set inline in px (clamped to the viewport by
+ * JS — mobile-safe); `bottom` tracks --transport-h (kept live by
+ * transport.initOverlay) so it always sits just above the transport overlay,
+ * collapsed or expanded, without shifting the transport's own layout. */
+.onboard-hint{position:fixed;z-index:60;bottom:calc(var(--transport-h) + 10px);
+  left:50%;transform:translateX(-50%);
+  max-width:min(280px,calc(100vw - 24px));
+  display:flex;align-items:flex-start;gap:8px;
+  background:rgba(24,26,33,.97);border:1px solid rgba(212,175,55,.45);
+  border-radius:12px;padding:10px 10px 10px 12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  color:var(--ink);font-size:12.5px;line-height:1.4;
+  animation:onboardIn .22s ease}
+.onboard-hint[hidden]{display:none}
+.onboard-hint-text{flex:1;min-width:0}
+.onboard-hint-close{flex:0 0 auto;width:22px;height:22px;border-radius:7px;
+  border:1px solid var(--line);background:#12141a;color:var(--sub);font-size:11px;
+  cursor:pointer;touch-action:manipulation;line-height:1}
+.onboard-hint-close:hover{color:var(--gold-soft)}
+@keyframes onboardIn{from{transform:translate(-50%,6px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+
 /* ---------- jump-to-section (transport control + bottom sheet) ---------- */
 .row-sections[hidden]{display:none}
 .sec-btn{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;

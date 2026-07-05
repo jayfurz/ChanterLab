@@ -14,6 +14,7 @@ import {
 import {
   gains, playState, userHoldUntil, cursorStep, applyMix, statusForPlaying,
   startPlayback, stop, playPause, updatePlayUI, setOverlay, initOverlay, noteUserTouch,
+  audioContextState,
 } from './transport.js';
 import {
   practiceSamples, lastScoreResult, sessionLaps, scoringStrictness, buildScoreTargets,
@@ -27,6 +28,7 @@ import {
   libProto, libItems, libFlat, libOffsets, libOpen, libFacetDefs, libCollapsed,
   loadLibraryManifest, openLibrary, closeLibrary, toggleGroup, renderWindow, initLibrary,
 } from './library.js';
+import { initOnboarding, markMicUsed } from './onboarding.js';
 
 let resizeTimer = 0;
 let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
@@ -130,6 +132,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       await TrainingScope.micStart(Tone.getContext().rawContext);
       el.micBtn.classList.add('on');
       el.micBtn.textContent = '🎤 On';
+      markMicUsed();   // first-run onboarding (issue #64): skip the mic nudge
       if (el.scopeHint) el.scopeHint.textContent = 'sing your gold line — cyan is you, gold glow = on the note (±50¢, any octave)';
       setStatus('Mic on — sing your part. Headphones avoid feedback from the other voices.');
     } catch (e) {
@@ -160,7 +163,15 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     updateStrictnessUI();
     initLibrary();
     initSections();
-    loadLibraryManifest();  // async; feeds the library overlay (never the combobox)
+    initOnboarding();   // first-run coach-marks (issue #64) — shows step (a) immediately
+    // Kicked off now (parallel with everything below) but AWAITED just before
+    // loadStartingPiece — issue #64's default-piece choice needs to know
+    // whether the manifest actually loaded and lists the preferred piece. It's
+    // a local, fast fetch (or an instant 404 on every CI/fresh-clone
+    // checkout — the manifest is gitignored), so this adds negligible latency
+    // to the critical path and none at all on the no-manifest path beyond the
+    // 404 round-trip that already happened unconditionally before.
+    const manifestReady = loadLibraryManifest();
     initOverlay();
     setView('split');
     updatePlayUI();
@@ -186,6 +197,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
         practiceSamples.push({ tSec: s.tSec, midi: s.midi });
       });
     }
+    await manifestReady;
     await loadStartingPiece();
   }
 
@@ -193,6 +205,10 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
   window.__training = {
     gains: () => gains.map((g) => g.gain.value),
     playState: () => playState,
+    // Post-Play assertion for tests (issue #63): Tone AudioContext state —
+    // 'running' after a successful unlock, 'suspended' if the browser's
+    // autoplay policy still blocked it (the "Tap again" case).
+    audioContextState: () => audioContextState(),
     holdRemaining: () => Math.max(0, userHoldUntil - performance.now()),
     viewMode: () => viewMode,
     cursorStep: () => cursorStep,
