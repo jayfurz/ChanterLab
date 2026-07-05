@@ -1,7 +1,7 @@
 /* transport.js — audio synths/mix, playback scheduling, the follow cursor,
  * and the Play/Pause/Stop + transport-overlay state machine.
  */
-import { el, setStatus, GOLD, VOICE_DEFS, INSTRUMENT_KEY } from './state.js';
+import { el, setStatus, GOLD, VOICE_DEFS, INSTRUMENT_KEY, VOLUME_KEY } from './state.js';
 import { parsed, clampMeasure, measureBeatRange, isMonophonic } from './model.js';
 import { osmd, osmdSteps, ensureRenderWindow, flushDeferredRender } from './loader.js';
 import { selectedVoice, melodyMuted, buildScopeLane, toggleChipMute } from './voices.js';
@@ -15,6 +15,8 @@ export let gains = [];     // Tone.Gain per part — instrument-agnostic; mute/m
                            // these, never `instruments` directly (issue #66 requirement)
 let master = null;         // Tone.Limiter master bus — the only node between the
                            // summed voices and the speakers (issue #65)
+let masterVolume = null;   // Tone.Gain(0..1.25) sitting BEFORE the limiter — the
+                           // in-app master volume (issue #74 F5); see buildAudio.
 let masterAnalyser = null; // observe-only native AnalyserNode fanned off `master`
                            // (issue #74 discriminator): lets the diagnostics read
                            // whether the GRAPH is producing samples while the
@@ -205,6 +207,45 @@ export function rebuildAudioForMic(reason) {
     return { rebuilt: true, reason, playState, sampleRate };
   }
 
+  /* ---------- iOS Audio Session API management (issue #74 follow-up, F1) --*
+   * Safari ≥16.4 exposes navigator.audioSession.type (W3C Audio Session API,
+   * Safari-only — no Chrome/Firefox, per BCD). Setting it invokes WebKit's
+   * AudioSession::setCategoryOverride, which SHORT-CIRCUITS the whole
+   * capture/playback category state machine analyzed in
+   * docs/design/IOS-AUDIO-SESSION-ANALYSIS.md — including the sticky
+   * PlayAndRecord-while-audio-plays branch that otherwise keeps the call-mode
+   * session (📞 icon, call-volume floor) alive after the mic is turned off.
+   * Feature-detected + try/catch: a complete no-op on every other engine
+   * (Chrome/Firefox/older Safari), so desktop and headless CI stay
+   * byte-identical. Callers (main.js) are responsible for sequencing —
+   * 'play-and-record' BEFORE getUserMedia, 'playback' only AFTER the mic
+   * tracks are actually stopped — because the spec's element-update steps end
+   * the microphone track when the type is not play-and-record/auto (§6.3 of
+   * the draft): this module never calls setAudioSessionType itself, so it
+   * can't race that invariant.
+   */
+export function audioSessionSupported() {
+    try { return typeof navigator !== 'undefined' && 'audioSession' in navigator; }
+    catch (e) { return false; }
+  }
+
+  // type: 'playback' | 'play-and-record' | 'auto'. Never throws; returns a
+  // small result object the caller (main.js) logs to the #74 diagnostics ring.
+export function setAudioSessionType(type, reason) {
+    if (!audioSessionSupported()) return { ok: false, supported: false, type, reason };
+    let before = null;
+    try { before = navigator.audioSession.type; } catch (e) { /* ignore */ }
+    if (before === type) return { ok: true, supported: true, type, reason, before, after: type, changed: false };
+    try {
+      navigator.audioSession.type = type;
+      let after = type;
+      try { after = navigator.audioSession.type; } catch (e) { /* ignore */ }
+      return { ok: true, supported: true, type, reason, before, after, changed: before !== after };
+    } catch (e) {
+      return { ok: false, supported: true, type, reason, before, error: (e && e.message) || String(e) };
+    }
+  }
+
   /* ---------- iOS "silent unless mic" mitigation (issue #74) ----------- *
    * Plain WebAudio on iOS routes through the ambient/solo-ambient audio-session
    * category, which the hardware mute/silent switch SILENCES — so playback is
@@ -218,6 +259,20 @@ export function rebuildAudioForMic(reason) {
    * switch WITHOUT needing the mic. iOS-gated by UA (incl. iPadOS, which reports
    * as macOS — disambiguated by maxTouchPoints); the element is never even
    * constructed off iOS, so desktop and the headless CI run stay byte-identical.
+   *
+   * DEMOTED TO A FALLBACK (issue #74 follow-up, F4): on Safari ≥16.4 — i.e.
+   * whenever audioSessionSupported() above is true — F1's explicit
+   * navigator.audioSession.type='playback' override does this exact job
+   * (immune to the mute switch, no mic needed) WITHOUT the two liabilities
+   * this element has: it renders through the MEDIA pipeline (a second, always-
+   * unity volume domain alongside the call-volume domain the mic session
+   * imposes — the owner's "playing both" report), and holding it playing keeps
+   * WebKit's `isPlayingAudio` true forever, which is what stuck the session in
+   * PlayAndRecord after mic-off (Obs 2 in the design doc). So on ≥16.4 this
+   * element is never even constructed (iosMediaUnlock no-ops immediately);
+   * only pre-16.4 iOS still uses it, and even there it's paused for the
+   * duration of any live mic track (iosMediaUnlockPauseForMic) and re-engaged
+   * on the next gesture once the mic goes off.
    */
   const IS_IOS = (() => {
     try {
@@ -250,11 +305,14 @@ export function rebuildAudioForMic(reason) {
   }
 
   // Engage the media-channel unlock. MUST be called synchronously inside a user
-  // gesture (unlockAudio / the mic tap both do, before any await). iOS-only and
-  // idempotent — play() on an already-playing element is a no-op. Never throws
+  // gesture (unlockAudio / the mic-off tap both do, before any await). iOS-only,
+  // idempotent — play() on an already-playing element is a no-op — and (F4) a
+  // complete no-op on Safari ≥16.4, where F1's audioSession override already
+  // does this job (silentEl is never even constructed there). Never throws
   // into the play path.
 export function iosMediaUnlock() {
     if (!IS_IOS) return;
+    if (audioSessionSupported()) return;   // F1 replaces this element's job
     try {
       if (!silentEl) {
         silentEl = new Audio(silentWavDataUri());
@@ -273,12 +331,30 @@ export function iosMediaUnlock() {
       else silentUnlockEngaged = true;
     } catch (e) { /* never let the unlock break playback */ }
   }
+
+  // Legacy-iOS-only half of F4: PAUSE the media-channel unlock for the
+  // duration of a live mic track. Any capture at all already forces the
+  // session into PlayAndRecord (the mute switch is ignored regardless — see
+  // Obs 3 in the design doc), so the element serves no purpose while the mic
+  // is on, and letting it keep playing is precisely what makes
+  // `isPlayingAudio` sticky, trapping the session in call mode after mic-off.
+  // No-op on ≥16.4 (element never constructed) and off iOS. Call at the start
+  // of the mic-ON gesture, before getUserMedia.
+export function iosMediaUnlockPauseForMic() {
+    if (!IS_IOS || audioSessionSupported()) return;
+    if (silentEl && !silentEl.paused) { try { silentEl.pause(); } catch (e) { /* ignore */ } }
+  }
 export function isIOS() { return IS_IOS; }
   // Diagnostics read-out (issue #74): is the media-channel unlock actually live?
   // 'running but silent' is precisely the state the owner will otherwise report.
+  // `strategy` (F4) tells the overlay which mitigation is actually active:
+  // 'audioSession-api' (≥16.4, F1 handles it, this element is never touched),
+  // 'silent-element' (legacy iOS, this element is the mechanism), or 'none' off iOS.
 export function silentUnlockState() {
+    const strategy = !IS_IOS ? 'none' : (audioSessionSupported() ? 'audioSession-api' : 'silent-element');
     return {
       ios: IS_IOS,
+      strategy,
       engaged: silentUnlockEngaged,
       playing: !!(silentEl && !silentEl.paused),
       readyState: silentEl ? silentEl.readyState : null,
@@ -304,6 +380,53 @@ export function silentUnlockState() {
       return false;
     }
     return true;
+  }
+
+  /* ---------- Master accompaniment volume (issue #74 follow-up, F5) ---- *
+   * iOS's call-volume floor (documented ~1/16, never true zero — Unity/Vivox)
+   * means the hardware rocker literally CANNOT silence the accompaniment
+   * while the mic is on: the canonical VoIP answer is app-side gain, which is
+   * exactly what this is. It also directly answers "everything sounds a
+   * little low" (design doc §1 Obs 4) by making the conservative 0.25-per-
+   * part mix adjustable. Applied to a Tone.Gain sitting BEFORE the limiter
+   * (see buildAudio) so boosting can never clip the bus, and re-created fresh
+   * at the persisted level on every buildAudio — piece load, instrument
+   * switch, AND context recreation (F2) all go through buildAudio, so the
+   * level survives every one of them without extra wiring.
+   */
+export let volumeLevel = 1.0;   // 0..1.25; persisted via VOLUME_KEY
+
+  // Read the persisted level at boot WITHOUT touching the DOM or any live
+  // node (mirrors loadInstrumentMode's pattern) — updateVolumeUI/buildAudio
+  // apply it once the relevant piece exists.
+export function loadVolume() {
+    try {
+      const v = parseFloat(localStorage.getItem(VOLUME_KEY));
+      if (isFinite(v) && v >= 0 && v <= 1.25) volumeLevel = v;
+    } catch (e) { /* storage disabled — default (1.0) stands */ }
+  }
+
+export function getVolume() { return volumeLevel; }
+
+  // Live-apply + persist. Ramped (not stepped) so mid-drag changes don't
+  // click; safe to call before any piece is loaded (masterVolume is null —
+  // buildAudio picks up volumeLevel as its initial value once it runs).
+export function setVolume(v) {
+    const n = Number(v);
+    if (!isFinite(n)) return volumeLevel;
+    volumeLevel = Math.max(0, Math.min(1.25, n));
+    if (masterVolume) masterVolume.gain.rampTo(volumeLevel, 0.05);
+    try { localStorage.setItem(VOLUME_KEY, String(volumeLevel)); } catch (e) { /* non-fatal */ }
+    updateVolumeUI();
+    return volumeLevel;
+  }
+
+  // Sync the Sound-pane slider + its % readout to volumeLevel. Called after
+  // loadVolume() at boot and from every setVolume() (mirrors
+  // updateInstrumentUI's pattern for the Synth/Voices toggle).
+export function updateVolumeUI() {
+    if (el.volume) el.volume.value = String(Math.round(volumeLevel * 100));
+    if (el.volumeOut) el.volumeOut.textContent = Math.round(volumeLevel * 100) + '%';
   }
 
   // Shared envelope numbers for BOTH instruments — issue #65's pop-fix tuning
@@ -335,6 +458,13 @@ export function buildAudio() {
     // the mic (scope.js), never this bus, so scoring is unaffected. Shared by
     // both instrument modes.
     master = new Tone.Limiter(-1).toDestination();
+    // Master volume (issue #74 F5): ONE shared Gain, BEFORE the limiter, that
+    // every part's Gain(0.25) feeds into instead of `master` directly. Placed
+    // pre-limiter so raising it past unity still can't clip the bus (the
+    // limiter guarantees that regardless), and re-created here at the
+    // persisted volumeLevel so it survives every buildAudio (piece load,
+    // instrument switch, F2's context recreation) without extra wiring.
+    masterVolume = new Tone.Gain(volumeLevel).connect(master);
     // Graph-output discriminator (issue #74): fan the master into an observe-only
     // AnalyserNode (NOT routed to the destination, so it can't affect what's
     // heard). masterOutputLevel() reads it so the diagnostics can answer "is the
@@ -350,7 +480,7 @@ export function buildAudio() {
     builtMode = effectiveMode();
     if (builtMode === 'voices') {
       parsed.parts.forEach(() => {
-        const gain = new Tone.Gain(0.25).connect(master);
+        const gain = new Tone.Gain(0.25).connect(masterVolume);
         const sampler = new Tone.Sampler({
           urls: voiceUrlsFromBuffers(),
           attack: ENV_ATTACK,
@@ -361,7 +491,7 @@ export function buildAudio() {
       });
     } else {
       parsed.parts.forEach(() => {
-        const gain = new Tone.Gain(0.25).connect(master);
+        const gain = new Tone.Gain(0.25).connect(masterVolume);
         const synth = new Tone.PolySynth(Tone.Synth, {
           oscillator: { type: 'triangle' },
           // Explicit, gentle envelope. The few-ms attack keeps note onsets crisp
@@ -400,6 +530,7 @@ export function setOnMasterRebuilt(fn) { onMasterRebuilt = (typeof fn === 'funct
     instruments.forEach((s) => s.dispose());
     gains.forEach((g) => g.dispose());
     if (masterAnalyser) { try { masterAnalyser.disconnect(); } catch (e) { /* already gone */ } masterAnalyser = null; }
+    if (masterVolume) { try { masterVolume.dispose(); } catch (e) { /* already gone */ } masterVolume = null; }
     if (master) { master.dispose(); master = null; }
     instruments = []; gains = [];
   }

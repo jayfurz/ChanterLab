@@ -149,6 +149,19 @@
           <input id="hearMine" type="checkbox" /> 🔊 Also play my part</label>
       </div>
 
+      <!-- Master accompaniment volume (issue #74 F5). iOS's call-volume floor
+           means the hardware rocker can't reach true silence while the mic is
+           on (a call-mode session) — this in-app slider is the sanctioned
+           answer (mirrors the standard VoIP app-side-mute workaround). Also
+           answers "everything sounds a little low" on speaker/mic-on states.
+           Range 0–125%, default 100%; persisted; re-applied on every
+           buildAudio (piece load / instrument switch / context recreate). -->
+      <div class="row row-volume">
+        <span class="label">Volume 🔊 <output id="volumeOut">100%</output></span>
+        <input id="volume" type="range" min="0" max="125" value="100"
+               aria-label="Accompaniment volume" />
+      </div>
+
       <!-- Instrument sound (issue #66): Synth (Tone.PolySynth, default) vs.
            Voices (sampled "ah" pad, lazy-loaded on first switch/Play). Persisted
            in localStorage; see js/transport.js's switchInstrumentMode. -->

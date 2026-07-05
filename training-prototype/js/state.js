@@ -9,7 +9,8 @@
  *                  extending, renderDeferred, viewMode, loadToken, currentPieceId
  *   transport.js : synths, gains, master, scheduledIds, cursorWindow, cursorStep,
  *                  playState, userHoldUntil, lastFollowScroll, instrumentMode,
- *                  voiceBuffers, voiceLoadPromise, voiceLoadFailed
+ *                  voiceBuffers, voiceLoadPromise, voiceLoadFailed, masterVolume,
+ *                  volumeLevel (issue #74 F5 — master accompaniment volume)
  *   voices.js    : selectedVoice, activeVerse, melodyMuted
  *   scoring-ui.js: practiceSamples, scoringArmed, lastScoreResult, sessionLaps,
  *                  currentLapNum, bestLapHitPct, scoreSummaryShown,
@@ -93,6 +94,11 @@ export const PRACTICE_HISTORY_KEY = 'chanterlab_practice_history';
 export const STRICTNESS_KEY = 'chanterlab_scoring_strictness';
 export const ONBOARDING_KEY = 'chanterlab_onboarded';
 export const INSTRUMENT_KEY = 'chanterlab_instrument';
+  // Master accompaniment volume (issue #74 follow-up, fix F5): 0..1.25, applied
+  // to a Tone.Gain sitting between the per-part gains and the limiter — see
+  // transport.js buildAudio(). This is the sanctioned answer to iOS's
+  // un-zeroable call-volume floor (docs/design/IOS-AUDIO-SESSION-ANALYSIS.md).
+export const VOLUME_KEY = 'chanterlab_volume';
   // In-app practice recording (issue #67): the Voice/Music balance of the
   // RECORDING mix (0..1), and a one-time "headphones give the cleanest
   // recording" hint flag. Both persisted; the balance never touches playback.
@@ -124,6 +130,9 @@ export const el = {
     recHint: document.getElementById('recHint'),
     strictnessPicker: document.getElementById('strictnessPicker'),
     instrumentPicker: document.getElementById('instrumentPicker'),
+    // Master accompaniment volume (issue #74 F5) — one slider row in #paneSound.
+    volume: document.getElementById('volume'),
+    volumeOut: document.getElementById('volumeOut'),
     scope: document.getElementById('scope'),
     scopeReadout: document.getElementById('scopeReadout'),
     scopeHint: document.getElementById('scopeHint'),

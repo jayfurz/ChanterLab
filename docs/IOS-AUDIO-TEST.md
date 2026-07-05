@@ -1,19 +1,38 @@
 # iPhone audio field test — ChanterLab training app (issue #74)
 
-Two symptoms, reported only on a real iPhone (desktop is clean, and the phone is
+**Status: retest after the F1/F2/F4/F5 fixes** (see
+`docs/design/IOS-AUDIO-SESSION-ANALYSIS.md` for the full WebKit-source-level
+analysis this protocol is built from). The original field report was two
+symptoms on a real iPhone (desktop is clean, and the phone used to be
 clean-but-silent without the mic):
 
-1. **Silent unless the mic is on.** Play with the mic **off** produces **no sound
-   at all**, even with the ring/silent switch set to **RING**. Turning the mic on
-   makes sound appear.
-2. **Crackle with the mic on.** Once the mic is on, playback is audible but
-   **crackles / pops**.
+1. **Silent unless the mic is on.** Play with the mic **off** produced no
+   sound at all, even with the ring/silent switch on **RING**.
+2. **Crackle with the mic on**, plus a phone-call-style 📞 route icon, a
+   volume rocker that couldn't reach true silence, and everything else
+   sounding "a little low."
 
-We can't reproduce either on our machines (they need real iOS audio hardware), so
-this is a **guided field test**. It ships a hidden diagnostics overlay that reads
-the live audio state on your phone; you run a short checklist and paste the
-results back. **Nothing here changes normal playback** — the overlay is inert
-until you open it.
+What changed since the last pass:
+
+- **F1** — the app now explicitly manages `navigator.audioSession.type`
+  (Safari ≥16.4): `'playback'` at boot and immediately after the mic goes
+  off; `'play-and-record'` right before the mic goes on. This should make the
+  📞 icon and the call-volume floor **disappear the moment the mic goes off**,
+  even if audio keeps playing — that used to stay stuck.
+- **F2** — a detected sample-rate mismatch (mic-on OR mic-off) now
+  **automatically recreates the audio engine** (not just the graph) and
+  re-acquires the mic on the fresh context, instead of only logging the
+  mismatch. The manual **Recreate ctx** button still exists as a fallback.
+- **F4** — the old silent-looping-`<audio>` trick is now demoted to a
+  legacy-iOS-only fallback: on Safari ≥16.4 it's never even created (F1's
+  override does its job); pre-16.4 it's paused while the mic is on and
+  re-engaged right on the mic-off tap.
+- **F5** — a new in-app **Volume 🔊** slider (Sound tab) gives real 0%
+  loudness in every mode, including while the mic is on and the hardware
+  rocker is stuck at its call-mode floor.
+
+Nothing here changes normal playback unpredictably — the diagnostics overlay
+is inert until you open it, same as before.
 
 ---
 
@@ -28,164 +47,170 @@ Two ways (either works):
 
 A small dark panel appears top-left. It updates live. Buttons:
 
-- **Recreate ctx** — closes and rebuilds the audio engine on the current
-  hardware route (this is the candidate fix for the "silent" bug — see Test B).
+- **Recreate ctx** — manually closes and rebuilds the audio engine on the
+  current hardware route (F2 now does this automatically on a detected
+  mismatch; this button is the manual fallback).
 - **HW rate** — logs the phone's current hardware sample rate.
 - **Copy** — copies the whole readout + event log to the clipboard so you can
   paste it into the issue / a message.
 - **✕** — hide.
 
-### The three numbers that matter most
+### The numbers and lines that matter most
 
-Read these off the panel while you test:
-
-1. **`GRAPH OUTPUT … peakMax`** during a **no-mic Play**. This is the single most
-   important number. It says whether the app is *producing* audio even when you
-   hear nothing:
-   - `peakMax` **> 0** while you hear **silence** → the sound engine is working;
-     the phone is throwing the audio away at the route/session level → the
-     **Recreate ctx** fix is the right lever.
-   - `peakMax` **≈ 0** (stays 0.0000) during Play → the engine itself isn't
-     producing → a different (scheduling) problem.
-2. **`ctx.sampleRate`** and the **`state`** next to it, read **before and after**
-   you turn the mic on. Watch for the rate changing (e.g. **48000 → 24000**) and
-   for the state ever reading **`interrupted`** (an iOS-only state).
-3. **`outputLatency`** before vs after the mic, and **`stalls`** on the bottom
-   line. A jump in `outputLatency` when the mic flips the session, and any
-   `stalls > 0`, both point at the crackle.
-
-The panel also infers the audio **session** category (`ambient` vs
-`media/playback` vs `play-and-record`) and whether the **silent-unlock** is
-engaged — see Test D.
+1. **`session (inferred)` line.** On Safari ≥16.4 this should now read
+   `override: play-and-record` while the mic is on and `override: playback`
+   the instant it's off — a **confirmed** value, not a guess. Older iOS still
+   shows the old inferred guess (`play-and-record (mic, inferred)` /
+   `media/playback (silent-unlock, inferred)` / `ambient/default (inferred)`).
+2. **`unlock strategy` line** — `audioSession-api` (≥16.4, F1 is doing the
+   work, the old `<audio>` trick is never engaged) or `silent-element`
+   (pre-16.4 fallback) or `none` (not iOS). This is new — confirm it says
+   `audioSession-api` on your phone if it's a reasonably recent iOS.
+3. **`GRAPH OUTPUT … peakMax`** during a no-mic Play — unchanged from before:
+   `peakMax > 0` while you hear silence means the engine is producing audio
+   and it's a route/session-level problem (should be rare now that F1 pins
+   the session explicitly).
+4. **`ctx.sampleRate`** / **`state`**, read before and after the mic goes on —
+   watch for the rate changing and for the event log now showing
+   `sample-rate-mismatch` immediately followed by `auto-recreate` (F2 firing
+   automatically) rather than just a logged mismatch with no action.
+5. **`volume = NN%`** on the bottom line — reflects the new Volume slider;
+   confirm it tracks the slider position.
 
 ---
 
 ## Before you start
 
-- Use the **same piece** each time (the default one is fine). Set a slow tempo so
-  notes are easy to hear.
-- After each sub-test, tap **Copy** and save the text (paste into Notes/Messages)
-  labelled with the test name. The event log is timestamped, so one big paste at
-  the end is fine too.
-- "hpMode" below = the **🎧 Headphones mode** checkbox in the app's controls.
+- Use the **same piece** each time (the default one is fine). Set a slow
+  tempo so notes are easy to hear.
+- Note the **Volume 🔊** slider position for each test — leave it at 100%
+  unless a step says otherwise.
+- After each step, tap **Copy** and save the text (paste into Notes/Messages)
+  labelled with the step number. The event log is timestamped, so one big
+  paste at the end also works.
+- "hpMode" below = the **🎧 Headphones mode** checkbox in the Sound tab.
 
 ---
 
-## Test A — the silence bug (do this first)
+## The six-step retest (design doc §4)
 
-Goal: find out whether the engine is producing audio while you hear nothing.
+For every step: note Control Center's route icon (📞 or speaker), whether the
+rocker (and separately, the in-app **Volume** slider) can reach silence,
+crackle y/n, subjective loudness, and paste one **Copy report**.
 
-| # | Ring/Silent switch | Headphones | Mic | Do | Read & note |
-|---|---|---|---|---|---|
-| A1 | **RING** | none (speaker) | **off** | Press **Play** | Do you hear anything? `GRAPH OUTPUT peakMax` after ~3 s? `ctx.sampleRate` / `state`? |
-| A2 | **SILENT** | none (speaker) | **off** | Press **Play** | Same three: audible? `peakMax`? rate/state? |
-| A3 | **RING** | wired or Bluetooth | **off** | Press **Play** | Audible? `peakMax`? rate/state? |
-| A4 | **RING** | none | **on** | tap **🎤**, then **Play** | Audible now? crackle? `peakMax`? `ctx.sampleRate` vs A1? `state`? |
+### 1. Baseline / silence-fix confirmation
 
-**What each outcome means:**
+Mic **OFF**, headphones mode **ON**, press **Play**. Flip the ring/silent
+switch both ways.
 
-- **A1 silent but `peakMax > 0`** → engine works, route/session eats the sound →
-  go to **Test B** (Recreate ctx) and **Test D** (silent-unlock).
-- **A1 silent and `peakMax ≈ 0`** → engine isn't producing with the mic off →
-  paste the log; this points away from the route and toward scheduling.
-- **A4 audible with a *different* `ctx.sampleRate` than A1** → confirms the
-  mic-flips-the-session mechanism; the rate delta is the crackle's root cause too.
-- **`state` ever shows `interrupted`** → note exactly when; that's an iOS session
-  interruption the app now tries to auto-recover from.
+**Expect:** audio unaffected either way; no 📞 icon; the hardware rocker
+reaches zero; the overlay's `session (inferred)` line shows
+`override: playback` (or, on old iOS, `unlock strategy = silent-element` with
+`silent-unlock = engaged`).
 
----
+### 2. Mic ON + headphones ON, Play — the missing data point
 
-## Test B — does recreating the audio engine fix the silence?
+**Is the 📞 icon shown?** (The design doc's WebKit-source reading says the
+session is call-mode for *any* capture, headphones or not — this step
+confirms it on real hardware.)
 
-Only meaningful if **Test A** showed **silent but `peakMax > 0`**.
+**Expect:** no crackle; the hardware rocker may still have a floor (iOS
+limit — expected); the in-app **Volume** slider should still reach true
+silence even if the rocker can't; note whether Control Center's slider and
+the rocker move independently.
 
-1. Ring switch **RING**, mic **off**, no headphones.
-2. Press **Play** — confirm it's silent (and `peakMax > 0`).
-3. Press **Stop**.
-4. Tap **Recreate ctx** in the panel. Note the `before→after` rate in the status
-   line / log (e.g. `48000→24000`).
-5. Press **Play** again.
-6. **Is there sound now?** Note yes/no and the new `ctx.sampleRate`.
+### 3. Mic ON + headphones OFF, Play — the old crackle case
 
-- **Sound now plays** → the "running-but-silent context" diagnosis is confirmed;
-  we'll make the app recreate the context automatically on that condition.
-- **Still silent** → paste the log; we rule that fix out and move on.
+**Expect:** the overlay logs `sample-rate-mismatch` followed automatically by
+`auto-recreate` (and `auto-recreate:mic-reacquired` if the mic was on) — no
+manual button press needed; after that, **no crackle**; 📞 still present
+(expected while the mic is on); rocker floor present (iOS limit, expected);
+the **in-app Volume slider reaches true silence** regardless; loudness is
+now tamable via that slider.
 
-Repeat once with the ring switch on **SILENT** to see if it differs.
+### 4. Sticky-mode exit — F1's headline test
 
----
+While step 3 is still playing, tap the mic **OFF** (keep the audio playing).
 
-## Test C — the crackle (mic on)
+**Expect within about a second:** 📞 **gone**, a single (media) volume
+domain, the hardware rocker reaches zero, and the overlay's event log shows
+`audiosession-set` with `type: playback, reason: mic-off` right after
+`mic-off`. Pre-fix this stayed stuck in call mode until all audio stopped —
+**this is the fix to confirm first if you only have time for one test.**
 
-1. Mic **on**, **Play**. Let it run ~15 s.
-2. Watch the bottom line: **`stalls`** count and **`clock health`** (should sit
-   near `1.00x`; dips mean the audio thread starved).
-3. Note `outputLatency` and `baseLatency` now vs. what they were with the mic off
-   (Test A1).
-4. Try each combination and note *how bad* the crackle is (none / light / heavy):
-   - hpMode **on** (raw mic) vs **off** (processed mic) — the checkbox.
-   - **wired** headphones vs **Bluetooth/AirPods** vs **speaker**.
-5. Tap **HW rate** and compare it to `ctx.sampleRate`. A mismatch (panel shows
-   **⚠ RATE MISMATCH** or the two numbers differ) is the crackle's fingerprint.
+### 5. Route flip
 
-The most useful crackle data point: **the combination where it's worst** plus the
-`ctx.sampleRate` / `HW rate` / `stalls` for that combination.
+Repeat step 3, then connect/disconnect Bluetooth headphones mid-session.
 
----
+**Expect:** auto-resume, and — once you next Stop — a `sample-rate-mismatch`
+/ `auto-recreate` pair if the route changed the hardware rate. Report any
+crackle onset before that next Stop (F2 only acts while stopped, by design —
+it will never cut off audio mid-Play).
 
-## Test D — the silent-audio unlock (one variable, not the fix)
+### 6. Volume matrix — F5's headline test
 
-The app also plays an inaudible looping track on iOS to try to hold audio on the
-"media" channel. Confirm whether it's engaged and whether it changes anything:
-
-1. On any Play, check the panel line `silent-unlock = engaged` (and not
-   `(not playing!)`).
-2. If it says **engaged** but **Test A** was still silent, note that clearly —
-   it tells us the media-channel trick alone isn't enough on your device.
-
----
-
-## Test E — background / return (interruptions)
-
-1. Mic on or off, **Play**.
-2. Press the **Home** gesture to background Safari for ~5 s, then return.
-3. Does audio resume? Does the panel log a **`statechange`** to `interrupted` /
-   `suspended` and back? Note `state` after returning.
-
-This checks the auto-resume-from-`interrupted` handling.
+At a **fixed hardware rocker position**, and with the in-app **Volume**
+slider at 100%, rate loudness 1–5 for: mic-off, mic+headphones-on,
+mic+headphones-off. Then set the in-app Volume slider to **0%** in each of
+those three states and confirm it reaches **true silence** every time
+(including mic-on states, where the hardware rocker alone cannot). The
+loudness spread across the three states, at a fixed slider position, should
+also be far narrower than the original field report's.
 
 ---
 
 ## What to send back
 
-Tap **Copy** at the end (or after each test) and paste the text. For each test
-note in plain words:
+Tap **Copy** at the end of each step (or once at the end covering all of
+them) and paste the text. For each step note in plain words:
 
-- **Audible? yes/no**, and **crackle? none/light/heavy**.
-- The **three key numbers** for that moment: `GRAPH OUTPUT peakMax`,
-  `ctx.sampleRate` (+ `state`), and `outputLatency` / `stalls`.
-- For **Test B**: did **Recreate ctx** bring the sound back? the `before→after`
-  rate.
+- **Audible? yes/no**, **crackle? none/light/heavy**, **📞 icon? yes/no**.
+- Whether the **hardware rocker** and the **in-app Volume slider** each reach
+  true silence.
+- The `session (inferred)` and `unlock strategy` lines.
+- For step 3/5: did `sample-rate-mismatch` → `auto-recreate` appear in the
+  log without you pressing anything?
+- For step 4: how long after mic-off did the 📞 icon clear?
 
-That's enough to tell, from your phone alone, **which** of the candidate fixes
-(recreate-on-silence, sample-rate rebuild, session/route handling, or the
-media-channel unlock) is the real one — without us needing to reproduce it.
+That tells us, from your phone alone, whether F1 (session pinning), F2
+(auto-recreate), and F5 (in-app volume) are each doing their job — without us
+needing to reproduce any of it.
 
 ---
 
-### Appendix — what the app already does defensively (issue #74)
+### Appendix — what the app does now (issue #74 + follow-up)
 
-- **Silent-audio playback-category unlock** on iOS (a looping inaudible `<audio>`
-  element) to bias WebAudio onto the media channel.
-- **Sample-rate mismatch detection** on mic start (context rate before/after +
-  mic-track rate + a fresh-hardware-rate probe), logged to the panel.
-- **Born-under-play-and-record rebuild**: enabling the mic while stopped rebuilds
-  the playback graph so the next Play starts under the mic's session (and again
-  on mic-off and on a `devicechange`).
+- **F1 — explicit `navigator.audioSession.type` management** (Safari ≥16.4):
+  `'playback'` at boot and right after the mic turns off; `'play-and-record'`
+  right before the mic turns on, before `getUserMedia`. This override
+  short-circuits WebKit's whole capture/playback category state machine,
+  including the sticky "PlayAndRecord while audio keeps playing" branch.
+  Feature-detected — a complete no-op pre-16.4 and off iOS.
+- **F2 — sample-rate mismatch now triggers an automatic context recreation**
+  (not just the graph) on the next mic toggle while stopped, then
+  re-acquires the mic on the fresh context. Guarded to one recreate at a time
+  and to a stopped transport (never interrupts a running Play). The manual
+  **Recreate ctx** button remains as a fallback.
+- **F3 — echo cancellation is unchanged for speaker (headphones-mode-off)
+  users.** This is deliberate, not an oversight: without it the mic would
+  hear the accompaniment, risking feedback and corrupting the pitch
+  tracker/scorer. The 📞 icon and call-volume floor while the mic is on in
+  that mode are the accepted price — F1/F2/F5 pay it down everywhere else.
+- **F4 — the silent-`<audio>` unlock element is now a fallback only.** Never
+  even constructed on Safari ≥16.4 (F1 covers its job); on older iOS it's
+  paused for the duration of any live mic track and re-engaged on the very
+  mic-off tap, rather than being held open forever (which used to keep the
+  session sticky in call mode after mic-off).
+- **F5 — an in-app master Volume slider** (Sound tab, 0–125%, default 100%,
+  persisted) sits before the limiter in the audio graph. This is the
+  sanctioned answer to iOS's call-volume floor (never truly reaches zero via
+  the hardware rocker) — the slider does reach true zero, in every mode.
+  Recordings follow it (they're tapped after the limiter, i.e.
+  what-you-hear-is-what-you-record).
 - **`interrupted`/`suspended` auto-resume** via a raw-context `statechange`
-  listener (Tone's own resume only handles `suspended`).
-- **Recreate ctx** (manual, in the panel): the close-and-recreate workaround for
-  the running-but-silent context class — promoted to automatic once your field
-  test confirms it helps.
+  listener (unchanged from before).
 
-None of these is confirmed to fix the bug yet — that's what this test decides.
+This retest is what confirms all four are actually doing their job on real
+hardware — headless testing can prove the code paths execute correctly and
+that desktop stays byte-identical, but only a real iPhone can confirm the
+📞 icon truly clears and the crackle is truly gone.

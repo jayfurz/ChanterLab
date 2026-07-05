@@ -245,6 +245,13 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
 /* ---------- instrument sound: Synth / Voices (issue #66) ---------- */
 .row-instrument .seg{flex:0 0 auto;min-width:150px}
 
+/* ---------- master accompaniment volume (issue #74 F5) ---------- *
+ * Reuses the shared .row/.label/input[type=range] look (same vocabulary as
+ * the Tempo slider in row-fine) — no bespoke control needed. The label wraps
+ * the live %-readout <output> exactly like Tempo's bpmOut. */
+.row-volume{gap:10px}
+.row-volume .label{white-space:nowrap}
+
 /* ---------- desktop ---------- */
 /* ---------- tablet (760–999px) ---------- *
  * Calm Surface (#73): the tabbed transport is kept — the tablet layer is just a

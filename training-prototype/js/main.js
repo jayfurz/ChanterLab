@@ -16,7 +16,9 @@ import {
   startPlayback, stop, playPause, updatePlayUI, setOverlay, initOverlay, noteUserTouch,
   audioContextState, instrumentMode, loadInstrumentMode, switchInstrumentMode,
   updateInstrumentUI, captureOfflineAB, audioContextInfo, rebuildAudioForMic,
-  iosMediaUnlock, silentUnlockState, isIOS, masterOutputLevel, recreateAudioContext,
+  iosMediaUnlock, iosMediaUnlockPauseForMic, silentUnlockState, isIOS, masterOutputLevel,
+  recreateAudioContext, audioSessionSupported, setAudioSessionType,
+  getVolume, setVolume, loadVolume, updateVolumeUI,
 } from './transport.js';
 import {
   practiceSamples, lastScoreResult, sessionLaps, scoringStrictness, buildScoreTargets,
@@ -83,6 +85,8 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     el.loopTo.addEventListener('change', onLoopChange);
     el.micBtn.addEventListener('click', toggleMic);
     el.hpMode.addEventListener('change', onHeadphonesToggle);
+    // Master accompaniment volume (issue #74 F5) — see transport.js's setVolume.
+    if (el.volume) el.volume.addEventListener('input', () => setVolume(Number(el.volume.value) / 100));
     [...el.viewPicker.children].forEach((b) =>
       b.addEventListener('click', () => setView(b.dataset.view)));
     if (el.strictnessPicker) {
@@ -132,6 +136,18 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       el.micBtn.textContent = '🎤 Mic';
       onMicChange();   // drop the mic leg from any live recording + relabel (issue #67)
       setStatus('Mic off.');
+      // F1 (issue #74 follow-up): the mic track is now stopped, so it's safe to
+      // claim the plain playback session — this is what kills the STICKY
+      // PlayAndRecord/call-mode session (📞 icon, dual volume domains) that
+      // otherwise survives mic-off for as long as audio keeps playing. Feature-
+      // detected no-op pre-16.4 / off iOS (see docs/design/IOS-AUDIO-SESSION-
+      // ANALYSIS.md F1). Must come AFTER micStop — never 'playback' with a live
+      // mic track.
+      logAudioEvent('audiosession-set', setAudioSessionType('playback', 'mic-off'));
+      // F4: legacy-iOS fallback only (audioSessionSupported() already made this
+      // a no-op above 16.4) — re-engage the media-channel unlock now, in this
+      // very gesture, rather than waiting for a separate Play tap.
+      iosMediaUnlock();
       // iOS route-flip mitigation (issue #74): dropping the mic reverts the
       // AVAudioSession toward playback-only, which can re-change the route/rate.
       // Log it and — if we're stopped — rebuild so the next Play is born on the
@@ -139,14 +155,27 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       logAudioEvent('mic-off', { rate: ctxSampleRate() });
       const r = rebuildAudioForMic('mic-off');
       if (r && r.rebuilt) logAudioEvent('graph-rebuilt', r);
+      // F2: the hardware may have settled at a different rate than our
+      // (possibly stale) context now that capture has stopped — auto-recreate
+      // while safely stopped; no mic to re-acquire on this path.
+      const hwProbeOff = (isIOS() || audioDebugEnabled()) ? probeHardwareRate() : null;
+      const ctxRateOff = ctxSampleRate();
+      const mismatchOff = !!(hwProbeOff && ctxRateOff && hwProbeOff !== ctxRateOff);
+      if (mismatchOff) logAudioEvent('sample-rate-mismatch', { rate: ctxRateOff, hwProbe: hwProbeOff, reason: 'mic-off' });
+      await autoRecreateForMismatch({ reason: 'mic-off', mismatch: mismatchOff, reacquireMic: false });
       return;
     }
     try {
-      // Keep the iOS media-channel unlock engaged (issue #74): even though the
-      // mic itself flips the session to play-and-record, holding the silent
-      // <audio> element playing keeps audio on the media channel AFTER the mic
-      // is turned back off. Synchronous, inside the gesture; no-op off iOS.
-      iosMediaUnlock();
+      // F1 (issue #74 follow-up): claim the play-and-record session BEFORE
+      // getUserMedia — the override short-circuits WebKit's whole category
+      // state machine, so the session never transitions mid-stream. No-op
+      // pre-16.4 / off iOS.
+      logAudioEvent('audiosession-set', setAudioSessionType('play-and-record', 'mic-on'));
+      // F4: legacy-iOS fallback only — the silent-unlock element is now a
+      // liability while a mic track is live (its playing keeps isPlayingAudio
+      // stuck, trapping the session in call mode after mic-off), so PAUSE it
+      // rather than engaging it. No-op on ≥16.4 (never constructed) / off iOS.
+      iosMediaUnlockPauseForMic();
       const rateBefore = ctxSampleRate();       // rate the graph was born at
       await Tone.start();                       // user gesture → audio context running
       // Headphones mode ON (default) = raw mic: echoCancellation OFF so the
@@ -166,12 +195,14 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       // ctx.sampleRate OR a ctx-vs-mic-track mismatch means the live graph is now
       // resampling and will crackle. A fresh throwaway AudioContext is born at
       // the CURRENT hardware rate, so it reveals the mismatch even when Safari's
-      // getSettings() omits sampleRate — probed only under the debug flag to
-      // avoid churning iOS's per-page context budget for normal users.
+      // getSettings() omits sampleRate. F2 (issue #74 follow-up): probed
+      // unconditionally on iOS now (one throwaway context per mic toggle is well
+      // inside iOS's per-page budget) instead of only under the debug flag, so
+      // the auto-recreate below actually has hwProbe to work with in the field.
       const rateAfter = ctxSampleRate();
       const micSettings = (TrainingScope.getMicSettings && TrainingScope.getMicSettings()) || null;
       const micRate = micSettings && micSettings.sampleRate != null ? micSettings.sampleRate : null;
-      const hwProbe = audioDebugEnabled() ? probeHardwareRate() : null;
+      const hwProbe = (isIOS() || audioDebugEnabled()) ? probeHardwareRate() : null;
       const mismatch =
         (rateBefore && rateAfter && rateBefore !== rateAfter) ||
         (micRate && rateAfter && micRate !== rateAfter) ||
@@ -190,6 +221,12 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       // or before a piece loads. Inaudible on desktop, where nothing flipped.
       const rb = rebuildAudioForMic(mismatch ? 'mic-on:mismatch' : 'mic-on');
       if (rb && rb.rebuilt) logAudioEvent('graph-rebuilt', rb);
+      // F2: promote the mismatch detection above from log-only to ACTION —
+      // recreate the AudioContext itself (not just the graph) and re-acquire
+      // the mic on the fresh context. rebuildAudioForMic (above) only rebuilds
+      // the Tone graph on the SAME (stale-rate) context, which is why the
+      // crackle survived it (WebKit #154538 needs a genuinely new context).
+      await autoRecreateForMismatch({ reason: 'mic-on', mismatch, reacquireMic: true });
     } catch (e) {
       setStatus('Mic unavailable: ' + e.message);
     }
@@ -263,8 +300,12 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
   // A fresh AudioContext is born at the CURRENT preferred hardware rate, so
   // comparing it to Tone's live (possibly stale) context rate reveals an iOS
   // route mismatch even when Safari's getSettings() omits the mic sampleRate.
-  // Created + closed immediately to spare iOS's per-page context budget; only
-  // ever called behind the debug flag / the "HW rate" button.
+  // Created + closed immediately to spare iOS's per-page context budget. Issue
+  // #74 F2: now also called unconditionally on iOS from every mic toggle (on
+  // AND off) — a throwaway context per toggle is well inside that budget — so
+  // the auto-recreate path below has real hardware-rate data even when the
+  // debug overlay was never opened. Off iOS it stays gated behind the debug
+  // flag / the "HW rate" button, unchanged.
   function probeHardwareRate() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
@@ -274,6 +315,52 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     return rate;
   }
 
+  // F2 (issue #74 follow-up): promote sample-rate-mismatch detection from
+  // log-only to ACTION. rebuildAudioForMic only rebuilds the Tone graph on
+  // the SAME (stale-rate) AudioContext, which is why the crackle survived it
+  // (WebKit #154538 — the fix needs a genuinely new context, born at the
+  // current hardware rate). Guarded to the STOPPED transport only ("never
+  // yank a running transport" — recreateAudioContext() would cut live sound)
+  // and to at most one recreate in flight at a time (autoRecreateBusy),
+  // so a rapid double mic-toggle can't pile up overlapping recreates/loops.
+  let autoRecreateBusy = false;
+  async function autoRecreateForMismatch({ reason, mismatch, reacquireMic }) {
+    if (!mismatch) return null;
+    if (playState !== 'stopped') { logAudioEvent('recreate-deferred', { reason }); return null; }
+    if (autoRecreateBusy) { logAudioEvent('auto-recreate-skip', { reason, why: 'already in flight' }); return null; }
+    autoRecreateBusy = true;
+    try {
+      // The OLD mic (if any) lives on the OLD context — drop it before
+      // recreating (mirrors onRecreateCtx, the manual fallback below), then
+      // re-acquire on the NEW context only if this toggle wanted the mic on.
+      const hadMic = TrainingScope.isMicOn();
+      if (hadMic) {
+        try { TrainingScope.micStop(); } catch (e) { /* ignore */ }
+        el.micBtn.classList.remove('on'); el.micBtn.textContent = '🎤 Mic';
+        onMicChange();
+      }
+      logAudioEvent('auto-recreate:start', { reason, hadMic });
+      const r = await recreateAudioContext();
+      logAudioEvent('auto-recreate', { ...(r || {}), reason });
+      if (r && r.ok && reacquireMic) {
+        try {
+          logAudioEvent('audiosession-set', setAudioSessionType('play-and-record', 'auto-recreate:mic-reacquire'));
+          await TrainingScope.setMicProcessing(!el.hpMode.checked);
+          await TrainingScope.micStart(Tone.getContext().rawContext);
+          el.micBtn.classList.add('on'); el.micBtn.textContent = '🎤 On';
+          onMicChange();
+          logAudioEvent('auto-recreate:mic-reacquired', {});
+        } catch (e) {
+          logAudioEvent('auto-recreate:mic-reacquire-failed', { error: (e && e.message) || String(e) });
+          setStatus('Audio engine recreated, but the mic could not reconnect: ' + ((e && e.message) || e));
+        }
+      }
+      return r;
+    } finally {
+      autoRecreateBusy = false;
+    }
+  }
+
   function audioSnapshot() {
     const info = audioContextInfo() || {};
     let mic = null;
@@ -281,6 +368,8 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     catch (e) { mic = null; }
     const lvl = masterOutputLevel();
     const su = silentUnlockState();
+    let audioSessionType = null;
+    if (audioSessionSupported()) { try { audioSessionType = navigator.audioSession.type; } catch (e) { /* ignore */ } }
     return {
       ios: isIOS(),
       playState,
@@ -297,10 +386,17 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       graphRms: lvl.rms,
       graphPeak: lvl.peak,
       graphPeakMax: adGraphPeakMax,
+      // F1/F4 (issue #74 follow-up): which session-management strategy is
+      // actually active, and the live navigator.audioSession.type when F1 is
+      // in effect (null = unsupported engine, e.g. every non-Safari browser).
+      audioSessionSupported: audioSessionSupported(),
+      audioSessionType,
+      silentStrategy: su.strategy,
       silentUnlock: su.engaged,
       silentPlaying: su.playing,
       clockRatio: +adRatio.toFixed(2),
       stalls: adStalls,
+      volume: getVolume(),
     };
   }
 
@@ -318,17 +414,27 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
         ? 'graph PRODUCING → if silent, it is ROUTE/SESSION level (try Recreate ctx)'
         : 'graph ~SILENT → scheduling/graph level (not route)';
     }
-    const session = s.micOn ? 'play-and-record (mic)'
-      : (s.silentUnlock ? 'media/playback (silent-unlock)' : 'ambient/default');
+    // F1: when the Audio Session API is in play, its override wins over
+    // everything else (design doc §0) — report the CONFIRMED type rather than
+    // an inference. Otherwise fall back to the pre-F1 inference from mic/
+    // silent-unlock state.
+    const session = s.audioSessionType ? `override: ${s.audioSessionType}`
+      : (s.micOn ? 'play-and-record (mic, inferred)'
+        : (s.silentUnlock ? 'media/playback (silent-unlock, inferred)' : 'ambient/default (inferred)'));
+    // F4: the "(not playing!)" alarm only means anything for the legacy
+    // silent-element strategy — on audioSession-api (≥16.4) the element is
+    // never engaged at all, by design, so a paused/absent element there is
+    // NOT a fault.
+    const silentWarn = (s.ios && s.silentStrategy === 'silent-element' && !s.silentPlaying) ? ' (not playing!)' : '';
     return [
       `iOS=${s.ios}   play=${s.playState}   mic=${s.micOn ? 'ON' : 'off'}   hpMode=${s.hpMode ? 'on(raw)' : 'off(processed)'}`,
       `ctx.sampleRate = ${fmtVal(s.sampleRate)} Hz    state = ${fmtVal(s.state)}`,
       `mic.sampleRate = ${fmtVal(s.micRate)} Hz${rateMismatch ? '  ⚠ RATE MISMATCH' : ''}    echoCancel = ${fmtVal(s.echoCancellation)}`,
       `baseLatency = ${fmtVal(s.baseLatency)}    outputLatency = ${fmtVal(s.outputLatency)}    lookAhead = ${fmtVal(s.lookAhead)}`,
-      `session (inferred) = ${session}    silent-unlock = ${s.silentUnlock ? 'engaged' : 'off'}${s.ios ? (s.silentPlaying ? '' : ' (not playing!)') : ''}`,
+      `session (inferred) = ${session}    unlock strategy = ${s.silentStrategy}${silentWarn}`,
       `GRAPH OUTPUT  rms=${fmtVal(s.graphRms)}  peak=${fmtVal(s.graphPeak)}  peakMax=${fmtVal(s.graphPeakMax)}`,
       `→ ${verdict}`,
-      `clock health = ${fmtVal(s.clockRatio)}x wall   ·   stalls = ${s.stalls}`,
+      `clock health = ${fmtVal(s.clockRatio)}x wall   ·   stalls = ${s.stalls}   ·   volume = ${Math.round(s.volume * 100)}%`,
     ].join('\n');
   }
   function fmtEvent(e) {
@@ -514,9 +620,19 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     loadStrictness();
     loadInstrumentMode();   // restores the toggle position only — never fetches
                             // samples at boot (issue #66); see loadInstrumentMode.
+    loadVolume();           // master accompaniment volume (issue #74 F5) — restores
+                            // the persisted level only; buildAudio applies it.
     initControls();
     updateStrictnessUI();
     updateInstrumentUI();
+    updateVolumeUI();
+    // F1 (issue #74 follow-up): pin the AVAudioSession category via the Audio
+    // Session API where supported (Safari ≥16.4) so mic-off playback always
+    // lands in plain media/playback — see docs/design/IOS-AUDIO-SESSION-
+    // ANALYSIS.md §3 F1. Feature-detected no-op everywhere else (desktop
+    // Chrome/Firefox, older Safari) — logged to the ring regardless so a
+    // triple-tap later still shows the boot-time attempt.
+    if (isIOS()) logAudioEvent('audiosession-set', setAudioSessionType('playback', 'boot'));
     initLibrary();
     initSections();
     initRecording();    // in-app practice recording (issue #67) — wires the ⏺ toggle,
@@ -577,6 +693,11 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     audioDebug: () => ({ enabled: adEnabled, snapshot: audioSnapshot(), events: adEvents.slice() }),
     audioDebugShow: () => { enableAudioDebug(); return adEnabled; },
     audioDebugHide: () => { disableAudioDebug(); return adEnabled; },
+    // --- master accompaniment volume (issue #74 F5) ---
+    // volume(): current level (0..1.25). setVolume(v): live-applies + persists,
+    // returns the (clamped) resulting level — mirrors setInstrument's pattern.
+    volume: () => getVolume(),
+    setVolume: (v) => setVolume(v),
     holdRemaining: () => Math.max(0, userHoldUntil - performance.now()),
     viewMode: () => viewMode,
     cursorStep: () => cursorStep,
