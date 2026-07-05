@@ -12,8 +12,18 @@
         "lyric_verses": 1,
         "whole_measure_rests_resized": 0,
         "integrity_pct": 100.0,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 136, "A": 128, "T": 126, "B": 120},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 136,
+          "A": 128,
+          "T": 126,
+          "B": 120
+        },
         "note_events_total": 510,
         "warnings_count": 0,
         "exit_code": 0
@@ -29,10 +39,20 @@
         "lyric_verses": 2,
         "whole_measure_rests_resized": 0,
         "integrity_pct": 97.6,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 1313, "A": 1213, "T": 1283, "B": 1182},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 1313,
+          "A": 1213,
+          "T": 1283,
+          "B": 1182
+        },
         "note_events_total": 4991,
-        "warnings_count": 133,
+        "warnings_count": 94,
         "exit_code": 0
       }
     },
@@ -46,10 +66,20 @@
         "lyric_verses": 2,
         "whole_measure_rests_resized": 4,
         "integrity_pct": 100.0,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 170, "A": 168, "T": 155, "B": 156},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 170,
+          "A": 168,
+          "T": 155,
+          "B": 156
+        },
         "note_events_total": 649,
-        "warnings_count": 8,
+        "warnings_count": 4,
         "exit_code": 0
       }
     },
@@ -63,8 +93,12 @@
         "lyric_verses": 1,
         "whole_measure_rests_resized": 0,
         "integrity_pct": 100.0,
-        "voices": ["S"],
-        "note_events_per_voice": {"S": 179},
+        "voices": [
+          "S"
+        ],
+        "note_events_per_voice": {
+          "S": 179
+        },
         "note_events_total": 179,
         "warnings_count": 12,
         "exit_code": 0
@@ -80,27 +114,47 @@
         "lyric_verses": 2,
         "whole_measure_rests_resized": 8,
         "integrity_pct": 95.7,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 980, "A": 513, "T": 515, "B": 489},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 980,
+          "A": 513,
+          "T": 515,
+          "B": 489
+        },
         "note_events_total": 2497,
-        "warnings_count": 106,
+        "warnings_count": 98,
         "exit_code": 0
       }
     },
     "holwey_divine_liturgy": {
       "pdf": "holwey_divine_liturgy-complete4a.pdf",
       "notes": "Large liturgy, 20 sections detected, 581 measures -- the biggest piece in the corpus, stress-tests runtime and section detection at scale.",
-      "sha256": "7027b75a50b70f0ef4193576ee87121887e536fa27acf3388665144b64962cee",
+      "sha256": "574e790207895b13fe99eb00da89b4b0726cfa89fe02a7b12a72ffbd177d8e76",
       "stats": {
         "measures": 581,
         "sections": 20,
         "lyric_verses": 4,
         "whole_measure_rests_resized": 2,
         "integrity_pct": 95.2,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 1501, "A": 1486, "T": 1493, "B": 1449},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 1501,
+          "A": 1486,
+          "T": 1493,
+          "B": 1449
+        },
         "note_events_total": 5929,
-        "warnings_count": 157,
+        "warnings_count": 84,
         "exit_code": 0
       }
     },
@@ -114,8 +168,18 @@
         "lyric_verses": 1,
         "whole_measure_rests_resized": 0,
         "integrity_pct": 100.0,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 141, "A": 123, "T": 108, "B": 107},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 141,
+          "A": 123,
+          "T": 108,
+          "B": 107
+        },
         "note_events_total": 479,
         "warnings_count": 3,
         "exit_code": 0
@@ -131,8 +195,18 @@
         "lyric_verses": 1,
         "whole_measure_rests_resized": 0,
         "integrity_pct": 100.0,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 16, "A": 16, "T": 16, "B": 15},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 16,
+          "A": 16,
+          "T": 16,
+          "B": 15
+        },
         "note_events_total": 63,
         "warnings_count": 0,
         "exit_code": 0
@@ -148,10 +222,20 @@
         "lyric_verses": 1,
         "whole_measure_rests_resized": 0,
         "integrity_pct": 100.0,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 86, "A": 80, "T": 77, "B": 53},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 86,
+          "A": 80,
+          "T": 77,
+          "B": 53
+        },
         "note_events_total": 296,
-        "warnings_count": 16,
+        "warnings_count": 0,
         "exit_code": 0
       }
     },
@@ -165,8 +249,18 @@
         "lyric_verses": 2,
         "whole_measure_rests_resized": 0,
         "integrity_pct": 100.0,
-        "voices": ["S", "A", "T", "B"],
-        "note_events_per_voice": {"S": 49, "A": 44, "T": 48, "B": 45},
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 49,
+          "A": 44,
+          "T": 48,
+          "B": 45
+        },
         "note_events_total": 186,
         "warnings_count": 0,
         "exit_code": 0

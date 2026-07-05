@@ -758,6 +758,16 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
     # the right edge, down-stems at the left; chord seconds alternate sides).
     # One stem per head — unison primes (S half + A quarter on one pitch)
     # otherwise get cross-attached.
+    #
+    # Minimum stem height: some genuine half-note stems render shorter than
+    # the "standard" length and were falling just under the old 1.5*sp cutoff
+    # (measured on real PDF vlines: 1.23*sp-1.50*sp across several pieces/
+    # fonts -- e.g. mgf_0306aba_dormition.2ndant 6.12pt/6.96pt at sp=4.98
+    # (1.23*sp/1.40*sp), The_King_of_Heaven 7.26pt/7.69pt at sp=5.13
+    # (1.42*sp/1.50*sp) -- each confirmed by rendering the source PDF: a
+    # real half-note stem sitting right at the notehead, not a hairline/tie
+    # artifact). 1.2*sp keeps a small margin below the weakest measured case
+    # while still excluding short unrelated fragments.
     stems, bar_candidates = [], []
     stem_recs = []
     for x, y0, y1 in vlines:
@@ -766,7 +776,7 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
         if s_near is None:
             continue
         sp = s_near.sp
-        if y1 - y0 < 1.5 * sp:
+        if y1 - y0 < 1.2 * sp:
             continue
         stem_recs.append((x, y0, y1, sp))
     best_stem = {}   # head id -> (score, rec)
@@ -857,11 +867,25 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
             st.beam_group = gid
 
     # ---- flags -> stems
+    # A flag only ever sits at the end of ITS OWN stem (an "up" flag hooks
+    # off an up-stem's top, a "down" flag off a down-stem's bottom) -- it can
+    # never legitimately attach to a stem pointing the other way. The old
+    # code scored every stem on distance alone, so a same-x wrong-direction
+    # stem belonging to a different note/voice could out-score the correct
+    # one purely by sitting a little closer in x (measured on
+    # A_Precious_Adornment_II p1: the true up-stem was 12.6pt away at
+    # dx-weighted score 14.2, but a same-column down-stem 4pt away scored
+    # 6.6 and would have won without this filter). Filtering by direction
+    # first removes that silent cross-voice mis-attachment risk even though,
+    # in this corpus, the dominant failure mode turned out to be a different
+    # (out-of-scope) one -- see the issue notes.
     for g in music:
         if g.cp in FLAGS:
             n, direction = FLAGS[g.cp]
             best, bd = None, 1e9
             for st in stems:
+                if st.direction != direction:
+                    continue
                 d = abs(st.x - g.x)
                 end_y = st.y0 if direction == "up" else st.y1
                 d += abs(end_y - g.y) * 0.2
@@ -890,8 +914,21 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                             f"matched no notehead")
 
     # ---- augmentation dots -> heads
+    # NOTE: an earlier version of this fix also widened the lower bound to
+    # -1.1*sp for "whole"/"half" heads, to admit the generous bbox side-
+    # bearing measured on one Toensing whole note (Gladsome_Light_20Toensing
+    # p5). That widening was reverted: on the broader corpus it let a dot
+    # prefer the wrong nearby head in a chord/stacked-interval passage
+    # (CarolsofNativity-Set2 p3-p16: 5 dots re-attached with negative dx,
+    # net REGRESSION of measures_with_consistent_beat_sums from 274/297 to
+    # 270/297 -- confirmed by isolating this one change with the other two
+    # fixes held constant). Left at the original strict "0 <" edge; the
+    # Gladsome near-miss is deliberately left unfixed rather than risk
+    # collateral silent re-duration elsewhere -- see issue notes.
     for g in music:
         if g.cp == AUG_DOT:
+            if g.size < 0.75 * main_size:
+                continue  # cue/grace-sized dot; its notehead was excluded too
             s = _assign_staff(g, all_staves)
             if s is None:
                 continue
@@ -902,6 +939,23 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                 h = min(cands, key=lambda h: g.cx - h.g.x1)
                 h.dots += 1
             else:
+                # The same dot glyph also draws repeat-barline dots (both
+                # legacy fonts reuse one "." for both -- see
+                # legacy_glyph_map.json's note on 0x2E) and this engine has
+                # no repeat-sign model. A dot with no notehead in reach that
+                # also sits right next to a barline, or before this staff's
+                # very first note (a start-of-system repeat sign), is that
+                # decoration rather than a missed rhythm attachment: don't
+                # report a defect that was never one. Verified by rendering
+                # the source PDF at several such sites (hilko_star_antiphon,
+                # receive_ye-tikey_zes, theophany_series1 p18, all_saints_
+                # series p9 -- all confirmed repeat dots next to a barline).
+                bar_xs = s.system.bar_xs if s.system else []
+                near_bar = any(abs(bx - g.cx) < 2.0 * s.sp for bx in bar_xs)
+                before_first_note = g.cx < first_head_x.get(id(s), 1e18)
+                if near_bar or before_first_note:
+                    report.stats["repeat_sign_dots_ignored"] += 1
+                    continue
                 report.warn(f"p{page_no}: augmentation dot at "
                             f"({g.x:.0f},{g.y:.0f}) matched no notehead")
 
