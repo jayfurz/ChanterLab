@@ -8,7 +8,8 @@
  *                  renderFromIdx, renderToIdx, printedFirst/Last, lastPrinted,
  *                  extending, renderDeferred, viewMode, loadToken, currentPieceId
  *   transport.js : synths, gains, master, scheduledIds, cursorWindow, cursorStep,
- *                  playState, userHoldUntil, lastFollowScroll
+ *                  playState, userHoldUntil, lastFollowScroll, instrumentMode,
+ *                  voiceBuffers, voiceLoadPromise, voiceLoadFailed
  *   voices.js    : selectedVoice, activeVerse, melodyMuted
  *   scoring-ui.js: practiceSamples, scoringArmed, lastScoreResult, sessionLaps,
  *                  currentLapNum, bestLapHitPct, scoreSummaryShown,
@@ -79,7 +80,10 @@ export const DEFAULT_MANIFEST = 'omr/out/ingest/manifest.json';
   // and lists this id (see loadLibraryManifest, library.js); every other case
   // — most notably every CI checkout / fresh clone, which has no manifest at
   // all — falls back to 'control' exactly as before this feature existed.
-export const DEFAULT_STARTING_PIECE_ID = '10a_trisagion_hymn-hilko-t3_0';
+  // 10B (not 10A): the owner prefers the 4-language Hilko setting, which
+  // starts in English — 10A starts in a different language first. Exact id
+  // as it appears in the manifest (mixed case) — 90.6% integrity.
+export const DEFAULT_STARTING_PIECE_ID = '10B_Trisagion_Hymn-Hilko-T3-4Lang';
 
   // Diacritic- and case-insensitive fold for search + facet matching.
 export const fold = (s) => (s == null ? '' : String(s))
@@ -88,6 +92,7 @@ export const fold = (s) => (s == null ? '' : String(s))
 export const PRACTICE_HISTORY_KEY = 'chanterlab_practice_history';
 export const STRICTNESS_KEY = 'chanterlab_scoring_strictness';
 export const ONBOARDING_KEY = 'chanterlab_onboarded';
+export const INSTRUMENT_KEY = 'chanterlab_instrument';
 
 export const el = {
     osmd: document.getElementById('osmd'),
@@ -107,6 +112,7 @@ export const el = {
     hpMode: document.getElementById('hpMode'),
     micNote: document.getElementById('micNote'),
     strictnessPicker: document.getElementById('strictnessPicker'),
+    instrumentPicker: document.getElementById('instrumentPicker'),
     scope: document.getElementById('scope'),
     scopeReadout: document.getElementById('scopeReadout'),
     scopeHint: document.getElementById('scopeHint'),

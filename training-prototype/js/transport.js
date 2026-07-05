@@ -1,7 +1,7 @@
 /* transport.js — audio synths/mix, playback scheduling, the follow cursor,
  * and the Play/Pause/Stop + transport-overlay state machine.
  */
-import { el, setStatus, GOLD, VOICE_DEFS } from './state.js';
+import { el, setStatus, GOLD, VOICE_DEFS, INSTRUMENT_KEY } from './state.js';
 import { parsed, clampMeasure, measureBeatRange, isMonophonic } from './model.js';
 import { osmd, osmdSteps, ensureRenderWindow, flushDeferredRender } from './loader.js';
 import { selectedVoice, melodyMuted, buildScopeLane } from './voices.js';
@@ -9,16 +9,142 @@ import { beginScoringSession, scoreLapAndRoll, finalizeScoringOnStop, scoreSumma
 import { currentSections, setActiveSection, sectionIndexForMeasure } from './sections.js';
 import { onPlaySucceeded, onStopped } from './onboarding.js';
 
-let synths = [];           // Tone.PolySynth per part
-export let gains = [];     // Tone.Gain per part
+let instruments = [];      // per part: Tone.PolySynth (synth mode) or Tone.Sampler (voices mode)
+export let gains = [];     // Tone.Gain per part — instrument-agnostic; mute/mix logic
+                           // (applyMix, hearMine, mono melody toggle) only ever touches
+                           // these, never `instruments` directly (issue #66 requirement)
 let master = null;         // Tone.Limiter master bus — the only node between the
                            // summed voices and the speakers (issue #65)
+let builtMode = null;      // which mode `instruments` was actually built in ('synth'|'voices'),
+                           // so startPlayback can tell a stale build from the live setting
 let scheduledIds = [];
 let cursorWindow = [];     // absolute osmdSteps indices inside the current loop window
 export let playState = 'stopped';
 export let userHoldUntil = 0;
 let lastFollowScroll = 0;  // throttles the per-note follow-scroll (issue #65)
 const FOLLOW_SCROLL_MS = 140;
+
+  /* ---------- Instrument: Synth / Voices (issue #66) -------------------- *
+   * "Voices" is a per-part Tone.Sampler playing an offline-synthesized choir
+   * "ah" pad (see training-prototype/samples/README.md for full provenance —
+   * generated, not recorded/downloaded: no CC0 vocal sample set could be
+   * found, so this is original audio with zero licensing risk). It feeds the
+   * SAME Gain(0.25)->Limiter(-1) chain as the synth (buildAudio below), so
+   * every mix/mute/limiter behavior tuned by issue #65 carries over unchanged.
+   *
+   * Samples are fetched ONCE (Tone.ToneAudioBuffers, shared across however
+   * many parts the current piece has) and only ever on an explicit switch to
+   * Voices or the first Play while Voices is the active setting — never on
+   * app boot, so a fresh load / CI run stays at zero extra network requests
+   * as long as nobody touches the toggle (default is 'synth' — see
+   * loadInstrumentMode).
+   */
+export let instrumentMode = 'synth';   // 'synth' | 'voices' — persisted via INSTRUMENT_KEY
+let voiceBuffers = null;               // Tone.ToneAudioBuffers once loaded; shared by all parts' Samplers
+let voiceLoadPromise = null;           // in-flight (or settled) load — de-dupes concurrent triggers
+let voiceLoadFailed = false;           // sticky for this session: don't refetch a known-bad load
+
+const VOICE_SAMPLE_BASE = 'samples/voices/';
+  // MIDI note -> filename. Every 4 semitones, E2..~G#5 — Tone.Sampler pitch-
+  // shifts to fill the gaps (see samples/generate-voices.mjs for why this
+  // spacing/range was chosen).
+const VOICE_SAMPLE_NOTES = { 40: 'ah_040.ogg', 44: 'ah_044.ogg', 48: 'ah_048.ogg', 52: 'ah_052.ogg',
+  56: 'ah_056.ogg', 60: 'ah_060.ogg', 64: 'ah_064.ogg', 68: 'ah_068.ogg', 72: 'ah_072.ogg',
+  76: 'ah_076.ogg', 80: 'ah_080.ogg' };
+
+  // Read the persisted preference at boot WITHOUT fetching anything — the
+  // toggle can restore to "Voices" from a prior session while the audio
+  // graph itself stays on synth until a real trigger (switch or Play) loads
+  // the samples (see buildAudio's builtMode reconciliation in startPlayback).
+export function loadInstrumentMode() {
+    try {
+      const v = localStorage.getItem(INSTRUMENT_KEY);
+      if (v === 'voices' || v === 'synth') instrumentMode = v;
+    } catch (e) { /* storage disabled — default (synth) stands */ }
+  }
+
+  // Effective mode: 'voices' only once the samples are actually usable.
+  function effectiveMode() {
+    return (instrumentMode === 'voices' && voiceBuffers && !voiceLoadFailed) ? 'voices' : 'synth';
+  }
+
+  // Sync the Sound seg-control's active button to instrumentMode (mirrors
+  // scoring-ui.js's updateStrictnessUI pattern). Called after loadInstrumentMode
+  // at boot and after every switchInstrumentMode (incl. an on-failure fallback).
+export function updateInstrumentUI() {
+    if (!el.instrumentPicker) return;
+    [...el.instrumentPicker.children].forEach((b) =>
+      b.classList.toggle('active', b.dataset.instrument === instrumentMode));
+  }
+
+  // Lazy, idempotent sample load. Resolves with the shared Tone.ToneAudioBuffers;
+  // rejects (once) on failure, after which it stays failed for this session
+  // (instrumentMode itself is NOT force-reset here — callers decide whether a
+  // failure should fall back for just this call or for the whole session; see
+  // switchInstrumentMode, which does revert the live setting on failure).
+export function ensureVoiceSamplesLoaded() {
+    if (voiceBuffers) return Promise.resolve(voiceBuffers);
+    if (voiceLoadFailed) return Promise.reject(new Error('voice samples previously failed to load'));
+    if (voiceLoadPromise) return voiceLoadPromise;
+    setStatus('Loading voices…');
+    voiceLoadPromise = new Promise((resolve, reject) => {
+      const buffers = new Tone.ToneAudioBuffers({
+        urls: VOICE_SAMPLE_NOTES,
+        baseUrl: VOICE_SAMPLE_BASE,
+        onload: () => resolve(buffers),
+        onerror: (e) => reject(e instanceof Error ? e : new Error(String(e))),
+      });
+    }).then((buffers) => { voiceBuffers = buffers; voiceLoadFailed = false; return buffers; })
+      .catch((e) => { voiceLoadFailed = true; voiceLoadPromise = null; throw e; });
+    return voiceLoadPromise;
+  }
+
+  // Build the `urls` map Tone.Sampler wants, pointing at the ALREADY-loaded
+  // buffers (not URL strings) so constructing one Sampler per part never
+  // re-fetches — only the single Tone.ToneAudioBuffers load above ever hits
+  // the network, regardless of how many parts the piece has.
+  function voiceUrlsFromBuffers() {
+    const urls = {};
+    Object.keys(VOICE_SAMPLE_NOTES).forEach((midi) => {
+      if (voiceBuffers.has(midi)) urls[midi] = voiceBuffers.get(midi);
+    });
+    return urls;
+  }
+
+  // Top-level "switch the Sound setting" entry point (main.js's instrument
+  // picker calls this). Persists the choice, lazy-loads samples if needed
+  // (falling back to synth + a status message on failure — never silently
+  // stuck on a broken Voices selection), and — if a piece is already
+  // loaded — rebuilds the live audio graph now so the switch actually takes
+  // effect this session (mirrors the existing bpm/loopOn stop+rebuild
+  // pattern in main.js rather than trying to hot-swap instruments under a
+  // running Tone.Transport).
+export async function switchInstrumentMode(mode) {
+    if (mode !== 'synth' && mode !== 'voices') return;
+    instrumentMode = mode;
+    try { localStorage.setItem(INSTRUMENT_KEY, mode); } catch (e) { /* non-fatal */ }
+    updateInstrumentUI();
+
+    if (mode === 'voices') {
+      try {
+        await ensureVoiceSamplesLoaded();
+        setStatus('Voices loaded.');
+      } catch (e) {
+        instrumentMode = 'synth';   // fall back for THIS session; leave the stored
+                                    // preference alone (may just be a transient blip)
+        updateInstrumentUI();
+        setStatus('Voices unavailable — using synth instead. (' + (e && e.message ? e.message : 'load failed') + ')');
+      }
+    }
+
+    if (parsed) {
+      const wasPlaying = playState === 'playing';
+      if (playState !== 'stopped') stop();
+      buildAudio();
+      applyMix();
+      if (wasPlaying) await startPlayback();
+    }
+  }
 
   /* ---------- Audio (Tone.js) ----------------------------------------- */
 
@@ -49,9 +175,16 @@ export function audioContextState() {
     return true;
   }
 
+  // Shared envelope numbers for BOTH instruments — issue #65's pop-fix tuning
+  // (8ms attack / 120ms release) applies identically whether a part is a
+  // Tone.PolySynth voice or a Tone.Sampler voice, so a Voices note starts/ends
+  // exactly as click-free as the synth it replaces.
+const ENV_ATTACK = 0.008;
+const ENV_RELEASE = 0.12;
+
 export function buildAudio() {
     disposeAudio();
-    synths = [];
+    instruments = [];
     gains = [];
     // Give the scheduler more headroom so a heavy main-thread tick (OSMD cursor
     // stepping over a big SVG — the measured 87ms tasks in issue #65) can't fire
@@ -68,29 +201,122 @@ export function buildAudio() {
     // limiter catches those transients transparently (it doesn't engage until
     // ~-1 dBFS, so normal material is untouched) and guarantees the bus can
     // never clip. It sits on the SYNTH bus only — the scoring/scope path taps
-    // the mic (scope.js), never this bus, so scoring is unaffected.
+    // the mic (scope.js), never this bus, so scoring is unaffected. Shared by
+    // both instrument modes.
     master = new Tone.Limiter(-1).toDestination();
-    parsed.parts.forEach(() => {
-      const gain = new Tone.Gain(0.25).connect(master);
-      const synth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: 'triangle' },
-        // Explicit, gentle envelope. The few-ms attack keeps note onsets crisp
-        // without a zero-length edge (which would click); the shorter release
-        // (was 0.25s) trims the note tail so dense same-pitch chant stops piling
-        // overlapping releases into the limiter, keeping headroom. Measured 0
-        // discontinuities on the 50%-repeated-pitch worst case (issue #65).
-        envelope: { attack: 0.008, decay: 0.1, sustain: 0.85, release: 0.12 },
-      }).connect(gain);
-      synths.push(synth);
-      gains.push(gain);
-    });
+    builtMode = effectiveMode();
+    if (builtMode === 'voices') {
+      parsed.parts.forEach(() => {
+        const gain = new Tone.Gain(0.25).connect(master);
+        const sampler = new Tone.Sampler({
+          urls: voiceUrlsFromBuffers(),
+          attack: ENV_ATTACK,
+          release: ENV_RELEASE,
+        }).connect(gain);
+        instruments.push(sampler);
+        gains.push(gain);
+      });
+    } else {
+      parsed.parts.forEach(() => {
+        const gain = new Tone.Gain(0.25).connect(master);
+        const synth = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: 'triangle' },
+          // Explicit, gentle envelope. The few-ms attack keeps note onsets crisp
+          // without a zero-length edge (which would click); the shorter release
+          // (was 0.25s) trims the note tail so dense same-pitch chant stops piling
+          // overlapping releases into the limiter, keeping headroom. Measured 0
+          // discontinuities on the 50%-repeated-pitch worst case (issue #65).
+          envelope: { attack: ENV_ATTACK, decay: 0.1, sustain: 0.85, release: ENV_RELEASE },
+        }).connect(gain);
+        instruments.push(synth);
+        gains.push(gain);
+      });
+    }
   }
 
   function disposeAudio() {
-    synths.forEach((s) => s.dispose());
+    instruments.forEach((s) => s.dispose());
     gains.forEach((g) => g.dispose());
     if (master) { master.dispose(); master = null; }
-    synths = []; gains = [];
+    instruments = []; gains = [];
+  }
+
+  /* ---------- Offline A/B capture (verification/listening aid, #66) ----- *
+   * Test/dev-only utility (mirrors the existing scoreCore/injectSample test
+   * hooks in main.js — "harmless in prod"): renders the SAME short passage
+   * through the Synth path and the Voices path using Tone.Offline (a
+   * non-realtime OfflineAudioContext — computes audio without a real device,
+   * so it works headless under Playwright same as everywhere else). Lets a
+   * human compare the two without needing a live speaker in CI. The app
+   * itself never calls this.
+   */
+export async function captureOfflineAB(fromMeasure, toMeasure, bpmValue) {
+    if (!parsed) throw new Error('no piece loaded');
+    const spb = 60 / Number(bpmValue || el.bpm.value);
+    const from = clampMeasure(Number(fromMeasure));
+    const to = clampMeasure(Number(toMeasure));
+    const range = measureBeatRange(from, to);
+    const total = (range.end - range.start) * spb;
+    const notesByPart = parsed.parts.map((part) => part.notes
+      .filter((n) => n.startBeat >= range.start - 1e-6 && n.startBeat < range.end - 1e-6)
+      .map((n) => ({
+        freq: midiToFreq(n.midi),
+        t: (n.startBeat - range.start) * spb,
+        dur: Math.max(0.05, n.durBeat * spb * 0.95),
+      })));
+
+    const renderSynth = () => Tone.Offline(() => {
+      const m = new Tone.Limiter(-1).toDestination();
+      notesByPart.forEach((notes) => {
+        const g = new Tone.Gain(0.25).connect(m);
+        const s = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: 'triangle' },
+          envelope: { attack: ENV_ATTACK, decay: 0.1, sustain: 0.85, release: ENV_RELEASE },
+        }).connect(g);
+        notes.forEach((n) => s.triggerAttackRelease(n.freq, n.dur, n.t));
+      });
+    }, total + 0.5);
+
+    const renderVoices = async () => {
+      await ensureVoiceSamplesLoaded();
+      return Tone.Offline(() => {
+        const m = new Tone.Limiter(-1).toDestination();
+        notesByPart.forEach((notes) => {
+          const g = new Tone.Gain(0.25).connect(m);
+          const samp = new Tone.Sampler({
+            urls: voiceUrlsFromBuffers(),
+            attack: ENV_ATTACK,
+            release: ENV_RELEASE,
+          }).connect(g);
+          notes.forEach((n) => samp.triggerAttackRelease(n.freq, n.dur, n.t));
+        });
+      }, total + 0.5);
+    };
+
+    // base64-encode 16-bit PCM (mono, ch0) — far more compact across the
+    // page.evaluate() boundary than a raw JSON array of floats.
+    const toBase64Pcm16 = (buf) => {
+      const data = buf.getChannelData(0);
+      const bytes = new Uint8Array(data.length * 2);
+      const view = new DataView(bytes.buffer);
+      for (let i = 0; i < data.length; i++) {
+        const v = Math.max(-1, Math.min(1, data[i]));
+        view.setInt16(i * 2, Math.round(v * 32767), true);
+      }
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      return btoa(binary);
+    };
+
+    const [synthBuf, voicesBuf] = await Promise.all([renderSynth(), renderVoices()]);
+    return {
+      sampleRate: synthBuf.sampleRate,
+      synthPcm16Base64: toBase64Pcm16(synthBuf),
+      voicesPcm16Base64: toBase64Pcm16(voicesBuf),
+    };
   }
 
   // Mute the selected voice unless "also hear my part" is checked.
@@ -130,7 +356,7 @@ export function applyMix() {
         const t = (n.startBeat - winStart) * spb;
         const dur = Math.max(0.05, n.durBeat * spb * 0.95);
         const id = Tone.Transport.schedule((time) => {
-          synths[idx].triggerAttackRelease(midiToFreq(n.midi), dur, time);
+          instruments[idx].triggerAttackRelease(midiToFreq(n.midi), dur, time);
         }, t);
         scheduledIds.push(id);
       });
@@ -354,7 +580,19 @@ export async function playPause() {
 
 export async function startPlayback() {
     if (!(await unlockAudio())) return;   // suspended-context guard (issue #63)
-    if (!synths.length) buildAudio();
+    // Defensive lazy-load path (issue #66): covers a persisted 'voices'
+    // preference restored at boot (loadInstrumentMode never fetches) — the
+    // FIRST Play after that is what actually triggers the sample load, same
+    // status-line/fallback behavior as switching the toggle mid-session.
+    if (instrumentMode === 'voices' && !voiceBuffers && !voiceLoadFailed) {
+      try { await ensureVoiceSamplesLoaded(); setStatus('Voices loaded.'); }
+      catch (e) {
+        instrumentMode = 'synth';
+        updateInstrumentUI();
+        setStatus('Voices unavailable — using synth instead. (' + (e && e.message ? e.message : 'load failed') + ')');
+      }
+    }
+    if (!instruments.length || builtMode !== effectiveMode()) buildAudio();
     applyMix();
     // Windowed scores: make sure the loop range is actually rendered before we
     // schedule cursor steps (the cursor iterator is clipped to the render

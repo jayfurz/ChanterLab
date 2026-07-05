@@ -525,8 +525,9 @@ export function resolvePieceId(id) {
 
   // Initial piece load, factored out so the Retry button can re-attempt it.
   //
-  // Issue #64: the default landing piece is the library's 10A Trisagion Hymn
-  // (Hilko) — but ONLY when the library manifest actually loaded and lists it
+  // Issue #64: the default landing piece is the library's 10B Trisagion Hymn
+  // (Hilko, 4-language setting) — but ONLY when the library manifest actually
+  // loaded and lists it
   // (resolvePieceId resolves DEFAULT_STARTING_PIECE_ID against PIECES, which
   // library.loadLibraryManifest populates; main.js awaits that manifest fetch
   // before calling loadStartingPiece so this check is meaningful). Every other

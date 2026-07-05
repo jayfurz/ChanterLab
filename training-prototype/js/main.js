@@ -14,7 +14,8 @@ import {
 import {
   gains, playState, userHoldUntil, cursorStep, applyMix, statusForPlaying,
   startPlayback, stop, playPause, updatePlayUI, setOverlay, initOverlay, noteUserTouch,
-  audioContextState,
+  audioContextState, instrumentMode, loadInstrumentMode, switchInstrumentMode,
+  updateInstrumentUI, captureOfflineAB,
 } from './transport.js';
 import {
   practiceSamples, lastScoreResult, sessionLaps, scoringStrictness, buildScoreTargets,
@@ -83,6 +84,10 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     if (el.strictnessPicker) {
       [...el.strictnessPicker.children].forEach((b) =>
         b.addEventListener('click', () => setStrictness(b.dataset.strictness)));
+    }
+    if (el.instrumentPicker) {
+      [...el.instrumentPicker.children].forEach((b) =>
+        b.addEventListener('click', () => switchInstrumentMode(b.dataset.instrument)));
     }
     if (el.scoreReportClose) {
       el.scoreReportClose.addEventListener('click', dismissReport);
@@ -159,8 +164,11 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
 
   async function main() {
     loadStrictness();
+    loadInstrumentMode();   // restores the toggle position only — never fetches
+                            // samples at boot (issue #66); see loadInstrumentMode.
     initControls();
     updateStrictnessUI();
+    updateInstrumentUI();
     initLibrary();
     initSections();
     initOnboarding();   // first-run coach-marks (issue #64) — shows step (a) immediately
@@ -242,6 +250,21 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // strictness preset: 'relaxed' (default) or 'strict' — persisted.
     strictness: () => scoringStrictness,
     setStrictness: (s) => { setStrictness(s); return scoringStrictness; },
+
+    // --- instrument sound: Synth / Voices (issue #66) ---
+    // instrument(): the CURRENTLY EFFECTIVE setting ('synth' default, 'voices'
+    // once samples are switched to/loaded and usable — see transport.js's
+    // effectiveMode fallback-on-failure behavior).
+    instrument: () => instrumentMode,
+    // setInstrument(): drives the same async switch the Sound toggle does
+    // (persists + lazy-loads + rebuilds live audio); awaits it so a test can
+    // reliably check instrument() right after.
+    setInstrument: async (mode) => { await switchInstrumentMode(mode); return instrumentMode; },
+    // captureOfflineAB(): dev/verification-only — renders the CURRENT loop
+    // range through both instrument paths via Tone.Offline (headless-safe,
+    // no audio device needed) and returns base64 16-bit PCM for each side.
+    // The app itself never calls this.
+    captureOfflineAB: (fromMeasure, toMeasure, bpm) => captureOfflineAB(fromMeasure, toMeasure, bpm),
     // Test-only pitch injection: headless checks (and any dev box without a
     // real mic) have no way to drive TrainingScope's actual pitch detector,
     // so this pushes straight into the CURRENT lap's sample buffer exactly as

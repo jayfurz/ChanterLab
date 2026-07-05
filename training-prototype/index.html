@@ -119,6 +119,17 @@
       </div>
     </div>
 
+    <!-- Instrument sound (issue #66): Synth (Tone.PolySynth, default) vs.
+         Voices (sampled "ah" pad, lazy-loaded on first switch/Play). Persisted
+         in localStorage; see js/transport.js's switchInstrumentMode. -->
+    <div class="row row-instrument">
+      <span class="label">Sound</span>
+      <div id="instrumentPicker" class="seg" role="tablist" aria-label="Instrument sound">
+        <button type="button" data-instrument="synth" class="segbtn active" role="tab">Synth</button>
+        <button type="button" data-instrument="voices" class="segbtn" role="tab">Voices</button>
+      </div>
+    </div>
+
     <div class="row row-view">
       <span class="label">View</span>
       <div id="viewPicker" class="seg" role="tablist" aria-label="View mode">

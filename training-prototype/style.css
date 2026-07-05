@@ -195,6 +195,9 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
 /* ---------- scoring strictness control (issue #55) ---------- */
 .row-strictness .seg{flex:0 0 auto;min-width:150px}
 
+/* ---------- instrument sound: Synth / Voices (issue #66) ---------- */
+.row-instrument .seg{flex:0 0 auto;min-width:150px}
+
 /* ---------- desktop ---------- */
 @media (min-width: 760px){
   .app-head{padding:16px 20px 6px}
