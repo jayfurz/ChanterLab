@@ -7,8 +7,8 @@
  *   loader.js    : osmd, osmdSteps, windowed, sourceMeasureCount,
  *                  renderFromIdx, renderToIdx, printedFirst/Last, lastPrinted,
  *                  extending, renderDeferred, viewMode, loadToken, currentPieceId
- *   transport.js : synths, gains, scheduledIds, cursorWindow, cursorStep,
- *                  playState, userHoldUntil
+ *   transport.js : synths, gains, master, scheduledIds, cursorWindow, cursorStep,
+ *                  playState, userHoldUntil, lastFollowScroll
  *   voices.js    : selectedVoice, activeVerse, melodyMuted
  *   scoring-ui.js: practiceSamples, scoringArmed, lastScoreResult, sessionLaps,
  *                  currentLapNum, bestLapHitPct, scoreSummaryShown,

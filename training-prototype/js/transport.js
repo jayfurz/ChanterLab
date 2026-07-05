@@ -11,10 +11,14 @@ import { onPlaySucceeded, onStopped } from './onboarding.js';
 
 let synths = [];           // Tone.PolySynth per part
 export let gains = [];     // Tone.Gain per part
+let master = null;         // Tone.Limiter master bus — the only node between the
+                           // summed voices and the speakers (issue #65)
 let scheduledIds = [];
 let cursorWindow = [];     // absolute osmdSteps indices inside the current loop window
 export let playState = 'stopped';
 export let userHoldUntil = 0;
+let lastFollowScroll = 0;  // throttles the per-note follow-scroll (issue #65)
+const FOLLOW_SCROLL_MS = 140;
 
   /* ---------- Audio (Tone.js) ----------------------------------------- */
 
@@ -49,11 +53,33 @@ export function buildAudio() {
     disposeAudio();
     synths = [];
     gains = [];
+    // Give the scheduler more headroom so a heavy main-thread tick (OSMD cursor
+    // stepping over a big SVG — the measured 87ms tasks in issue #65) can't fire
+    // note events past-due and glitch. 0.1→0.2s doubles the lookahead budget at
+    // the cost of ~100ms of extra output latency (both audio AND the follow
+    // cursor shift together, so they stay in sync — imperceptible for follow-
+    // along practice). Set here (idempotent) so it's applied before first Play.
+    if (typeof Tone !== 'undefined' && Tone.getContext) Tone.getContext().lookAhead = 0.2;
+    // Master bus: a brickwall limiter at -1 dBFS is the ONLY node between the
+    // summed voices and the speakers. Four unison voices at 0.25 each sum to
+    // ~1.0 at their peaks (measured 0.90 on the default 4-part piece, 0.89 with
+    // "also hear my part"); real-time phase drift or a hotter piece crosses 1.0
+    // and hard-clips at the device — the "popping/crackle" of issue #65. The
+    // limiter catches those transients transparently (it doesn't engage until
+    // ~-1 dBFS, so normal material is untouched) and guarantees the bus can
+    // never clip. It sits on the SYNTH bus only — the scoring/scope path taps
+    // the mic (scope.js), never this bus, so scoring is unaffected.
+    master = new Tone.Limiter(-1).toDestination();
     parsed.parts.forEach(() => {
-      const gain = new Tone.Gain(0.25).toDestination();
+      const gain = new Tone.Gain(0.25).connect(master);
       const synth = new Tone.PolySynth(Tone.Synth, {
         oscillator: { type: 'triangle' },
-        envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.25 },
+        // Explicit, gentle envelope. The few-ms attack keeps note onsets crisp
+        // without a zero-length edge (which would click); the shorter release
+        // (was 0.25s) trims the note tail so dense same-pitch chant stops piling
+        // overlapping releases into the limiter, keeping headroom. Measured 0
+        // discontinuities on the 50%-repeated-pitch worst case (issue #65).
+        envelope: { attack: 0.008, decay: 0.1, sustain: 0.85, release: 0.12 },
       }).connect(gain);
       synths.push(synth);
       gains.push(gain);
@@ -63,6 +89,7 @@ export function buildAudio() {
   function disposeAudio() {
     synths.forEach((s) => s.dispose());
     gains.forEach((g) => g.dispose());
+    if (master) { master.dispose(); master = null; }
     synths = []; gains = [];
   }
 
@@ -185,6 +212,7 @@ export function applyMix() {
       while (cursorStep < cursorWindow[0]) { osmd.cursor.next(); cursorStep++; }
     }
     updatePos(cursorWindow.length ? osmdSteps[cursorWindow[0]].measure : null);
+    lastFollowScroll = 0;   // let the first per-step follow-scroll fire promptly
     scrollCursorIntoView();
   }
 export let cursorStep = 0;
@@ -196,7 +224,15 @@ export let cursorStep = 0;
     }
     while (cursorStep < i) { osmd.cursor.next(); cursorStep++; }
     updatePos(osmdSteps[i] ? osmdSteps[i].measure : null);
-    scrollCursorIntoView();
+    // Throttle the follow-scroll. scrollCursorIntoView reads offsetTop/Height
+    // (a forced synchronous reflow over a ~4500-node score SVG that osmd.cursor
+    // .next just invalidated) and restarts a smooth-scroll animation. Doing that
+    // on every step piles main-thread work into the audio scheduler's tick
+    // (issue #65). The cursor glyph and posOut still advance every step; only
+    // the score-scroll cadence is capped — the cursor never drifts more than
+    // ~140ms (< one note) before the view catches up.
+    const now = performance.now();
+    if (now - lastFollowScroll >= FOLLOW_SCROLL_MS) { lastFollowScroll = now; scrollCursorIntoView(); }
   }
 
   function updatePos(measure) {
