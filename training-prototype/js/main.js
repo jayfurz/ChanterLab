@@ -563,7 +563,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     }
   }
 
-  async function onRecreateCtx() {
+  async function onRecreateCtx(latencyHint) {
     // The mic (if on) lives on the OLD context; drop it first so the owner
     // re-enables it cleanly on the fresh context.
     const hadMic = !!(window.TrainingScope && TrainingScope.isMicOn && TrainingScope.isMicOn());
@@ -573,12 +573,12 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       el.micBtn.textContent = '🎤 Mic';
       onMicChange();
     }
-    logAudioEvent('recreate-ctx:start', { hadMic });
-    const r = await recreateAudioContext();
+    logAudioEvent('recreate-ctx:start', { hadMic, latencyHint: latencyHint || 'default' });
+    const r = await recreateAudioContext(latencyHint);
     adListenerCtx = null; attachContextListeners();   // rebind to the NEW context
     logAudioEvent('recreate-ctx:done', r);
     setStatus(r && r.ok
-      ? `Audio context recreated (${r.before}→${r.after} Hz). Press Play; re-enable the mic if you need it.`
+      ? `Audio context recreated (${r.before}→${r.after} Hz, buffer: ${r.latencyHint}). Press Play; re-enable the mic if you need it.`
       : `Recreate failed: ${(r && r.reason) || 'unknown'}`);
   }
 
@@ -628,7 +628,17 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     const recreate = document.getElementById('adRecreate');
     if (copy) copy.addEventListener('click', copyAudioReport);
     if (close) close.addEventListener('click', disableAudioDebug);
-    if (recreate) recreate.addEventListener('click', onRecreateCtx);
+    // The click event object must not become the latencyHint argument.
+    if (recreate) recreate.addEventListener('click', () => onRecreateCtx());
+    // Buffer-size experiment levers (owner field finding: iOS screen recording
+    // silences the mic+speaker crackle — it forces larger system buffers, so
+    // recreating with a fatter latencyHint should be the same medicine).
+    const bufI = document.getElementById('adBufInteractive');
+    const bufB = document.getElementById('adBufBalanced');
+    const bufP = document.getElementById('adBufPlayback');
+    if (bufI) bufI.addEventListener('click', () => onRecreateCtx('interactive'));
+    if (bufB) bufB.addEventListener('click', () => onRecreateCtx('balanced'));
+    if (bufP) bufP.addEventListener('click', () => onRecreateCtx('playback'));
     if (probe) probe.addEventListener('click', () => {
       const hw = probeHardwareRate();
       const info = audioContextInfo() || {};

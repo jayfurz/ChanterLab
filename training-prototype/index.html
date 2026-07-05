@@ -316,6 +316,9 @@
     <span class="ad-title">🎛 audio diagnostics <span class="ad-sub">#74</span></span>
     <span class="ad-actions">
       <button id="adRecreate" class="ad-btn" type="button" title="Close and recreate the AudioContext on the current hardware route (test the running-but-silent fix)">Recreate ctx</button>
+      <button id="adBufInteractive" class="ad-btn" type="button" title="Recreate the context with small buffers (default; lowest latency)">Buf: small</button>
+      <button id="adBufBalanced" class="ad-btn" type="button" title="Recreate the context with medium buffers">Buf: med</button>
+      <button id="adBufPlayback" class="ad-btn" type="button" title="Recreate the context with large buffers — mimics what iOS screen recording does; test whether the mic+speaker crackle dies">Buf: large</button>
       <button id="adProbe" class="ad-btn" type="button" title="Probe the current hardware sample rate">HW rate</button>
       <button id="adCopy" class="ad-btn" type="button" title="Copy the full report to the clipboard">Copy</button>
       <button id="adClose" class="ad-btn" type="button" title="Hide (triple-tap the status line to reopen)">✕</button>

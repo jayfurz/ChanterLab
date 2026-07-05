@@ -214,3 +214,21 @@ This retest is what confirms all four are actually doing their job on real
 hardware — headless testing can prove the code paths execute correctly and
 that desktop stays byte-identical, but only a real iPhone can confirm the
 📞 icon truly clears and the crackle is truly gone.
+
+## Step 7 — buffer-size experiment (screen-recording clue, 2026-07-05)
+
+Owner finding: starting an iPhone SCREEN RECORDING (Control Center) makes the
+mic-on + headphones-off crackle vanish; it returns when recording stops.
+Screen recording forces larger system audio buffers → the crackle is likely
+buffer underrun in the voice-processing session. Test the same medicine:
+
+1. Reproduce the crackle: mic ON, headphones-mode OFF, speaker, Play.
+2. In the ?audiodebug=1 overlay note `outputLatency`, then start a screen
+   recording and note `outputLatency` again — if it JUMPS while the crackle
+   dies, the buffer hypothesis is confirmed. Stop the recording.
+3. Tap **Buf: large** (recreates the context with latencyHint 'playback'),
+   re-enable the mic, Play. Crackle gone? Note `outputLatency`.
+4. If large works, try **Buf: med** — the smallest buffer that stays clean is
+   the winner (less added latency). Report which one, plus the outputLatency
+   readings from 2-4. If even 'large' crackles while screen recording stays
+   clean, the effect is session-mode (VPIO) not buffers — also useful to know.

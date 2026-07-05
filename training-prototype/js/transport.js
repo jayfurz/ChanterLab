@@ -560,7 +560,16 @@ export function masterOutputLevel() {
   // context via Tone.setContext, rebuilds the graph on it, and closes the old
   // one. The mic (if it was on) lived on the OLD context — main.js drops it
   // first and the owner re-enables it. Returns the before/after sample rates.
-export async function recreateAudioContext() {
+  // latencyHint: owner field evidence (2026-07-05) — starting an iOS SCREEN
+  // RECORDING makes the mic+speaker crackle vanish (recording the mic or not),
+  // and it returns the moment recording stops. Screen recording forces larger
+  // system IO buffers, so the crackle is most plausibly BUFFER UNDERRUN in the
+  // voice-processing (mic+EC) session, not a rate mismatch. A context born
+  // with latencyHint 'playback'/'balanced' requests bigger buffers — the same
+  // medicine, available from the web. The diagnostics overlay exposes buffer
+  // buttons that recreate the context with each hint so the owner can A/B
+  // live; outputLatency in the snapshot shows what each hint actually won.
+export async function recreateAudioContext(latencyHint) {
     if (typeof Tone === 'undefined' || !Tone.setContext || !Tone.getContext) {
       return { ok: false, reason: 'Tone.setContext unavailable' };
     }
@@ -570,7 +579,7 @@ export async function recreateAudioContext() {
     try {
       try { stop(); } catch (e) { /* ignore */ }
       const old = Tone.getContext();
-      const raw = new AC();                    // born at the current hardware rate/route
+      const raw = latencyHint != null ? new AC({ latencyHint }) : new AC();
       if (raw.resume) { try { await raw.resume(); } catch (e) { /* may need a fresh gesture */ } }
       Tone.setContext(raw);
       Tone.getContext().lookAhead = 0.2;       // match buildAudio's scheduler headroom
@@ -585,7 +594,11 @@ export async function recreateAudioContext() {
         if (old && old.rawContext && old.rawContext !== raw && old.rawContext.suspend) old.rawContext.suspend().catch(() => {});
       } catch (e) { /* best-effort */ }
       const after = Tone.getContext().rawContext.sampleRate;
-      return { ok: true, before, after, changed: before !== after, state: raw.state };
+      return {
+        ok: true, before, after, changed: before !== after, state: raw.state,
+        latencyHint: latencyHint != null ? latencyHint : 'default',
+        baseLatency: raw.baseLatency, outputLatency: raw.outputLatency,
+      };
     } catch (e) {
       return { ok: false, reason: (e && e.message) || String(e), before };
     }
