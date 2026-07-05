@@ -10,6 +10,7 @@ import {
   lastPrinted, loadPieceById, loadStartingPiece, resolvePieceId, setView,
   applyResponsiveOsmdOptions, isNarrow, requestRender, renderFullScore,
   ensureRenderWindow, maybeExtendOnScroll, indexFromPrinted, printedForIndex,
+  renderCount, clearScoreColoring, scoreColoringInfo,
 } from './loader.js';
 import {
   gains, playState, userHoldUntil, cursorStep, applyMix, statusForPlaying,
@@ -22,7 +23,7 @@ import {
 } from './transport.js';
 import {
   practiceSamples, lastScoreResult, sessionLaps, scoringStrictness, buildScoreTargets,
-  setStrictness, loadStrictness, updateStrictnessUI, dismissReport,
+  setStrictness, loadStrictness, updateStrictnessUI, dismissReport, toggleScoreColoring,
 } from './scoring-ui.js';
 import {
   currentSections, activeSectionIdx, xmlScannedSections, jumpToSection, initSections,
@@ -101,6 +102,11 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     if (el.scoreReportClose) {
       el.scoreReportClose.addEventListener('click', dismissReport);
     }
+    // Verse switch clears any per-note score coloring (issue #79). The verse
+    // buttons are (re)built inside voices.js, so listen on the stable #versePicker
+    // container via delegation — no-op when no overlay is active, and the chip
+    // re-syncs off the 'chanterlab:scorecoloring' event clearScoreColoring fires.
+    if (el.versePicker) el.versePicker.addEventListener('click', () => clearScoreColoring());
 
     // auto-scroll etiquette: user touch on the score container suspends
     // cursor-follow for ~3 s (each event refreshes the window)
@@ -369,6 +375,9 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     catch (e) { mic = null; }
     const lvl = masterOutputLevel();
     const su = silentUnlockState();
+    let detector = null;
+    try { detector = (window.TrainingScope && TrainingScope.detectorInfo) ? TrainingScope.detectorInfo() : null; }
+    catch (e) { detector = null; }
     let audioSessionType = null;
     if (audioSessionSupported()) { try { audioSessionType = navigator.audioSession.type; } catch (e) { /* ignore */ } }
     return {
@@ -398,6 +407,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       clockRatio: +adRatio.toFixed(2),
       stalls: adStalls,
       volume: getVolume(),
+      detector,
     };
   }
 
@@ -427,8 +437,18 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // never engaged at all, by design, so a paused/absent element there is
     // NOT a fault.
     const silentWarn = (s.ios && s.silentStrategy === 'silent-element' && !s.silentPlaying) ? ' (not playing!)' : '';
+    // Pitch detector A/B line (issue #80): which front-end is live + its cadence.
+    const d = s.detector;
+    const detLine = d
+      ? `detector = ${d.mode}${d.mode === 'wasm' ? (d.wasmReady ? ' (worklet live)' : ' (loading…)') : ''}   ` +
+        `cadence = ${d.cadenceHz != null ? d.cadenceHz.toFixed(1) : '—'} Hz   ` +
+        `latency≈ ${d.latencyMs != null ? d.latencyMs.toFixed(1) : '—'} ms   ` +
+        `frames = ${d.framesSeen} (voiced ${d.voicedFrames})` +
+        (d.lastError ? `   ⚠ ${d.lastError}` : '')
+      : 'detector = —';
     return [
       `iOS=${s.ios}   play=${s.playState}   mic=${s.micOn ? 'ON' : 'off'}   hpMode=${s.hpMode ? 'on(raw)' : 'off(processed)'}`,
+      detLine,
       `ctx.sampleRate = ${fmtVal(s.sampleRate)} Hz    state = ${fmtVal(s.state)}`,
       `mic.sampleRate = ${fmtVal(s.micRate)} Hz${rateMismatch ? '  ⚠ RATE MISMATCH' : ''}    echoCancel = ${fmtVal(s.echoCancellation)}`,
       `baseLatency = ${fmtVal(s.baseLatency)}    outputLatency = ${fmtVal(s.outputLatency)}    lookAhead = ${fmtVal(s.lookAhead)}`,
@@ -662,6 +682,15 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // the always-visible mini-row (Play/Stop/position) stays reachable.
     if (window.matchMedia && window.matchMedia('(max-width:759px)').matches) setOverlay(false);
     if (window.TrainingScope && el.scope) {
+      // Detector A/B flag (issue #80): opt into the Rust/WASM worklet detector
+      // via ?detector=wasm or a persisted localStorage['chanterlab.detector'].
+      // Absent/anything-else keeps the JS autocorrelation default untouched —
+      // no wasm fetch, no worklet, no new console output on the default path.
+      if (TrainingScope.setDetector) {
+        let detFlag = new URLSearchParams(location.search).get('detector');
+        if (!detFlag) { try { detFlag = localStorage.getItem('chanterlab.detector'); } catch (e) { detFlag = null; } }
+        if (detFlag === 'wasm') TrainingScope.setDetector('wasm');
+      }
       TrainingScope.attach(el.scope, el.scopeReadout, el.scopeHint);
       TrainingScope.setTimeSource(() => ({
         playing: playState === 'playing',
@@ -696,6 +725,11 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     audioDebug: () => ({ enabled: adEnabled, snapshot: audioSnapshot(), events: adEvents.slice() }),
     audioDebugShow: () => { enableAudioDebug(); return adEnabled; },
     audioDebugHide: () => { disableAudioDebug(); return adEnabled; },
+    // --- pitch-detector A/B (issue #80) ---
+    // detector(): which front-end is live ('js'|'wasm') plus its live cadence,
+    // latency proxy, and frame counters — the console-visible A/B hook.
+    detector: () => (window.TrainingScope && TrainingScope.detectorInfo) ? TrainingScope.detectorInfo() : null,
+    setDetector: (m) => (window.TrainingScope && TrainingScope.setDetector) ? TrainingScope.setDetector(m) : null,
     // --- master accompaniment volume (issue #74 F5) ---
     // volume(): current level (0..1.25). setVolume(v): live-applies + persists,
     // returns the (clamped) resulting level — mirrors setInstrument's pattern.
@@ -734,6 +768,18 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // strictness preset: 'relaxed' (default) or 'strict' — persisted.
     strictness: () => scoringStrictness,
     setStrictness: (s) => { setStrictness(s); return scoringStrictness; },
+
+    // --- per-note score coloring (issue #79) ---
+    // scoreColoring(): current overlay state — { on, applied, matched, painted,
+    // targets, from, to, colors } (colors = the NoteheadColor of each scored-
+    // voice note in the covered range, so a test can count the verdict tints).
+    scoreColoring: () => scoreColoringInfo(),
+    // toggleScoreColoring(): drive the report's "Show on score" chip
+    // programmatically; returns the resulting scoreColoring() snapshot.
+    toggleScoreColoring: () => { toggleScoreColoring(); return scoreColoringInfo(); },
+    // renderCount(): monotonically-increasing renderNow() count — lets a test
+    // assert exactly one render happened across a toggle.
+    renderCount: () => renderCount,
 
     // --- instrument sound: Synth / Voices (issue #66) ---
     // instrument(): the CURRENTLY EFFECTIVE setting ('synth' default, 'voices'

@@ -6,12 +6,19 @@
  * within ±50 cents of the active target (octave-tolerant), the trace and
  * readout glow gold — the "hitting the note" moment.
  *
- * Pitch detection: plain-JS autocorrelation (cwilso-style ACF with parabolic
- * interpolation + median-of-3 + EMA smoothing) on an AnalyserNode fed by
- * getUserMedia. The Rust/WASM detector in the main app lives in the
- * pkg-worklet bundle and is not loadable standalone without the AudioWorklet
- * plumbing, so the JS fallback is the deliberate works-tonight choice —
- * documented in the README. Swap-in point: `detectPitch()`.
+ * Pitch detection has two interchangeable front-ends behind one output
+ * contract (median-of-3 + EMA smoothing -> MIDI -> pitch-sink/trace/readout,
+ * all owned here so both detectors feed scoring identically):
+ *   - 'js'   (DEFAULT): plain-JS autocorrelation (cwilso-style ACF with
+ *            parabolic interpolation) on an AnalyserNode fed by getUserMedia.
+ *   - 'wasm' (opt-in via setDetector('wasm'), gated behind ?detector=wasm in
+ *            main.js): routes the mic through an AudioWorkletNode running the
+ *            legacy Byzantine app's Rust FFT detector (pkg-worklet's
+ *            VoiceProcessor; see pitch_worklet.js). Emits the SAME detected-Hz
+ *            into pushVoicedFreq(), so downstream behavior is unchanged.
+ * The JS path stays the default until the A/B (issue #80) proves the swap.
+ * Swap-in point: `pushVoicedFreq()` — the JS detector calls it from
+ * captureMicFrame(); the wasm worklet calls it from onWasmPitch().
  */
 window.TrainingScope = (() => {
   'use strict';
@@ -45,8 +52,11 @@ window.TrainingScope = (() => {
   // sang; with headphones there is no echo to cancel, so we keep it OFF.
   // `processing=true` is speaker mode (echoCancellation back on; the OS may
   // duck playback while the mic hears voice — documented in the UI).
-  // The mic stream feeds ONLY the AnalyserNode — it is never routed to the
-  // destination and never touches any Tone.js gain.
+  // In the JS default the mic stream feeds ONLY the AnalyserNode; in 'wasm'
+  // mode it ALSO feeds the detector worklet (on a native context — see the wasm
+  // block below), whose output goes through a gain=0 keep-alive to the
+  // destination. Either way the mic is NEVER audible and never touches a Tone.js
+  // gain — the singer only ever hears the backing voices.
   const mic = { on: false, stream: null, src: null, analyser: null, buf: null, ctx: null, processing: false };
 
   function micConstraints() {
@@ -65,6 +75,20 @@ window.TrainingScope = (() => {
   let trace = [];                 // [{wall, dispMidi, cents, hit, hasTarget}]
   const TRACE_KEEP_SEC = 12;
   let lastDetect = { name: '—', cents: null, hit: false, fresh: 0, quiet: false };
+
+  // Detector front-end (issue #80). 'js' is the default and leaves every code
+  // path below byte-for-byte unchanged; 'wasm' is opt-in and only touches the
+  // guarded branches in micStart/micStop/setMicProcessing + the worklet glue at
+  // the bottom of this file. Nothing wasm-related runs — no fetch, no worklet,
+  // no console — while the mode is 'js'.
+  let detectorMode = 'js';
+  const WASM_GATE_THRESHOLD = 0.02;   // linear amp; matches the legacy worklet default
+  const wasm = {
+    node: null, gain: null, srcNode: null, nativeCtx: null, ownCtx: null,
+    ready: false, moduleCtx: null,
+    glueText: null, wasmBuffer: null, loading: null, lastError: null,
+    frames: 0, voiced: 0, firstWall: null, lastWall: null, cadenceHz: null, latencyMs: null, rateDiv: null,
+  };
 
   const PX_PER_SEC = 68;
   const NOW_FRAC = 0.33;
@@ -131,7 +155,12 @@ window.TrainingScope = (() => {
   const noteName = (m) => NOTE_NAMES[((Math.round(m) % 12) + 12) % 12] + (Math.floor(Math.round(m) / 12) - 1);
 
   function captureMicFrame() {
-    if (!mic.on || !mic.analyser) return;
+    if (!mic.on) return;
+    // In 'wasm' mode the pitch stream is driven by worklet messages
+    // (onWasmPitch -> pushVoicedFreq), not the analyser, so the animation-frame
+    // capture is a no-op. draw() still renders the trace pushVoicedFreq builds.
+    if (detectorMode === 'wasm') return;
+    if (!mic.analyser) return;
     mic.analyser.getFloatTimeDomainData(mic.buf);
     let acc = 0;
     for (let i = 0; i < mic.buf.length; i++) acc += mic.buf[i] * mic.buf[i];
@@ -147,7 +176,16 @@ window.TrainingScope = (() => {
       lastDetect.fresh = Math.max(0, lastDetect.fresh - 1);
       return;
     }
+    pushVoicedFreq(f, wall);
+  }
 
+  // Shared voiced-frame ingestion: median-of-3 + EMA smoothing, MIDI
+  // conversion, the {tSec, midi} pitch-sink emit, the scope trace, and the
+  // readout. BOTH detectors funnel a raw detected Hz through here, so the
+  // smoothed-MIDI stream that reaches scoring is identical regardless of which
+  // front-end produced `f`. (Extracted verbatim from captureMicFrame for #80 —
+  // the JS path's behavior is unchanged.)
+  function pushVoicedFreq(f, wall) {
     hist3.push(f);
     if (hist3.length > 3) hist3.shift();
     const sorted = [...hist3].sort((a, b) => a - b);
@@ -361,7 +399,185 @@ window.TrainingScope = (() => {
     canvas.height = Math.round(cssH * dpr);
   }
 
+  /* ---------- wasm detector (issue #80) --------------------------------- *
+   * A minimal AudioWorklet front-end that reuses the legacy Byzantine app's
+   * Rust FFT detector (pkg-worklet's VoiceProcessor). We follow the proven
+   * legacy load pattern (web/audio/audio_engine.js): fetch the wasm-bindgen
+   * no-modules glue + .wasm bytes on the MAIN thread and transfer them into
+   * the worklet, so Safari's fetch/importScripts-less worklet scope never
+   * touches the network. Everything here is dormant unless detectorMode is
+   * 'wasm'. */
+
+  // Fetch the glue text + wasm bytes once and cache them on `wasm`. URLs are
+  // resolved against the document base so they work under either serve root
+  // (/training-prototype/ from the repo, or /training/ via the web symlink).
+  function loadWasmPayload() {
+    if (wasm.glueText && wasm.wasmBuffer) return Promise.resolve();
+    if (wasm.loading) return wasm.loading;
+    const base = (typeof document !== 'undefined' && document.baseURI) || location.href;
+    const glueUrl = new URL('pkg-worklet/chanterlab_core.js', base);
+    const wasmUrl = new URL('pkg-worklet/chanterlab_core_bg.wasm', base);
+    wasm.loading = Promise.all([
+      fetch(glueUrl).then((r) => { if (!r.ok) throw new Error('worklet glue HTTP ' + r.status); return r.text(); }),
+      fetch(wasmUrl).then((r) => { if (!r.ok) throw new Error('worklet wasm HTTP ' + r.status); return r.arrayBuffer(); }),
+    ]).then(([glueText, wasmBuffer]) => {
+      wasm.glueText = glueText;
+      wasm.wasmBuffer = wasmBuffer;
+    }).finally(() => { wasm.loading = null; });
+    return wasm.loading;
+  }
+
+  // Resolve a NATIVE BaseAudioContext for the worklet. Tone.js (14.x) wraps its
+  // context with standardized-audio-context, and the native AudioWorkletNode
+  // constructor rejects that wrapper ("parameter 1 is not of type
+  // 'BaseAudioContext'"). The legacy Byzantine app sidesteps this by owning a
+  // native AudioContext outright (web/audio/audio_engine.js); here we prefer to
+  // UNWRAP Tone's native context (shared clock, no extra iOS context cost) and
+  // fall back to a dedicated native context only if unwrap fails.
+  function resolveNativeCtx() {
+    const NativeBase = (typeof window !== 'undefined') && (window.BaseAudioContext || window.AudioContext);
+    const ctx = mic.ctx;
+    if (NativeBase && ctx instanceof NativeBase) return ctx;
+    if (ctx) {
+      for (const k of ['_nativeAudioContext', '_nativeContext']) {
+        const n = ctx[k];
+        if (n && NativeBase && n instanceof NativeBase) return n;
+      }
+    }
+    const AC = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext);
+    if (!AC) throw new Error('no native AudioContext constructor');
+    if (!wasm.ownCtx) wasm.ownCtx = new AC();      // dedicated fallback, reused across toggles
+    return wasm.ownCtx;
+  }
+
+  async function startWasmDetector() {
+    if (!mic.stream) throw new Error('no mic stream');
+    await loadWasmPayload();
+    const ctx = resolveNativeCtx();
+    wasm.nativeCtx = ctx;
+    if (ctx.state === 'suspended' && ctx.resume) { try { await ctx.resume(); } catch (e) { /* best effort */ } }
+    // addModule is per-context; (re)register on a fresh context (e.g. after
+    // recreateAudioContext on iOS, or the dedicated fallback). Idempotent within
+    // one context.
+    if (wasm.moduleCtx !== ctx) {
+      const base = (typeof document !== 'undefined' && document.baseURI) || location.href;
+      await ctx.audioWorklet.addModule(new URL('pitch_worklet.js', base));
+      wasm.moduleCtx = ctx;
+    }
+    const node = new AudioWorkletNode(ctx, 'training-pitch-detector', {
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+    });
+    node.port.onmessage = ({ data }) => onWasmMessage(data);
+    // Transfer a COPY of the wasm bytes so the cached original survives for a
+    // later re-init (mirrors the legacy wasmBuffer.slice(0) transfer).
+    const wasmCopy = wasm.wasmBuffer.slice(0);
+    node.port.postMessage(
+      { type: 'init_wasm', glueText: wasm.glueText, wasmBuffer: wasmCopy, gateThreshold: WASM_GATE_THRESHOLD },
+      [wasmCopy],
+    );
+    // Tap the RAW MediaStream on the native context (independent of the Tone
+    // analyser leg — scope's mic.src stays on the wrapper context for the JS
+    // path / recording fan-out). Keep-alive: an AudioWorkletNode is only pulled
+    // while it reaches the destination, so route it through a MUTED gain — the
+    // mic is never monitored (same invariant as the JS path: never audible).
+    const srcNode = ctx.createMediaStreamSource(mic.stream);
+    const keep = ctx.createGain();
+    keep.gain.value = 0;
+    srcNode.connect(node);
+    node.connect(keep);
+    keep.connect(ctx.destination);
+    wasm.node = node;
+    wasm.gain = keep;
+    wasm.srcNode = srcNode;
+    wasm.ready = false;
+    wasm.frames = 0; wasm.voiced = 0; wasm.firstWall = null; wasm.lastWall = null;
+    wasm.cadenceHz = null; wasm.latencyMs = null;
+  }
+
+  function stopWasmDetector() {
+    if (wasm.srcNode) { try { wasm.srcNode.disconnect(); } catch (e) { /* noop */ } }
+    if (wasm.node) {
+      try { wasm.node.port.onmessage = null; } catch (e) { /* noop */ }
+      try { wasm.node.disconnect(); } catch (e) { /* noop */ }
+    }
+    if (wasm.gain) { try { wasm.gain.disconnect(); } catch (e) { /* noop */ } }
+    wasm.node = null; wasm.gain = null; wasm.srcNode = null; wasm.ready = false;
+    wasm.frames = 0; wasm.voiced = 0; wasm.firstWall = null; wasm.lastWall = null;
+    wasm.cadenceHz = null; wasm.latencyMs = null;
+  }
+
+  function onWasmMessage(data) {
+    if (!data) return;
+    if (data.type === 'ready') { wasm.ready = true; wasm.rateDiv = data.rateDiv; return; }
+    if (data.type === 'init_failed') { wasm.ready = false; wasm.lastError = data.error; return; }
+    if (data.type === 'pitch') onWasmPitch(data);
+  }
+
+  // Per-pitch-event handler: the wasm analogue of captureMicFrame's branch.
+  // Voiced events feed pushVoicedFreq (the shared smoothing/sink/trace path);
+  // gate-closed events decay the readout. Also tracks live cadence + a
+  // message-hop latency proxy for the diagnostics overlay / A/B hook.
+  function onWasmPitch(msg) {
+    if (!mic.on || detectorMode !== 'wasm') return;
+    const wall = performance.now() / 1000;
+    wasm.frames++;
+    // Cadence = frames per second since the first event (stable average — the
+    // worklet posts deterministically every RATE_DIV blocks; a per-interval EMA
+    // over jittery main-thread receipt times would overstate it).
+    if (wasm.firstWall == null) wasm.firstWall = wall;
+    else if (wall > wasm.firstWall) wasm.cadenceHz = (wasm.frames - 1) / (wall - wasm.firstWall);
+    wasm.lastWall = wall;
+    if (wasm.nativeCtx && typeof msg.ct === 'number') {
+      const lat = (wasm.nativeCtx.currentTime - msg.ct) * 1000;   // audio-time -> callback, ms
+      if (isFinite(lat) && lat >= 0) wasm.latencyMs = wasm.latencyMs == null ? lat : (wasm.latencyMs * 0.9 + lat * 0.1);
+    }
+    if (msg.gateOpen && msg.hz > 0) {
+      wasm.voiced++;
+      pushVoicedFreq(msg.hz, wall);
+    } else {
+      lastDetect.quiet = false;
+      lastDetect.fresh = Math.max(0, lastDetect.fresh - 1);
+    }
+  }
+
   /* ---------- public API ------------------------------------------------ */
+
+  // Select the pitch-detection front-end: 'js' (default) or 'wasm'. Takes
+  // effect on the next micStart; if the mic is already live, restarts it so the
+  // new front-end is wired. Returns the mode actually in effect.
+  function setDetector(mode) {
+    const next = mode === 'wasm' ? 'wasm' : 'js';
+    if (next === detectorMode) return detectorMode;
+    detectorMode = next;
+    if (mic.on) {
+      // Re-tap the SAME context/analyser onto the newly-selected front-end.
+      if (next === 'wasm') {
+        startWasmDetector().catch((e) => { wasm.lastError = String(e && e.message ? e.message : e); detectorMode = 'js'; });
+      } else {
+        stopWasmDetector();
+      }
+    }
+    return detectorMode;
+  }
+  function getDetector() { return detectorMode; }
+
+  // Live introspection for the diagnostics overlay + the __training.detector()
+  // A/B hook (issue #80).
+  function detectorInfo() {
+    return {
+      mode: detectorMode,
+      active: detectorMode === 'wasm' ? (!!wasm.node && wasm.ready) : mic.on,
+      wasmReady: wasm.ready,
+      framesSeen: wasm.frames,
+      voicedFrames: wasm.voiced,
+      cadenceHz: wasm.cadenceHz != null ? Math.round(wasm.cadenceHz * 10) / 10 : null,
+      latencyMs: wasm.latencyMs != null ? Math.round(wasm.latencyMs * 10) / 10 : null,
+      blockSize: 128,
+      rateDiv: wasm.rateDiv,
+      lastError: wasm.lastError,
+      sampleRate: mic.ctx ? mic.ctx.sampleRate : null,
+    };
+  }
 
   function attach(canvasEl, readout, hint) {
     canvas = canvasEl;
@@ -403,10 +619,26 @@ window.TrainingScope = (() => {
     mic.buf = new Float32Array(mic.analyser.fftSize);
     noiseFloor = 0.002;                 // fresh stream, fresh floor
     mic.on = true;
+    // Detector swap (issue #80): only in 'wasm' mode — the JS default never
+    // reaches here, so its micStart path is unchanged. Loading the worklet
+    // AFTER getUserMedia (and, upstream, after Tone.start()/unlockAudio in
+    // main.js's mic flow) is deliberate for iOS: the AudioWorklet is added to
+    // the already-unlocked context that the mic session settled on.
+    if (detectorMode === 'wasm') {
+      try {
+        await startWasmDetector();
+      } catch (e) {
+        // Never break practice: fall back to the JS analyser path for this
+        // session and record why. The analyser is already wired above.
+        wasm.lastError = String(e && e.message ? e.message : e);
+        detectorMode = 'js';
+      }
+    }
     return true;
   }
 
   function micStop() {
+    stopWasmDetector();                 // no-op unless a wasm node is live
     if (mic.src) { try { mic.src.disconnect(); } catch (e) { /* already gone */ } }
     if (mic.stream) mic.stream.getTracks().forEach((tr) => tr.stop());
     mic.on = false; mic.stream = null; mic.src = null; mic.analyser = null;
@@ -430,6 +662,13 @@ window.TrainingScope = (() => {
       mic.stream = stream;
       mic.src = mic.ctx.createMediaStreamSource(stream);
       mic.src.connect(mic.analyser);
+      // Re-tap the re-acquired stream into the wasm worklet too (#80). The
+      // worklet owns its own native source node, so rebuild it on the new
+      // stream. Guarded: dormant in the JS default.
+      if (detectorMode === 'wasm' && wasm.node) {
+        stopWasmDetector();
+        await startWasmDetector();
+      }
       noiseFloor = 0.002;               // new stream = new level profile
       return true;
     } catch (e) {
@@ -448,6 +687,8 @@ window.TrainingScope = (() => {
   return {
     attach, setLane, setTimeSource, setPitchSink, micStart, micStop,
     setMicProcessing, getMicSettings,
+    // Detector front-end selection + introspection (issue #80).
+    setDetector, getDetector, detectorInfo,
     isMicOn: () => mic.on,
     getMicProcessing: () => mic.processing,
     // The live MediaStreamAudioSourceNode (in the SAME AudioContext Tone was
