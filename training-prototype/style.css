@@ -401,6 +401,12 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
    fixed width on long rows. */
 .lib-row-meta .tone{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;opacity:.85}
+/* key signature label (issue #85) — only rendered on the rare row where
+   title+composer alone still collide (see library.js computeKeyVisibility);
+   ultra-muted (dimmer + smaller than tone/book/arr) since it's the least
+   important thing on a row when it does show — a tiebreaker, not a headline. */
+.lib-row-meta .key{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;opacity:.55;font-size:11px}
 
 body.lib-lock{overflow:hidden}
 

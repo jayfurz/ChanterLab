@@ -17,9 +17,31 @@ import { loadPieceById } from './loader.js';
   // Huge groups collapsed by default (tap the header to expand; a search hit
   // inside auto-expands them).
   const LIB_COLLAPSIBLE = new Set(['Menaion', 'Theotokia']);
+
+  // Hymn-type facet (issue #85, manifest field `hymnType`) — human labels for
+  // the slugs ingest_catalog.py's HYMN_ORDINARY/HYMN_PROPER/ANAPHORA_SUB
+  // produce. Most slugs are just their words underscore-joined ("cherubic_
+  // hymn" -> "Cherubic Hymn", "apolytikion" -> "Apolytikion") so a title-case
+  // transform handles them; this map only overrides the few that would read
+  // wrong straight — a dropped apostrophe, or a slug name that doesn't match
+  // the actual liturgical term (see hymn_type()'s own comments there).
+  const HYMN_TYPE_STOPWORDS = new Set(['of', 'the', 'a', 'an', 'and']);
+  const HYMN_TYPE_LABELS = {
+    lords_prayer: "Lord's Prayer",
+    magnification: 'Megalynarion',          // slug name is misleading — this
+                                             // bucket is magnificat/megalynarion
+                                             // text, not literal "magnification"
+    communion_praise: 'Communion Hymn',
+    anaphora_litany: 'Litany of the Anaphora',
+  };
+  function hymnTypeLabel(slug) {
+    if (HYMN_TYPE_LABELS[slug]) return HYMN_TYPE_LABELS[slug];
+    return slug.split('_').map((w, i) => (i > 0 && HYMN_TYPE_STOPWORDS.has(w))
+      ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
 export const libCollapsed = new Set(['Menaion', 'Theotokia']);
-export const libFacetDefs = { arrangement: [], tone: [], composer: [] };
-  const libActive = { arrangement: new Set(), tone: new Set(), composer: new Set() };
+export const libFacetDefs = { arrangement: [], tone: [], hymnType: [], composer: [] };
+  const libActive = { arrangement: new Set(), tone: new Set(), hymnType: new Set(), composer: new Set() };
   let libSearch = '';        // folded search string
 export let libFlat = [];          // [{type:'group'|'sub'|'row'|'hint', ...}]
 export let libOffsets = [];       // prefix pixel offset per flat index
@@ -66,6 +88,8 @@ export async function loadLibraryManifest() {
             });
           }
           const toneClean = (typeof it.toneClean === 'number') ? it.toneClean : null;
+          const hymnType = it.hymnType || null;
+          const key = (it.key || '').trim() || null;
           libItems.push({
             id, title: it.title || '(untitled)', composer: (it.composer || '').trim(),
             tone: (it.tone != null && it.tone !== '') ? String(it.tone) : null,
@@ -78,22 +102,65 @@ export async function loadLibraryManifest() {
             group: it.group || 'Other services & misc',
             sub: (it.sub != null && it.sub !== '') ? it.sub : null,
             rank: (typeof it.rank === 'number') ? it.rank : 99000,
-            // search index (issue #76): fold in the QA'd tone (toneClean only —
-            // the raw `tone` field is littered with junk like "Carpathian" /
-            // "1,2,3,4,5,6,7,8" that would pollute free-text matches) as
-            // "Tone N" so a search like "cherubic tone 3" or "tone 3" can find
-            // it — see itemPasses()/searchMatches() below, which AND search
-            // terms independently across this string rather than requiring a
-            // contiguous phrase.
+            // hymn-type facet (issue #85, manifest field `hymnType`) — slug
+            // from ingest_catalog.hymn_type(), null on whole-liturgy/multi-
+            // hymn compilations it conservatively declines to classify.
+            hymnType,
+            // key signature label (issue #85, manifest field `key`, e.g. "F
+            // major / D minor") — present on every item, but only ever RENDERED
+            // on a row when computeKeyVisibility() below flags it as needed to
+            // break a title+composer collision; always folded into the search
+            // index regardless (see norm below).
+            key,
+            showKey: false,
+            // search index (issue #76/#85): fold in the QA'd tone (toneClean
+            // only — the raw `tone` field is littered with junk like
+            // "Carpathian" / "1,2,3,4,5,6,7,8" that would pollute free-text
+            // matches) as "Tone N", plus the human hymn-type label and the key
+            // label, so "cherubic tone 3" or "cherubic f major" can find a
+            // piece via metadata that isn't in its title — see itemPasses()/
+            // searchMatches() below, which AND search terms independently
+            // across this string rather than requiring a contiguous phrase.
             norm: fold([it.title, it.composer, it.liturgicalDate, it.arrangementType,
                         it.bookName, it.group, it.sub,
-                        toneClean ? ('Tone ' + toneClean) : ''].join(' ')),
+                        toneClean ? ('Tone ' + toneClean) : '',
+                        hymnType ? hymnTypeLabel(hymnType) : '', key || ''].join(' ')),
           });
         });
       }
     } catch (e) { /* no manifest (fresh clone / bad URL) — empty state is fine */ }
+    computeKeyVisibility();
     buildFacets();
     if (libOpen) rebuildLib();
+  }
+
+  // Key-collision detection (issue #85). Two keys alone (C major/A minor,
+  // F major/D minor) cover 89% of the manifest, so printing `key` on every
+  // row would just repeat the same handful of labels 3,000+ times — pure
+  // clutter, not information. It earns a spot on a row only when title +
+  // composer already collide and DON'T resolve the ambiguity themselves —
+  // e.g. the Divine Liturgy's "Cherubic Hymn" cluster has 9 settings; 8
+  // different composers already tell those apart with zero help from key,
+  // but Richard Toensing alone contributes two (D major vs E-flat major) —
+  // those two, and only those two, need the key label. Computed once from
+  // the loaded data (grouped by group+title+composer), independent of
+  // whatever the user is currently searching/filtering for, so it's exact
+  // rather than a "show more while searching" heuristic that would still
+  // over- or under-show it.
+  function computeKeyVisibility() {
+    const buckets = new Map();
+    libItems.forEach((it) => {
+      if (!it.key) return;
+      const k = it.group + ' ' + fold(it.title) + ' ' + fold(it.composer);
+      if (!buckets.has(k)) buckets.set(k, []);
+      buckets.get(k).push(it);
+    });
+    buckets.forEach((bucket) => {
+      if (bucket.length < 2) return;
+      if (new Set(bucket.map((it) => it.key)).size > 1) {
+        bucket.forEach((it) => { it.showKey = true; });
+      }
+    });
   }
 
   /* ---------- Library browser (full-screen overlay) -------------------- *
@@ -126,6 +193,17 @@ export async function loadLibraryManifest() {
       value: v, label: 'Tone ' + v, count: toneCounts[v], num: parseInt(v, 10),
     })).sort((a, b) => a.num - b.num);
 
+    // hymn type (issue #85): top 10 by count. 480 of 3,314 items are null
+    // (whole-liturgy/multi-hymn compilations hymn_type() conservatively
+    // declines to classify — see ingest_catalog.py) and are excluded, same as
+    // junk tones above. ~25 distinct slugs exist across the manifest; capped
+    // to the top 10 so the chip strip stays scannable (same reasoning as
+    // composer's top-8 cap below).
+    const htCounts = {};
+    libItems.forEach((it) => { if (it.hymnType) htCounts[it.hymnType] = (htCounts[it.hymnType] || 0) + 1; });
+    libFacetDefs.hymnType = Object.entries(htCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)
+      .map(([value, count]) => ({ value, label: hymnTypeLabel(value), count }));
+
     // composer: top 8 by count
     const compCounts = {};
     libItems.forEach((it) => { if (it.composer) compCounts[it.composer] = (compCounts[it.composer] || 0) + 1; });
@@ -153,6 +231,7 @@ export async function loadLibraryManifest() {
       g.appendChild(strip); el.libFacets.appendChild(g);
     };
     group('Type', libFacetDefs.arrangement, 'arrangement');
+    group('Hymn', libFacetDefs.hymnType, 'hymnType');
     group('Tone', libFacetDefs.tone, 'tone');
     group('Composer', libFacetDefs.composer, 'composer');
   }
@@ -160,10 +239,16 @@ export async function loadLibraryManifest() {
   // Purely-numeric search tokens ("3") are matched at a word boundary so they
   // don't also hit digits embedded in unrelated text — a catalog code like
   // "13A" contains the character "3" but a search for tone "3" shouldn't
-  // treat it as a hit (issue #76). Non-numeric tokens keep the existing loose
-  // substring match (so "cheru" still finds "Cherubic" mid-word).
+  // treat it as a hit (issue #76). Single-LETTER tokens get the same guard
+  // (issue #85, now that `key` is in the search index): in "cherubic f
+  // major" the 'f' means the standalone note name F, but a bare substring
+  // 'f' also hits "E-flat", "Fr. Sergei", "4-part-Full choir"… — boundary
+  // matching keeps the F-major rows and drops those. Multi-letter tokens
+  // keep the existing loose substring match (so "cheru" still finds
+  // "Cherubic" mid-word).
   function tokenMatches(norm, token) {
-    if (/^\d+$/.test(token)) return new RegExp('(^|[^a-z0-9])' + token + '($|[^a-z0-9])').test(norm);
+    if (/^[a-z0-9]$/.test(token) || /^\d+$/.test(token))
+      return new RegExp('(^|[^a-z0-9])' + token + '($|[^a-z0-9])').test(norm);
     return norm.includes(token);
   }
 
@@ -188,13 +273,15 @@ export async function loadLibraryManifest() {
       });
       if (!ok) return false;
     }
+    if (libActive.hymnType.size && !libActive.hymnType.has(it.hymnType)) return false;
     if (libActive.tone.size && !libActive.tone.has(String(it.toneClean))) return false;
     if (libActive.composer.size && !libActive.composer.has(it.composer)) return false;
     return true;
   }
 
   const libFiltersActive = () =>
-    !!libSearch || libActive.arrangement.size || libActive.tone.size || libActive.composer.size;
+    !!libSearch || libActive.arrangement.size || libActive.hymnType.size
+    || libActive.tone.size || libActive.composer.size;
 
   const libRowH = (f) => f.type === 'group' ? LIB_GROUP_H
     : f.type === 'sub' ? LIB_SUB_H : f.type === 'hint' ? LIB_HINT_H : LIB_ROW_H;
@@ -316,6 +403,19 @@ export async function loadLibraryManifest() {
     // simply isn't created, same as bookName/arrangement already do above).
     if (it.toneClean) {
       const tb = document.createElement('span'); tb.className = 'tone'; tb.textContent = 'Tone ' + it.toneClean; m.appendChild(tb);
+    }
+    // Key signature (issue #85) — right after tone, and ONLY when
+    // computeKeyVisibility() flagged this row as a genuine title+composer
+    // collision that key is the last remaining way to tell apart (see that
+    // function's comment). Every item has a key, but two values (C major/A
+    // minor, F major/D minor) alone cover 89% of the manifest — rendering it
+    // unconditionally would repeat one of a handful of labels on almost every
+    // one of 3,314 rows for zero information gain, so this stays off by
+    // default and on for the rare row that actually needs it. Ultra-muted
+    // (dimmer + smaller than tone/book/arr) since when it does show, it's
+    // the least-important thing on the row — a tiebreaker, not a headline.
+    if (it.showKey && it.key) {
+      const kb = document.createElement('span'); kb.className = 'key'; kb.textContent = it.key; m.appendChild(kb);
     }
     // Source book — only when it adds information beyond what the group
     // header / sub-header above this row already say (e.g. Menaion collapses
