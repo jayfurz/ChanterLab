@@ -37,12 +37,16 @@ THREE LAYERS
    flag). The owner's insight: hymns of the same liturgical TYPE are settings of
    the SAME canonical text -- there are only so many hymn types, so settings of a
    type validate each other. Layer 3:
-     (a) TYPE-CLUSTERS every accepted piece by hymn type (curated regexes for the
-         fixed-text Ordinary hymns -- Trisagion, Cherubic, Anaphora, "It is truly
-         meet", Great Litany, Dismissal ... -- plus base-type + liturgical-date
-         feast keys for the Propers; complete-liturgy books are SLICED into
-         per-section settings via their report.json ``sections[]`` measure marks
-         so each book contributes a Trisagion setting, an Anaphora setting, ...).
+     (a) TYPE-CLUSTERS every accepted piece by hymn type (HYMN_ORDINARY /
+         HYMN_PROPER / ANAPHORA_SUB, shared with ingest_catalog.py -- issue
+         #81: Trisagion, Cherubic, "It is truly meet", Great Litany, Dismissal
+         ..., plus the DL anaphora complex's real 5-way split -- Litany of the
+         Anaphora, Mercy of Peace, Sanctus, We Praise Thee, Megalynarion --
+         rather than one lumped "anaphora" bucket; plus base-type + feast-id
+         keys for the Propers; complete-liturgy books are SLICED into
+         per-section settings via their report.json ``sections[]`` measure
+         marks so each book contributes a Trisagion setting, a Sanctus
+         setting, ...).
      (b) splits each type into TRANSLATION FAMILIES by normalized token-set
          Jaccard (cheap, interpretable, robust to syllabification; chosen over
          char-n-gram cosine because it draws the English/Greek/Arabic/Slavonic
@@ -110,6 +114,19 @@ import sys
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+
+# Shared taxonomy with ingest_catalog.py (issue #81, off #83's recommendation
+# "import HYMN_ORDINARY/HYMN_PROPER from here instead" -- see that module's
+# docstring). Previously this module hand-kept a private copy (_L3_ORDINARY /
+# _L3_PROPER, plus a single lumped 'anaphora' entry) in sync by hand; a shared
+# import removes the drift risk and gives layer 3 the real 5-way anaphora
+# split. _ANAPHORA_GENERIC_RE / _DL_OTHER_KEYWORDS are "private" only by
+# leading-underscore naming convention in ingest_catalog.py -- they ARE the
+# exact compilation guard ingest_catalog.hymn_type() runs, and reusing those
+# objects (not re-deriving equivalent ones here) is what keeps this module's
+# per-section version of the guard from drifting out of step with it.
+from ingest_catalog import (ANAPHORA_SUB, HYMN_ORDINARY, HYMN_PROPER,
+                            _ANAPHORA_GENERIC_RE, _DL_OTHER_KEYWORDS)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_MANIFEST = os.path.join(HERE, "out", "ingest", "manifest.json")
@@ -386,65 +403,109 @@ def _l3_is_content(n: str) -> bool:
 
 
 # --- hymn-type assignment -------------------------------------------------
-# ORDINARY: the fixed-text hymns of the services -- same words every time, so they
-# cluster by TYPE alone (no feast needed). Ordered; first match wins.
-_L3_ORDINARY = [
-    ("trisagion", r"trisagion|thrice[\s-]*holy|holy god,?\s*holy might"),
-    ("cherubic_hymn", r"cherubic|cherubikon|let us who mystic|we who mystic"),
-    ("receive_me_communion", r"receive me,? o|receive me today"),
-    ("let_all_mortal_flesh", r"let all mortal flesh"),
-    ("anaphora", r"anaphora|mercy of peace|it is meet and right|"
-                 r"holy,? holy,? holy|hymn of victory|we praise thee"),
-    ("only_begotten", r"only[\s-]*begotten"),
-    ("creed", r"\bcreed\b|symbol of faith|i believe in one god"),
-    ("lords_prayer", r"lord'?s prayer|our father"),
-    ("great_litany", r"great litany|litany of peace"),
-    ("little_litany", r"little litany"),
-    ("augmented_litany", r"augmented litany|fervent supplic"),
-    ("entrance_hymn", r"entrance hymn|come,? let us worship"),
-    ("communion_praise", r"praise the lord from the heavens|communion hymn|"
-                         r"receive the body"),
-    ("gladsome_light", r"gladsome light|o gladsome|phos hilaron"),
-    ("preserve_o_lord", r"preserve,?\s*o lord|ton despot|ton dhespot"),
-    ("many_years", r"many years|is polla|eis polla"),
-    ("it_is_truly_meet", r"it is truly meet|axion estin"),
-    ("great_doxology", r"great doxolog|glory to god in the highest"),
-    ("dismissal", r"\bdismissal\b"),
-    ("we_have_seen_the_true_light", r"we have seen the true light"),
-    ("let_our_mouths", r"let our mouths be filled"),
-    ("blessed_be_the_name", r"blessed be the name of the lord"),
-    ("magnification", r"more honorable than the cherub|magnificat|megalynarion"),
-]
-# PROPER: text varies per feast/saint, so the TYPE key carries a feast key
-# (liturgical date) -- same base type + same date = same canonical text.
-_L3_PROPER = [
-    ("apolytikion", r"apolytik|troparion"), ("kontakion", r"kontakion"),
-    ("aposticha", r"apostich"), ("stichera", r"sticher|idiomelon"),
-    ("theotokion", r"theotokion|stavrotheotok"), ("exapostilarion", r"exapost|photagog"),
-    ("kathisma", r"kathisma|sessional"), ("prokeimenon", r"prokeimenon"),
-    ("katavasia", r"katavasi"), ("ode", r"\bode\b|canon"),
-    ("doxastikon", r"doxastikon|eothin"), ("megalynarion", r"megalynarion"),
-    ("antiphon", r"antiphon"),
-]
-_L3_ORD_RE = [(n, re.compile(p, re.I)) for n, p in _L3_ORDINARY]
-_L3_PROP_RE = [(n, re.compile(p, re.I)) for n, p in _L3_PROPER]
+# ORDINARY: the fixed-text hymns of the services -- same words every time, so
+# they cluster by TYPE alone (no feast needed). PROPER: text varies per feast/
+# saint, so the TYPE key carries a feast key -- same base type + same feast =
+# same canonical text. Both lists (and the DL anaphora-complex 5-way split,
+# ANAPHORA_SUB) now come from ingest_catalog.py -- see the import comment
+# above. First match wins in each list, exactly as ingest_catalog.hymn_type().
+_L3_ANAPHORA_SUB_RE = [(n, re.compile(p, re.I)) for n, p in ANAPHORA_SUB]
+_L3_ORD_RE = [(n, re.compile(p, re.I)) for n, p in HYMN_ORDINARY]
+_L3_PROP_RE = [(n, re.compile(p, re.I)) for n, p in HYMN_PROPER]
+
+# label -> "ordinary"/"proper", for resolving the manifest's own `hymnType`
+# field back to a clustering kind (item 2 below). "megalynarion" is the one
+# label BOTH ANAPHORA_SUB (the DL anaphora complex's fixed-text Megalynarion/
+# Axion Estin) and HYMN_PROPER (a saint's/feast's megalynarion, which DOES
+# vary by feast) can produce -- see _l3_kind_of(), which disambiguates it by
+# bookName exactly as ingest_catalog.hymn_type() does, rather than trusting
+# this static table for that one label.
+_HYMN_KIND = {label: "ordinary" for label, _ in HYMN_ORDINARY}
+_HYMN_KIND.update({label: "ordinary" for label, _ in ANAPHORA_SUB})
+_HYMN_KIND["anaphora"] = "ordinary"   # the 0-/2+-cue generic fallback label
+for _label, _ in HYMN_PROPER:
+    _HYMN_KIND.setdefault(_label, "proper")
 
 
-def _l3_feast_key(litdate, sub):
+def _l3_feast_key(feast_id, litdate, sub):
+    """Feast/day family key for a PROPER hymn (issue #81 item 3). Prefers the
+    manifest's `feastId` field (ingest_catalog.feast_id()), which strips the
+    per-item liturgicalDate order-prefix ('A1-Pascha' -> 'pascha') so that
+    same-day settings by different composers actually share a key -- the old
+    raw-liturgicalDate/sub normalization baked that per-item prefix into the
+    key instead, which is exactly why issue #83 found most Triodion/
+    Pentecostarion propers were singleton families (712 of them keyed on raw
+    liturgicalDate/sub). Falls back to the raw normalization when feastId is
+    absent -- fields not yet materialized on the current manifest, or a book
+    feast_id() doesn't cover."""
+    if feast_id:
+        return feast_id
     fk = re.sub(r"[^a-z0-9]+", " ", (litdate or sub or "").lower()).strip()
     return fk[:60]
 
 
-def _l3_hymn_type(text, litdate, sub):
-    """(type_id, kind) for a title or section-title. Ordinary -> type-only;
-    Proper -> base|feast; else None."""
+def _l3_hymn_type(text, litdate, sub, book=None, feast_id=None):
+    """(type_id, kind) for a title or section-title. Mirrors
+    ingest_catalog.hymn_type()'s control flow: a Divine Liturgy title/section
+    that mentions the anaphora complex is resolved by ANAPHORA_SUB's 5-way
+    split (compilation-guarded -- 0 specific cues or 2+ conflicting cues
+    collapses to the generic 'anaphora' label; a title that ALSO reaches
+    beyond the anaphora/megalynarion complex, e.g. a combined section heading,
+    is left unclassified) and returns from there without falling through to
+    the generic Ordinary/Proper loops below (same as ingest_catalog.py).
+    Otherwise: Ordinary -> type-only; Proper -> base|feast_key; else None.
+    Deliberately operates on ONE text blob (a section title, or the whole
+    piece title as a fallback) rather than ingest_catalog.hymn_type()'s fuller
+    name+filename+all-section-titles blob -- this module classifies per
+    section already, so the narrower input is the right granularity; the
+    guard LOGIC (the regex sets + the two-stage hits/guard decision) is
+    exactly shared, not reimplemented."""
+    text = text or ""
+    if book == "Divine Liturgy":
+        hits = {label for label, rx in _L3_ANAPHORA_SUB_RE if rx.search(text)}
+        if hits or _ANAPHORA_GENERIC_RE.search(text):
+            if any(kw in text.lower() for kw in _DL_OTHER_KEYWORDS):
+                return None, None   # spans beyond the anaphora complex
+            if len(hits) == 1:
+                return next(iter(hits)), "ordinary"
+            return "anaphora", "ordinary"  # 0 specific or 2+ cues
     for name, rx in _L3_ORD_RE:
-        if rx.search(text or ""):
+        if rx.search(text):
             return name, "ordinary"
     for name, rx in _L3_PROP_RE:
-        if rx.search(text or ""):
-            return f"{name}|{_l3_feast_key(litdate, sub)}", "proper"
+        if rx.search(text):
+            return f"{name}|{_l3_feast_key(feast_id, litdate, sub)}", "proper"
     return None, None
+
+
+def _l3_kind_of(slug, book):
+    """Ordinary vs proper for a manifest `hymnType` slug (item 2 below). See
+    the _HYMN_KIND comment for why "megalynarion" needs the bookName check
+    rather than a static lookup."""
+    if slug == "megalynarion":
+        return "ordinary" if book == "Divine Liturgy" else "proper"
+    return _HYMN_KIND.get(slug, "ordinary")
+
+
+def _l3_type_from_manifest_field(entry):
+    """(type_id, kind) for a whole-piece (non-sliced) setting, using the
+    manifest's own `hymnType` field directly (issue #81 item 2) instead of
+    re-deriving the type from the title alone. `hymnType` was computed by
+    ingest_catalog.hymn_type() from a fuller signal (name + filename + every
+    in-score section title) and already carries its own compilation-guard
+    verdict -- an explicit None there means "this is a compilation, don't
+    guess", which is trusted here too, not treated as "field missing" (the
+    caller only takes this path when the key is present at all; see
+    `"hymnType" in entry` at the call site)."""
+    slug = entry.get("hymnType")
+    if not slug:
+        return None, None
+    kind = _l3_kind_of(slug, entry.get("bookName"))
+    if kind == "proper":
+        fk = _l3_feast_key(entry.get("feastId"), entry.get("liturgicalDate"),
+                           entry.get("sub"))
+        return f"{slug}|{fk}", "proper"
+    return slug, "ordinary"
 
 
 def _l3_voice_measure_streams(xml_path):
@@ -518,11 +579,12 @@ def _l3_build_settings(manifest):
             continue
         vms = _l3_voice_measure_streams(xml)
         litdate, sub = entry.get("liturgicalDate"), entry.get("sub")
+        book, feast_id = entry.get("bookName"), entry.get("feastId")
         title = entry.get("title", "")
         mapped = []
         for s in _l3_load_sections(pid):
             st = s.get("title", "")
-            ty, kind = _l3_hymn_type(st, litdate, sub)
+            ty, kind = _l3_hymn_type(st, litdate, sub, book, feast_id)
             if ty is None:
                 # recurring section fallback: a clean multi-word heading becomes
                 # its own type so identical section titles cluster across books
@@ -541,8 +603,16 @@ def _l3_build_settings(manifest):
                 if setting:
                     settings.append(setting)
                     sec_derived += 1
-        else:  # single-type piece: one whole-piece setting
-            ty, kind = _l3_hymn_type(title, litdate, sub)
+        else:  # single-type piece: one whole-piece setting. Prefer the
+            # manifest's own hymnType field (issue #81 item 2) when this
+            # manifest carries it at all -- an explicit null is a trusted
+            # "compilation, don't guess" verdict from ingest time, not a
+            # missing-field signal, so it is NOT treated as a cue to fall
+            # back to the from-scratch title match.
+            if "hymnType" in entry:
+                ty, kind = _l3_type_from_manifest_field(entry)
+            else:
+                ty, kind = _l3_hymn_type(title, litdate, sub, book, feast_id)
             if ty is None:
                 continue
             vslices = [[t for (_, t) in seq] for seq in vms.values()]

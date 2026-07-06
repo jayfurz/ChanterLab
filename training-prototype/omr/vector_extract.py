@@ -2685,6 +2685,51 @@ def _beam_xml(evs):
     return beams
 
 
+# --------------------------------------------------------- key-signature summary
+# Piece-level key summary for report.json (issue #81, off #76: the library row
+# can't show a key signature without one). Circle-of-fifths friendly names, one
+# per <fifths> value covering its major/relative-minor pair -- a MusicXML key
+# signature alone can't distinguish the two (this corpus is chant/hymnody, with
+# no functional-harmony cues to lean on either), so `mode` is always left null
+# rather than guessed and `label` names both candidates.
+_KEY_LABELS = {
+    -7: "C-flat major / A-flat minor", -6: "G-flat major / E-flat minor",
+    -5: "D-flat major / B-flat minor", -4: "A-flat major / F minor",
+    -3: "E-flat major / C minor", -2: "B-flat major / G minor",
+    -1: "F major / D minor", 0: "C major / A minor",
+    1: "G major / E minor", 2: "D major / B minor",
+    3: "A major / F-sharp minor", 4: "E major / C-sharp minor",
+    5: "B major / G-sharp minor", 6: "F-sharp major / D-sharp minor",
+    7: "C-sharp major / A-sharp minor",
+}
+
+
+def _key_label(fifths):
+    return _KEY_LABELS.get(fifths, f"{fifths:+d} fifths")
+
+
+def piece_key_summary(meta):
+    """Piece-level `key` summary for report.json: the INITIAL key signature
+    (measure 1's fifths, from the per-measure `key` the ref staff of each
+    system already carries -- see build_score()) plus a `changes` count when
+    the signature moves mid-piece (e.g. a chant-to-SATB booklet that switches
+    key partway through). `changes` counts the transitions in the per-measure
+    fifths sequence and is OMITTED (not zeroed) when the key never moves, so
+    a single-key piece gets the compact 3-key shape callers expect. None for
+    a piece with no measures. Read-only over already-computed data -- this
+    does not touch emit_musicxml()'s own per-measure <key> emission, so it
+    cannot change the emitted MusicXML bytes."""
+    if not meta:
+        return None
+    fifths_seq = [m["key"] for m in meta]
+    initial = fifths_seq[0]
+    changes = sum(1 for a, b in zip(fifths_seq, fifths_seq[1:]) if a != b)
+    out = {"fifths": initial, "mode": None, "label": _key_label(initial)}
+    if changes:
+        out["changes"] = changes
+    return out
+
+
 def emit_musicxml(result):
     voices = result["voices"]
     lay = _layout_measures(result)
@@ -2887,6 +2932,7 @@ def run(pdf_path, out_path=None, report_path=None, pages=None, quiet=False):
     rep["voices"] = result["voices"]
     rep["tempo_qpm"] = result["tempo"]
     rep["sections"] = result.get("sections", [])
+    rep["key"] = piece_key_summary(result.get("meta"))
     note_counts = {v: sum(len([e for e in m if e.kind == "note"])
                           for m in result["score"][v])
                    for v in result["voices"]}

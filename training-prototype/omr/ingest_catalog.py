@@ -527,6 +527,62 @@ def read_sections(item_id):
     return clean if len(clean) >= 2 else []
 
 
+def _report_key(item_id):
+    """Compact key-signature label for a piece's manifest entry (issue #81),
+    read from vector_extract.run()'s piece-level `key` field in report.json
+    ({"fifths", "mode", "label", ...}) -- the library row wants just the
+    friendly string, not the whole object. Graceful: None when the report is
+    missing/unusable OR predates the `key` field (the out/ingest corpus as
+    of this change hasn't been re-extracted yet; the field materializes at
+    the next re-ingest)."""
+    try:
+        with open(os.path.join(OUT_DIR, item_id + ".report.json")) as f:
+            key = json.load(f).get("key")
+    except Exception:
+        return None
+    return (key or {}).get("label")
+
+
+# --------------------------------------------------------------- catalog code
+# The publisher's own library-position code (issue #81, off #76: arrangementType
+# conflates it with musical info like "E-flat"/"2-part"). Many Divine Liturgy /
+# Presanctified / Vespers items are filed under a numbered "position + setting
+# letter" slot (13 = Cherubic Hymn, 16 = the Anaphora, 29/46 = Dismissal, ...)
+# that the uploader baked into the blob filename -- e.g. "13a_cherubic_hymn-
+# gretchaninov", "10B_Trisagion_Hymn-Hilko-T3-4Lang", "04c1-2_refrain-trop_of_
+# the_second_antiphon-hilko-star" (a combined Refrain+Troparion PDF spanning
+# position 04C's sub-items 1-2). `arrangementType` sometimes ALSO carries the
+# same code as a bare comma-token ("13A, Choral") but only the coarse form --
+# it drops the sub-item suffix ("04C", not "04c1-2") and is often entirely
+# absent (of the 88 ids matched across the full manifest survey, most have no
+# code-shaped arrangementType token at all, e.g. "16a_the_anaphora-meena" ->
+# arrangementType "Choral"). So `id` (the sanitized blob filename stem) is the
+# fuller, more consistent source and is what this reads; arrangementType
+# itself is left completely untouched (additive field, zero churn).
+#
+# Pattern inventory (full 3,314-item manifest, 2026-07-05 survey): 88 ids
+# (2.7%) match, all Divine Liturgy/Presanctified/Vespers/Menaion/Responses
+# service-order items, all corroborated by their arrangementType/title where
+# those fields carry a code at all:
+#   - simple "NNL"            13a, 29f, 07c, 3a, 9a           (majority)
+#   - doubled-letter "NNLL"    04cb                           (1 item)
+#   - sub-item range "NNLd-d"  04a1-2, 04b1-2, 04c1-2, 04f1-2 (4 items)
+# No false positives found: requiring the letter(s) to sit immediately against
+# the digits (no separator) correctly excludes coincidental leading numbers
+# that aren't catalog codes at all (a stray "10_g._lomakin-hilko_..." date/
+# sequence number has an underscore between "10" and "g", so it doesn't
+# match). Preserved verbatim -- case and zero-padding are NOT normalized --
+# since the source itself is inconsistent about both (compare "13a_..." vs
+# "13I_...", "02a_..." vs "00d_...").
+_CATALOG_CODE_RE = re.compile(
+    r"^([0-9]{1,3}[A-Za-z]{1,2}(?:[0-9]+(?:-[0-9]+)?)?)[_-]")
+
+
+def catalog_code(item_id):
+    m = _CATALOG_CODE_RE.match(item_id or "")
+    return m.group(1) if m else None
+
+
 def write_manifest(state, catalog=None):
     # join back to the catalog by id (blob filename stem) for the browse/filter
     # fields the state records don't carry (tone, liturgical date)
@@ -562,7 +618,9 @@ def write_manifest(state, catalog=None):
             "group": cls["group"], "sub": cls["sub"], "rank": cls["rank"],
             "pdfUrl": r.get("url"),
             "hymnType": hymn_type(cat, r["id"], r["name"]),
-            "feastId": feast_id(cat)}
+            "feastId": feast_id(cat),
+            "catalogCode": catalog_code(r["id"]),
+            "key": _report_key(r["id"])}
         sections = read_sections(r["id"])
         if sections:                    # in-score index for multi-hymn scores
             entry["sections"] = sections
