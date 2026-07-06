@@ -304,3 +304,29 @@ second commit with attribution note).
 
 Owner-gated items open: #74 iPhone audio retest (+ detector A/B
 feel-test via ?detector=wasm), #68 business decisions.
+
+## 16. Sprint 6 retrospective (completed 2026-07-05)
+
+Three issues, three closes — the OMR-focused sprint the backlog had
+been accumulating toward. The headline was found by one owner
+screenshot: an inline footnote asterisk was condemning entire sung
+lyric lines (the English and Greek Trisagion verses each carry a "*"
+note-reference; Arabic didn't — so only Arabic survived), silently
+deleting 107 lyric lines across 60 pieces including a second
+multilingual trisagion and the "And to thy spirit" response family
+(#82, syllabification-gated fix). The catalog gained a real taxonomy:
+hymnType (85.5% classified, 5-way anaphora split with compilation
+guard), feastId (541 orphaned propers + ~1,967 Menaion), key labels
+(100%), catalogCode (#83, #81) — all additive with sha256-proven zero
+churn, consumed by the consensus QA whose anaphora mega-bucket became
+real families. Sprint-close re-ingest: 3,314 accepted at 99.8%,
+acceptance test green — 10B's three verse streams extract pure
+English/Arabic/Greek end-to-end on the live site.
+
+Retro: (1) the owner screenshot → measured root cause → catalog-wide
+sweep loop is now the project's core quality engine — the asterisk
+find alone justified the sprint; (2) honest-residual discipline held
+(colon-less cues, Slavonic page-3 assignment, editorial tokens all
+deliberately deferred with reasons rather than force-tuned); (3) the
+zero-churn manifest bar (sha256 restore proofs) made three concurrent
+metadata changes land without a single library regression.
