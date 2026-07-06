@@ -1710,6 +1710,11 @@ _EXPR_CONNECTIVE = {          # function words that carry a direction, not conte
     "non", "un", "una", "uno", "ma", "piu", "sempre", "au", "aux", "du", "et",
     "then"}
 _FOOTNOTE_KILL = {"nb"}       # 'N.B.' — always an editorial footnote
+# Full-sentence performance rubrics leak into a lyric band as their own line
+# ('Omit this note when singing this verse.' — 10A/10B, issue #82). Only lead
+# words that are NEVER a sung syllable qualify, so a plain unsyllabified line
+# opening with one is dropped without touching real multi-word lyrics.
+_PERF_RUBRIC_LEAD = {"omit"}
 
 
 def _lyric_compact(text):
@@ -1726,13 +1731,27 @@ def _is_dash(text):
 
 def _lyric_kill_token(text):
     """A token that condemns its whole text line as non-lyric: a metronome mark
-    or dated copyright/footer line (contains a digit or '='), a footnote (leads
-    with '*' or is 'N.B.'). Matches the old =/digit/N.B./* backstop."""
+    or dated copyright/footer line (contains a digit or '='), an 'N.B.' footnote.
+    The footnote-reference asterisk ('*') is handled at the LINE level in
+    _drop_non_lyric_lines (issue #82) — gated on syllabification — because a
+    standalone '*' is a note reference inside sung text as often as it opens a
+    prose footnote, so a blanket token-level '*' kill butchered real lyric lines."""
     if any(c.isdigit() for c in text) or "=" in text:
         return True
-    if text.startswith("*"):
-        return True
     return _lyric_compact(text) in _FOOTNOTE_KILL
+
+
+def _strip_ref_marker(t):
+    """Return the token with footnote-reference '*' characters removed from its
+    text ('*And' -> 'And', 'un-to*' -> 'un-to', a lone '*' -> ''). A shallow copy
+    is made only when a '*' is present, so tokens without one are untouched (and
+    identity-preserved). The emptied lone-'*' token is dropped by the caller's
+    alpha/dash filter; a real syllable keeps its letters, minus the marker."""
+    if "*" not in t["text"]:
+        return t
+    c = dict(t)
+    c["text"] = t["text"].replace("*", "")
+    return c
 
 
 def _is_role_label_line(toks):
@@ -1808,12 +1827,35 @@ def _drop_non_lyric_lines(band):
             continue                             # stray bracketed rubric line
         if any(_lyric_kill_token(t["text"]) for t in toks):
             continue
+        # A footnote-reference asterisk condemns the line ONLY when it is prose,
+        # not sung text (issue #82). Editorial/navigation footnotes ('* Omit this
+        # note ...', '(*Ode 7 was not in the original music.)', '(Repeat, *but ...')
+        # are unsyllabified; a real sung baseline carrying an inline reference
+        # asterisk ('Might - y, * Ho - ly Im - mor - tal:' — the 10A/10B trisagion
+        # verse lines) is heavily hyphenated. Gate on syllable-connector count so
+        # the marker stops dropping whole multilingual verse lines while the prose
+        # footnotes it was added to catch still go. A lone '*' left in a kept sung
+        # line is stripped as junk just below; a '*' fused to a word by
+        # _strip_ref_marker.
+        if any("*" in t["text"] for t in toks):
+            n_dash = sum(1 for t in toks if _is_dash(t["text"]))
+            if n_dash < 2:
+                continue
         if _is_role_label_line(toks):
             continue                             # speaker-label rubric baseline
+        toks = [_strip_ref_marker(t) for t in toks]
         toks = [t for t in toks
                 if _is_dash(t["text"]) or any(c.isalpha() for c in t["text"])]
         words = [t for t in toks if not _is_dash(t["text"])]
         if not words:
+            continue
+        # A full-sentence performance rubric that leaked into the band as its own
+        # line ('Omit this note when singing this verse.' — 10A/10B, issue #82):
+        # its lead word is a never-sung imperative and it carries no syllable
+        # hyphenation. Narrow by design (lead verb + unsyllabified) so real
+        # multi-word lyric lines are never touched.
+        if (len(words) >= 3 and not any(_is_dash(t["text"]) for t in toks)
+                and _lyric_compact(words[0]["text"]) in _PERF_RUBRIC_LEAD):
             continue
         if len(words) <= 5:
             expr = content = 0
