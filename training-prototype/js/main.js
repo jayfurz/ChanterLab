@@ -194,7 +194,13 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       onMicChange();   // fan the live mic into any active recording + relabel (issue #67)
       markMicUsed();   // first-run onboarding (issue #64): skip the mic nudge
       if (el.scopeHint) el.scopeHint.textContent = 'sing your gold line — cyan is you, gold glow = on the note (±50¢, any octave)';
-      setStatus('Mic on — sing your part. Headphones avoid feedback from the other voices.');
+      // iOS + mic + speaker runs Apple's voice-processing unit, which crackles
+      // under WebKit and is unfixable from the web (field-tested: rates clean,
+      // buffers don't help, screen-recording routes around it). Headphone mode
+      // is clean AND the better practice setup — say so once, honestly.
+      setStatus(isIOS() && !el.hpMode.checked
+        ? 'Mic on. iPhone speaker + mic can crackle — headphones are cleaner (and better for practice).'
+        : 'Mic on — sing your part. Headphones avoid feedback from the other voices.');
 
       // Sample-rate mismatch detection (issue #74). getUserMedia flips iOS to
       // play-and-record, which can move the hardware sample rate. The
