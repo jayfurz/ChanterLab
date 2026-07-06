@@ -315,6 +315,189 @@ def liturgical_group(item):
             "rank": pr * 1000}
 
 
+# --------------------------------------------------------- hymn-type taxonomy
+# A normalized "type slug" per piece (manifest field `hymnType`), additive to
+# group/sub/rank above. Mirrors the ORDINARY/PROPER pattern list lyric_qa.py's
+# layer-3 consensus clustering uses (_L3_ORDINARY / _L3_PROPER) so the QA
+# layer and the manifest agree on what a hymn "is" -- lyric_qa.py is owned by
+# another iteration right now, so this list is hand-kept in sync rather than
+# imported; see the recommendation in the module docstring / issue #83 notes
+# for wiring lyric_qa to import HYMN_ORDINARY/HYMN_PROPER from here instead.
+#
+# ANAPHORA SPLIT (issue #83, off #78's consensus-QA finding): lyric_qa's single
+# "anaphora" ordinary bucket conflates several textually-unrelated hymns that
+# merely share the word "anaphora" -- worst offender, catalog items titled
+# "Litany of the Anaphora" (liturgicalDate "15-Litany of Supplication", i.e.
+# the Litany of Supplication mis-named in the publisher's own `name` field --
+# it precedes the true Anaphora at "16-Anaphora") get swept into the same
+# family as the Sanctus / Mercy of Peace / We Praise Thee responses, polluting
+# consensus with structurally unrelated text. ANAPHORA_SUB below splits the
+# Divine-Liturgy anaphora complex into five named parts using title + PDF
+# filename + in-score section cues (the catalog's own `name` field is often
+# just generic "Anaphora"/"The Anaphora" for these, so the filename and the
+# extracted section headings -- read_sections()'s raw source -- carry the
+# real signal). Where a piece's cues span 2+ parts, or the piece also carries
+# clearly-unrelated DL content (a Great Litany, Trisagion, Communion Hymn,
+# ...), it is a whole-complex / whole-liturgy compilation and is deliberately
+# left unclassified (None) rather than mislabeled as just one part.
+ANAPHORA_SUB = [
+    ("anaphora_litany", r"litany of the anaphora|litany of supplication"),
+    ("mercy_of_peace", r"mercy of peace"),
+    ("sanctus", r"holy,?\s*holy,?\s*holy|hymn of victory"),
+    ("we_praise_thee", r"we praise thee"),
+    ("megalynarion", r"megalynarion|it is truly meet|axion estin|"
+                     r"hymn to the theotokos|all creation rejoices|"
+                     r"in thee.*rejoices"),
+]
+_ANAPHORA_SUB_RE = [(n, re.compile(p, re.I)) for n, p in ANAPHORA_SUB]
+_ANAPHORA_GENERIC_RE = re.compile(r"anaphora|it is meet and right", re.I)
+# non-anaphora-zone DL keywords (reuses _DL_KEYWORDS' own rank map): if a
+# piece's text also hits one of these, it reaches beyond the anaphora/
+# megalynarion complex (ranks 1500-1800) and is a bigger compilation.
+_DL_OTHER_KEYWORDS = [kw for kw, rank in _DL_KEYWORDS
+                      if not (1500 <= rank <= 1800)]
+
+# ORDINARY: fixed-text hymns -- same words every setting, so a type slug alone
+# is a stable family key (no feast needed). Ordered; first match wins.
+HYMN_ORDINARY = [
+    ("trisagion", r"trisagion|thrice[\s-]*holy|holy god,?\s*holy might"),
+    ("cherubic_hymn", r"cherubic|cherubikon|let us who mystic|we who mystic"),
+    ("receive_me_communion", r"receive me,? o|receive me today"),
+    ("let_all_mortal_flesh", r"let all mortal flesh"),
+    ("only_begotten", r"only[\s-]*begotten"),
+    ("creed", r"\bcreed\b|symbol of faith|i believe in one god"),
+    ("lords_prayer", r"lord'?s prayer|our father"),
+    ("great_litany", r"great litany|litany of peace"),
+    ("little_litany", r"little litany"),
+    ("augmented_litany", r"augmented litany|fervent supplic"),
+    ("entrance_hymn", r"entrance hymn|come,? let us worship"),
+    ("communion_praise", r"praise the lord from the heavens|communion hymn|"
+                         r"receive the body"),
+    ("gladsome_light", r"gladsome light|o gladsome|phos hilaron"),
+    ("preserve_o_lord", r"preserve,?\s*o lord|ton despot|ton dhespot"),
+    ("many_years", r"many years|is polla|eis polla"),
+    ("it_is_truly_meet", r"it is truly meet|axion estin"),
+    ("great_doxology", r"great doxolog|glory to god in the highest"),
+    ("dismissal", r"\bdismissal\b"),
+    ("we_have_seen_the_true_light", r"we have seen the true light"),
+    ("let_our_mouths", r"let our mouths be filled"),
+    ("blessed_be_the_name", r"blessed be the name of the lord"),
+    ("magnification", r"more honorable than the cherub|magnificat|megalynarion"),
+]
+# PROPER: text varies per feast/saint -- pair the base type with feastId (see
+# feast_id() below) for a real family key (same base + same feast = same text).
+HYMN_PROPER = [
+    ("apolytikion", r"apolytik|troparion"), ("kontakion", r"kontakion"),
+    ("aposticha", r"apostich"), ("stichera", r"sticher|idiomelon"),
+    ("theotokion", r"theotokion|stavrotheotok"), ("exapostilarion", r"exapost|photagog"),
+    ("kathisma", r"kathisma|sessional"), ("prokeimenon", r"prokeimenon"),
+    ("katavasia", r"katavasi"), ("ode", r"\bode\b|canon"),
+    ("doxastikon", r"doxastikon|eothin"), ("megalynarion", r"megalynarion"),
+    ("antiphon", r"antiphon"),
+]
+_HYMN_ORD_RE = [(n, re.compile(p, re.I)) for n, p in HYMN_ORDINARY]
+_HYMN_PROP_RE = [(n, re.compile(p, re.I)) for n, p in HYMN_PROPER]
+
+
+def _raw_section_titles(item_id):
+    """All section titles from a piece's report.json, unfiltered (no 2+ gate
+    -- read_sections() above is the app-facing contract; this is purely an
+    extra text signal for hymn-type classification, so even a single detected
+    section is useful). Never raises; [] when the report is missing/unusable."""
+    try:
+        with open(os.path.join(OUT_DIR, item_id + ".report.json")) as f:
+            secs = json.load(f).get("sections") or []
+    except Exception:
+        return []
+    return [s["title"] for s in secs if s.get("title")]
+
+
+def _filename_words(item_id):
+    return re.sub(r"[_.\-]+", " ", item_id or "")
+
+
+def hymn_type(item, item_id, fallback_name=None):
+    """Normalized hymn-type slug for a piece (manifest field `hymnType`), or
+    None when nothing matches -- conservative: an unmatched title stays
+    unclassified rather than being guessed at. `item` is the raw catalog
+    record (may be {} if the catalog has no entry for this id)."""
+    book = (item.get("bookName") or "").strip()
+    name = (item.get("name") or fallback_name or "")
+
+    if book == "Divine Liturgy":
+        blob = " ".join([name, _filename_words(item_id)] + _raw_section_titles(item_id))
+        hits = {label for label, rx in _ANAPHORA_SUB_RE if rx.search(blob)}
+        if hits or _ANAPHORA_GENERIC_RE.search(blob):
+            if any(kw in blob.lower() for kw in _DL_OTHER_KEYWORDS):
+                return None    # spans beyond the anaphora complex -- a
+                               # multi-hymn compilation; don't mislabel it
+            if len(hits) == 1:
+                return next(iter(hits))
+            return "anaphora"  # 0 specific cues (generic "Anaphora"/"The
+                                # Anaphora") or 2+ (a whole-complex setting)
+
+    for label, rx in _HYMN_ORD_RE:
+        if rx.search(name):
+            return label
+    for label, rx in _HYMN_PROP_RE:
+        if rx.search(name):
+            return label
+    return None
+
+
+# -------------------------------------------------------- feast-id taxonomy
+# Stable slug for pieces whose text varies by feast/day (manifest field
+# `feastId`, additive). liturgical_group() leaves 712 accepted items at
+# sub=None -- the Divine Liturgy (157) and Presanctified Liturgy (14) service-
+# order items, plus the season-ordered Triodion (309) and Pentecostarion (232)
+# propers -- and those key on raw liturgicalDate today, making most of them
+# singleton families. DL/Presanctified are order-of-service items (many
+# settings of the *same* fixed hymn, e.g. multiple "Cherubic Hymn" scores);
+# hymn_type() above is the fix for those, not feastId. Triodion/Pentecostarion
+# entries are true propers (the text is specific to that day in the movable
+# cycle) and are exactly what feastId targets. Conservative: only derived
+# where the catalog's own calendarMonth/calendarDay/liturgicalDate fields
+# already carry the feast identity -- nothing is inferred or guessed, and
+# generic season markers ("Third Monday of Lent") get a slug of their own
+# rather than being left out, since that's still a real, catalog-supported
+# family key even though it isn't a named saint's feast.
+_FEAST_STOPWORDS = {"of", "the", "in", "at", "on", "and", "for", "a", "an",
+                     "to", "from", "with", "our"}
+_MENAION_DATE_PREFIX_RE = re.compile(r"^[A-Za-z]+\s+\d{1,2}(?:-\d{1,2})?,\s*")
+_TRIOD_PREFIX_RE = re.compile(r"^[A-Za-z0-9.]+-\s*")
+
+
+def _slugify_feast_text(text, max_words=12):
+    text = (text or "").lower().replace("’", "'")
+    words = [w for w in re.findall(r"[a-z0-9]+", text)
+             if w not in _FEAST_STOPWORDS]
+    return "-".join(words[:max_words]) if words else None
+
+
+def feast_id(item):
+    """Stable feast/day slug for a catalog item, or None where the book isn't
+    a "propers" book or the date can't be read. See module note above."""
+    book = (item.get("bookName") or "").strip()
+    litd = (item.get("liturgicalDate") or "").strip()
+
+    if book in ("Menaion", "Kazan Menaion"):
+        mon = _month_of(item)
+        if not mon:
+            return None
+        day = _first_int(item.get("calendarDay")) or _first_int(litd)
+        if not day:
+            return None
+        slug = _slugify_feast_text(_MENAION_DATE_PREFIX_RE.sub("", litd, count=1))
+        return f"{mon:02d}{day:02d}-{slug}" if slug else None
+
+    if book in ("Lenten Triodion", "Pentecostarion"):
+        if not litd:
+            return None
+        return _slugify_feast_text(_TRIOD_PREFIX_RE.sub("", litd, count=1))
+
+    return None
+
+
 # --------------------------------------------------------------- state / manifest
 def load_state():
     if os.path.exists(STATE):
@@ -377,7 +560,9 @@ def write_manifest(state, catalog=None):
             "liturgicalDate": (cat.get("liturgicalDate") or "").strip() or None,
             "bookName": (cat.get("bookName") or "").strip() or None,
             "group": cls["group"], "sub": cls["sub"], "rank": cls["rank"],
-            "pdfUrl": r.get("url")}
+            "pdfUrl": r.get("url"),
+            "hymnType": hymn_type(cat, r["id"], r["name"]),
+            "feastId": feast_id(cat)}
         sections = read_sections(r["id"])
         if sections:                    # in-score index for multi-hymn scores
             entry["sections"] = sections
