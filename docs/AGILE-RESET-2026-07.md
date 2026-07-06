@@ -330,3 +330,28 @@ find alone justified the sprint; (2) honest-residual discipline held
 deliberately deferred with reasons rather than force-tuned); (3) the
 zero-churn manifest bar (sha256 restore proofs) made three concurrent
 metadata changes land without a single library regression.
+
+## 17. Sprint 7 (filed 2026-07-05, label `sprint-7`)
+
+Anchor: the owner's multipart-recognition ask, reframed from blind
+polyphonic transcription (research-grade, parts unattributable) to
+SCORE-INFORMED ensemble verification — we know the four expected
+pitches at every moment, so per-part harmonic salience at expected
+F0s is classical DSP, real-time-cheap, and the Rust worklet already
+has the FFT + the measured 13x CPU headroom to spend. Killer use
+case: one phone in the rehearsal room scoring each section.
+
+- #84 multipitch spike (fable): synthetic ground truth via the app's
+  own synth, real-recording robustness, Rust-vs-BasicPitch/ONNX
+  comparison, honest go/no-go with numbers
+- #85 library facets for hymnType + key (sonnet) — Sprint 6's fields
+  reach the UI
+- #86 review-workflow seed (opus): PDF-check bundles for the 101
+  missing-text candidates; confirmed drops become extractor
+  iteration 5's measured seed; the correction-UI/moat path begins
+- #87 native-iOS one-page decision memo (sonnet) — #74's evidence in,
+  owner decides
+
+Waves: all four are disjoint (worklet/dsp spike · library.js ·
+omr tooling · docs). Owner-gated in parallel: ?detector=wasm
+single-voice field impressions feed #84.
