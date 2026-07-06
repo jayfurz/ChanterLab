@@ -355,3 +355,31 @@ case: one phone in the rehearsal room scoring each section.
 Waves: all four are disjoint (worklet/dsp spike · library.js ·
 omr tooling · docs). Owner-gated in parallel: ?detector=wasm
 single-voice field impressions feed #84.
+
+## 18. Sprint 7 retrospective (completed 2026-07-06)
+
+Four issues, four closes. The anchor delivered the sprint's headline:
+score-informed multipart recognition is a GO — "which section is
+flat" answered correctly in 40/40 realistic conditions with zero
+false accusations, sub-cent intonation accuracy, honest masking
+ceilings, and a days-not-weeks Rust-worklet cost estimate (#84,
+fable). The review-bundle loop (#86) inverted the missing-text story
+(97% QA false positives) but its 3% found the biggest extractor bug
+yet — staff detection silently deleting whole sung responses — now
+measured and filed as iteration 5 (#88) with QA precision (#89).
+Library facets shipped with a taste decision worth keeping (keys only
+where they disambiguate — 57 rows, not 3,314) (#85). The native-iOS
+memo recommends web-only with five tripwires, materially informed by
+the 2025 US external-payment ruling (#87 → owner decision on #75).
+
+Retro: (1) NEW AGENT FAILURE MODE — two agents (one sonnet, one
+fable) stopped to "wait" for their own already-finished background
+jobs; resume-nudges recovered both, but briefs for measurement-heavy
+tasks should mandate foreground execution. The fable spike also ran
+3 passes/660k tokens — the deepest single deliverable yet, worth it
+for a GO decision of this scope, but fable briefs need the
+no-backgrounding rule most. (2) An editor fault wrote NUL bytes into
+a live-served file (caught by node --check; repaired) — the live-tree
+serving model continues to demand byte-level paranoia. (3) The
+screenshot→root-cause loop now extends to tooling: one owner report
+became 144 evidence bundles and two measured follow-up issues.

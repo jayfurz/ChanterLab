@@ -4,3 +4,4 @@
 *.wasm
 .codex
 .claude.scratch/
+.scratch/
