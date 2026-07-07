@@ -794,7 +794,20 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                 continue
             if h.g.x0 - 1.0 <= x <= h.g.x1 + 1.0 and \
                     y0 - 0.75 * sp <= h.g.y <= y1 + 0.75 * sp:
-                score = min(abs(x - h.g.x0), abs(x - h.g.x1))
+                # Two-voice offset-second clusters (upper-voice head + lower-
+                # voice head a step apart, up-stem and down-stem nearly
+                # collinear between them) put BOTH stems within sub-point
+                # x-jitter of BOTH heads, so x-edge distance alone picks by
+                # noise and can cross-attach the pair — inverting the S/A
+                # voice split for the measure (Bortniansky Cherubic No. 7 p1
+                # m16: cross-attach won by 0.12pt of x-jitter; the head's
+                # y-overshoot past the wrong stem's end is 3.84pt vs ~1pt past
+                # its own). A head's stem must roughly COVER it vertically, so
+                # overshoot past the stem's span joins the score. Same point
+                # units as the x term; heads legitimately overhang their own
+                # stem's end by only ~half a head.
+                overshoot = max(0.0, y0 - h.g.y, h.g.y - y1)
+                score = min(abs(x - h.g.x0), abs(x - h.g.x1)) + overshoot
                 cur = best_stem.get(id(h))
                 if cur is None or score < cur[0]:
                     best_stem[id(h)] = (score, rec)
