@@ -19,7 +19,7 @@ import {
   updateInstrumentUI, captureOfflineAB, audioContextInfo, rebuildAudioForMic,
   iosMediaUnlock, iosMediaUnlockPauseForMic, silentUnlockState, isIOS, masterOutputLevel,
   recreateAudioContext, audioSessionSupported, setAudioSessionType,
-  getVolume, setVolume, loadVolume, updateVolumeUI,
+  getVolume, setVolume, loadVolume, updateVolumeUI, getDisplayLatency,
 } from './transport.js';
 import {
   practiceSamples, lastScoreResult, sessionLaps, scoringStrictness, buildScoreTargets,
@@ -396,6 +396,9 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       baseLatency: info.baseLatency ?? null,
       outputLatency: info.outputLatency ?? null,
       lookAhead: info.lookAhead ?? null,
+      // Scope display-sync compensation (seconds) — what the singscope
+      // subtracts from Transport.seconds so the lane tracks AUDIBLE audio.
+      displayLatency: getDisplayLatency(),
       micRate: mic && mic.sampleRate != null ? mic.sampleRate : null,
       echoCancellation: mic && mic.echoCancellation != null ? mic.echoCancellation : null,
       noiseSuppression: mic && mic.noiseSuppression != null ? mic.noiseSuppression : null,
@@ -458,6 +461,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       `ctx.sampleRate = ${fmtVal(s.sampleRate)} Hz    state = ${fmtVal(s.state)}`,
       `mic.sampleRate = ${fmtVal(s.micRate)} Hz${rateMismatch ? '  ⚠ RATE MISMATCH' : ''}    echoCancel = ${fmtVal(s.echoCancellation)}`,
       `baseLatency = ${fmtVal(s.baseLatency)}    outputLatency = ${fmtVal(s.outputLatency)}    lookAhead = ${fmtVal(s.lookAhead)}`,
+      `scope sync comp = ${s.displayLatency != null ? Math.round(s.displayLatency * 1000) : '—'} ms (display t = transport − base − output)`,
       `session (inferred) = ${session}    unlock strategy = ${s.silentStrategy}${silentWarn}`,
       `GRAPH OUTPUT  rms=${fmtVal(s.graphRms)}  peak=${fmtVal(s.graphPeak)}  peakMax=${fmtVal(s.graphPeakMax)}`,
       `→ ${verdict}`,
@@ -710,8 +714,18 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       TrainingScope.attach(el.scope, el.scopeReadout, el.scopeHint);
       TrainingScope.setTimeSource(() => ({
         playing: playState === 'playing',
-        // keep the lane frozen in place while paused (t survives the pause)
-        t: playState === 'stopped' ? null : Tone.Transport.seconds,
+        // keep the lane frozen in place while paused (t survives the pause).
+        // Output-latency compensation (owner report: scope leads the audible
+        // audio): Transport.seconds is schedule-domain; what's AUDIBLE now was
+        // scheduled getDisplayLatency() ago, so shift the display time back by
+        // it. This is the ONE crossing from audio-schedule domain to display
+        // domain — the target lane, the active-target glow, and the scoring
+        // tSec stamp all read this t, so all three stay mutually consistent
+        // (and scoring samples land nearer the note the singer actually heard).
+        // getDisplayLatency() is always finite (0 fallback) — t is never NaN.
+        // Slightly negative t right after Play is correct: nothing is audible
+        // yet, so the lane sits just right of the now line until sound lands.
+        t: playState === 'stopped' ? null : Tone.Transport.seconds - getDisplayLatency(),
       }));
       // Scoring tap (#49): collect the live voiced-pitch stream ONLY while
       // actively playing with the mic on. Nothing accrues otherwise, so the
@@ -741,6 +755,10 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     audioDebug: () => ({ enabled: adEnabled, snapshot: audioSnapshot(), events: adEvents.slice() }),
     audioDebugShow: () => { enableAudioDebug(); return adEnabled; },
     audioDebugHide: () => { disableAudioDebug(); return adEnabled; },
+    // Scope display-sync compensation (seconds; always finite, >= 0) — the
+    // amount setTimeSource subtracts from Transport.seconds. Exposed so the
+    // smoke test / on-device console can assert the offset math cheaply.
+    displayLatency: () => getDisplayLatency(),
     // --- pitch-detector A/B (issue #80) ---
     // detector(): which front-end is live ('js'|'wasm') plus its live cadence,
     // latency proxy, and frame counters — the console-visible A/B hook.

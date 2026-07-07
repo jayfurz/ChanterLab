@@ -308,6 +308,15 @@ async function main() {
     await page.click('#play');
     await page.waitForFunction(() => window.__training.playState() === 'playing', { timeout: 8000 })
       .catch(() => fail('playState never became "playing" within 8s of clicking #play'));
+    // 6b. Scope display-latency compensation sanity (singscope sync fix):
+    //     the offset the scope subtracts from Transport.seconds must be a
+    //     finite non-negative number well under 2s — never NaN/undefined —
+    //     even headless, where outputLatency may be missing or 0.
+    const dispLat = await page.evaluate(() =>
+      window.__training.displayLatency ? window.__training.displayLatency() : null);
+    if (!(typeof dispLat === 'number' && Number.isFinite(dispLat) && dispLat >= 0 && dispLat < 2)) {
+      fail(`__training.displayLatency() expected finite 0<=x<2, got ${dispLat}`);
+    }
     const posAtStart = await page.textContent('#posOut');
     await page.waitForFunction(
       (start) => document.getElementById('posOut')?.textContent !== start,

@@ -183,6 +183,33 @@ export function audioContextInfo() {
     };
   }
 
+  // Output-latency compensation for the singscope (owner field report: the
+  // scope's target lane / playhead visually LEADS the audible audio by a small
+  // constant offset, on both detectors). Sound scheduled at context time T
+  // becomes audible at roughly T + baseLatency + outputLatency, but
+  // Tone.Transport.seconds is in the SCHEDULE domain — so any display that
+  // consumes it raw runs early by exactly this much. (The 0.2s lookAhead is
+  // NOT part of this: events are scheduled at correct context times; lookAhead
+  // only moves when the JS callback fires, not when sound plays.)
+  // display time = transport time - getDisplayLatency().
+  // Robust by construction: each field contributes only if it's a finite
+  // positive number (iOS Safari exposes baseLatency but not outputLatency;
+  // Chrome reports outputLatency 0 until playback actually starts), and an
+  // implausible total (>2s — garbage after a route flip) falls back to 0. The
+  // result is ALWAYS a finite number >= 0, never NaN — worst case the
+  // compensation is merely incomplete and the display reverts to the old
+  // (slightly early) behavior.
+export function getDisplayLatency() {
+    if (typeof Tone === 'undefined' || !Tone.getContext) return 0;
+    let raw = null;
+    try { const c = Tone.getContext(); raw = c.rawContext || c; } catch (e) { return 0; }
+    if (!raw) return 0;
+    const base = (typeof raw.baseLatency === 'number' && isFinite(raw.baseLatency) && raw.baseLatency > 0) ? raw.baseLatency : 0;
+    const out = (typeof raw.outputLatency === 'number' && isFinite(raw.outputLatency) && raw.outputLatency > 0) ? raw.outputLatency : 0;
+    const total = base + out;
+    return (total > 0 && total < 2) ? total : 0;
+  }
+
   // iOS route-flip mitigation (issue #74). getUserMedia flips the AVAudioSession
   // to play-and-record, which on iOS can reroute output (headphones→speaker) and
   // move the hardware sample rate (e.g. 48k speaker → 24k on AirPods); an audio
