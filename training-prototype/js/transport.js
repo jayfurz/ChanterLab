@@ -184,30 +184,64 @@ export function audioContextInfo() {
   }
 
   // Output-latency compensation for the singscope (owner field report: the
-  // scope's target lane / playhead visually LEADS the audible audio by a small
-  // constant offset, on both detectors). Sound scheduled at context time T
-  // becomes audible at roughly T + baseLatency + outputLatency, but
-  // Tone.Transport.seconds is in the SCHEDULE domain — so any display that
-  // consumes it raw runs early by exactly this much. (The 0.2s lookAhead is
-  // NOT part of this: events are scheduled at correct context times; lookAhead
-  // only moves when the JS callback fires, not when sound plays.)
-  // display time = transport time - getDisplayLatency().
-  // Robust by construction: each field contributes only if it's a finite
-  // positive number (iOS Safari exposes baseLatency but not outputLatency;
-  // Chrome reports outputLatency 0 until playback actually starts), and an
-  // implausible total (>2s — garbage after a route flip) falls back to 0. The
-  // result is ALWAYS a finite number >= 0, never NaN — worst case the
-  // compensation is merely incomplete and the display reverts to the old
-  // (slightly early) behavior.
+  // scope's target lane / playhead visually LEADS the audible audio). Sound
+  // scheduled at context time T becomes audible at roughly T + baseLatency +
+  // outputLatency, but Tone.Transport.seconds is in the SCHEDULE domain — so
+  // any display that consumes it raw runs early by exactly this much. (The 0.2s
+  // lookAhead is NOT part of this: events are scheduled at correct context
+  // times; lookAhead only moves when the JS callback fires, not when sound
+  // plays.)  display time = transport time - getDisplayLatency().
+  //
+  // iOS follow-up: Safari almost never exposes outputLatency (reports 0), yet
+  // its real DAC/speaker path is ~0.1-0.2s — so base-only compensation still
+  // left the lane visibly early on iPhone. When the platform reports nothing on
+  // iOS we fall back to a central estimate; a device that DOES report a real
+  // outputLatency uses that instead. On top of the auto estimate sits a
+  // persisted per-device manual nudge (setScopeSyncMs / ?scopelag=MS) so the
+  // owner can dial the last few tens of ms by eye — the auto figure can't know
+  // Bluetooth/AirPlay hops.
+  //
+  // Robust by construction: each auto field counts only if finite & positive,
+  // an implausible total (>=2s — garbage after a route flip) collapses to 0,
+  // and a negative total (over-aggressive negative nudge) clamps to 0. The
+  // result is ALWAYS finite >= 0, never NaN.
+  const IOS_OUTPUT_LATENCY_FALLBACK = 0.12;   // s; applied only when iOS reports none
+
+  let _scopeSyncMs = null;                     // manual nudge, ms; lazy from storage
+  function scopeSyncSec() {
+    if (_scopeSyncMs === null) {
+      let v = NaN;
+      try { v = parseFloat(localStorage.getItem('chanterlab.scopeSyncMs')); } catch (e) { /* no storage */ }
+      _scopeSyncMs = isFinite(v) ? v : 0;
+    }
+    return _scopeSyncMs / 1000;
+  }
+  // Persisted per-device scope nudge (ms). POSITIVE pushes the target lane
+  // LATER (the fix for "scope runs early"); negative pulls it earlier. Survives
+  // reload. Returns the value stored.
+export function setScopeSyncMs(ms) {
+    const v = (typeof ms === 'number' && isFinite(ms)) ? ms : 0;
+    _scopeSyncMs = v;
+    try { localStorage.setItem('chanterlab.scopeSyncMs', String(v)); } catch (e) { /* no storage */ }
+    return v;
+  }
+export function getScopeSyncMs() { return Math.round(scopeSyncSec() * 1000); }
+
 export function getDisplayLatency() {
-    if (typeof Tone === 'undefined' || !Tone.getContext) return 0;
-    let raw = null;
-    try { const c = Tone.getContext(); raw = c.rawContext || c; } catch (e) { return 0; }
-    if (!raw) return 0;
-    const base = (typeof raw.baseLatency === 'number' && isFinite(raw.baseLatency) && raw.baseLatency > 0) ? raw.baseLatency : 0;
-    const out = (typeof raw.outputLatency === 'number' && isFinite(raw.outputLatency) && raw.outputLatency > 0) ? raw.outputLatency : 0;
-    const total = base + out;
-    return (total > 0 && total < 2) ? total : 0;
+    let auto = 0;
+    try {
+      const c = (typeof Tone !== 'undefined' && Tone.getContext) ? Tone.getContext() : null;
+      const raw = c && (c.rawContext || c);
+      if (raw) {
+        const base = (typeof raw.baseLatency === 'number' && isFinite(raw.baseLatency) && raw.baseLatency > 0) ? raw.baseLatency : 0;
+        let out = (typeof raw.outputLatency === 'number' && isFinite(raw.outputLatency) && raw.outputLatency > 0) ? raw.outputLatency : 0;
+        if (out === 0 && IS_IOS) out = IOS_OUTPUT_LATENCY_FALLBACK;
+        auto = base + out;
+      }
+    } catch (e) { auto = 0; }
+    let total = auto + scopeSyncSec();
+    if (!isFinite(total) || total < 0) total = 0;
+    return total < 2 ? total : 0;
   }
 
   // iOS route-flip mitigation (issue #74). getUserMedia flips the AVAudioSession

@@ -20,6 +20,7 @@ import {
   iosMediaUnlock, iosMediaUnlockPauseForMic, silentUnlockState, isIOS, masterOutputLevel,
   recreateAudioContext, audioSessionSupported, setAudioSessionType,
   getVolume, setVolume, loadVolume, updateVolumeUI, getDisplayLatency,
+  setScopeSyncMs, getScopeSyncMs,
 } from './transport.js';
 import {
   practiceSamples, lastScoreResult, sessionLaps, scoringStrictness, buildScoreTargets,
@@ -399,6 +400,8 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       // Scope display-sync compensation (seconds) — what the singscope
       // subtracts from Transport.seconds so the lane tracks AUDIBLE audio.
       displayLatency: getDisplayLatency(),
+      scopeSyncMs: getScopeSyncMs(),        // manual nudge portion of the above
+      detector: (window.TrainingScope && TrainingScope.getDetector) ? TrainingScope.getDetector() : null,
       micRate: mic && mic.sampleRate != null ? mic.sampleRate : null,
       echoCancellation: mic && mic.echoCancellation != null ? mic.echoCancellation : null,
       noiseSuppression: mic && mic.noiseSuppression != null ? mic.noiseSuppression : null,
@@ -461,7 +464,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       `ctx.sampleRate = ${fmtVal(s.sampleRate)} Hz    state = ${fmtVal(s.state)}`,
       `mic.sampleRate = ${fmtVal(s.micRate)} Hz${rateMismatch ? '  ⚠ RATE MISMATCH' : ''}    echoCancel = ${fmtVal(s.echoCancellation)}`,
       `baseLatency = ${fmtVal(s.baseLatency)}    outputLatency = ${fmtVal(s.outputLatency)}    lookAhead = ${fmtVal(s.lookAhead)}`,
-      `scope sync comp = ${s.displayLatency != null ? Math.round(s.displayLatency * 1000) : '—'} ms (display t = transport − base − output)`,
+      `scope sync comp = ${s.displayLatency != null ? Math.round(s.displayLatency * 1000) : '—'} ms  (auto ${s.displayLatency != null ? Math.round(s.displayLatency * 1000) - (s.scopeSyncMs || 0) : '—'} + manual ${s.scopeSyncMs || 0}; +ms = lane later — set via ?scopelag=MS)`,
       `session (inferred) = ${session}    unlock strategy = ${s.silentStrategy}${silentWarn}`,
       `GRAPH OUTPUT  rms=${fmtVal(s.graphRms)}  peak=${fmtVal(s.graphPeak)}  peakMax=${fmtVal(s.graphPeakMax)}`,
       `→ ${verdict}`,
@@ -702,14 +705,24 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // the always-visible mini-row (Play/Stop/position) stays reachable.
     if (window.matchMedia && window.matchMedia('(max-width:759px)').matches) setOverlay(false);
     if (window.TrainingScope && el.scope) {
-      // Detector A/B flag (issue #80): opt into the Rust/WASM worklet detector
-      // via ?detector=wasm or a persisted localStorage['chanterlab.detector'].
-      // Absent/anything-else keeps the JS autocorrelation default untouched —
-      // no wasm fetch, no worklet, no new console output on the default path.
+      // Detector selection (issue #80). The Rust/WASM worklet is now the
+      // DEFAULT; opt back to the JS autocorrelation path with ?detector=js or a
+      // persisted localStorage['chanterlab.detector']='js'. Setting the mode
+      // here with the mic off only records the preference — no wasm fetch until
+      // mic-on (scope.micStart), where a load failure (e.g. the gitignored
+      // pkg-worklet artifact absent on a fresh deploy) falls back to JS
+      // automatically. So a fresh checkout / CI (mic never on) never fetches it.
       if (TrainingScope.setDetector) {
         let detFlag = new URLSearchParams(location.search).get('detector');
         if (!detFlag) { try { detFlag = localStorage.getItem('chanterlab.detector'); } catch (e) { detFlag = null; } }
-        if (detFlag === 'wasm') TrainingScope.setDetector('wasm');
+        TrainingScope.setDetector(detFlag === 'js' ? 'js' : 'wasm');
+      }
+      // Scope-sync manual calibration: ?scopelag=MS sets the persisted per-device
+      // nudge on top of the auto latency estimate (positive = lane later, the
+      // fix for residual earliness). Set once; it sticks across reloads.
+      const lagFlag = new URLSearchParams(location.search).get('scopelag');
+      if (lagFlag != null && lagFlag !== '' && isFinite(parseFloat(lagFlag))) {
+        setScopeSyncMs(parseFloat(lagFlag));
       }
       TrainingScope.attach(el.scope, el.scopeReadout, el.scopeHint);
       TrainingScope.setTimeSource(() => ({
@@ -759,6 +772,11 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // amount setTimeSource subtracts from Transport.seconds. Exposed so the
     // smoke test / on-device console can assert the offset math cheaply.
     displayLatency: () => getDisplayLatency(),
+    // Manual per-device scope-sync nudge (ms). setScopeLatency(120) pushes the
+    // target lane 120ms later; persists. Same as ?scopelag=120. For dialing in
+    // the last few tens of ms of alignment by eye on-device.
+    setScopeLatency: (ms) => setScopeSyncMs(ms),
+    scopeLatency: () => getScopeSyncMs(),
     // --- pitch-detector A/B (issue #80) ---
     // detector(): which front-end is live ('js'|'wasm') plus its live cadence,
     // latency proxy, and frame counters — the console-visible A/B hook.
