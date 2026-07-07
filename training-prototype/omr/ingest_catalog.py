@@ -46,11 +46,13 @@ import argparse
 import json
 import os
 import re
+import shutil
 import statistics
 import subprocess
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -60,6 +62,7 @@ INGEST_PDF_DIR = os.path.join(HERE, "pdfs", "ingest")       # gitignored
 OUT_DIR = os.path.join(HERE, "out", "ingest")
 STATE = os.path.join(OUT_DIR, "ingest_state.json")
 MANIFEST = os.path.join(OUT_DIR, "manifest.json")
+OVERRIDE_DIR = os.path.join(HERE, "overrides")              # gitignored *.musicxml
 PYTHON = os.path.join(HERE, ".venv", "bin", "python")
 PIPELINE = os.path.join(HERE, "pipeline.py")
 
@@ -583,7 +586,61 @@ def catalog_code(item_id):
     return m.group(1) if m else None
 
 
-def write_manifest(state, catalog=None):
+def apply_overrides(state):
+    """Hand-authored MusicXML corrections (issue: owner wants to edit pieces).
+
+    Drop a full replacement at ``overrides/<stem>.musicxml`` and it WINS over
+    the extractor: it is copied over ``out/ingest/<stem>.musicxml`` (what the
+    app serves) and the piece is force-accepted into the manifest, bypassing
+    the integrity and voice-collapse guards — a human edit is authoritative.
+
+    Survives ``--redo``: extraction runs first and rewrites out/ingest, then
+    this re-stamps the override on top, so hand-fixes are never clobbered.
+    Also runs under ``--report-only`` (no network, no extraction), so the edit
+    loop is: edit overrides/<stem>.musicxml -> ``--report-only`` -> live.
+
+    A malformed edit is refused (parsed first) so a typo can't blank a piece.
+    Overrides are derived from the same copyrighted PDFs as the extracted XML,
+    so ``overrides/`` is gitignored and archived privately, never committed.
+
+    Returns the set of overridden stems (threaded into write_manifest so the
+    guards are skipped for them and the entry is badged ``overridden: true``).
+    """
+    overridden = set()
+    if not os.path.isdir(OVERRIDE_DIR):
+        return overridden
+    for fn in sorted(os.listdir(OVERRIDE_DIR)):
+        if not fn.lower().endswith(".musicxml"):
+            continue
+        src = os.path.join(OVERRIDE_DIR, fn)
+        stem = fn[:-len(".musicxml")]
+        try:
+            ET.parse(src)                     # never clobber a good file with garbage
+        except Exception as e:                # noqa: BLE001
+            print(f"[override] SKIP {fn}: not valid XML ({str(e)[:70]})")
+            continue
+        os.makedirs(OUT_DIR, exist_ok=True)
+        dst = os.path.join(OUT_DIR, stem + ".musicxml")
+        shutil.copyfile(src, dst)
+        overridden.add(stem)
+        rec = state.get(stem)
+        if rec is None:                       # override for a piece never ingested
+            rec = {"id": stem, "name": None, "composer": None,
+                   "arrangementType": None, "category": None, "url": None,
+                   "pdf": None, "musicxml": os.path.relpath(dst, HERE),
+                   "status": "accepted", "integrity_pct": None,
+                   "warnings": None, "selected_pages": None, "detail": None}
+            state[stem] = rec
+        rec["status"] = "accepted"            # promote review/low-integrity accepts
+        rec["overridden"] = True
+        print(f"[override] applied {fn} (force-accepted)")
+    if overridden:
+        print(f"[override] {len(overridden)} hand-edit(s) applied over the "
+              f"extractor output")
+    return overridden
+
+
+def write_manifest(state, catalog=None, overridden=None):
     # join back to the catalog by id (blob filename stem) for the browse/filter
     # fields the state records don't carry (tone, liturgical date)
     extra = {}
@@ -594,6 +651,7 @@ def write_manifest(state, catalog=None):
                 fname = sanitize(url)
                 stem = fname[:-4] if fname.lower().endswith(".pdf") else fname
                 extra[stem] = item
+    overridden = overridden or set()
     accepted = []
     guarded = 0
     for r in state.values():
@@ -601,8 +659,9 @@ def write_manifest(state, catalog=None):
             continue
         # re-check the tripwire here too: state may hold accepts from before
         # the guard existed (or before an engine fix) — keep them out of the
-        # app until they are re-extracted (--redo).
-        if voice_guard(r["id"], r["arrangementType"]):
+        # app until they are re-extracted (--redo). A hand override is
+        # authoritative, so it bypasses the guard (the human already vetted it).
+        if r["id"] not in overridden and voice_guard(r["id"], r["arrangementType"]):
             guarded += 1
             continue
         cat = extra.get(r["id"], {})
@@ -624,6 +683,8 @@ def write_manifest(state, catalog=None):
         sections = read_sections(r["id"])
         if sections:                    # in-score index for multi-hymn scores
             entry["sections"] = sections
+        if r["id"] in overridden:       # hand-edited replacement won over the extractor
+            entry["overridden"] = True
         accepted.append(entry)
     if guarded:
         print(f"[manifest] {guarded} accepted item(s) held back by the "
@@ -856,7 +917,8 @@ def main():
 
     if args.report_only:
         catalog = load_catalog(offline=True) if os.path.exists(CATALOG) else None
-        accepted = write_manifest(state, catalog)
+        overridden = apply_overrides(state)
+        accepted = write_manifest(state, catalog, overridden)
         summarize(state)
         print(f"\nmanifest: {MANIFEST}  ({len(accepted)} accepted)")
         print(f"state:    {STATE}")
@@ -934,7 +996,8 @@ def main():
               f"pages={fmt_pages(record['selected_pages']):8s} "
               f"{(item.get('name') or '')[:44]}")
 
-    accepted = write_manifest(state, catalog)
+    overridden = apply_overrides(state)     # re-stamp hand-edits over fresh extraction
+    accepted = write_manifest(state, catalog, overridden)
     summarize(state)
     print(f"\nmanifest: {MANIFEST}  ({len(accepted)} accepted)")
     print(f"state:    {STATE}")
