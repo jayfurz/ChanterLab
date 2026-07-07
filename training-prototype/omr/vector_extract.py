@@ -1054,10 +1054,12 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                 break
 
     # ---- build events per system
-    for sy in systems:
+    for si, sy in enumerate(systems):
         sy.layout = _system_layout(sy, report, page_no)
         _build_system_events(sy, heads, stems, music, report, page_no)
-        _attach_lyrics(sy, tokens, report, page_no)
+        nxt_top = (systems[si + 1].staves[0].top
+                   if si + 1 < len(systems) and systems[si + 1].staves else None)
+        _attach_lyrics(sy, tokens, report, page_no, next_system_top=nxt_top)
 
     # ---- ties (same-pitch curves)
     _apply_ties(systems, curves, report, page_no)
@@ -1885,7 +1887,7 @@ def _drop_non_lyric_lines(band):
     return kept
 
 
-def _attach_lyrics(sy, tokens, report, page_no):
+def _attach_lyrics(sy, tokens, report, page_no, next_system_top=None):
     """Lyric tokens live in the band below a staff. Each surviving text line in
     that band is a separate verse (top line = verse 1); each verse's syllables
     are x-sorted, hyphenated and attached to their own nearest note onsets, so
@@ -1894,8 +1896,24 @@ def _attach_lyrics(sy, tokens, report, page_no):
     for si, staff in enumerate(sy.staves):
         band_top = staff.bot + 0.5 * staff.sp
         nxt = sy.staves[si + 1] if si + 1 < len(sy.staves) else None
-        band_bot = (nxt.top - 0.5 * staff.sp) if nxt is not None \
-            else staff.bot + 8 * staff.sp
+        if nxt is not None:
+            band_bot = nxt.top - 0.5 * staff.sp
+        else:
+            band_bot = staff.bot + 8 * staff.sp
+            # The last staff's tall catch-all band must not reach the lyric line
+            # printed ABOVE the NEXT system's top staff — a Soprano line whose
+            # rhythm diverges from the Alto line below it, in polyphonic close-
+            # score hymns. Such a line HUGS the next system's top (measured at
+            # ~2.2 staff-spaces above it: Bortniansky Cherubic No. 7's "and sing
+            # to the life-giving Trinity", which was landing on the previous
+            # (cherubim) system's Tenor/Bass). A genuine stacked verse / wrapped
+            # continuation belonging to THIS staff sits much closer to it and
+            # thus farther from the next top (measured 3.3-5.4 sp above the next
+            # top in tightly-spaced Theophany chant). So cut a fixed margin ABOVE
+            # the next system's top rather than at the gap midpoint (the midpoint
+            # clipped those legitimate lower verse lines).
+            if next_system_top is not None:
+                band_bot = min(band_bot, next_system_top - 2.75 * staff.sp)
         band = [t for t in tokens
                 if band_top < t["y"] < band_bot
                 and staff.x0 - 2 <= t["cx"] <= staff.x1 + 2
