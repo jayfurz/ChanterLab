@@ -253,8 +253,8 @@ async function main() {
     await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
 
     // 1. core hooks present
-    await page.waitForFunction(() => !!(window.__training && window.__library), { timeout: 10000 })
-      .catch(() => fail('window.__training / window.__library never appeared'));
+    await page.waitForFunction(() => !!(window.__training && window.__library && window.__tour), { timeout: 10000 })
+      .catch(() => fail('window.__training / window.__library / window.__tour never appeared'));
 
     // 2. startup piece (PIECES[0] === control) reaches ready
     await waitReady(page, 'on startup');
@@ -300,6 +300,43 @@ async function main() {
       const switchResult = await page.evaluate(() => window.__library.select('control'));
       if (switchResult == null) fail('__library.select(control) returned null');
       await waitReady(page, 'after re-selecting control');
+    }
+
+    // 5c. Guided tour (js/tour.js). It must NOT auto-open under WebDriver —
+    //     maybeAutoStartTour() bails on navigator.webdriver so the overlay never
+    //     covers the Play/Stop controls the steps below click. Then drive it
+    //     explicitly: start -> advance -> end, checking the overlay tears down
+    //     cleanly (hidden + body flag cleared) so nothing lingers over #play.
+    const tourHook = await page.evaluate(() => !!window.__tour);
+    if (!tourHook) {
+      fail('window.__tour hook missing');
+    } else {
+      const autoActive = await page.evaluate(() => window.__tour.isActive());
+      if (autoActive) fail('guided tour auto-opened under WebDriver (should be suppressed for automation)');
+      const started = await page.evaluate(() => {
+        window.__tour.start();
+        return {
+          active: window.__tour.isActive(),
+          count: window.__tour.count(),
+          device: window.__tour.device(),
+        };
+      });
+      if (!started.active) fail('__tour.start() did not activate the tour');
+      if (!(started.count > 0)) fail(`__tour.count() not > 0 after start (got ${started.count})`);
+      if (started.device !== 'desktop') fail(`__tour.device() expected 'desktop' at 1280px, got '${started.device}'`);
+      const advanced = await page.evaluate(() => { window.__tour.next(); return window.__tour.index(); });
+      if (advanced !== 1) fail(`__tour.next() expected index 1, got ${advanced}`);
+      const afterEnd = await page.evaluate(() => {
+        window.__tour.end();
+        return {
+          active: window.__tour.isActive(),
+          hidden: !!document.getElementById('tour')?.hidden,
+          flagged: document.body.classList.contains('tour-active'),
+        };
+      });
+      if (afterEnd.active) fail('__tour still active after end()');
+      if (!afterEnd.hidden) fail('#tour overlay not hidden after end()');
+      if (afterEnd.flagged) fail('body.tour-active still set after end()');
     }
 
     // 6. Play advances the cursor.

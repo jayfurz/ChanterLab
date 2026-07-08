@@ -17,11 +17,21 @@
 </head>
 <body class="view-split">
 <!-- Calm Surface (#73/§9): header shrunk to the app name only. The tagline
-     paragraph (redundant with the #64 onboarding coach-marks) and the dev
-     "Prototype only…" footer were deleted this wave; the live status line moved
-     into the transport handle row (below). ~100px of phone height returned. -->
+     paragraph and the dev "Prototype only…" footer were deleted this wave; the
+     live status line moved into the transport handle row (below). ~100px of
+     phone height returned. The "?" help affordance opens the guided tour or the
+     written guide (tour.js). -->
 <header class="app-head">
   <h1>ChanterLab</h1>
+  <div class="help-wrap">
+    <button id="helpBtn" class="help-btn" type="button" aria-haspopup="menu"
+            aria-expanded="false" title="Help &amp; tutorial">?</button>
+    <div id="helpMenu" class="help-menu" role="menu" hidden>
+      <button id="helpTour" class="help-item" type="button" role="menuitem">▶ Take the tour</button>
+      <a id="helpGuide" class="help-item" role="menuitem"
+         href="tutorial.html" target="_blank" rel="noopener">📖 Written guide ↗</a>
+    </div>
+  </div>
 </header>
 
 <section id="scopeWrap" class="scope-wrap">
@@ -279,15 +289,28 @@
   </div>
 </div>
 
-<!-- First-run onboarding coach-mark (issue #64). One lightweight, dismissible
-     bubble reused for all 3 onboarding moments (never stacks) — js/onboarding.js
-     retexts + repositions it near the relevant control (Play, then the voice
-     chip, then a mic nudge). Sits just above the fixed transport overlay via
-     --transport-h so it never shifts/covers it. Hidden forever once
-     localStorage's 'chanterlab_onboarded' flag is set. -->
-<div id="onboardHint" class="onboard-hint" hidden role="status" aria-live="polite">
-  <span id="onboardHintText" class="onboard-hint-text"></span>
-  <button id="onboardHintClose" class="onboard-hint-close" aria-label="Dismiss" title="Dismiss">✕</button>
+<!-- Interactive guided tour (js/tour.js). Device-aware, replayable walkthrough:
+     a spotlight rings each real control while the card explains it. The whole
+     layer is pointer-events:none EXCEPT #tourCard, so the highlighted control
+     stays directly usable and automated clicks are never blocked; #tourSpot is
+     one transparent box whose huge box-shadow dims everything else (the hole).
+     Auto-runs on first visit (unless a WebDriver browser / already seen), and
+     any time via the header ? menu or ?tour=1. -->
+<div id="tour" class="tour" hidden aria-live="polite">
+  <div id="tourSpot" class="tour-spot" aria-hidden="true"></div>
+  <div id="tourCard" class="tour-card" role="dialog" aria-modal="false" aria-label="Tour">
+    <div class="tour-card-head">
+      <span id="tourStep" class="tour-step"></span>
+      <h2 id="tourTitle" class="tour-title"></h2>
+    </div>
+    <p id="tourBody" class="tour-body"></p>
+    <div class="tour-actions">
+      <button id="tourSkip" class="tour-btn tour-skip" type="button">Skip</button>
+      <span class="tour-actions-spacer"></span>
+      <button id="tourBack" class="tour-btn" type="button" hidden>← Back</button>
+      <button id="tourNext" class="tour-btn tour-next" type="button">Next →</button>
+    </div>
+  </div>
 </div>
 
 <!-- Jump-to-section bottom sheet. Mobile-first: a scrollable list of "m N ·

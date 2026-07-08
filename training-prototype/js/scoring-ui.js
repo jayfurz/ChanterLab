@@ -207,10 +207,7 @@ export function updateStrictnessUI() {
 
   function showReport(entry) {
     if (reportDismissed || !el.scoreReport) return;
-    // Calm Surface (#73/§4): the report now floats at the transport's doorstep,
-    // the same slot the first-run coach-mark uses — a report is better
-    // onboarding than the bubble, so dismiss the bubble if it's up.
-    if (el.onboardHint) el.onboardHint.hidden = true;
+    // Calm Surface (#73/§4): the report floats at the transport's doorstep.
     const spots = (window.ChanterScoring && window.ChanterScoring.worstSpots)
       ? window.ChanterScoring.worstSpots(entry, 3) : [];
     if (el.scoreReportTotals) {

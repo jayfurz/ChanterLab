@@ -38,7 +38,11 @@ import { toggleRecording } from './recording.js';
   // off the DOM `hidden` flag both modules already toggle — no new exports
   // needed from either.
   function overlayOpen() {
-    return !!((el.overlay && !el.overlay.hidden) || (el.sectionSheet && !el.sectionSheet.hidden));
+    // The guided tour (tour.js) owns Space/←/→/Enter/Esc while it runs and
+    // flags itself with body.tour-active — treat it as a modal so a shortcut
+    // here can't fire the transport/section it's spotlighting behind the card.
+    return !!((el.overlay && !el.overlay.hidden) || (el.sectionSheet && !el.sectionSheet.hidden)
+      || document.body.classList.contains('tour-active'));
   }
 
   /* ---------- Actions ----------------------------------------------------- *

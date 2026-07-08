@@ -16,8 +16,25 @@ body{background:var(--bg);color:var(--ink);
 /* Calm Surface (#73/§9): the app name only. The tagline paragraph (redundant
    with the #64 coach-marks) and the "SATB prototype" tag were deleted; the live
    piece title lives in the More pane's #currentPiece. */
-.app-head{padding:10px 14px 4px}
-.app-head h1{margin:0;font-size:16px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-head{padding:10px 14px 4px;display:flex;align-items:center;gap:8px}
+.app-head h1{margin:0;font-size:16px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+
+/* "?" help affordance (header, right). Opens a small menu: the guided tour, or
+   the written guide (tutorial.html). The tour itself lives in js/tour.js. */
+.help-wrap{position:relative;flex:0 0 auto}
+.help-btn{width:32px;height:32px;border-radius:50%;flex:0 0 auto;
+  background:#20232c;border:1px solid var(--line);color:var(--sub);
+  font-size:16px;font-weight:700;line-height:1;cursor:pointer;touch-action:manipulation}
+.help-btn:hover{color:var(--gold-soft);border-color:var(--gold-soft)}
+.help-menu{position:absolute;top:38px;right:0;z-index:130;min-width:196px;
+  display:flex;flex-direction:column;gap:2px;padding:6px;
+  background:rgba(24,26,33,.98);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.55)}
+.help-menu[hidden]{display:none}
+.help-item{display:block;text-align:left;text-decoration:none;
+  background:none;border:none;color:var(--ink);font-size:14px;
+  padding:10px 12px;border-radius:8px;cursor:pointer;touch-action:manipulation}
+.help-item:hover{background:#20232c;color:var(--gold-soft)}
 
 /* status line — Calm Surface (#73/§6) relocated it into the transport handle
    row (.handle-row below). It stays the single #status text node setStatus()
@@ -209,9 +226,9 @@ code{background:#12141a;padding:1px 5px;border-radius:5px}
  * A small dismissible strip (not a modal) — sits inline near the top so it's
  * visible without scrolling right after a scored lap/Stop. Reuses the panel/
  * line/pill vocabulary already established by .score-more and .lib-panel.
- * Calm Surface (#73/§4): floats FIXED just above the transport — the same slot
- * the onboarding bubble uses — directly above the Play/loop controls that react
- * to it. --transport-h already incorporates the safe-area inset (no double
+ * Calm Surface (#73/§4): floats FIXED just above the transport — directly above
+ * the Play/loop controls that react to it.
+ * --transport-h already incorporates the safe-area inset (no double
  * count). Desktop (≥1000px, wave B2) re-lays this same node as a rail card. */
 .score-report{position:fixed;left:8px;right:8px;bottom:calc(var(--transport-h) + 8px);
   z-index:55;padding:9px 11px;border-radius:12px;
@@ -419,28 +436,49 @@ body.lib-lock{overflow:hidden}
 /* ---------- verse toggle (multi-verse lyrics) ---------- */
 .row-verse[hidden]{display:none}
 
-/* ---------- first-run onboarding coach-mark (issue #64) ---------- *
- * One reusable floating bubble, repositioned/retexted per moment by
- * js/onboarding.js. `left` is set inline in px (clamped to the viewport by
- * JS — mobile-safe); `bottom` tracks --transport-h (kept live by
- * transport.initOverlay) so it always sits just above the transport overlay,
- * collapsed or expanded, without shifting the transport's own layout. */
-.onboard-hint{position:fixed;z-index:60;bottom:calc(var(--transport-h) + 10px);
-  left:50%;transform:translateX(-50%);
-  max-width:min(280px,calc(100vw - 24px));
-  display:flex;align-items:flex-start;gap:8px;
-  background:rgba(24,26,33,.97);border:1px solid rgba(212,175,55,.45);
-  border-radius:12px;padding:10px 10px 10px 12px;
-  box-shadow:0 8px 24px rgba(0,0,0,.5);
-  color:var(--ink);font-size:12.5px;line-height:1.4;
-  animation:onboardIn .22s ease}
-.onboard-hint[hidden]{display:none}
-.onboard-hint-text{flex:1;min-width:0}
-.onboard-hint-close{flex:0 0 auto;width:22px;height:22px;border-radius:7px;
-  border:1px solid var(--line);background:#12141a;color:var(--sub);font-size:11px;
-  cursor:pointer;touch-action:manipulation;line-height:1}
-.onboard-hint-close:hover{color:var(--gold-soft)}
-@keyframes onboardIn{from{transform:translate(-50%,6px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+/* ---------- interactive guided tour (js/tour.js) ---------- *
+ * The layer itself is inert (pointer-events:none) so the highlighted control
+ * stays usable and automated clicks are never blocked; only #tourCard is
+ * interactive. #tourSpot is a transparent box positioned over the target whose
+ * huge box-shadow dims everything else (the classic coach-mark "hole"); on
+ * welcome/finish steps (.no-target) it becomes a plain full-screen dim. Both
+ * the spot and the card carry a transition so re-placement after the transport
+ * expands (0.3s) glides rather than snaps. */
+.tour{position:fixed;inset:0;z-index:500;pointer-events:none}
+.tour[hidden]{display:none}
+.tour-spot{position:fixed;border-radius:12px;pointer-events:none;
+  box-shadow:0 0 0 100vmax rgba(8,9,12,.66), 0 0 0 2px var(--gold-soft) inset,
+    0 0 22px 3px rgba(212,175,55,.45);
+  transition:left .2s ease,top .2s ease,width .2s ease,height .2s ease}
+.tour-spot.no-target{border-radius:0;
+  box-shadow:0 0 0 100vmax rgba(8,9,12,.66)}
+.tour-card{position:fixed;pointer-events:auto;
+  width:min(340px,calc(100vw - 24px));
+  background:rgba(24,26,33,.98);border:1px solid rgba(212,175,55,.4);
+  border-radius:14px;padding:14px 16px 12px;
+  box-shadow:0 14px 40px rgba(0,0,0,.6);
+  transition:left .2s ease,top .2s ease;
+  animation:tourIn .2s ease}
+.tour-card-head{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
+.tour-step{font-size:10px;font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--gold-soft)}
+.tour-title{margin:0;font-size:16px;font-weight:650;color:var(--ink)}
+.tour-body{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--ink)}
+.tour-guide-link{display:inline-block;margin-top:8px;color:var(--gold-soft);
+  font-size:13px;text-decoration:none}
+.tour-guide-link:hover{text-decoration:underline}
+.tour-actions{display:flex;align-items:center;gap:8px}
+.tour-actions-spacer{flex:1}
+.tour-btn{background:#20232c;border:1px solid var(--line);color:var(--ink);
+  padding:9px 14px;border-radius:10px;font-size:14px;font-weight:600;
+  cursor:pointer;touch-action:manipulation;min-height:40px}
+.tour-btn:hover{border-color:var(--gold-soft)}
+.tour-btn:active{transform:translateY(1px)}
+.tour-btn.tour-next{background:var(--gold);color:#161616;border-color:var(--gold)}
+.tour-btn.tour-skip{color:var(--sub);padding-left:6px;padding-right:6px;
+  background:none;border:none}
+.tour-btn.tour-skip:hover{color:var(--gold-soft)}
+@keyframes tourIn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}
 
 /* ---------- jump-to-section (transport control + bottom sheet) ---------- */
 .row-sections[hidden]{display:none}
@@ -604,11 +642,5 @@ body.sec-lock{overflow:hidden}
   .mini-row{position:sticky;top:0;z-index:2;background:rgba(24,26,33,.96);
     padding-top:4px;padding-bottom:8px}
 
-  /* Onboarding bubble (§6): the rail isn't height-tracked the way the mobile
-   * fixed overlay is (--transport-h), so anchor near the viewport bottom
-   * instead. positionHint()'s left-clamp already reads getBoundingClientRect
-   * on the anchor (el.play / el.voiceChip, both now inside the rail) — no JS
-   * change needed for correct horizontal placement. */
-  .onboard-hint{bottom:24px}
 }
 /* ===================== end Calm Surface desktop fence ==================== */

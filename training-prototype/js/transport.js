@@ -7,7 +7,6 @@ import { osmd, osmdSteps, ensureRenderWindow, flushDeferredRender } from './load
 import { selectedVoice, melodyMuted, buildScopeLane, toggleChipMute } from './voices.js';
 import { beginScoringSession, scoreLapAndRoll, finalizeScoringOnStop, scoreSummaryShown } from './scoring-ui.js';
 import { currentSections, setActiveSection, sectionIndexForMeasure } from './sections.js';
-import { onPlaySucceeded, onStopped } from './onboarding.js';
 
 let instruments = [];      // per part: Tone.PolySynth (synth mode) or Tone.Sampler (voices mode)
 export let gains = [];     // Tone.Gain per part — instrument-agnostic; mute/mix logic
@@ -1034,7 +1033,6 @@ export async function startPlayback() {
     updatePlayUI();
     setOverlay(false);
     setStatus(statusForPlaying());
-    onPlaySucceeded();   // first-run onboarding (issue #64) — no-op after the first time
   }
 
   function pause() {
@@ -1052,7 +1050,6 @@ export async function startPlayback() {
     updatePlayUI();
     setOverlay(false);
     setStatus(statusForPlaying());
-    onPlaySucceeded();   // no-op after the first successful Play this browser
   }
 
 export function stop() {
@@ -1072,7 +1069,6 @@ export function stop() {
     // repeated Stops (e.g. a manual Stop after an auto-stop) — only fall back to
     // "Stopped." when no summary is showing. Cleared by the next Play.
     if (!scored && !scoreSummaryShown) setStatus('Stopped.');
-    onStopped();   // first-run onboarding (issue #64) — no-op before the first Play
   }
 
 export function updatePlayUI() {

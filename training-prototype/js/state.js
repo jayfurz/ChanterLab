@@ -19,7 +19,7 @@
  *                  sectionSheetOpen
  *   library.js   : libProto, libItems, libSearch, libFlat, libOffsets, libTotalH,
  *                  libRange, libOpen, libPushed, libCollapsed, libFacetDefs, ...
- *   onboarding.js: onboarded, playedOnce, micEverUsed, done (all private)
+ *   tour.js      : active, idx, steps, device (all private)
  *   main.js      : resizeTimer, loopRenderTimer (private)
  * Cross-module resets go through the owner's exported helpers (resetVoiceState-
  * ForLoad, beginScoringSession, flushDeferredRender, prepare/clearXmlSections).
@@ -92,7 +92,10 @@ export const fold = (s) => (s == null ? '' : String(s))
 
 export const PRACTICE_HISTORY_KEY = 'chanterlab_practice_history';
 export const STRICTNESS_KEY = 'chanterlab_scoring_strictness';
-export const ONBOARDING_KEY = 'chanterlab_onboarded';
+  // Interactive guided tour (tour.js) — set once the visitor finishes OR skips
+  // the walkthrough, so first-run auto-start fires at most once per browser.
+  // (Replaced the old 'chanterlab_onboarded' coach-mark flag, issue #64.)
+export const TOUR_SEEN_KEY = 'chanterlab_tour_seen';
 export const INSTRUMENT_KEY = 'chanterlab_instrument';
   // Master accompaniment volume (issue #74 follow-up, fix F5): 0..1.25, applied
   // to a Tone.Gain sitting between the per-part gains and the limiter — see
@@ -181,10 +184,6 @@ export const el = {
     sectionSheet: document.getElementById('sectionSheet'),
     sectionSheetList: document.getElementById('sectionSheetList'),
     sectionSheetClose: document.getElementById('sectionSheetClose'),
-    // first-run onboarding coach-mark (issue #64) — one reusable bubble
-    onboardHint: document.getElementById('onboardHint'),
-    onboardHintText: document.getElementById('onboardHintText'),
-    onboardHintClose: document.getElementById('onboardHintClose'),
   };
 
 export const setStatus = (m) => { el.status.textContent = m; };

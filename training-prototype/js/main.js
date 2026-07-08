@@ -34,7 +34,7 @@ import {
   libProto, libItems, libFlat, libOffsets, libOpen, libFacetDefs, libCollapsed,
   loadLibraryManifest, openLibrary, closeLibrary, toggleGroup, renderWindow, initLibrary,
 } from './library.js';
-import { initOnboarding, markMicUsed } from './onboarding.js';
+import { initTour, maybeAutoStartTour, startTour, tourNext, tourPrev, endTour, tourState } from './tour.js';
 import {
   initRecording, startRecording, stopRecording, onMicChange, setBalance, recordingState,
 } from './recording.js';
@@ -193,7 +193,6 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       el.micBtn.classList.add('on');
       el.micBtn.textContent = '🎤 On';
       onMicChange();   // fan the live mic into any active recording + relabel (issue #67)
-      markMicUsed();   // first-run onboarding (issue #64): skip the mic nudge
       if (el.scopeHint) el.scopeHint.textContent = 'sing your gold line — cyan is you, gold glow = on the note (±50¢, any octave)';
       // iOS + mic + speaker runs Apple's voice-processing unit, which crackles
       // under WebKit and is unfixable from the web (field-tested: rates clean,
@@ -682,7 +681,8 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     initRecording();    // in-app practice recording (issue #67) — wires the ⏺ toggle,
                         // the Voice/Music balance slider, and the master-rebuild re-tap
                         // hook; builds NO audio graph until the first Record.
-    initOnboarding();   // first-run coach-marks (issue #64) — shows step (a) immediately
+    initTour();         // interactive guided tour — wires the header ? menu + the
+                        // overlay controls; auto-start is decided after first paint.
     // Kicked off now (parallel with everything below) but AWAITED just before
     // loadStartingPiece — issue #64's default-piece choice needs to know
     // whether the manifest actually loaded and lists the preferred piece. It's
@@ -751,6 +751,11 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     }
     await manifestReady;
     await loadStartingPiece();
+    // First-run walkthrough — only now the score has painted, so the tour's
+    // spotlight lands on real, laid-out controls. Suppressed for returning
+    // visitors and WebDriver/headless browsers (see maybeAutoStartTour), so
+    // this never drives the CI smoke test into an open overlay.
+    maybeAutoStartTour();
   }
 
   // Tiny debug/verification hook (used by the headless checks; harmless in prod).
@@ -906,6 +911,22 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // set the Voice/Music RECORDING balance (0 = music only … 1 = voice only),
     // persisted; returns the fresh recording() snapshot for a test to assert on.
     setRecordBalance: (v) => { setBalance(v); return recordingState(); },
+  };
+
+  // Interactive guided-tour hook (headless checks + on-device console). start()
+  // opens the walkthrough for the CURRENT viewport's device; next/prev/end drive
+  // it; the getters expose which step of how many, the detected device, and the
+  // active step-id list (mobile has one extra step — the ⌄ "open controls").
+  window.__tour = {
+    start: () => { startTour(); return tourState.isActive(); },
+    next: () => { tourNext(); return tourState.index(); },
+    prev: () => { tourPrev(); return tourState.index(); },
+    end: () => { endTour(false); return tourState.isActive(); },
+    isActive: () => tourState.isActive(),
+    index: () => tourState.index(),
+    count: () => tourState.count(),
+    device: () => tourState.device(),
+    steps: () => tourState.stepIds(),
   };
 
   // Programmatic library hook (headless tests). select() resolves either the
