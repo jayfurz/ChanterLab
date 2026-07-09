@@ -36,6 +36,7 @@ import {
   loadLibraryManifest, openLibrary, closeLibrary, toggleGroup, renderWindow, initLibrary,
 } from './library.js';
 import { initTour, maybeAutoStartTour, startTour, tourNext, tourPrev, endTour, tourState } from './tour.js';
+import { initCalibrate, openCalibrate, closeCalibrate, measureOffsetSec } from './calibrate.js';
 import {
   initRecording, startRecording, stopRecording, onMicChange, setBalance, recordingState,
 } from './recording.js';
@@ -681,10 +682,15 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     if (el.responseOut) el.responseOut.textContent = inMs + ' ms';
   }
 
-  // Calibration wizard opener. Phase 2 replaces this with the real modal (see
-  // js/calibrate.js); until then, guide the user to the live sliders.
-  function openCalibrate() {
-    setStatus('Timing wizard coming soon — nudge the Playback sync / Voice response sliders by feel.');
+  // The scoring pitch-sink (issue #49) as a named installer so the calibration
+  // wizard (js/calibrate.js) can borrow the single sink and reinstate this one.
+  function installScoringSink() {
+    if (!(window.TrainingScope && TrainingScope.setPitchSink)) return;
+    TrainingScope.setPitchSink((s) => {
+      if (playState !== 'playing') return;
+      if (s.tSec == null || !isFinite(s.tSec)) return;
+      practiceSamples.push({ tSec: s.tSec, midi: s.midi });
+    });
   }
 
   async function main() {
@@ -711,6 +717,12 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
                         // hook; builds NO audio graph until the first Record.
     initTour();         // interactive guided tour — wires the header ? menu + the
                         // overlay controls; auto-start is decided after first paint.
+    initCalibrate({     // timing wizard (js/calibrate.js): borrows the pitch sink,
+                        // so hand it these to restore scoring + turn on the mic.
+      restoreScoringSink: installScoringSink,
+      requestMic: async () => { if (!(window.TrainingScope && TrainingScope.isMicOn())) await toggleMic(); },
+      refreshTimingUI: updateTimingUI,
+    });
     // Kicked off now (parallel with everything below) but AWAITED just before
     // loadStartingPiece — issue #64's default-piece choice needs to know
     // whether the manifest actually loaded and lists the preferred piece. It's
@@ -779,12 +791,10 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       }));
       // Scoring tap (#49): collect the live voiced-pitch stream ONLY while
       // actively playing with the mic on. Nothing accrues otherwise, so the
-      // scoring path is entirely free when the mic is off.
-      TrainingScope.setPitchSink((s) => {
-        if (playState !== 'playing') return;
-        if (s.tSec == null || !isFinite(s.tSec)) return;
-        practiceSamples.push({ tSec: s.tSec, midi: s.midi });
-      });
+      // scoring path is entirely free when the mic is off. Named + reinstalled
+      // via installScoringSink so the calibration wizard can borrow the sink and
+      // hand it back (js/calibrate.js).
+      installScoringSink();
     }
     await manifestReady;
     await loadStartingPiece();
@@ -974,6 +984,16 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     count: () => tourState.count(),
     device: () => tourState.device(),
     steps: () => tourState.stepIds(),
+  };
+
+  // Timing-calibration hook. open/close drive the wizard modal; measureOffset is
+  // the pure lag-sweep (samples, targets) → { deltaSec, matched } so a headless
+  // test can verify it recovers a known synthetic offset without a real mic.
+  window.__calibrate = {
+    open: () => { openCalibrate(); return !el.calibrateOverlay.hidden; },
+    close: () => { closeCalibrate(); return !!el.calibrateOverlay.hidden; },
+    isOpen: () => !!(el.calibrateOverlay && !el.calibrateOverlay.hidden),
+    measureOffset: (samples, targets, tol) => measureOffsetSec(samples, targets, tol),
   };
 
   // Programmatic library hook (headless tests). select() resolves either the

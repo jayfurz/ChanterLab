@@ -480,6 +480,29 @@ body.lib-lock{overflow:hidden}
 .tour-btn.tour-skip:hover{color:var(--gold-soft)}
 @keyframes tourIn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}
 
+/* ---------- timing calibration wizard (js/calibrate.js) ---------- *
+ * A centered dialog (not a bottom sheet) mirroring the .library scrim + lock
+ * pattern. z-index sits above the tour (500), below audio-debug (9999). */
+.calib{position:fixed;inset:0;z-index:520;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(10,11,15,.72);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.calib[hidden]{display:none}
+body.calib-lock{overflow:hidden}
+.calib-panel{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);
+  border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.6);
+  padding:16px 18px 14px;max-height:calc(100vh - 40px);overflow-y:auto}
+.calib-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.calib-title{flex:1;min-width:0;margin:0;font-size:18px;font-weight:650}
+.calib-body{font-size:14.5px;line-height:1.5;color:var(--ink)}
+.calib-body p{margin:0 0 10px}
+.calib-sub{color:var(--sub);font-size:13px}
+.calib-run{font-size:16px;font-weight:600}
+.calib-progress{height:8px;border-radius:6px;background:#12141a;border:1px solid var(--line);
+  overflow:hidden;margin:6px 0 10px}
+.calib-bar{height:100%;width:0;background:var(--gold);transition:width .1s linear}
+.calib-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+.calib-actions .btn{min-height:44px}
+
 /* ---------- jump-to-section (transport control + bottom sheet) ---------- */
 .row-sections[hidden]{display:none}
 .sec-btn{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;

@@ -347,6 +347,22 @@
   </div>
 </div>
 
+<!-- Timing calibration wizard (js/calibrate.js). Sing-to-the-beat: plays a run
+     of tones, you sing each, and it measures the time-shift that best aligns your
+     sung pitch → sets "Voice response" (L_in) automatically. Self-contained
+     (audio-context clock + a temporary pitch sink), so it never touches the main
+     transport. Mirrors the section-sheet modal skeleton. -->
+<div id="calibrateOverlay" class="calib" role="dialog" aria-modal="true" aria-label="Calibrate timing" hidden>
+  <div class="calib-panel" role="document">
+    <div class="calib-head">
+      <h2 id="calibTitle" class="calib-title">Calibrate timing</h2>
+      <button id="calibClose" class="lib-close" aria-label="Close" title="Close (Esc)">✕</button>
+    </div>
+    <div id="calibBody" class="calib-body"></div>
+    <div id="calibActions" class="calib-actions"></div>
+  </div>
+</div>
+
 <!-- iOS audio diagnostics overlay (issue #74). A read-only field tool for the
      "crackle ONLY when the mic is on during playback" report that reproduces
      only on a real iPhone. Hidden and completely inert by default; revealed by

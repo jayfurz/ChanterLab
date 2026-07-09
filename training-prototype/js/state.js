@@ -191,6 +191,12 @@ export const el = {
     sectionSheet: document.getElementById('sectionSheet'),
     sectionSheetList: document.getElementById('sectionSheetList'),
     sectionSheetClose: document.getElementById('sectionSheetClose'),
+    // timing calibration wizard (js/calibrate.js)
+    calibrateOverlay: document.getElementById('calibrateOverlay'),
+    calibTitle: document.getElementById('calibTitle'),
+    calibBody: document.getElementById('calibBody'),
+    calibActions: document.getElementById('calibActions'),
+    calibClose: document.getElementById('calibClose'),
   };
 
 export const setStatus = (m) => { el.status.textContent = m; };
