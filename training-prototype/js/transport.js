@@ -211,7 +211,11 @@ export function audioContextInfo() {
     if (_scopeSyncMs === null) {
       let v = NaN;
       try { v = parseFloat(localStorage.getItem('chanterlab.scopeSyncMs')); } catch (e) { /* no storage */ }
-      _scopeSyncMs = isFinite(v) ? v : 0;
+      // Default: iOS Safari's speaker+mic route runs the voice-processing audio
+      // unit, whose output latency is large — field-tuned to ≈220ms ON TOP of the
+      // iOS auto fallback (owner, iPhone speaker+mic). Desktop/other stay at 0
+      // (their auto base+outputLatency is already accurate). A stored value wins.
+      _scopeSyncMs = isFinite(v) ? v : (IS_IOS ? 220 : 0);
     }
     return _scopeSyncMs / 1000;
   }
@@ -233,7 +237,7 @@ export function getScopeSyncMs() { return Math.round(scopeSyncSec() * 1000); }
   // L_out via getDisplayLatency). Persisted per device; set by the "Voice
   // response" slider or the calibration wizard. Default ~80ms covers the
   // analysis + one-euro group delay; larger = treat the sung sample as earlier.
-  const RESPONSE_LATENCY_DEFAULT_MS = 80;
+  const RESPONSE_LATENCY_DEFAULT_MS = 65;   // owner field-tuned (iPhone speaker+mic)
   let _responseMs = null;                      // lazy from storage
   function responseLatencySec() {
     if (_responseMs === null) {

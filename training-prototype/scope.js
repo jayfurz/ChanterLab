@@ -79,8 +79,9 @@ window.TrainingScope = (() => {
   // detector reports it (mic buffer + 2048-sample autocorrelation window + the
   // median-of-3 + one-euro group delay). Back-dating the trace AND the scoring
   // stamp by it aligns a note sung on the audible beat with that note. main.js
-  // owns the persisted/calibrated value (setInputLatency); this is a mid default.
-  let inputLatencySec = 0.08;
+  // owns the persisted/calibrated value (setInputLatency); this is a mid default
+  // (65ms, owner field-tuned) used only until main.js applies the stored value.
+  let inputLatencySec = 0.065;
 
   // Detector front-end (issue #80). 'js' is the default and leaves every code
   // path below byte-for-byte unchanged; 'wasm' is opt-in and only touches the

@@ -199,11 +199,16 @@
                aria-label="Playback sync — line up the notes with the sound" />
       </div>
       <div class="row row-timing">
-        <span class="label">Voice response <output id="responseOut">80 ms</output></span>
-        <input id="responseLag" type="range" min="0" max="400" step="5" value="80"
+        <span class="label">Voice response <output id="responseOut">65 ms</output></span>
+        <input id="responseLag" type="range" min="0" max="400" step="5" value="65"
                aria-label="Voice response — when your singing registers" />
       </div>
-      <div class="row row-calibrate">
+      <!-- Wizard disabled for now: in speaker+mic mode the mic hears the
+           calibration tone from the speaker and "measures" its own acoustic
+           round-trip (≈ output latency) instead of the voice, so L_in collapses
+           to ~0. Needs a headphones requirement or a call-and-response (silent
+           gap) redesign before re-enabling. Unhide this row to bring it back. -->
+      <div class="row row-calibrate" hidden>
         <button id="calibrateBtn" class="btn lib" type="button"
                 aria-haspopup="dialog" aria-controls="calibrateOverlay"
                 title="Measure your device's timing automatically">🎯 Calibrate timing</button>
