@@ -1,11 +1,11 @@
-"""Focused regression tests for the Bortniansky Cherubic No. 7 parser fixes
-(2026-07-09). The byte-hash suite in test_regression.py locks the whole
+"""Focused regression tests for the three Bortniansky Cherubic No. 7 parser
+fixes (2026-07-09). The byte-hash suite in test_regression.py locks the whole
 emitted file (bortniansky_cherubic_7 was added there too), but that skips
 wherever the copyrighted PDF is absent; these add:
 
-  * pure-logic UNIT tests for the new decision points (_chord_dots, and later
-    the above-staff rubric guard) that run wherever the engine imports, no
-    PDF needed; and
+  * pure-logic UNIT tests for the two new decision points (_chord_dots and the
+    above-staff rubric guard _looks_syllabified) that run wherever the engine
+    imports, no PDF needed; and
   * PDF-gated INTEGRATION tests asserting each fix by name in the emitted
     MusicXML, so a byte change is explained in terms of the behaviour that
     moved, not just a hash mismatch.
@@ -60,7 +60,33 @@ def test_chord_dots_leaves_dualstem_to_head_dots():
 
 
 # --------------------------------------------------------------------------
-# The fix, asserted by name in the emitted MusicXML (PDF-gated)
+# Fix 3 — _looks_syllabified: accept hyphenated lyrics, reject above-staff prose
+# --------------------------------------------------------------------------
+def _toks(*words):
+    return [{"text": w} for w in words]
+
+
+def test_looks_syllabified_accepts_hyphenated_lyric():
+    # "and sing to the life - giv - ing Trin - i - ty,"
+    line = _toks("and", "sing", "to", "the", "life", "-", "giv", "-", "ing",
+                 "Trin", "-", "i", "-", "ty,")
+    assert ve._looks_syllabified(line) is True
+
+
+@pytest.mark.parametrize("prose", [
+    ("Continue", "to", "Only", "Begotten", "Son"),
+    ("D.S.", "al", "Coda"),
+    ("(When", "one", "priest", "is"),
+    ("as", "noted", "next", "page."),
+    ("pp",),
+    ("and", "sing", "to"),      # 3 words but zero syllable hyphens
+])
+def test_looks_syllabified_rejects_prose_and_dynamics(prose):
+    assert ve._looks_syllabified(_toks(*prose)) is False
+
+
+# --------------------------------------------------------------------------
+# The fixes, asserted by name in the emitted MusicXML (PDF-gated)
 # --------------------------------------------------------------------------
 PIECE_ID = "bortniansky_cherubic_7"
 PIECE_PDF = "13c_cherubic_hymn-bortniansky-7.pdf"
@@ -101,6 +127,14 @@ def test_angel_wholenote_is_soprano_voice2(bortniansky_soprano):
     assert re.search(r'<step>A</step><octave>4</octave></pitch>'
                      r'<duration>16</duration><voice>2</voice><type>whole</type>',
                      m51), "A4 whole note not emitted as soprano voice 2"
+
+
+def test_upper_voice_lyrics_captured_above_staff(bortniansky_soprano):
+    # the diverging Soprano's own above-staff line, previously dropped
+    texts = re.findall(r'<text>([^<]*)</text>', bortniansky_soprano[1])
+    seq = " ".join(texts)
+    assert "and sing to the" in seq
+    assert "life giv ing" in seq
 
 
 def test_no_double_dots_anywhere(bortniansky_soprano):

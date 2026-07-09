@@ -586,6 +586,21 @@ def catalog_code(item_id):
     return m.group(1) if m else None
 
 
+def _load_retired_overrides():
+    """Stems recorded in overrides/RETIRED — overrides the parser has since
+    superseded and must not silently re-apply if a backup reappears."""
+    path = os.path.join(OVERRIDE_DIR, "RETIRED")
+    if not os.path.exists(path):
+        return set()
+    out = set()
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.split("#", 1)[0].strip()
+            if line:
+                out.add(line)
+    return out
+
+
 def apply_overrides(state):
     """Hand-authored MusicXML corrections (issue: owner wants to edit pieces).
 
@@ -609,11 +624,20 @@ def apply_overrides(state):
     overridden = set()
     if not os.path.isdir(OVERRIDE_DIR):
         return overridden
+    retired = _load_retired_overrides()
     for fn in sorted(os.listdir(OVERRIDE_DIR)):
         if not fn.lower().endswith(".musicxml"):
             continue
         src = os.path.join(OVERRIDE_DIR, fn)
         stem = fn[:-len(".musicxml")]
+        if stem in retired:
+            # An override the parser has since superseded (see overrides/RETIRED).
+            # A stray backup reappearing on disk must NOT silently override the
+            # now-correct extraction -- warn loudly and skip.
+            print(f"[override] SKIP {fn}: RETIRED stem — the extractor now "
+                  f"produces this piece directly; delete overrides/{fn} or "
+                  f"remove it from overrides/RETIRED to re-enable.")
+            continue
         try:
             ET.parse(src)                     # never clobber a good file with garbage
         except Exception as e:                # noqa: BLE001

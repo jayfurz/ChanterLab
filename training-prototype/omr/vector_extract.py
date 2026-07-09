@@ -1086,7 +1086,10 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
         _build_system_events(sy, heads, stems, music, report, page_no)
         nxt_top = (systems[si + 1].staves[0].top
                    if si + 1 < len(systems) and systems[si + 1].staves else None)
-        _attach_lyrics(sy, tokens, report, page_no, next_system_top=nxt_top)
+        prv_bot = (systems[si - 1].staves[-1].bot
+                   if si > 0 and systems[si - 1].staves else None)
+        _attach_lyrics(sy, tokens, report, page_no, next_system_top=nxt_top,
+                       prev_system_bot=prv_bot)
 
     # ---- ties (same-pitch curves)
     _apply_ties(systems, curves, report, page_no)
@@ -1961,12 +1964,22 @@ def _drop_non_lyric_lines(band):
     return kept
 
 
-def _attach_lyrics(sy, tokens, report, page_no, next_system_top=None):
+def _attach_lyrics(sy, tokens, report, page_no, next_system_top=None,
+                   prev_system_bot=None):
     """Lyric tokens live in the band below a staff. Each surviving text line in
     that band is a separate verse (top line = verse 1); each verse's syllables
     are x-sorted, hyphenated and attached to their own nearest note onsets, so
     stacked verses (e.g. a roman verse 1 over an italic alternate verse 2) never
     interleave into one garbled line."""
+    # Divergent-rhythm close score prints the UPPER voice's syllables ABOVE the
+    # top staff (its rhythm differs from the lower voice, whose words keep the
+    # usual band below). Read that above-staff line FIRST and give it to the
+    # upper voice, so the ordinary below-band pass -- which would otherwise
+    # borrow the lower voice's line onto the upper voice by nearest-x, colliding
+    # and dropping syllables where the rhythms diverge -- is skipped for the
+    # notes it already covers (Bortniansky Cherubic No. 7 p1, the Soprano "and
+    # sing to the Life-giving Trinity" line engraved above its staff).
+    _attach_above_staff_line(sy, tokens, prev_system_bot, report)
     for si, staff in enumerate(sy.staves):
         band_top = staff.bot + 0.5 * staff.sp
         nxt = sy.staves[si + 1] if si + 1 < len(sy.staves) else None
@@ -2019,6 +2032,63 @@ def _attach_lyrics(sy, tokens, report, page_no, next_system_top=None):
                 continue          # oversized => a title, not an alternate verse
             verse_k += 1
             _attach_verse_line(line, verse_k, staff, voices, carriers, report)
+
+
+def _attach_above_staff_line(sy, tokens, prev_system_bot, report):
+    """Attach an ABOVE-staff lyric line to the top staff's UPPER voice, for the
+    divergent-rhythm close-score case (see _attach_lyrics). Deliberately narrow
+    so it can only ever ADD the upper voice's own words, never sweep in other
+    text:
+      * only an INNER system (prev_system_bot known) -- never the page header /
+        title / composer credit that sits above the first system on a page;
+      * only a shared 2-voice top staff (where above-staff words for a diverging
+        upper voice are the convention);
+      * bounded to ~3 staff-spaces above the staff, so the previous system's own
+        lower verse lines (measured 3.3-5.4 sp up) stay out, and above the
+        previous staff's bottom;
+      * requires a real lyric line (>= 3 word tokens after _drop_non_lyric_lines
+        filters directions/dynamics/rehearsal marks) so a stray 'pp' / 'f' /
+        rehearsal letter above the staff is never taken for a syllable."""
+    if prev_system_bot is None or sy.layout != "2staff" or not sy.staves:
+        return
+    staff = sy.staves[0]
+    sv = _staff_voices(sy)
+    upper = sv[id(staff)][0]
+    carriers = [e for e in sy.events.get(upper, [])
+                if e.staff is staff and e.kind == "note"]
+    if not carriers:
+        return
+    above_bot = staff.top - 0.5 * staff.sp
+    above_top = max(staff.top - 3.0 * staff.sp, prev_system_bot + 0.5 * staff.sp)
+    band = [t for t in tokens
+            if above_top < t["y"] < above_bot
+            and staff.x0 - 2 <= t["cx"] <= staff.x1 + 2
+            and t["size"] > 6]
+    lines = _drop_non_lyric_lines(band)
+    if not lines:
+        return
+    # the line closest to the staff (largest y) is this system's upper voice;
+    # anything higher would be the previous system's verses (already y-excluded)
+    line = lines[-1]
+    if not _looks_syllabified(line):
+        return
+    _attach_verse_line(line, 1, staff, [upper], {upper: carriers}, report)
+    report.stats["above_staff_lyric_lines"] += 1
+
+
+def _looks_syllabified(line):
+    """True if `line` (band token dicts) reads as a hyphenated SUNG lyric line,
+    not above-staff prose. The above-staff region is also where liturgy scores
+    print RUBRICS and navigation ("Continue to 'Only Begotten Son...'", "D.S.
+    al Coda", "(When one priest is ...)", editorial page notes) -- same size,
+    and they survive _drop_non_lyric_lines, but they are prose. A genuine sung
+    line for a diverging upper voice is hyphenated into syllables (life-giv-ing
+    Trin-i-ty), so require >= 3 word tokens AND >= 2 syllable connectors
+    (standalone '-' tokens or word-internal hyphens); prose has none."""
+    words = [t for t in line if t["text"].strip("-_")]
+    n_hyphen = sum(1 for t in line if _is_dash(t["text"])) + \
+        sum(1 for t in line if _INTERNAL_HYPHEN.search(t["text"]))
+    return len(words) >= 3 and n_hyphen >= 2
 
 
 def _attach_verse_line(line, k, staff, voices, carriers, report):

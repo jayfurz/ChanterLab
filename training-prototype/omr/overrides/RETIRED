@@ -1,0 +1,14 @@
+# Retired overrides — tombstone (tracked; content-free by design).
+#
+# When an override is removed because the extractor learned to produce the
+# right output on its own, record its STEM here. apply_overrides() refuses to
+# re-apply any override whose stem is listed below (it warns instead), so an
+# old private backup of overrides/<stem>.musicxml reappearing on disk can never
+# silently resurrect a correction the parser has since superseded. Delete a
+# line here only if you deliberately want that stem to be overridable again.
+#
+# One stem per line; '#' comments and blank lines ignored.
+
+# 2026-07-09 — parser now emits chord single-dots + m51 divisi (voice 2) +
+# above-staff "and sing to the Life-giving Trinity" lyrics; integrity 100%.
+13c_cherubic_hymn-bortniansky-7

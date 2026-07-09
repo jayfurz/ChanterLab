@@ -265,6 +265,33 @@
         "warnings_count": 0,
         "exit_code": 0
       }
+    },
+    "bortniansky_cherubic_7": {
+      "pdf": "13c_cherubic_hymn-bortniansky-7.pdf",
+      "notes": "4-page 2-staff close score exercising three parser fixes: (1) chord single-dots via _chord_dots (S 'bly'/'the' third-chords were double-read as 9/8); (2) m51 sustained A4 emitted as divisi MusicXML voice 2 (<backup>) instead of dumped into Alto as an 8/4 measure; (3) above-staff 'and sing to the Life-giving Trinity' Soprano line captured for the diverging upper voice. Was the only overrides/ entry until the parser produced it directly (integrity 100%); see overrides/RETIRED. Blessed 2026-07-09.",
+      "sha256": "c9044bee8081041438d11a2caf72a6295f845fa3d56a11adbe198f0eb4cfef77",
+      "stats": {
+        "measures": 61,
+        "sections": 1,
+        "lyric_verses": 2,
+        "whole_measure_rests_resized": 0,
+        "integrity_pct": 100.0,
+        "voices": [
+          "S",
+          "A",
+          "T",
+          "B"
+        ],
+        "note_events_per_voice": {
+          "S": 133,
+          "A": 135,
+          "T": 118,
+          "B": 112
+        },
+        "note_events_total": 498,
+        "warnings_count": 1,
+        "exit_code": 0
+      }
     }
   },
   "joseph_01_08_review_pile": {
