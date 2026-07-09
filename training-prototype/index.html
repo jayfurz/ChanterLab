@@ -187,6 +187,28 @@
                aria-label="Accompaniment volume" />
       </div>
 
+      <!-- Timing calibration. Two independent per-device latencies:
+           • Playback sync (L_out) shifts the gold LANE to line up with the sound
+             you hear (setScopeSyncMs / getDisplayLatency).
+           • Voice response (L_in) back-dates the cyan trace + your score so a note
+             sung on the beat lands on that note (setResponseLatencyMs → scope
+             setInputLatency). The 🎯 button auto-measures both. -->
+      <div class="row row-timing">
+        <span class="label">Playback sync <output id="scopeSyncOut">0 ms</output></span>
+        <input id="scopeSync" type="range" min="-100" max="300" step="5" value="0"
+               aria-label="Playback sync — line up the notes with the sound" />
+      </div>
+      <div class="row row-timing">
+        <span class="label">Voice response <output id="responseOut">80 ms</output></span>
+        <input id="responseLag" type="range" min="0" max="400" step="5" value="80"
+               aria-label="Voice response — when your singing registers" />
+      </div>
+      <div class="row row-calibrate">
+        <button id="calibrateBtn" class="btn lib" type="button"
+                aria-haspopup="dialog" aria-controls="calibrateOverlay"
+                title="Measure your device's timing automatically">🎯 Calibrate timing</button>
+      </div>
+
       <!-- Instrument sound (issue #66): Synth (Tone.PolySynth, default) vs.
            Voices (sampled "ah" pad, lazy-loaded on first switch/Play). Persisted
            in localStorage; see js/transport.js's switchInstrumentMode. -->

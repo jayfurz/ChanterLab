@@ -21,6 +21,7 @@ import {
   recreateAudioContext, audioSessionSupported, setAudioSessionType,
   getVolume, setVolume, loadVolume, updateVolumeUI, getDisplayLatency,
   setScopeSyncMs, getScopeSyncMs,
+  setResponseLatencyMs, getResponseLatencyMs, getResponseLatencySec,
 } from './transport.js';
 import {
   practiceSamples, lastScoreResult, sessionLaps, scoringStrictness, buildScoreTargets,
@@ -90,6 +91,17 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     el.hpMode.addEventListener('change', onHeadphonesToggle);
     // Master accompaniment volume (issue #74 F5) — see transport.js's setVolume.
     if (el.volume) el.volume.addEventListener('input', () => setVolume(Number(el.volume.value) / 100));
+    // Timing calibration sliders (live + persisted). Playback sync (L_out) nudges
+    // the gold lane; Voice response (L_in) back-dates the trace + scoring.
+    if (el.scopeSync) el.scopeSync.addEventListener('input', () => {
+      setScopeSyncMs(Number(el.scopeSync.value)); updateTimingUI();
+    });
+    if (el.responseLag) el.responseLag.addEventListener('input', () => {
+      const ms = setResponseLatencyMs(Number(el.responseLag.value));
+      if (window.TrainingScope && TrainingScope.setInputLatency) TrainingScope.setInputLatency(ms / 1000);
+      updateTimingUI();
+    });
+    if (el.calibrateBtn) el.calibrateBtn.addEventListener('click', openCalibrate);
     [...el.viewPicker.children].forEach((b) =>
       b.addEventListener('click', () => setView(b.dataset.view)));
     if (el.strictnessPicker) {
@@ -659,6 +671,22 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     if (new URLSearchParams(location.search).get('audiodebug') === '1') enableAudioDebug();
   }
 
+  // Reflect the two persisted timing latencies onto their sliders + readouts.
+  function updateTimingUI() {
+    const outMs = getScopeSyncMs();
+    if (el.scopeSync) el.scopeSync.value = String(outMs);
+    if (el.scopeSyncOut) el.scopeSyncOut.textContent = (outMs > 0 ? '+' : '') + outMs + ' ms';
+    const inMs = getResponseLatencyMs();
+    if (el.responseLag) el.responseLag.value = String(inMs);
+    if (el.responseOut) el.responseOut.textContent = inMs + ' ms';
+  }
+
+  // Calibration wizard opener. Phase 2 replaces this with the real modal (see
+  // js/calibrate.js); until then, guide the user to the live sliders.
+  function openCalibrate() {
+    setStatus('Timing wizard coming soon — nudge the Playback sync / Voice response sliders by feel.');
+  }
+
   async function main() {
     loadStrictness();
     loadInstrumentMode();   // restores the toggle position only — never fetches
@@ -724,6 +752,15 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       if (lagFlag != null && lagFlag !== '' && isFinite(parseFloat(lagFlag))) {
         setScopeSyncMs(parseFloat(lagFlag));
       }
+      // Voice-response latency (L_in): ?responselag=MS overrides the persisted
+      // value, then push it into the scope so the trace + scoring stamp are
+      // back-dated. Mirrors ?scopelag for the input side.
+      const respFlag = new URLSearchParams(location.search).get('responselag');
+      if (respFlag != null && respFlag !== '' && isFinite(parseFloat(respFlag))) {
+        setResponseLatencyMs(parseFloat(respFlag));
+      }
+      if (TrainingScope.setInputLatency) TrainingScope.setInputLatency(getResponseLatencySec());
+      updateTimingUI();
       TrainingScope.attach(el.scope, el.scopeReadout, el.scopeHint);
       TrainingScope.setTimeSource(() => ({
         playing: playState === 'playing',
@@ -782,6 +819,16 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // the last few tens of ms of alignment by eye on-device.
     setScopeLatency: (ms) => setScopeSyncMs(ms),
     scopeLatency: () => getScopeSyncMs(),
+    // Voice-response latency L_in (ms) — back-dates the sung trace + scoring
+    // stamp so a note sung on the audible beat scores on that note. setter
+    // live-applies to the scope + persists; same as ?responselag=MS.
+    inputLatency: () => getResponseLatencyMs(),
+    setInputLatency: (ms) => {
+      const v = setResponseLatencyMs(ms);
+      if (window.TrainingScope && TrainingScope.setInputLatency) TrainingScope.setInputLatency(v / 1000);
+      updateTimingUI();
+      return v;
+    },
     // --- pitch-detector A/B (issue #80) ---
     // detector(): which front-end is live ('js'|'wasm') plus its live cadence,
     // latency proxy, and frame counters — the console-visible A/B hook.

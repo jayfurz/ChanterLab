@@ -136,6 +136,13 @@ export const el = {
     // Master accompaniment volume (issue #74 F5) — one slider row in #paneSound.
     volume: document.getElementById('volume'),
     volumeOut: document.getElementById('volumeOut'),
+    // Timing calibration (#paneSound): Playback sync (L_out) + Voice response
+    // (L_in) sliders and the 🎯 wizard button.
+    scopeSync: document.getElementById('scopeSync'),
+    scopeSyncOut: document.getElementById('scopeSyncOut'),
+    responseLag: document.getElementById('responseLag'),
+    responseOut: document.getElementById('responseOut'),
+    calibrateBtn: document.getElementById('calibrateBtn'),
     scope: document.getElementById('scope'),
     scopeReadout: document.getElementById('scopeReadout'),
     scopeHint: document.getElementById('scopeHint'),

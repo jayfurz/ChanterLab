@@ -68,13 +68,19 @@ window.TrainingScope = (() => {
   }
 
   // live pitch state
-  const hist3 = [];               // median-of-3 raw freq
-  let emaMidi = null;
+  const hist3 = [];               // median-of-3 raw freq (octave-error rejection)
   let pitchSink = null;           // optional subscriber: fn({tSec, midi, playing})
                                   // called once per VOICED frame (scoring tap, #49)
   let trace = [];                 // [{wall, dispMidi, cents, hit, hasTarget}]
   const TRACE_KEEP_SEC = 12;
   let lastDetect = { name: '—', cents: null, hit: false, fresh: 0, quiet: false };
+
+  // L_in — input/detection latency (seconds): sound is SUNG this long before the
+  // detector reports it (mic buffer + 2048-sample autocorrelation window + the
+  // median-of-3 + one-euro group delay). Back-dating the trace AND the scoring
+  // stamp by it aligns a note sung on the audible beat with that note. main.js
+  // owns the persisted/calibrated value (setInputLatency); this is a mid default.
+  let inputLatencySec = 0.08;
 
   // Detector front-end (issue #80). 'js' is the default and leaves every code
   // path below byte-for-byte unchanged; 'wasm' is opt-in and only touches the
@@ -179,29 +185,64 @@ window.TrainingScope = (() => {
     pushVoicedFreq(f, wall);
   }
 
-  // Shared voiced-frame ingestion: median-of-3 + EMA smoothing, MIDI
+  /* ---------- adaptive pitch smoothing (one-euro) --------------------- *
+   * Replaces the old fixed EMA (α=0.55), whose settle time meant fast notes
+   * (e.g. eighths at 70bpm) never converged before the note was over. The
+   * one-euro filter lowers its cutoff on sustained pitch (heavy smoothing, low
+   * jitter) and raises it when the pitch is moving fast (a note change → little
+   * lag), so short notes register. The residual near-constant group delay on
+   * sustained notes is absorbed by the inputLatencySec back-date / calibration. */
+  // Tuned offline (tmp/oneeuro_tune): min-cutoff 2 + beta 1.0 settles a fifth
+  // leap in ~33ms (vs ~83ms for the old EMA α=0.55) while holding sustained-note
+  // jitter ≈0.03 semitone — i.e. fast notes register without a shaky trace.
+  const OE_MIN_CUTOFF = 2.0;   // Hz — cutoff floor on steady pitch (smoothing)
+  const OE_BETA = 1.0;         // how much pitch velocity raises the cutoff
+  const OE_DCUTOFF = 1.0;      // Hz — cutoff for the derivative estimate
+  const oe = { xPrev: null, dxPrev: 0, tPrev: null };
+  const oeAlpha = (cutoff, dt) => { const tau = 1 / (2 * Math.PI * cutoff); return 1 / (1 + tau / dt); };
+  function oneEuroMidi(x, wall) {
+    if (oe.xPrev === null || oe.tPrev === null) { oe.xPrev = x; oe.dxPrev = 0; oe.tPrev = wall; return x; }
+    let dt = wall - oe.tPrev;
+    if (!(dt > 0) || dt > 0.25) dt = 1 / 60;   // first frame / long gap → nominal
+    oe.tPrev = wall;
+    const dx = (x - oe.xPrev) / dt;
+    const aD = oeAlpha(OE_DCUTOFF, dt);
+    oe.dxPrev = aD * dx + (1 - aD) * oe.dxPrev;
+    const cutoff = OE_MIN_CUTOFF + OE_BETA * Math.abs(oe.dxPrev);
+    const aX = oeAlpha(cutoff, dt);
+    oe.xPrev = aX * x + (1 - aX) * oe.xPrev;
+    return oe.xPrev;
+  }
+  function resetSmoothing() { oe.xPrev = null; oe.tPrev = null; oe.dxPrev = 0; hist3.length = 0; }
+
+  // Shared voiced-frame ingestion: median-of-3 + one-euro smoothing, MIDI
   // conversion, the {tSec, midi} pitch-sink emit, the scope trace, and the
   // readout. BOTH detectors funnel a raw detected Hz through here, so the
   // smoothed-MIDI stream that reaches scoring is identical regardless of which
-  // front-end produced `f`. (Extracted verbatim from captureMicFrame for #80 —
-  // the JS path's behavior is unchanged.)
+  // front-end produced `f`.
   function pushVoicedFreq(f, wall) {
     hist3.push(f);
     if (hist3.length > 3) hist3.shift();
     const sorted = [...hist3].sort((a, b) => a - b);
     const fMed = sorted[Math.floor(sorted.length / 2)];
 
-    let m = midiFromFreq(fMed);
-    emaMidi = emaMidi === null ? m : (emaMidi * 0.45 + m * 0.55);
-    m = emaMidi;
+    // Adaptive one-euro smoothing (see block above): snaps on note changes,
+    // smooths on sustain — so short notes register where the fixed EMA lagged.
+    const m = oneEuroMidi(midiFromFreq(fMed), wall);
 
     const { playing, t } = timeSource();
-    // Scoring tap (#49): emit the raw smoothed sung MIDI in transport seconds so
-    // a subscriber can grade it against the lane. Octave folding is the scorer's
-    // job, so we hand it the un-folded pitch. No-op unless someone subscribed.
-    if (pitchSink) pitchSink({ tSec: t, midi: m, playing });
+    // Input-latency back-date: this sample reflects sound sung inputLatencySec
+    // ago, so associate it with the note that was audible THEN — for the scoring
+    // stamp AND the readout/glow lookup below. (The trace is drawn back-dated by
+    // the same amount in draw(), so the cyan line rides under the gold bar the
+    // singer actually heard.)
+    const tEff = (t == null) ? null : t - inputLatencySec;
+    // Scoring tap (#49): emit the smoothed sung MIDI in input-compensated
+    // transport seconds so a subscriber can grade it against the lane. Octave
+    // folding is the scorer's job, so we hand it the un-folded pitch.
+    if (pitchSink) pitchSink({ tSec: tEff, midi: m, playing });
     let dispMidi, cents = null, hit = false, hasTarget = false;
-    const target = (playing && t !== null) ? activeTargetAt(t) : null;
+    const target = (playing && tEff !== null) ? activeTargetAt(tEff) : null;
     if (target) {
       hasTarget = true;
       // octave-tolerant: fold the sung pitch to the octave nearest the target
@@ -325,12 +366,14 @@ window.TrainingScope = (() => {
     g.strokeStyle = 'rgba(255,255,255,0.5)';
     g.beginPath(); g.moveTo(nowX, 0); g.lineTo(nowX, cssH); g.stroke();
 
-    // live pitch trace (wall-clock anchored at the now line)
+    // live pitch trace (wall-clock, back-dated by the input latency so a sample
+    // sits under the note that was audible when it was SUNG — not when detected).
     if (trace.length) {
       const wallNow = performance.now() / 1000;
+      const inLat = inputLatencySec;
       let prev = null;
       for (const p of trace) {
-        const x = nowX - (wallNow - p.wall) * PX_PER_SEC;
+        const x = nowX - (wallNow - p.wall + inLat) * PX_PER_SEC;
         if (x < -10) { prev = null; continue; }
         const y = yOf(p.dispMidi);
         if (prev && (p.wall - prev.wall) < 0.18) {
@@ -343,13 +386,15 @@ window.TrainingScope = (() => {
         prev = { x, y, wall: p.wall };
       }
       g.lineWidth = 1;
-      // current-point dot
+      // current-point dot — sits at the back-dated leading edge of the trace,
+      // matching the line above (else the dot would float ahead of it).
       const last = trace[trace.length - 1];
       if (wallNow - last.wall < 0.25) {
         const y = yOf(last.dispMidi);
+        const dotX = nowX - inLat * PX_PER_SEC;
         g.fillStyle = last.hit ? GOLD_BRIGHT : CYAN;
         if (last.hit) { g.shadowColor = GOLD; g.shadowBlur = 14; }
-        g.beginPath(); g.arc(nowX, y, last.hit ? 6 : 4.5, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.arc(dotX, y, last.hit ? 6 : 4.5, 0, Math.PI * 2); g.fill();
         g.shadowBlur = 0;
       }
     }
@@ -608,6 +653,15 @@ window.TrainingScope = (() => {
   // fires once per voiced frame with {tSec, midi, playing}; pass null to detach.
   function setPitchSink(fn) { pitchSink = typeof fn === 'function' ? fn : null; }
 
+  // L_in (input/detection latency) back-date, seconds. main.js owns the
+  // persisted/calibrated value; clamped to a sane [0, 0.5) range here.
+  function setInputLatency(sec) {
+    const n = Number(sec);
+    inputLatencySec = (isFinite(n) && n >= 0 && n < 0.5) ? n : 0;
+    return inputLatencySec;
+  }
+  function getInputLatency() { return inputLatencySec; }
+
   async function micStart(audioCtx) {
     if (mic.on) return true;
     mic.ctx = audioCtx;
@@ -642,7 +696,7 @@ window.TrainingScope = (() => {
     if (mic.src) { try { mic.src.disconnect(); } catch (e) { /* already gone */ } }
     if (mic.stream) mic.stream.getTracks().forEach((tr) => tr.stop());
     mic.on = false; mic.stream = null; mic.src = null; mic.analyser = null;
-    trace = []; emaMidi = null; hist3.length = 0;
+    trace = []; resetSmoothing();
     lastDetect = { name: '—', cents: null, hit: false, fresh: 0, quiet: false };
   }
 
@@ -687,6 +741,8 @@ window.TrainingScope = (() => {
   return {
     attach, setLane, setTimeSource, setPitchSink, micStart, micStop,
     setMicProcessing, getMicSettings,
+    // Input-latency (L_in) back-date for the trace + scoring stamp.
+    setInputLatency, getInputLatency,
     // Detector front-end selection + introspection (issue #80).
     setDetector, getDetector, detectorInfo,
     isMicOn: () => mic.on,

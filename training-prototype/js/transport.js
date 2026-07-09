@@ -226,6 +226,32 @@ export function setScopeSyncMs(ms) {
   }
 export function getScopeSyncMs() { return Math.round(scopeSyncSec() * 1000); }
 
+  // L_in — voice/detection response latency (ms), the second half of the timing
+  // model. The sung TRACE and the SCORING sample stamp are back-dated by this
+  // (applied inside scope.js via TrainingScope.setInputLatency), so a note sung
+  // on the audible beat lands on that note; the gold LANE is untouched (it keeps
+  // L_out via getDisplayLatency). Persisted per device; set by the "Voice
+  // response" slider or the calibration wizard. Default ~80ms covers the
+  // analysis + one-euro group delay; larger = treat the sung sample as earlier.
+  const RESPONSE_LATENCY_DEFAULT_MS = 80;
+  let _responseMs = null;                      // lazy from storage
+  function responseLatencySec() {
+    if (_responseMs === null) {
+      let v = NaN;
+      try { v = parseFloat(localStorage.getItem('chanterlab.responseMs')); } catch (e) { /* no storage */ }
+      _responseMs = isFinite(v) ? v : RESPONSE_LATENCY_DEFAULT_MS;
+    }
+    return _responseMs / 1000;
+  }
+export function setResponseLatencyMs(ms) {
+    const v = (typeof ms === 'number' && isFinite(ms)) ? Math.max(0, Math.min(400, ms)) : RESPONSE_LATENCY_DEFAULT_MS;
+    _responseMs = v;
+    try { localStorage.setItem('chanterlab.responseMs', String(v)); } catch (e) { /* no storage */ }
+    return v;
+  }
+export function getResponseLatencyMs() { return Math.round(responseLatencySec() * 1000); }
+export function getResponseLatencySec() { return responseLatencySec(); }
+
 export function getDisplayLatency() {
     let auto = 0;
     try {
