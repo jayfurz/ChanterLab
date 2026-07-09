@@ -2063,6 +2063,32 @@ def _attach_syllable_units(units, token, merged_syl, k, evs, staff, report):
         if abs(best.x - cx) > 6 * staff.sp:
             report.stats["lyric_tokens_unmatched"] += 1
             return
+        # A lyric syllable is engraved LEFT-aligned to (onset-aligned with) its
+        # notehead, so its CENTRE sits to the right of that head by up to half
+        # the syllable's printed width. Over a tightly-spaced BEAMED-EIGHTH
+        # group that rightward drift can round the centre onto the OFFBEAT
+        # (later) eighth even though the syllable clearly starts on the ON-BEAT
+        # (earlier) one -- the Finale flat-beam fix (filled-rect beams) now
+        # splits each such quarter into two eighths, exposing this. So when the
+        # centre-nearest note is beamed, re-anchor to the group member nearest
+        # the syllable's LEFT edge. Because the left edge is left of the centre,
+        # this can only ever move the pick EARLIER (offbeat -> on-beat), never
+        # later. Two guards keep it from over-reaching: skip if that earlier
+        # head already carries this verse (a legitimate two-syllables-over-two-
+        # eighths split -- the second syllable really does start on the 2nd
+        # eighth), and skip if a barline separates the two heads (a spurious
+        # beam group straddling a barline must not drag the lyric into the
+        # wrong measure).
+        if best.beam_group is not None:
+            x0 = token["x0"]
+            group = [e for e in evs if e.beam_group == best.beam_group]
+            cand = min(group, key=lambda e: abs(e.x - x0))
+            if cand is not best and \
+                    not any(l.get("number") == k for l in cand.lyric):
+                bars = staff.system.bar_xs if staff.system else []
+                lo, hi = sorted((cand.x, best.x))
+                if not any(lo < bx < hi for bx in bars):
+                    best = cand
         place(best, text, syl)
         return
 
