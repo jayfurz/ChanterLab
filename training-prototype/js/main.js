@@ -19,6 +19,8 @@ import {
   updateInstrumentUI, captureOfflineAB, audioContextInfo, rebuildAudioForMic,
   iosMediaUnlock, iosMediaUnlockPauseForMic, silentUnlockState, isIOS, masterOutputLevel,
   recreateAudioContext, audioSessionSupported, setAudioSessionType,
+  markContextForRecovery, contextRecoveryState, setOnContextRecreated,
+  setRecoveryLogger, setRecoveryTestOverride,
   getVolume, setVolume, loadVolume, updateVolumeUI, getDisplayLatency,
   setScopeSyncMs, getScopeSyncMs,
   setResponseLatencyMs, getResponseLatencyMs, getResponseLatencySec,
@@ -607,6 +609,57 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       : `Recreate failed: ${(r && r.reason) || 'unknown'}`);
   }
 
+  // Registered with transport.setOnContextRecreated: invoked (awaited) right
+  // after the Play gesture recreates the AudioContext to recover from an iOS
+  // interruption (choir-training bug). Rebinds the diagnostics statechange
+  // listener to the fresh context and, if the mic was live on the now-defunct
+  // old context, re-taps it on the new one — the same mic dance as onRecreateCtx
+  // / autoRecreateForMismatch, minus the recreate itself (already done).
+  async function reattachMicAfterRecreate(recreateResult) {
+    adListenerCtx = null; attachContextListeners();   // rebind to the NEW context
+    logAudioEvent('recover:ctx', recreateResult || {});
+    const hadMic = !!(window.TrainingScope && TrainingScope.isMicOn && TrainingScope.isMicOn());
+    if (!hadMic) return;
+    try {
+      try { TrainingScope.micStop(); } catch (e) { /* ignore — was on the dead context */ }
+      logAudioEvent('audiosession-set', setAudioSessionType('play-and-record', 'recover:mic'));
+      await TrainingScope.setMicProcessing(!el.hpMode.checked);
+      await TrainingScope.micStart(Tone.getContext().rawContext);
+      el.micBtn.classList.add('on'); el.micBtn.textContent = '🎤 On';
+      onMicChange();
+      logAudioEvent('recover:mic-reacquired', {});
+    } catch (e) {
+      logAudioEvent('recover:mic-reacquire-failed', { error: (e && e.message) || String(e) });
+      setStatus('Audio recovered, but the mic could not reconnect: ' + ((e && e.message) || e));
+    }
+  }
+
+  // iOS background/interruption recovery (choir-training bug): returning to the
+  // foreground after backgrounding — or a bfcache restore — can leave the
+  // AudioContext interrupted or its clock stalled even while state reads
+  // 'running'. Mark it so the NEXT Play recreates the context in-gesture (see
+  // transport.unlockAudio). markContextForRecovery is iOS-gated, so both
+  // listeners are a complete no-op on desktop Chrome/Firefox.
+  function attachInterruptionRecovery() {
+    const mark = (reason) => {
+      if (markContextForRecovery(reason)) {
+        logAudioEvent('recover:mark', { reason, state: (audioContextInfo() || {}).state });
+      }
+    };
+    try {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') mark('visibilitychange');
+      });
+    } catch (e) { /* ignore */ }
+    // pageshow.persisted = a bfcache restore (page + JS heap were frozen; audio
+    // is definitely dead). Ordinary background/return is covered by
+    // visibilitychange above; the plain initial pageshow is skipped so a fresh
+    // load's first Play doesn't needlessly recreate.
+    try {
+      window.addEventListener('pageshow', (e) => { if (e && e.persisted) mark('pageshow-bfcache'); });
+    } catch (e) { /* ignore */ }
+  }
+
   function attachContextListeners() {
     const ctx = rawCtx();
     if (!ctx || ctx === adListenerCtx || !ctx.addEventListener) return;
@@ -614,12 +667,27 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     try {
       ctx.addEventListener('statechange', () => {
         logAudioEvent('statechange', { state: ctx.state });
+        // Ignore statechanges from a context we've already recreated AWAY from:
+        // recreateAudioContext() deliberately suspends the OLD context, and that
+        // suspend must NOT re-flag recovery or fight the intentional teardown.
+        // (rawCtx() is the LIVE Tone context; after a recreate this old listener
+        // still fires but ctx !== rawCtx().)
+        if (ctx !== rawCtx()) return;
         // iOS parks the context in the non-standard 'interrupted' state (and
         // sometimes 'suspended') on a route change / mic-session flip / phone
-        // call. Tone's Context.resume() only handles 'suspended', so resume the
-        // RAW context directly. Harmless when running; unreachable off iOS.
-        if (ctx.state === 'interrupted') { try { ctx.resume && ctx.resume().catch(() => {}); } catch (e) { /* ignore */ } }
-        else if (ctx.state === 'suspended' && playState === 'playing') { try { ctx.resume && ctx.resume().catch(() => {}); } catch (e) { /* ignore */ } }
+        // call / backgrounding. Tone's Context.resume() only handles 'suspended',
+        // so resume the RAW context directly. Harmless when running; unreachable
+        // off iOS. ALSO mark the context for a full recreate on the next Play
+        // (choir-training background/interruption bug): a bare resume() can
+        // leave the clock stalled — markContextForRecovery is iOS-gated, so this
+        // is a no-op on desktop.
+        if (ctx.state === 'interrupted') {
+          markContextForRecovery('statechange:interrupted');
+          try { ctx.resume && ctx.resume().catch(() => {}); } catch (e) { /* ignore */ }
+        } else if (ctx.state === 'suspended') {
+          markContextForRecovery('statechange:suspended');
+          if (playState === 'playing') { try { ctx.resume && ctx.resume().catch(() => {}); } catch (e) { /* ignore */ } }
+        }
       });
     } catch (e) { /* statechange unsupported — ignore */ }
   }
@@ -646,6 +714,14 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
   function initAudioDebug() {
     attachContextListeners();
     attachDeviceChange();
+    // iOS interruption / background recovery (choir-training bug): wire the
+    // recover-on-next-Play machinery. The logger + mic-reattach callbacks let
+    // transport.js surface recovery events in this overlay's ring and re-tap the
+    // mic on a recreated context; the visibility/pageshow listeners flag the
+    // context after a background return. All iOS-gated / no-op on desktop.
+    setRecoveryLogger(logAudioEvent);
+    setOnContextRecreated(reattachMicAfterRecreate);
+    attachInterruptionRecovery();
     wireStatusTripleTap();
     const copy = document.getElementById('adCopy');
     const close = document.getElementById('adClose');
@@ -813,6 +889,20 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // 'running' after a successful unlock, 'suspended' if the browser's
     // autoplay policy still blocked it (the "Tap again" case).
     audioContextState: () => audioContextState(),
+    // --- iOS interruption / background recovery (choir-training bug) ---
+    // audioRecovery(): recovery-flag snapshot — { ios, pending, reason,
+    // lastRecreated, testForced }. lastRecreated flips true once a Play gesture
+    // has had to recreate the context to recover.
+    audioRecovery: () => contextRecoveryState(),
+    // markAudioRecovery(reason): force the "recover on next Play" flag (the same
+    // thing the visibilitychange listener does). iOS-gated unless
+    // forceAudioRecoveryPath is on; returns whether the mark took.
+    markAudioRecovery: (reason) => markContextForRecovery(reason || 'test'),
+    // forceAudioRecoveryPath(on): TEST-ONLY — take the iOS resume-or-recreate
+    // path on desktop Chromium so a headless probe can drive the full
+    // recreate→rebuild→reschedule→start chain (a real 'interrupted' state is
+    // iOS-only). Returns the resulting override state.
+    forceAudioRecoveryPath: (on) => setRecoveryTestOverride(on),
     // --- iOS audio diagnostics (issue #74) ---
     // audioDebug(): full snapshot + the in-memory event log (for headless
     // verification that events are logged with a fake mic). audioDebugShow/Hide

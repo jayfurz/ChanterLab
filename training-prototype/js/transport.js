@@ -451,6 +451,95 @@ export function silentUnlockState() {
     };
   }
 
+  /* ---------- iOS interruption / background recovery (choir-training) --- *
+   * Field report (iPhone Safari): background the tab/app and return, then press
+   * Play — it HANGS until a full refresh, after which it works again. iOS
+   * suspends or parks the AudioContext in WebKit's non-standard 'interrupted'
+   * state on an audio-session interruption; on return the context clock is
+   * stalled, so Tone.Transport never advances. Worse, resume() on an
+   * 'interrupted' context can never settle (Tonejs/Tone.js#767), so the plain
+   * `await Tone.start()` in the Play gesture can hang OUTRIGHT — exactly the
+   * reported symptom, and exactly what a fresh context (page refresh) sidesteps.
+   *
+   * Recovery is folded into the Play gesture (unlockAudio below): resume the RAW
+   * context first, BOUNDED by a timeout so a stuck 'interrupted' resume can't
+   * hang the gesture; then, if it won't reach 'running' — or we KNOW the context
+   * was interrupted / backgrounded since the last successful Play (its clock can
+   * be stalled even while state still reads 'running') — recreate it outright
+   * (recreateAudioContext, the #74 primitive, which also rebuilds the graph +
+   * re-applies the master volume/instrument) and let startPlayback reschedule +
+   * start the Transport from scratch. No refresh needed.
+   *
+   * iOS-GATED end to end: markContextForRecovery no-ops off iOS and unlockAudio
+   * keeps its EXACT pre-existing desktop/CI behavior (issue #63), so desktop
+   * Chrome/Firefox are byte-for-byte unaffected. A test-only override
+   * (setRecoveryTestOverride) opens the robust path on desktop Chromium so the
+   * headless probe can exercise the recreate→rebuild→reschedule→start chain — a
+   * genuine 'interrupted' state only reproduces on real iOS.
+   */
+  const RESUME_WAIT_MS = 350;             // per-attempt cap so a stuck resume() can't hang Play
+  let contextNeedsRecovery = false;       // iOS: a background/interruption happened since the last Play
+  let lastRecoveryReason = null;
+  let _lastUnlockRecreated = false;       // did the last unlockAudio() have to recreate the context?
+  let _recoveryTestForce = false;         // test-only: take the iOS robust path off iOS
+  let onContextRecreated = null;          // main.js re-taps the mic + rebinds listeners after a recover-recreate
+  let onRecoveryEvent = null;             // main.js's logAudioEvent bridge (transport can't import main.js)
+
+  // Mark the live context as needing a full recreate on the next Play. main.js
+  // calls this from visibilitychange (returned to the foreground), a bfcache
+  // pageshow, and the 'statechange' → suspended/interrupted listener. NO-OP off
+  // iOS (returns false) so desktop Chrome/Firefox never recreate; the test
+  // override opens the path for the headless probe only.
+export function markContextForRecovery(reason) {
+    if (!IS_IOS && !_recoveryTestForce) return false;
+    contextNeedsRecovery = true;
+    lastRecoveryReason = reason || 'unknown';
+    return true;
+  }
+  // Recovery-state read-out for the #74 diagnostics overlay + headless tests.
+export function contextRecoveryState() {
+    return {
+      ios: IS_IOS,
+      pending: contextNeedsRecovery,
+      reason: lastRecoveryReason,
+      lastRecreated: _lastUnlockRecreated,
+      testForced: _recoveryTestForce,
+    };
+  }
+  // main.js registers a callback invoked (awaited) right after the Play path
+  // recreates the context — it re-taps the mic on the fresh context and rebinds
+  // the diagnostics statechange listener. Runtime registration (not an import)
+  // keeps transport.js free of any dependency on main.js / scope.js.
+export function setOnContextRecreated(fn) { onContextRecreated = (typeof fn === 'function') ? fn : null; }
+  // main.js registers its logAudioEvent so recovery transitions show up in the
+  // on-device #74 overlay ring. No-op until registered (e.g. headless CI).
+export function setRecoveryLogger(fn) { onRecoveryEvent = (typeof fn === 'function') ? fn : null; }
+  // Test-only: force the iOS resume-or-recreate path on a non-iOS engine so the
+  // headless probe can drive the recreate→rebuild→reschedule→start chain.
+export function setRecoveryTestOverride(on) { _recoveryTestForce = !!on; return _recoveryTestForce; }
+
+  function recoveryLog(type, data) { if (onRecoveryEvent) { try { onRecoveryEvent(type, data); } catch (e) { /* logging is best-effort */ } } }
+  function rawOf(c) { return c ? (c.rawContext || c) : null; }
+  function afterMs(ms) { return new Promise((res) => setTimeout(res, ms)); }
+  // Resolve true once the raw context reaches 'running', or false after `ms`.
+  // Cheap, self-cleaning, never throws.
+  function waitForRunning(raw, ms) {
+    if (!raw) return Promise.resolve(false);
+    if (raw.state === 'running') return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let done = false, timer = null;
+      const finish = (v) => {
+        if (done) return; done = true;
+        try { raw.removeEventListener('statechange', onState); } catch (e) { /* ignore */ }
+        if (timer) clearTimeout(timer);
+        resolve(v);
+      };
+      const onState = () => { if (raw.state === 'running') finish(true); };
+      try { raw.addEventListener('statechange', onState); } catch (e) { /* ignore */ }
+      timer = setTimeout(() => finish(raw.state === 'running'), ms);
+    });
+  }
+
   // Unlock the browser AudioContext SYNCHRONOUSLY within the calling gesture's
   // handler chain (iOS Safari requirement — no detours through setTimeout/rAF
   // before this call). Every audio-starting user-gesture path (Play/Resume —
@@ -464,11 +553,56 @@ export function silentUnlockState() {
   async function unlockAudio() {
     iosMediaUnlock();   // iOS media-channel unlock (issue #74) — no-op off iOS,
                         // synchronous so the <audio>.play() stays in the gesture.
-    await Tone.start();
-    if (Tone.getContext().state !== 'running') {
-      setStatus('Tap again to enable sound.');
-      return false;
+    if (!IS_IOS && !_recoveryTestForce) {
+      // Desktop / headless CI — byte-for-byte the pre-existing issue #63 path.
+      await Tone.start();
+      if (Tone.getContext().state !== 'running') {
+        setStatus('Tap again to enable sound.');
+        return false;
+      }
+      return true;
     }
+    return await unlockAudioRobust();
+  }
+
+  // iOS resume-or-recreate (choir-training background/interruption bug). Bounded
+  // so a stuck 'interrupted' resume can't hang the Play gesture; recreates the
+  // context outright when resume won't yield 'running', OR an interruption/
+  // background was flagged since the last successful Play. Sets
+  // _lastUnlockRecreated so resume() can restart cleanly (see resume()) instead
+  // of resuming a now-empty transport.
+  async function unlockAudioRobust() {
+    _lastUnlockRecreated = false;
+    let raw = rawOf(Tone.getContext());
+    const startState = raw ? raw.state : 'unknown';
+    const wasInterrupted = startState === 'interrupted';
+    const flagged = contextNeedsRecovery;
+
+    // 1) Normal resume path (enough for a merely 'suspended' context), but NEVER
+    //    block the gesture on it — resume() on an 'interrupted' context can hang
+    //    forever (Tonejs/Tone.js#767), which is the field-reported "Play hangs".
+    try { await Promise.race([Tone.start(), afterMs(RESUME_WAIT_MS)]); } catch (e) { /* fall through */ }
+    try { if (raw && raw.resume) await Promise.race([raw.resume(), afterMs(RESUME_WAIT_MS)]); } catch (e) { /* fall through */ }
+    let running = await waitForRunning(raw, RESUME_WAIT_MS);
+
+    // 2) Recreate when resume didn't land 'running', or we KNOW the context was
+    //    interrupted/backgrounded (its clock can be stalled even while 'running').
+    if (!running || wasInterrupted || flagged) {
+      recoveryLog('recover:begin', { startState, running, wasInterrupted, flagged, reason: lastRecoveryReason });
+      let r = null;
+      try { r = await recreateAudioContext(); } catch (e) { r = { ok: false, reason: (e && e.message) || String(e) }; }
+      _lastUnlockRecreated = true;
+      // main.js re-taps the mic (if it was live) on the fresh context + rebinds
+      // the diagnostics statechange listener. Optional/best-effort.
+      if (onContextRecreated) { try { await onContextRecreated(r); } catch (e) { /* mic reattach optional */ } }
+      raw = rawOf(Tone.getContext());
+      running = raw ? (raw.state === 'running' || await waitForRunning(raw, RESUME_WAIT_MS)) : false;
+      recoveryLog('recover:done', { ok: !!(r && r.ok), state: raw ? raw.state : 'unknown', running, before: r && r.before, after: r && r.after });
+    }
+
+    contextNeedsRecovery = false;
+    lastRecoveryReason = null;
+    if (!running) { setStatus('Tap again to enable sound.'); return false; }
     return true;
   }
 
@@ -1075,6 +1209,10 @@ export async function startPlayback() {
 
   async function resume() {
     if (!(await unlockAudio())) return;   // suspended-context guard (issue #63)
+    // If the unlock had to recreate the context (iOS interruption recovery), the
+    // paused schedule + position died with the old context — restart cleanly
+    // from the loop window rather than resuming a wedged, empty transport.
+    if (_lastUnlockRecreated) { await startPlayback(); return; }
     playState = 'playing';
     Tone.Transport.start();
     updatePlayUI();
