@@ -19,7 +19,7 @@ import {
   updateInstrumentUI, captureOfflineAB, audioContextInfo, rebuildAudioForMic,
   iosMediaUnlock, iosMediaUnlockPauseForMic, silentUnlockState, isIOS, masterOutputLevel,
   recreateAudioContext, audioSessionSupported, setAudioSessionType,
-  markContextForRecovery, contextRecoveryState, setOnContextRecreated,
+  markContextForRecovery, contextRecoveryState, transportInfo, setOnContextRecreated,
   setRecoveryLogger, setRecoveryTestOverride,
   getVolume, setVolume, loadVolume, updateVolumeUI, getDisplayLatency,
   setScopeSyncMs, getScopeSyncMs,
@@ -434,6 +434,11 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       stalls: adStalls,
       volume: getVolume(),
       detector,
+      // Tone Transport scheduler snapshot + recovery flags (choir-training
+      // background/interruption hang): a wedged worker reads state='started'
+      // with seconds frozen while ctx.state='running'.
+      transport: transportInfo(),
+      recovery: contextRecoveryState(),
     };
   }
 
@@ -483,6 +488,8 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       `GRAPH OUTPUT  rms=${fmtVal(s.graphRms)}  peak=${fmtVal(s.graphPeak)}  peakMax=${fmtVal(s.graphPeakMax)}`,
       `→ ${verdict}`,
       `clock health = ${fmtVal(s.clockRatio)}x wall   ·   stalls = ${s.stalls}   ·   volume = ${Math.round(s.volume * 100)}%`,
+      `TRANSPORT ${s.transport ? `${s.transport.state} @ ${fmtVal(s.transport.seconds)}s  clock=${fmtVal(s.transport.clockSource)}` : '—'}` +
+        `${s.recovery ? `   ·   recovery pending=${s.recovery.pending} recreated=${s.recovery.lastRecreated} watchdog=${s.recovery.watchdogRecovered}` : ''}`,
     ].join('\n');
   }
   function fmtEvent(e) {
@@ -891,9 +898,12 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     audioContextState: () => audioContextState(),
     // --- iOS interruption / background recovery (choir-training bug) ---
     // audioRecovery(): recovery-flag snapshot — { ios, pending, reason,
-    // lastRecreated, testForced }. lastRecreated flips true once a Play gesture
-    // has had to recreate the context to recover.
+    // lastRecreated, watchdogRecovered, testForced }.
     audioRecovery: () => contextRecoveryState(),
+    // transportInfo(): live scheduler snapshot — { state, seconds, clockSource,
+    // ctxState }. The dead-worker hang shows as state='started' + frozen seconds
+    // while ctxState='running'.
+    transportInfo: () => transportInfo(),
     // markAudioRecovery(reason): force the "recover on next Play" flag (the same
     // thing the visibilitychange listener does). iOS-gated unless
     // forceAudioRecoveryPath is on; returns whether the mark took.

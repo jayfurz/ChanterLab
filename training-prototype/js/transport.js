@@ -452,36 +452,49 @@ export function silentUnlockState() {
   }
 
   /* ---------- iOS interruption / background recovery (choir-training) --- *
-   * Field report (iPhone Safari): background the tab/app and return, then press
-   * Play — it HANGS until a full refresh, after which it works again. iOS
-   * suspends or parks the AudioContext in WebKit's non-standard 'interrupted'
-   * state on an audio-session interruption; on return the context clock is
-   * stalled, so Tone.Transport never advances. Worse, resume() on an
-   * 'interrupted' context can never settle (Tonejs/Tone.js#767), so the plain
-   * `await Tone.start()` in the Play gesture can hang OUTRIGHT — exactly the
-   * reported symptom, and exactly what a fresh context (page refresh) sidesteps.
+   * Field report (iPhone Safari, iOS 18.7): background the tab/app and return,
+   * then press Play — it HANGS (nothing advances) until a full refresh.
    *
-   * Recovery is folded into the Play gesture (unlockAudio below): resume the RAW
-   * context first, BOUNDED by a timeout so a stuck 'interrupted' resume can't
-   * hang the gesture; then, if it won't reach 'running' — or we KNOW the context
-   * was interrupted / backgrounded since the last successful Play (its clock can
-   * be stalled even while state still reads 'running') — recreate it outright
-   * (recreateAudioContext, the #74 primitive, which also rebuilds the graph +
-   * re-applies the master volume/instrument) and let startPlayback reschedule +
-   * start the Transport from scratch. No refresh needed.
+   * ROOT CAUSE (revised after on-device #74 capture): on return the AudioContext
+   * is HEALTHY — state='running', clock-stall ratio 0, sampleRate steady. The
+   * hang is ABOVE the context, in Tone's TRANSPORT SCHEDULER. Tone runs its
+   * Transport clock off a Web Worker (clockSource:"worker" — the Ticker's worker
+   * posts 'tick' on a setTimeout loop; see vendor/Tone.js `class ii`). iOS
+   * throttles/kills background Web Worker timers, and on return that worker does
+   * NOT resume, so Tone.Transport never advances even though the context runs.
+   * A full page refresh builds a fresh worker, which is why refresh fixes it.
    *
-   * iOS-GATED end to end: markContextForRecovery no-ops off iOS and unlockAudio
-   * keeps its EXACT pre-existing desktop/CI behavior (issue #63), so desktop
-   * Chrome/Firefox are byte-for-byte unaffected. A test-only override
-   * (setRecoveryTestOverride) opens the robust path on desktop Chromium so the
-   * headless probe can exercise the recreate→rebuild→reschedule→start chain — a
-   * genuine 'interrupted' state only reproduces on real iOS.
+   * THE FIX — rebuild the dead worker, not the context. Re-assigning
+   * `context.clockSource` re-runs the Ticker's `set type` → dispose (terminate
+   * the dead worker) + recreate (spawn a fresh one). It is SYNCHRONOUS, needs no
+   * user gesture, no new AudioContext, no graph rebuild, and no mic drop — so it
+   * runs cleanly inside the Play gesture. See rebuildTransportClock below.
+   *
+   * Three layers, in order of cost:
+   *   1. In-gesture, when a background return is FLAGGED: rebuild the worker
+   *      synchronously (unlockAudioRobust) — the common case.
+   *   2. Watchdog (armTransportWatchdog): after every iOS Play, if
+   *      Tone.Transport.seconds hasn't advanced ~600ms later, force a
+   *      rebuild-clock + reschedule + restart — a state-agnostic safety net that
+   *      catches the hang whatever the cause, even when nothing flagged it.
+   *   3. Deepest fallback: recreateAudioContext() (fresh context + worker) only
+   *      if the context itself is genuinely stuck (not 'running' after resume).
+   *
+   * iOS-GATED end to end: markContextForRecovery / the watchdog no-op off iOS,
+   * and unlockAudio keeps its EXACT pre-existing desktop/CI behavior (issue #63),
+   * so desktop Chrome/Firefox are byte-for-byte unaffected. A test-only override
+   * (setRecoveryTestOverride) opens the path on desktop Chromium so the headless
+   * probe can drive it (terminating Tone.getContext()._ticker._worker reproduces
+   * the dead clock; a real throttled worker is iOS-only).
    */
   const RESUME_WAIT_MS = 350;             // per-attempt cap so a stuck resume() can't hang Play
+  const TRANSPORT_WATCHDOG_MS = 600;      // how long after Play to check the Transport actually advanced
   let contextNeedsRecovery = false;       // iOS: a background/interruption happened since the last Play
   let lastRecoveryReason = null;
   let _lastUnlockRecreated = false;       // did the last unlockAudio() have to recreate the context?
   let _recoveryTestForce = false;         // test-only: take the iOS robust path off iOS
+  let _watchdogTimer = null;              // pending Transport-advance check (iOS)
+  let _watchdogRecovered = false;         // one watchdog recovery per Play (avoid loops)
   let onContextRecreated = null;          // main.js re-taps the mic + rebinds listeners after a recover-recreate
   let onRecoveryEvent = null;             // main.js's logAudioEvent bridge (transport can't import main.js)
 
@@ -503,7 +516,19 @@ export function contextRecoveryState() {
       pending: contextNeedsRecovery,
       reason: lastRecoveryReason,
       lastRecreated: _lastUnlockRecreated,
+      watchdogRecovered: _watchdogRecovered,
       testForced: _recoveryTestForce,
+    };
+  }
+  // Live Transport snapshot for the #74 overlay + headless tests: is Tone's
+  // scheduler actually advancing? (state='started' but seconds frozen == the
+  // dead-worker bug.)
+export function transportInfo() {
+    return {
+      state: transportStateSafe(),
+      seconds: transportSecondsSafe(),
+      clockSource: clockSourceSafe(),
+      ctxState: audioContextState(),
     };
   }
   // main.js registers a callback invoked (awaited) right after the Play path
@@ -517,10 +542,35 @@ export function setRecoveryLogger(fn) { onRecoveryEvent = (typeof fn === 'functi
   // Test-only: force the iOS resume-or-recreate path on a non-iOS engine so the
   // headless probe can drive the recreate→rebuild→reschedule→start chain.
 export function setRecoveryTestOverride(on) { _recoveryTestForce = !!on; return _recoveryTestForce; }
+  function recoveryActive() { return IS_IOS || _recoveryTestForce; }
 
   function recoveryLog(type, data) { if (onRecoveryEvent) { try { onRecoveryEvent(type, data); } catch (e) { /* logging is best-effort */ } } }
   function rawOf(c) { return c ? (c.rawContext || c) : null; }
   function afterMs(ms) { return new Promise((res) => setTimeout(res, ms)); }
+  function transportStateSafe() { try { return Tone.Transport.state; } catch (e) { return 'unknown'; } }
+  function transportSecondsSafe() { try { const s = Tone.Transport.seconds; return (typeof s === 'number' && isFinite(s)) ? s : 0; } catch (e) { return 0; } }
+  function clockSourceSafe() { try { const c = Tone.getContext(); return (c && 'clockSource' in c) ? c.clockSource : null; } catch (e) { return null; } }
+
+  // Rebuild Tone's Ticker Web Worker (dead after iOS background throttling) by
+  // re-assigning clockSource — the setter re-runs the Ticker's `set type`, which
+  // terminates the stale worker and spawns a fresh one that resumes posting
+  // 'tick', un-freezing Tone.Transport. SYNCHRONOUS: no await, no new
+  // AudioContext, no graph rebuild — safe to call inside the Play gesture. The
+  // Transport's schedule + position are untouched (only the tick SOURCE is
+  // replaced), so a rebuild mid-run just resumes advancement.
+  function rebuildTransportClock(reason) {
+    try {
+      const c = Tone.getContext();
+      if (c && 'clockSource' in c) {
+        const src = c.clockSource;   // typically 'worker'
+        c.clockSource = src;          // dispose + recreate the ticker worker
+        recoveryLog('clock:rebuilt', { reason, clockSource: src });
+        return true;
+      }
+    } catch (e) { recoveryLog('clock:rebuild-failed', { reason, error: (e && e.message) || String(e) }); }
+    return false;
+  }
+
   // Resolve true once the raw context reaches 'running', or false after `ms`.
   // Cheap, self-cleaning, never throws.
   function waitForRunning(raw, ms) {
@@ -553,7 +603,7 @@ export function setRecoveryTestOverride(on) { _recoveryTestForce = !!on; return 
   async function unlockAudio() {
     iosMediaUnlock();   // iOS media-channel unlock (issue #74) — no-op off iOS,
                         // synchronous so the <audio>.play() stays in the gesture.
-    if (!IS_IOS && !_recoveryTestForce) {
+    if (!recoveryActive()) {
       // Desktop / headless CI — byte-for-byte the pre-existing issue #63 path.
       await Tone.start();
       if (Tone.getContext().state !== 'running') {
@@ -565,35 +615,45 @@ export function setRecoveryTestOverride(on) { _recoveryTestForce = !!on; return 
     return await unlockAudioRobust();
   }
 
-  // iOS resume-or-recreate (choir-training background/interruption bug). Bounded
-  // so a stuck 'interrupted' resume can't hang the Play gesture; recreates the
-  // context outright when resume won't yield 'running', OR an interruption/
-  // background was flagged since the last successful Play. Sets
-  // _lastUnlockRecreated so resume() can restart cleanly (see resume()) instead
-  // of resuming a now-empty transport.
+  // iOS recovery, folded into the Play gesture. The dead-worker case (context
+  // running, Transport frozen) is handled SYNCHRONOUSLY — rebuild the ticker
+  // worker before any await, so the gesture budget isn't spent and no new
+  // context/tap is needed. Only a genuinely non-running context (stuck
+  // interrupted/suspended) escalates to a full recreateAudioContext(). Sets
+  // _lastUnlockRecreated so resume() can restart cleanly (see resume()).
   async function unlockAudioRobust() {
     _lastUnlockRecreated = false;
     let raw = rawOf(Tone.getContext());
     const startState = raw ? raw.state : 'unknown';
-    const wasInterrupted = startState === 'interrupted';
     const flagged = contextNeedsRecovery;
+    recoveryLog('unlock:robust', {
+      startState, flagged, reason: lastRecoveryReason,
+      transportState: transportStateSafe(), seconds: transportSecondsSafe(), clockSource: clockSourceSafe(),
+    });
 
-    // 1) Normal resume path (enough for a merely 'suspended' context), but NEVER
-    //    block the gesture on it — resume() on an 'interrupted' context can hang
-    //    forever (Tonejs/Tone.js#767), which is the field-reported "Play hangs".
-    try { await Promise.race([Tone.start(), afterMs(RESUME_WAIT_MS)]); } catch (e) { /* fall through */ }
-    try { if (raw && raw.resume) await Promise.race([raw.resume(), afterMs(RESUME_WAIT_MS)]); } catch (e) { /* fall through */ }
-    let running = await waitForRunning(raw, RESUME_WAIT_MS);
+    // 1) SYNCHRONOUS FIRST (spend no gesture budget): if a background return was
+    //    flagged and the context is already running, the freeze is the dead
+    //    ticker worker — rebuild it in-gesture. This is the common iOS case.
+    if (flagged && startState === 'running') {
+      rebuildTransportClock('unlock:flagged');
+    }
 
-    // 2) Recreate when resume didn't land 'running', or we KNOW the context was
-    //    interrupted/backgrounded (its clock can be stalled even while 'running').
-    if (!running || wasInterrupted || flagged) {
-      recoveryLog('recover:begin', { startState, running, wasInterrupted, flagged, reason: lastRecoveryReason });
+    // 2) Resume the raw context if it isn't running (merely suspended). Bounded
+    //    so a stuck 'interrupted' resume can't hang the gesture (Tone.js#767).
+    let running = startState === 'running';
+    if (!running) {
+      try { if (raw && raw.resume) raw.resume(); } catch (e) { /* fire-and-forget, keep the gesture */ }
+      try { await Promise.race([Tone.start(), afterMs(RESUME_WAIT_MS)]); } catch (e) { /* fall through */ }
+      running = await waitForRunning(raw, RESUME_WAIT_MS);
+    }
+
+    // 3) Deepest fallback: recreate the whole context+worker only if resume
+    //    couldn't get it running (truly stuck). Also rebuilds the graph + mic.
+    if (!running) {
+      recoveryLog('recover:begin', { startState, running, flagged, reason: lastRecoveryReason });
       let r = null;
       try { r = await recreateAudioContext(); } catch (e) { r = { ok: false, reason: (e && e.message) || String(e) }; }
       _lastUnlockRecreated = true;
-      // main.js re-taps the mic (if it was live) on the fresh context + rebinds
-      // the diagnostics statechange listener. Optional/best-effort.
       if (onContextRecreated) { try { await onContextRecreated(r); } catch (e) { /* mic reattach optional */ } }
       raw = rawOf(Tone.getContext());
       running = raw ? (raw.state === 'running' || await waitForRunning(raw, RESUME_WAIT_MS)) : false;
@@ -604,6 +664,107 @@ export function setRecoveryTestOverride(on) { _recoveryTestForce = !!on; return 
     lastRecoveryReason = null;
     if (!running) { setStatus('Tap again to enable sound.'); return false; }
     return true;
+  }
+
+  /* ---------- Transport-advance watchdog (iOS safety net) -------------- *
+   * The state-agnostic backstop for the dead-worker / frozen-clock hang, whatever
+   * the cause and even when nothing flagged it.
+   *
+   * IMPORTANT: Tone.Transport.seconds is NOT a reliable liveness signal — it is
+   * a getter computed from context.now() (see vendor/Tone.js `get seconds`), so
+   * it keeps ADVANCING even when the scheduler is dead (cursor frozen, no sound —
+   * the actual user symptom). The real liveness signals are lower-level:
+   *   - WORKER alive?  the context emits a 'tick' event each worker post — count
+   *     them over the window (0 == the ticker worker is dead).
+   *   - CLOCK alive?   the raw context.currentTime actually advances (frozen
+   *     while state='running' == the "zombie running" context).
+   * The Clock's tick loop (which fires our scheduled notes + cursor steps) needs
+   * BOTH. If either is dead the scheduler is wedged.
+   *
+   * Graduated recovery: rebuild the worker (cheap, fixes the dead-worker case);
+   * if the CLOCK itself was frozen, also recreate the whole context (fixes the
+   * zombie case); then reschedule + restart. Re-verify once; if still stuck it is
+   * a deeper fault that needs a fresh gesture, so prompt a tap. iOS-gated (never
+   * arms off iOS); one recovery per Play (no loops). */
+  let _tickWatchCount = 0;
+  let _tickWatchFn = null;
+  let _tickWatchCtx = null;
+  function startTickWatch() {
+    stopTickWatch();
+    try {
+      const c = Tone.getContext();
+      if (c && typeof c.on === 'function') {
+        _tickWatchCtx = c; _tickWatchCount = 0;
+        _tickWatchFn = () => { _tickWatchCount++; };
+        c.on('tick', _tickWatchFn);
+      }
+    } catch (e) { _tickWatchFn = null; _tickWatchCtx = null; }
+  }
+  function stopTickWatch() {
+    if (_tickWatchFn && _tickWatchCtx && typeof _tickWatchCtx.off === 'function') {
+      try { _tickWatchCtx.off('tick', _tickWatchFn); } catch (e) { /* ignore */ }
+    }
+    _tickWatchFn = null; _tickWatchCtx = null;
+  }
+  function clearTransportWatchdog() {
+    if (_watchdogTimer) { clearTimeout(_watchdogTimer); _watchdogTimer = null; }
+    stopTickWatch();
+  }
+  function armTransportWatchdog() {
+    if (!recoveryActive()) return;   // iOS-only safety net
+    clearTransportWatchdog();
+    const ctx0 = rawOf(Tone.getContext());
+    const ctxTime0 = ctx0 ? ctx0.currentTime : 0;
+    startTickWatch();
+    _watchdogTimer = setTimeout(async () => {
+      _watchdogTimer = null;
+      if (playState !== 'playing') { stopTickWatch(); return; }   // paused/stopped meanwhile
+      const ticks = _tickWatchCount;
+      const rawNow = rawOf(Tone.getContext());
+      const ctxAdvanced = rawNow ? (rawNow.currentTime - ctxTime0 > 0.05) : false;
+      const alive = ticks > 0 && ctxAdvanced;   // scheduler is truly running only if BOTH
+      stopTickWatch();
+      recoveryLog(alive ? 'transport:advanced' : 'transport:stuck', {
+        ticks, ctxAdvanced, seconds: transportSecondsSafe(),
+        ctxState: audioContextState(), transportState: transportStateSafe(), clockSource: clockSourceSafe(),
+      });
+      if (alive || _watchdogRecovered) return;
+      _watchdogRecovered = true;
+      recoveryLog('watchdog:recover', { ticks, ctxAdvanced });
+      // Always rebuild the worker (cheap, fixes the dead-worker case).
+      rebuildTransportClock('watchdog');
+      // A frozen CLOCK (context.currentTime not advancing while 'running') is the
+      // zombie-context case — only a fresh context cures it. Best-effort: the
+      // resume inside may need a new gesture on iOS (handled by the re-verify +
+      // tap prompt below).
+      if (!ctxAdvanced) {
+        let r = null;
+        try { r = await recreateAudioContext(); } catch (e) { r = { ok: false, reason: (e && e.message) || String(e) }; }
+        if (onContextRecreated) { try { await onContextRecreated(r); } catch (e) { /* mic reattach optional */ } }
+        recoveryLog('watchdog:ctx-recreated', r || {});
+      }
+      try {
+        Tone.Transport.stop();
+        Tone.Transport.position = 0;
+        scheduleAll();
+        resetCursor();
+        Tone.Transport.start('+0.05');
+      } catch (e) { recoveryLog('watchdog:restart-failed', { error: (e && e.message) || String(e) }); }
+      // Re-verify the scheduler actually resumed; if not, prompt a fresh tap.
+      const rawV = rawOf(Tone.getContext());
+      const ctxTimeV = rawV ? rawV.currentTime : 0;
+      startTickWatch();
+      setTimeout(() => {
+        if (playState !== 'playing') { stopTickWatch(); return; }
+        const t2 = _tickWatchCount;
+        const rawV2 = rawOf(Tone.getContext());
+        const adv2 = rawV2 ? (rawV2.currentTime - ctxTimeV > 0.05) : false;
+        stopTickWatch();
+        if (t2 > 0 && adv2) { recoveryLog('watchdog:recovered', { ticks: t2 }); return; }
+        recoveryLog('watchdog:still-stuck', { ticks: t2, ctxAdvanced: adv2 });
+        setStatus('Audio stalled — tap Play again to restart.');
+      }, TRANSPORT_WATCHDOG_MS);
+    }, TRANSPORT_WATCHDOG_MS);
   }
 
   /* ---------- Master accompaniment volume (issue #74 follow-up, F5) ---- *
@@ -1166,6 +1327,15 @@ export async function playPause() {
   }
 
 export async function startPlayback() {
+    // Loud, conclusive Play-gesture trace for the #74 overlay (choir-training
+    // hang diagnosis): records the pre-unlock state so a device capture shows
+    // whether the gesture even reached here and what the scheduler looked like.
+    recoveryLog('play:gesture', {
+      via: 'startPlayback', playState, ctxState: audioContextState(),
+      transportState: transportStateSafe(), seconds: transportSecondsSafe(),
+      flagged: contextNeedsRecovery, clockSource: clockSourceSafe(),
+    });
+    _watchdogRecovered = false;   // fresh watchdog budget for this Play
     if (!(await unlockAudio())) return;   // suspended-context guard (issue #63)
     // Defensive lazy-load path (issue #66): covers a persisted 'voices'
     // preference restored at boot (loadInstrumentMode never fetches) — the
@@ -1194,12 +1364,14 @@ export async function startPlayback() {
     playState = 'playing';
     resetCursor();
     Tone.Transport.start('+0.1');
+    armTransportWatchdog();   // iOS: catch a dead-worker stall ~600ms in (no-op off iOS)
     updatePlayUI();
     setOverlay(false);
     setStatus(statusForPlaying());
   }
 
   function pause() {
+    clearTransportWatchdog();
     Tone.Transport.pause();
     playState = 'paused';
     updatePlayUI();
@@ -1208,6 +1380,12 @@ export async function startPlayback() {
   }
 
   async function resume() {
+    recoveryLog('play:gesture', {
+      via: 'resume', playState, ctxState: audioContextState(),
+      transportState: transportStateSafe(), seconds: transportSecondsSafe(),
+      flagged: contextNeedsRecovery, clockSource: clockSourceSafe(),
+    });
+    _watchdogRecovered = false;
     if (!(await unlockAudio())) return;   // suspended-context guard (issue #63)
     // If the unlock had to recreate the context (iOS interruption recovery), the
     // paused schedule + position died with the old context — restart cleanly
@@ -1215,12 +1393,14 @@ export async function startPlayback() {
     if (_lastUnlockRecreated) { await startPlayback(); return; }
     playState = 'playing';
     Tone.Transport.start();
+    armTransportWatchdog();   // iOS: a resumed-from-paused Transport can be dead-worker stalled too
     updatePlayUI();
     setOverlay(false);
     setStatus(statusForPlaying());
   }
 
 export function stop() {
+    clearTransportWatchdog();
     Tone.Transport.stop();
     Tone.Transport.position = 0;
     clearSchedule();
