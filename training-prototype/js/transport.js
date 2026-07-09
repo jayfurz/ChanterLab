@@ -211,11 +211,11 @@ export function audioContextInfo() {
     if (_scopeSyncMs === null) {
       let v = NaN;
       try { v = parseFloat(localStorage.getItem('chanterlab.scopeSyncMs')); } catch (e) { /* no storage */ }
-      // Default: iOS Safari's speaker+mic route runs the voice-processing audio
-      // unit, whose output latency is large — field-tuned to ≈220ms ON TOP of the
-      // iOS auto fallback (owner, iPhone speaker+mic). Desktop/other stay at 0
-      // (their auto base+outputLatency is already accurate). A stored value wins.
-      _scopeSyncMs = isFinite(v) ? v : (IS_IOS ? 220 : 0);
+      // Default 220ms on every device — owner field-tuned on iPhone speaker+mic
+      // AND desktop (speaker/Bluetooth output latency is commonly 150–250ms).
+      // A wired low-latency setup can pull the "Playback sync" slider down; a
+      // stored value always wins over this default.
+      _scopeSyncMs = isFinite(v) ? v : 220;
     }
     return _scopeSyncMs / 1000;
   }
