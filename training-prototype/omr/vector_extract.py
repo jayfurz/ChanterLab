@@ -1140,6 +1140,31 @@ def _head_dots(h, st):
     return up_dots if st.direction == "up" else len(distinct) - up_dots
 
 
+def _chord_dots(heads, st=None):
+    """Augmentation-dot count for a chord/note whose noteheads share a stem.
+
+    Every notehead of a chord carries the SAME duration, so a single-dotted
+    chord is drawn with one dot PER notehead. The greedy dot->head attachment
+    picks the head nearest in x, so a chord's stacked-in-y dots can pile onto
+    ONE head (e.g. a single-dotted third's two dots both land on the higher
+    head: (2, 0)); ``max(head.dots)`` over the group then mis-reads that as a
+    double-dotted chord -- over by half a beat (Bortniansky Cherubic No. 7 p3,
+    the single-dotted 'bly'/'the' Soprano chords read as 9/8). Recover the
+    shared per-notehead count by SPREADING the group's dots across its heads.
+    This is a no-op when the dots were attached one-per-head (sum == len), so
+    single notes and already-correct chords are byte-for-byte unchanged.
+
+    Dual-stem shared noteheads (issue #69) resolve dots PER VOICE via
+    _head_dots + the reconciliation; leave that path exactly as it was."""
+    if any(h.stem2 is not None for h in heads):
+        if st is not None:
+            return max(_head_dots(h, st) for h in heads)
+        return max(h.dots for h in heads)
+    if len(heads) == 1:
+        return heads[0].dots
+    return int(round(sum(h.dots for h in heads) / len(heads)))
+
+
 def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
     staff_ids = {id(s) for s in sy.staves}
     heads = [h for h in all_heads if id(h.staff) in staff_ids]
@@ -1179,7 +1204,7 @@ def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
                 beats = 1.0 / (2 ** st.nbeams)
         ev = Event(x=min(h.g.x0 for h in st_heads), kind="note",
                    heads=sorted(st_heads, key=lambda h: -h.step),
-                   beats=beats, dots=max(_head_dots(h, st) for h in st_heads),
+                   beats=beats, dots=_chord_dots(st_heads, st),
                    staff=staff, stem_dir=st.direction,
                    beam_group=st.beam_group, nbeams=st.nbeams)
         used.update(id(h) for h in st_heads)
@@ -1204,7 +1229,7 @@ def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
     for grp in grouped:
         ev = Event(x=min(h.g.x0 for h in grp), kind="note",
                    heads=sorted(grp, key=lambda h: -h.step),
-                   beats=grp[0].beats, dots=max(h.dots for h in grp),
+                   beats=grp[0].beats, dots=_chord_dots(grp),
                    staff=grp[0].staff, stem_dir=None)
         _route_event(ev, sv, events, ambiguous_out, report, page_no)
 
