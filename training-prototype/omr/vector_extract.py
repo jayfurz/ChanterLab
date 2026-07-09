@@ -448,6 +448,26 @@ def _page_paths(page):
             if pts:
                 r = d["rect"]
                 curves.append((r.x0, r.y0, r.x1, r.y1, pts))
+        elif d.get("fill") is not None and any(i[0] == "re" for i in items):
+            # Finale renders a HORIZONTAL (unslanted) beam as a filled
+            # rectangle (op "re"), not a filled polyline, so it misses the
+            # polyline-beam branch above and was silently dropped -- leaving
+            # every note under a flat beam read as an UNBEAMED QUARTER. (10-B
+            # Trisagion Hymn m9/21/30 "Holy Immortal"/"Bezsmertnyy": four
+            # beamed Soprano eighths + four beamed Alto eighths were each read
+            # as quarters, doubling the content to 6 beats and padding the bar
+            # to a silent 6/4 while T/B stayed 4/4.) Recover each beam-shaped
+            # rect (much wider than tall, and thin) as a beam quad. A thick
+            # final/repeat barline rect is tall-and-narrow (w < h) so the shape
+            # gate excludes it; the downstream beam matcher additionally gates
+            # on staff proximity and w/h, so nothing but a real beam can attach.
+            for i in items:
+                if i[0] != "re":
+                    continue
+                rr = i[1]
+                rw, rh = rr.x1 - rr.x0, rr.y1 - rr.y0
+                if rw > 2.0 * rh and rh < 8.0:
+                    quads.append((rr.x0, rr.y0, rr.x1, rr.y1))
     return long_h, short_h, vlines, quads, curves
 
 
