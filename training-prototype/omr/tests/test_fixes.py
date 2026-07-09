@@ -3,9 +3,10 @@
 emitted file (bortniansky_cherubic_7 was added there too), but that skips
 wherever the copyrighted PDF is absent; these add:
 
-  * pure-logic UNIT tests for the new decision point (_chord_dots) that run
-    wherever the engine imports, no PDF needed; and
-  * PDF-gated INTEGRATION tests asserting the fix by name in the emitted
+  * pure-logic UNIT tests for the new decision points (_chord_dots, and later
+    the above-staff rubric guard) that run wherever the engine imports, no
+    PDF needed; and
+  * PDF-gated INTEGRATION tests asserting each fix by name in the emitted
     MusicXML, so a byte change is explained in terms of the behaviour that
     moved, not just a hash mismatch.
 """
@@ -91,6 +92,15 @@ def test_bly_chord_is_single_dotted(bortniansky_soprano):
     assert "<dot/><dot/>" not in m48                  # no double-dot
     assert 'duration>12</duration><type>half</type><dot/>' in m48
     assert "<time" not in m48                          # stays 4/4, no invented 9/8
+
+
+def test_angel_wholenote_is_soprano_voice2(bortniansky_soprano):
+    # m51 Soprano: melisma in voice 1 + sustained A4 whole in voice 2 via backup
+    m51 = _measure(bortniansky_soprano[1], 51)
+    assert "<backup>" in m51 and "<voice>2</voice>" in m51
+    assert re.search(r'<step>A</step><octave>4</octave></pitch>'
+                     r'<duration>16</duration><voice>2</voice><type>whole</type>',
+                     m51), "A4 whole note not emitted as soprano voice 2"
 
 
 def test_no_double_dots_anywhere(bortniansky_soprano):

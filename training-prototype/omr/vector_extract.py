@@ -235,6 +235,8 @@ class Event:
     lyric: list = field(default_factory=list)   # verse dicts: {text,syllabic,number}
     unison_assumed: bool = False
     ambiguous: bool = False    # lone whole / centered rest on a shared staff
+    divisi: bool = False       # a 3rd-voice overlap held under a moving line;
+    # emitted as MusicXML voice 2 and excluded from beat sums (see System)
     beam_group: Optional[int] = None   # id shared by stems under one beam
     nbeams: int = 0                    # beam levels on this event's stem
     whole_measure: bool = False        # SMuFL restWhole (U+E4E3): its true
@@ -287,6 +289,11 @@ class System:
     bar_xs: list = field(default_factory=list)
     layout: str = "4staff"     # or 2staff
     events: dict = field(default_factory=dict)   # voice -> [Event] (x-sorted)
+    # Divisi overlap events (issue: 3rd voice on a 2-voice staff -- a sustained
+    # whole note held UNDER a moving line). Kept OUT of `events` on purpose so
+    # they never touch beat sums or the measure-length reconciliation; emitted
+    # as MusicXML voice 2 (via <backup>) in their host voice's part.
+    divisi_events: list = field(default_factory=list)
     ts_beats: Optional[float] = None   # printed time-sig length (quarter units),
     # captured but NOT used for metering (beat sums win — see the note in
     # extract_page); a fallback for whole-measure-rest normalization only.
@@ -1532,6 +1539,16 @@ def _pair_solutions(u_evs, d_evs, p_evs, staff, up, down, max_nodes=20000):
                     opts.append((prior, "to_d", e))
                 if not (busy_u or busy_d) and abs(cumU - cumD) < 1e-6:
                     opts.append((0.2, "to_both", e))
+                # Both voices already sound in this column: a lone whole that
+                # fits neither is a 3rd voice -- a note sustained UNDER the
+                # moving line. Overlap it onto the upper voice (emitted as
+                # MusicXML voice 2), costing zero beats, so the bar can still
+                # balance instead of the whole being dumped into a voice and
+                # blowing the measure length (Bortniansky Cherubic No. 7 p3,
+                # the held A under the Soprano 'An-gel' melisma -> A/T/B ran
+                # 8 beats vs S's 4 and desynced the rest of the piece).
+                if busy_u and busy_d:
+                    opts.append((0.3, "divisi_u", e))
             if not opts:
                 opts.append((0.5, "to_u" if not busy_u else "to_d", e))
             new_po = []
@@ -1567,6 +1584,9 @@ def _pair_solutions(u_evs, d_evs, p_evs, staff, up, down, max_nodes=20000):
                         pu += tb
                         pd += tb
                         pacts.append(("assign_both", e, None))
+                    elif tag == "divisi_u":
+                        # overlaps the upper voice: contributes 0 beats
+                        pacts.append(("divisi", e, up))
                 explore(ci + 1,
                         cumU + u_beats + du + pu,
                         cumD + d_beats + dd + pd,
@@ -1625,6 +1645,15 @@ def _commit_solution(sy, sol, up, down, report):
             sy.events.setdefault(up, []).append(e_top)
             sy.events.setdefault(down, []).append(e_bot)
             report.stats["stacked_wholes_split"] += 1
+        elif kind == "divisi":
+            # a 3rd voice overlapping `target`: kept OUT of sy.events (never
+            # metered) and emitted as MusicXML voice 2 in target's part.
+            e2 = _clone_event(e, e.heads, target)
+            e2.kind = e.kind
+            e2.ambiguous = False
+            e2.divisi = True
+            sy.divisi_events.append(e2)
+            report.stats["divisi_notes_to_voice2"] += 1
 
 
 def _merge_divisi(sy, report, page_no):
@@ -2210,6 +2239,9 @@ def build_score(pdf_path, pages=None, report=None):
     voices_present = [v for v in VOICE_ORDER
                       if any(v in sy.events for sy in all_systems)]
     score = {v: [] for v in voices_present}
+    # parallel channel: voice -> list of measures of divisi (voice-2) events,
+    # never metered, emitted alongside `score` in emit_musicxml
+    divisi_score = {v: [] for v in voices_present}
     measure_meta = []
     for si, sy in enumerate(all_systems):
         ref_staff = sy.staves[0]
@@ -2233,6 +2265,16 @@ def build_score(pdf_path, pages=None, report=None):
                 evs.sort(key=lambda e: e.x)
                 score[v].append(evs)
                 meta["sums"][v] = sum(e.total_beats for e in evs)
+                devs = []
+                for e in sy.divisi_events:
+                    if e.voice != v:
+                        continue
+                    lo, hi = staff_ranges[id(e.staff)][mi] \
+                        if mi < len(staff_ranges[id(e.staff)]) else ranges[mi]
+                    if lo <= e.x < hi:
+                        devs.append(e)
+                devs.sort(key=lambda e: e.x)
+                divisi_score[v].append(devs)
             measure_meta.append(meta)
 
     # ---- attach tempo marks to the measure under them
@@ -2393,6 +2435,7 @@ def build_score(pdf_path, pages=None, report=None):
     sections = _find_sections(doc, measure_meta, title, report)
 
     return {"title": title, "voices": voices_present, "score": score,
+            "divisi": divisi_score,
             "meta": measure_meta, "tempo": tempo_state["bpm"],
             "report": report, "systems": all_systems, "sections": sections}
 
@@ -2711,6 +2754,7 @@ def _layout_measures(result):
     are split at all-voice onset boundaries (joined by invisible barlines)
     so renderers can wrap lines and space notes like the engraving."""
     score, voices, meta = result["score"], result["voices"], result["meta"]
+    divisi = result.get("divisi", {})
     out = []
     for mi in range(len(meta)):
         m_sum = max([meta[mi]["sums"].get(v, 0) for v in voices] + [0])
@@ -2723,12 +2767,18 @@ def _layout_measures(result):
             b0, b1 = bounds[si], bounds[si + 1]
             seg_events = {}
             seg_sums = {}
+            seg_divisi = {}
             for v in voices:
                 evs = score[v][mi]
                 pos, _total = _voice_onsets(evs)
                 seg = [e for e, p in zip(evs, pos) if b0 - 1e-6 <= p < b1 - 1e-6]
                 seg_events[v] = seg
                 seg_sums[v] = sum(e.total_beats for e in seg)
+                # divisi (voice-2) overlaps span the whole measure, so they ride
+                # in the first printed segment only (si == 0).
+                dv_measures = divisi.get(v, [])
+                seg_divisi[v] = dv_measures[mi] \
+                    if si == 0 and mi < len(dv_measures) else []
             frac0, frac1 = (b0 / m_sum if m_sum else 0), \
                            (b1 / m_sum if m_sum else 1)
             width = (hi - lo) * (frac1 - frac0) / sp * 10
@@ -2736,6 +2786,7 @@ def _layout_measures(result):
                 "number": mi + 1,
                 "implicit": si > 0,
                 "events": seg_events,
+                "divisi": seg_divisi,
                 "sums": seg_sums,
                 "m_sum": round(b1 - b0, 4),
                 "key": meta[mi]["key"],
@@ -2903,14 +2954,29 @@ def emit_musicxml(result):
             # accidental memory resets per PRINTED measure (splits carry it)
             if lm["first_of_printed"]:
                 memory = {}
+            dvs = lm.get("divisi", {}).get(v, [])
             beam_xml = _beam_xml(evs)
             for e, bx in zip(evs, beam_xml):
-                _emit_event(w, e, memory, cur_key, bx)
+                # <voice>1</voice> only appears in measures that also carry a
+                # voice 2 -- so every divisi-free part stays byte-identical.
+                _emit_event(w, e, memory, cur_key, bx,
+                            voice_num=1 if dvs else None)
             # pad under-full measures so parts stay aligned
             deficit = m_sum - lm["sums"].get(v, 0)
             if deficit > 1e-6:
                 w(f'      <forward><duration>'
                   f'{int(round(deficit * DIVISIONS))}</duration></forward>')
+            if dvs:
+                # A 3rd voice sustained under this line: rewind the measure and
+                # lay it in as MusicXML voice 2 (see System.divisi_events).
+                w(f'      <backup><duration>{int(round(m_sum * DIVISIONS))}'
+                  f'</duration></backup>')
+                for de in sorted(dvs, key=lambda e: e.x):
+                    _emit_event(w, de, memory, cur_key, "", voice_num=2)
+                ddeficit = m_sum - sum(e.total_beats for e in dvs)
+                if ddeficit > 1e-6:
+                    w(f'      <forward><duration>'
+                      f'{int(round(ddeficit * DIVISIONS))}</duration></forward>')
             if lm["invisible_right"]:
                 w('      <barline location="right">'
                   '<bar-style>none</bar-style></barline>')
@@ -2939,12 +3005,17 @@ def _clef_xml(v):
     return '<clef><sign>G</sign><line>2</line></clef>'
 
 
-def _emit_event(w, e, memory, key_fifths, beam_xml=""):
+def _emit_event(w, e, memory, key_fifths, beam_xml="", voice_num=None):
     dur = int(round(e.total_beats * DIVISIONS))
     typ = TYPE_OF.get(e.beats)
+    # <voice> is emitted only where a measure carries two voices (divisi), so it
+    # is absent -- and the bytes unchanged -- for every ordinary single-voice
+    # part. Its MusicXML position is after <duration>/<tie>, before <type>.
+    voice_xml = f'<voice>{voice_num}</voice>' if voice_num else ''
     if e.kind == "rest":
         w('      <note><rest/>'
           f'<duration>{dur}</duration>'
+          + voice_xml
           + (f'<type>{typ}</type>' if typ else "")
           + "".join('<dot/>' for _ in range(e.dots)) + '</note>')
         return
@@ -2985,6 +3056,7 @@ def _emit_event(w, e, memory, key_fifths, beam_xml=""):
             parts.append('<tie type="start"/>')
         if e.tie_stop:
             parts.append('<tie type="stop"/>')
+        parts.append(voice_xml)
         if typ:
             parts.append(f'<type>{typ}</type>')
         parts.extend('<dot/>' for _ in range(e.dots))
