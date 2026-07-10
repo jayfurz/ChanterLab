@@ -1,0 +1,88 @@
+# Deny by default. Only inputs explicitly needed for the two wasm-pack builds
+# and the runtime web trees can enter the build context.
+**
+
+!Dockerfile
+!Cargo.toml
+!Cargo.lock
+!src/
+!src/**
+!server/
+!server/byzorgan-web-server.py
+
+!web/
+!web/**
+# Generated locally; the container rebuilds these from Rust sources.
+web/pkg/
+web/pkg-worklet/
+# Browser/unit tests and package metadata are not runtime assets.
+web/score/tests/
+web/score/package.json
+
+!training-prototype/
+!training-prototype/*.html
+!training-prototype/*.css
+!training-prototype/*.js
+!training-prototype/manifest.webmanifest
+!training-prototype/js/
+!training-prototype/js/**
+!training-prototype/icons/
+!training-prototype/icons/**
+!training-prototype/vendor/
+!training-prototype/vendor/**
+# All 5 built-ins ship baked into the image, not just the tracked
+# control_satb.musicxml: the other 4 are gitignored (not tracked in git) but
+# are covered by the same owner-confirmed publication permission as the
+# omr/out catalog (see training-prototype/omr/SOURCES.md, 2026-07-10) and are
+# small/static reference pieces, not the actively-growing catalog. The shared
+# tenant-site Helm chart supports exactly one PVC mount per container, already
+# claimed by omr/out below -- baking these in avoids fighting that chart for
+# a second mount for four files that rarely change. This ONLY works because
+# .dockerignore filters the build context, not git tracking, so files that
+# are gitignored but physically present on disk still enter the image unless
+# explicitly excluded (which is exactly why the omr/ exclusions below are
+# comprehensive, not selective).
+!training-prototype/content/
+!training-prototype/content/*.musicxml
+!training-prototype/samples/
+!training-prototype/samples/voices/
+!training-prototype/samples/voices/**
+
+# Defense in depth: no OMR code, source corpus, intermediates, verification
+# output, or pipeline environment may enter the context. omr/out is the sole
+# exception: the image creates it as an empty PVC mount point (populated at
+# deploy time by scripts/publish_chanterlab_catalog.sh, infra repo) --
+# everything else under omr/ is excluded below, unconditionally.
+training-prototype/omr/
+training-prototype/omr/**
+training-prototype/omr/pdfs/
+training-prototype/omr/pages/
+training-prototype/omr/gt_crops/
+training-prototype/omr/shots/
+training-prototype/omr/verify/
+training-prototype/omr/out/
+training-prototype/omr/.venv/
+
+# Never admit repository metadata, dependency trees, caches, local virtual
+# environments, test fixtures, or build output even if a future allow rule is
+# accidentally broadened.
+.git/
+.git/**
+**/.git/
+**/.git/**
+**/node_modules/
+**/node_modules/**
+target/
+target/**
+**/target/
+**/target/**
+**/.venv/
+**/.venv/**
+**/venv/
+**/venv/**
+**/__pycache__/
+**/__pycache__/**
+**/tests/
+**/tests/**
+**/*fixture*/
+**/*fixture*/**
