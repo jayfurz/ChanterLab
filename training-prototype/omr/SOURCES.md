@@ -69,7 +69,7 @@ apart (polite). No auth needed for the blob URLs themselves.
 ```sh
 cd training-prototype/omr
 uv venv --python 3.11 .venv
-uv pip install --python .venv/bin/python oemer onnxruntime pymupdf
+uv pip install --python .venv/bin/python oemer onnxruntime pymupdf -r requirements-release.txt
 # render a music page to PNG (skip the title page)
 pdftoppm -png -r 300 pdfs/01_trisagion_lozowchuk_satb.pdf pages/01_trisagion
 # apply the OpenCV-5 find_lines patch (see note above), then:

@@ -77,6 +77,8 @@ frontier for the next engine iteration.
 cd training-prototype/omr
 uv venv --python 3.11 .venv          # once
 uv pip install --python .venv/bin/python pymupdf
+# Required before catalog release, promotion, or restore commands:
+uv pip install --python .venv/bin/python -r requirements-release.txt
 
 # PDF -> MusicXML + confidence report (exit 2 if integrity < 90%)
 .venv/bin/python pipeline.py pdfs/01_trisagion_lozowchuk_satb.pdf \

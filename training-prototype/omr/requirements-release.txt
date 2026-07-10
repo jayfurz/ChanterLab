@@ -1,0 +1,2 @@
+# Required by catalog_release.py and backup_restore.py for schema validation.
+jsonschema>=4.18,<5
