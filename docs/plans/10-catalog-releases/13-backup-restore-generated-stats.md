@@ -1,6 +1,6 @@
 # CAT-03: Backup, Restore, And Generated Statistics
 
-Status: blocked on `CAT-02`. Priority: P0.
+Status: ready; `CAT-02` completed 2026-07-10. Priority: P0.
 
 Dependencies: immutable releases. Blocks: operational confidence and cleanup.
 
@@ -32,4 +32,3 @@ are recorded; generated stats match the active release.
 
 Report backup locations abstractly without secrets, restore evidence, hashes,
 recovery timings, failures encountered, and scheduled drill cadence.
-
