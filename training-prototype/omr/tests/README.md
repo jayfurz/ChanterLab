@@ -23,12 +23,11 @@ uv pip install --python .venv/bin/python pytest
 (this is the same `uv pip install --python .venv/bin/python <pkg>` pattern
 `README.md` already uses to install `pymupdf` into this venv.)
 
-`test_release_descriptor.py` (CAT-01) additionally needs `jsonschema`, which
-`release_descriptor.py`'s `validate_descriptor()` uses to enforce
-`schema/release_descriptor.schema.json` at runtime:
+`test_release_descriptor.py` (CAT-01) and the release/restore tooling require
+the declared schema-validation dependency:
 
 ```sh
-uv pip install --python .venv/bin/python jsonschema
+uv pip install --python .venv/bin/python -r requirements-release.txt
 ```
 
 **Local-only by design.** The corpus PDFs live in `omr/pdfs/ingest/`, which

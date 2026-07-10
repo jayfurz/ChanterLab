@@ -73,9 +73,9 @@ jobs:
           python-version: "3.11"
       - name: Install test deps
         working-directory: training-prototype/omr
-        # jsonschema (CAT-01): release_descriptor.py's validate_descriptor()
-        # enforces schema/release_descriptor.schema.json with it at runtime.
-        run: pip install pymupdf pytest jsonschema
+        # The release contract's structural validator is a declared runtime
+        # dependency, not an ad-hoc CI-only install.
+        run: pip install pymupdf pytest -r requirements-release.txt
       - name: Run OMR regression suite
         id: pytest
         working-directory: training-prototype/omr
@@ -123,7 +123,7 @@ jobs:
           if [ -d "$PDF_DIR" ] && [ -n "$(ls -A "$PDF_DIR" 2>/dev/null)" ]; then
             echo "Private corpus PDFs found at $PDF_DIR — running the full suite for real."
             python3 -m venv /tmp/omr-corpus-venv
-            /tmp/omr-corpus-venv/bin/pip install -q pymupdf pytest jsonschema
+            /tmp/omr-corpus-venv/bin/pip install -q pymupdf pytest -r training-prototype/omr/requirements-release.txt
             set -o pipefail
             ( cd training-prototype/omr && /tmp/omr-corpus-venv/bin/python -m pytest tests/ -v ) 2>&1 | tee /tmp/omr-corpus-pytest.log
             summary=$(grep -E '^=+ .*(passed|failed|skipped|error).* in [0-9]' /tmp/omr-corpus-pytest.log | tail -1 || true)

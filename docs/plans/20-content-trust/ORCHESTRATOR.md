@@ -1,6 +1,6 @@
 # Content Trust Orchestrator
 
-Status: ready. `CAT-01` and `CAT-02` completed 2026-07-10.
+Status: ready. `CAT-01` through `CAT-03` completed 2026-07-10.
 
 Roadmap IDs: `TRUST-01` through `TRUST-05`.
 
