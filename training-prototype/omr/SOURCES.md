@@ -4,10 +4,22 @@
 
 Freely published by the Antiochian Orthodox Christian Archdiocese Department of
 Sacred Music. Library: https://www.antiochian.org/sacred-music-library
-Used here for research/prototyping. Composer credit and © belong to the
-respective composers/publishers (these carry "Music Copyright © Tendershoot
-Music 2022, used with permission" in the score footer). Do not redistribute;
-this directory is for local OMR evaluation only.
+Composer credit and © belong to the respective composers/publishers (these
+carry "Music Copyright © Tendershoot Music 2022, used with permission" in the
+score footer).
+
+**Publication status (owner-confirmed 2026-07-10):** the owner holds
+permission covering public serving of the *extracted MusicXML catalog*
+(`omr/out/ingest/*.musicxml`, `manifest.json`, and the built-in
+`content/*.musicxml` pieces) through the ChanterLab training app — this is
+what's already live at chanterlab.com. See
+[RIGHTS-01](/docs/plans/10-catalog-releases/14-publication-rights-controls.md)
+for the tracked scope/attribution/takedown work this still needs.
+
+This permission does not extend to the raw source material below. The PDFs,
+rendered pages, and other OMR-pipeline intermediates in this directory remain
+local-only, not for redistribution, and not committed to git — see the note
+below.
 
 | File | Piece | Composer | URL |
 |---|---|---|---|
@@ -29,12 +41,15 @@ The site is an Angular SPA backed by a REST API on the same origin:
 PDFs were fetched from Azure blob storage with a descriptive User-Agent, 1.5 s
 apart (polite). No auth needed for the blob URLs themselves.
 
-> **Not committed to git.** The source PDFs, rendered pages, `oemer` output,
-> and the OMR-derived `content/trisagion_omr.musicxml` are `.gitignore`d
-> because they are copyrighted (used with permission for local research only)
-> and the project brief forbids committing copyrighted editions. Regenerate
-> them locally with the steps below. The hand-made `content/control_satb.musicxml`
-> is original and *is* committed.
+> **Not committed to git.** The source PDFs, rendered pages, and `oemer`
+> output are `.gitignore`d — they are copyrighted source/intermediate material
+> not covered by the publication permission above, and the project brief
+> forbids committing copyrighted editions regardless. Regenerate them locally
+> with the steps below. `content/trisagion_omr.musicxml` and the app's other
+> gitignored built-ins are extracted catalog output (covered by the
+> publication permission, and already served) but stay gitignored like the
+> rest of the generated catalog, per BASE-01's catalog-custody plan. The
+> hand-made `content/control_satb.musicxml` is original and *is* committed.
 
 ## OMR tooling
 
