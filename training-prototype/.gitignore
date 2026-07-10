@@ -1,11 +1,16 @@
 # Python OMR environment (large; reproduce via omr/SOURCES.md)
 omr/.venv/
+# Release worktrees may symlink the centrally stored private environment and
+# corpus instead of duplicating hundreds of MB; trailing-slash rules do not
+# match symlinks, so cover both forms explicitly.
+omr/.venv
 
 # Copyrighted source scores and anything derived from them are NOT committed.
 # (Antiochian Sacred Music Library PDFs: "© Tendershoot Music 2022, used with
 #  permission" — see omr/SOURCES.md. The project brief forbids committing
 #  copyrighted editions to the repo.)
 omr/pdfs/
+omr/pdfs
 omr/pages/
 omr/out/
 # Hand-authored piece corrections are derived from the copyrighted PDFs too;
