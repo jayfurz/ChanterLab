@@ -71,8 +71,8 @@ catalog, not re-derived from source alone).
   anywhere yet), verification evidence (only recorded when explicitly
   supplied), `integrity`/`manifest_validation` problem lists, and an explicit
   `readiness.promotable` gate with reasons.
-- **Content fingerprint:** a single sha256 covering parser/app provenance +
-  every content-section hash + tombstones — the actual "same content, same
+- **Content fingerprint:** a single sha256 covering parser/app provenance,
+  the raw catalog input hash, every content-section hash, and tombstones — the actual "same content, same
   identity" property, proven by test to (a) stay identical across builds a
   month apart in wall-clock time and (b) change when either the on-disk
   content OR the supplied parser SHA changes (provenance is part of the
@@ -102,20 +102,23 @@ catalog, not re-derived from source alone).
   cover manifest-published (`accepted`) entries only — `state` is the full
   private working set (all statuses). Documented in both
   `RELEASE_SCHEMA.md` and the module/schema docstrings, not just implied.
-- **jsonschema now authoritative:** `schema/release_descriptor.schema.json`
+- **Validation fails closed:** `schema/release_descriptor.schema.json`
   is enforced via the `jsonschema` package (new dependency, added to
   `training-prototype/omr/tests/README.md` and to
   `.github/workflows/unified-required-ci.yml`'s `omr-rights-safe` and
   `omr-private-corpus` pip-install steps — both authorized by the owner).
-  Semantic checks JSON Schema can't express (release_id/content_fingerprint
-  cross-consistency, the private-path leak scanner) run on top in Python.
+  Semantic checks JSON Schema can't express run on top in Python: aggregate
+  inventory hashes/counts, the content fingerprint, and readiness are
+  recomputed; release ID and timestamp consistency are checked; and every
+  value is scanned for private paths. A serialized descriptor cannot claim
+  different evidence while remaining valid.
 - **Determinism:** proven by test — same fixture inputs produce identical
   `content_fingerprint` and every section hash across builds a month apart
   in wall-clock time (only `release_id`/`generated_at` differ, exactly as
   intended).
 - **Test evidence:** `training-prototype/omr/tests/test_release_descriptor.py`,
-  64 tests (up from 31), all against synthetic hand-made fixtures whose path
-  conventions match real production data — 81 passed, 19 skipped
+  71 tests (up from 31), all against synthetic hand-made fixtures whose path
+  conventions match real production data — 88 passed, 19 skipped
   (pre-existing, PDF-corpus-gated) in the full `training-prototype/omr`
   suite. Picked up automatically by the existing `omr-rights-safe` CI job.
 - **Real-catalog validation (2026-07-10, read-only, no writes):** ran

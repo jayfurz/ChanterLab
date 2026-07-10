@@ -409,14 +409,15 @@ def release_id_for(now: datetime, content_fingerprint: str) -> str:
 def compute_content_fingerprint(*, parser_git_sha, app_git_sha, input_section, manifest_section,
                                  musicxml_section, reports_section, state_section, overrides_section) -> str:
     """A single canonical hash covering everything that makes two releases
-    the SAME release: parser/app provenance, source inventory, manifest,
-    MusicXML, reports, state, overrides, and tombstones. Same content always
+    the SAME release: parser/app provenance, raw catalog input, source
+    inventory, manifest, MusicXML, reports, state, overrides, and tombstones. Same content always
     produces the same fingerprint; this is a real sha256 over canonical JSON,
     so different content collides only with cryptographically negligible
     probability — never in practice."""
     payload = {
         "parser_git_sha": parser_git_sha,
         "app_git_sha": app_git_sha,
+        "catalog_input_hash": input_section["catalog_input_hash"],
         "source_inventory_hash": input_section["source_inventory_hash"],
         "manifest_hash": manifest_section["hash"],
         "musicxml_hash": musicxml_section["hash"],
@@ -452,7 +453,11 @@ def compute_readiness(descriptor: dict) -> dict:
     v = descriptor["verification"]["regression_suite"]
     if not v["recorded"]:
         reasons.append("verification (regression suite) was not recorded for this build")
-    elif (v["failed"] or 0) > 0:
+    elif any(v[name] is None for name in ("passed", "skipped", "failed")):
+        reasons.append("verification record is incomplete (passed/skipped/failed are all required)")
+    elif any(v[name] < 0 for name in ("passed", "skipped", "failed")):
+        reasons.append("verification counts cannot be negative")
+    elif v["failed"] > 0:
         reasons.append(f"verification reported {v['failed']} failing test(s)")
     mv_problems = descriptor["manifest_validation"]["problems"]
     if mv_problems:
@@ -481,7 +486,8 @@ def build_release_descriptor(
     catalog_path = omr_dir / "pdfs" / "survey" / "catalog.json"
     override_dir = omr_dir / "overrides"
 
-    state = _load_json(state_path) or {}
+    loaded_state = _load_json(state_path)
+    state = loaded_state or {}
     manifest = _load_json(manifest_path)
 
     now = now or datetime.now(timezone.utc)
@@ -491,7 +497,7 @@ def build_release_descriptor(
     manifest_section = build_manifest_section(manifest, integrity_problems=integrity_problems)
     musicxml_section = build_musicxml_section(manifest, omr_dir=omr_dir, integrity_problems=integrity_problems)
     reports_section = build_reports_section(manifest, omr_dir=omr_dir, integrity_problems=integrity_problems)
-    state_section = build_state_section(state_path, state if state else None)
+    state_section = build_state_section(state_path, loaded_state)
     overrides_section = build_overrides_section(override_dir, integrity_problems=integrity_problems)
 
     # Builder identity is derived from THIS module's own location — the code
@@ -606,10 +612,12 @@ def validate_descriptor(descriptor: dict) -> list[str]:
         return ["descriptor is not a JSON object"]
 
     if jsonschema is not None:
-        try:
-            jsonschema.validate(descriptor, _load_schema())
-        except jsonschema.exceptions.ValidationError as e:
-            problems.append(f"schema violation at {'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}")
+        validator = jsonschema.Draft202012Validator(
+            _load_schema(), format_checker=jsonschema.FormatChecker(),
+        )
+        for error in sorted(validator.iter_errors(descriptor), key=lambda e: list(e.absolute_path)):
+            location = "/".join(str(p) for p in error.absolute_path) or "<root>"
+            problems.append(f"schema violation at {location}: {error.message}")
     else:  # pragma: no cover
         problems.append("jsonschema package is not installed — structural validation was NOT performed")
 
@@ -623,6 +631,62 @@ def validate_descriptor(descriptor: dict) -> list[str]:
         problems.append(f"release_id does not match the expected 'rel-<UTC stamp>-<12 hex chars>' shape: {rid!r}")
     elif fp and not rid.endswith(fp[:12]):
         problems.append(f"release_id suffix does not match content_fingerprint prefix: {rid!r} vs {fp[:12]!r}")
+
+    generated_at = descriptor.get("generated_at")
+    try:
+        parsed_generated_at = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        if parsed_generated_at.utcoffset() is None:
+            raise ValueError("timezone offset is required")
+    except (AttributeError, TypeError, ValueError):
+        problems.append(f"generated_at is not a timezone-aware ISO 8601 timestamp: {generated_at!r}")
+
+    # Recompute every aggregate that can be derived from the descriptor.
+    # JSON Schema proves types and shapes; these checks prove that the values
+    # agree with one another after serialization or transport.
+    try:
+        aggregate_specs = (
+            ("input.source_inventory", descriptor["input"]["source_inventory"],
+             descriptor["input"]["source_inventory_count"], descriptor["input"]["source_inventory_hash"]),
+            ("musicxml.per_entry", descriptor["musicxml"]["per_entry"],
+             descriptor["musicxml"]["count"], descriptor["musicxml"]["hash"]),
+            ("reports.per_entry", descriptor["reports"]["per_entry"],
+             descriptor["reports"]["count"], descriptor["reports"]["hash"]),
+            ("overrides.per_stem", descriptor["overrides"]["per_stem"],
+             descriptor["overrides"]["count"], descriptor["overrides"]["hash"]),
+        )
+        for name, value, claimed_count, claimed_hash in aggregate_specs:
+            if claimed_count != len(value):
+                problems.append(f"{name} count mismatch: claimed {claimed_count}, actual {len(value)}")
+            actual_hash = _sha256_json_canonical(value)
+            if claimed_hash != actual_hash:
+                problems.append(f"{name} hash mismatch: claimed {claimed_hash!r}, recomputed {actual_hash!r}")
+
+        expected_fingerprint = compute_content_fingerprint(
+            parser_git_sha=descriptor["code"]["parser_git_sha"],
+            app_git_sha=descriptor["code"]["app_git_sha"],
+            input_section=descriptor["input"],
+            manifest_section=descriptor["manifest"],
+            musicxml_section=descriptor["musicxml"],
+            reports_section=descriptor["reports"],
+            state_section=descriptor["state"],
+            overrides_section=descriptor["overrides"],
+        )
+        if fp != expected_fingerprint:
+            problems.append(
+                "content_fingerprint does not match descriptor content: "
+                f"claimed {fp!r}, recomputed {expected_fingerprint!r}"
+            )
+
+        expected_readiness = compute_readiness(descriptor)
+        if descriptor["readiness"] != expected_readiness:
+            problems.append(
+                "readiness does not match descriptor evidence: "
+                f"claimed {descriptor['readiness']!r}, recomputed {expected_readiness!r}"
+            )
+    except (KeyError, TypeError, ValueError) as e:
+        # The structural errors above identify the malformed field. Preserve
+        # fail-closed behavior without letting semantic validation raise.
+        problems.append(f"cross-field validation could not run: {e}")
 
     mv = descriptor.get("manifest_validation") or {}
     if mv.get("problems"):

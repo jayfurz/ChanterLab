@@ -194,6 +194,22 @@ def test_fingerprint_includes_parser_provenance():
     assert d1["content_fingerprint"] != d2["content_fingerprint"]
 
 
+def test_fingerprint_includes_raw_catalog_input(tmp_path):
+    changed = _copy_fixture(tmp_path)
+    catalog_path = changed / "pdfs" / "survey" / "catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog[0]["upstream_metadata_revision"] = 2
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    d1 = _build()
+    d2 = _build(omr_dir=changed)
+    # State, emitted files, and source inventory are unchanged. The raw
+    # catalog input alone must still be part of release identity.
+    assert d1["input"]["source_inventory_hash"] == d2["input"]["source_inventory_hash"]
+    assert d1["input"]["catalog_input_hash"] != d2["input"]["catalog_input_hash"]
+    assert d1["content_fingerprint"] != d2["content_fingerprint"]
+
+
 def test_fingerprint_is_a_real_sha256_hex_digest():
     fp = _build()["content_fingerprint"]
     assert len(fp) == 64
@@ -245,6 +261,44 @@ def test_validate_descriptor_fails_closed_on_fingerprint_release_id_mismatch():
     d["content_fingerprint"] = "0" * 64
     problems = rd.validate_descriptor(d)
     assert any("does not match content_fingerprint" in p for p in problems)
+
+
+def test_validate_descriptor_recomputes_content_fingerprint():
+    d = _build()
+    # Keep release_id internally consistent with the forged fingerprint so
+    # the prefix check alone cannot catch the mutation.
+    d["content_fingerprint"] = "0" * 64
+    d["release_id"] = d["release_id"][:-12] + "0" * 12
+    problems = rd.validate_descriptor(d)
+    assert any("does not match descriptor content" in p for p in problems)
+
+
+def test_validate_descriptor_recomputes_inventory_hashes_and_counts():
+    d = _build()
+    d["musicxml"]["per_entry"]["fixture_piece_a"] = "0" * 64
+    d["reports"]["count"] = 99
+    problems = rd.validate_descriptor(d)
+    assert any("musicxml.per_entry hash mismatch" in p for p in problems)
+    assert any("reports.per_entry count mismatch" in p for p in problems)
+
+
+def test_validate_descriptor_recomputes_readiness():
+    d = _build()
+    d["readiness"] = {"promotable": True, "reasons": []}
+    problems = rd.validate_descriptor(d)
+    assert any("readiness does not match descriptor evidence" in p for p in problems)
+
+
+def test_validate_descriptor_rejects_partial_verification_record():
+    d = _build(verified_passed=10)
+    problems = rd.validate_descriptor(d)
+    assert any("verification" in p or "passed/skipped/failed" in p for p in problems)
+
+
+def test_validate_descriptor_enforces_date_time_format():
+    d = _build()
+    d["generated_at"] = "yesterday"
+    assert any("generated_at" in p for p in rd.validate_descriptor(d))
 
 
 def test_validate_descriptor_fails_closed_on_reported_manifest_problems():
@@ -468,6 +522,18 @@ def test_empty_omr_dir_produces_honest_zero_descriptor(tmp_path):
     # Still a fully schema-valid descriptor — absence is honestly reported,
     # not an invalid document (only readiness reflects "don't promote this").
     assert rd.validate_descriptor(d) == []
+
+
+def test_present_but_empty_state_is_reported_present(tmp_path):
+    empty = tmp_path / "empty_omr"
+    out = empty / "out" / "ingest"
+    out.mkdir(parents=True)
+    (out / "ingest_state.json").write_text("{}\n", encoding="utf-8")
+
+    d = rd.build_release_descriptor(omr_dir=empty, now=FIXED_NOW)
+    assert d["state"]["present"] is True
+    assert d["state"]["record_count"] == 0
+    assert d["state"]["hash"] is not None
 
 
 # ---------------------------------------------------------------------------

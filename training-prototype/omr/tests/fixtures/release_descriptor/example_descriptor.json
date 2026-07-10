@@ -2,14 +2,14 @@
   "code": {
     "app_git_sha": null,
     "builder_dirty": true,
-    "builder_git_sha": "cc62a1314b78ea1bcaf7e817c1e5624fd3ed69ea",
+    "builder_git_sha": "a6509f22915e06f2dc2c63b132041425addc22e1",
     "parser_git_sha": null
   },
   "compatibility": {
     "min_reader_schema_version": 1
   },
-  "content_fingerprint": "cd1e0d386a01304724189f1f7619b22af85381a384730753cde2db610a54e457",
-  "generated_at": "2026-07-10T18:40:38.932135+00:00",
+  "content_fingerprint": "81ccfd7b74640094bf3127c9470e43fa35110a6a19031ca43647995de2041c38",
+  "generated_at": "2026-07-10T19:23:47.221144+00:00",
   "input": {
     "catalog_input_hash": "7eb3b4615f94238d8a04e6d4ea9bf832735a3adb34bbf3eb8503fe4d7adbdbd7",
     "catalog_present": true,
@@ -63,10 +63,11 @@
     "reasons": [
       "parser provenance is unknown (not explicitly supplied)",
       "app provenance is unknown (not explicitly supplied)",
-      "builder code tree is not confirmed clean (dirty or unknown)"
+      "builder code tree is not confirmed clean (dirty or unknown)",
+      "verification (regression suite) was not recorded for this build"
     ]
   },
-  "release_id": "rel-20260710T184038Z-cd1e0d386a01",
+  "release_id": "rel-20260710T192347Z-81ccfd7b7464",
   "reports": {
     "count": 1,
     "hash": "ac6255fe59f6f27747a2f92abd978c54a93570cd6bc48eeee4b90a26dd2362ee",
@@ -98,10 +99,10 @@
   },
   "verification": {
     "regression_suite": {
-      "failed": 0,
-      "passed": 81,
-      "recorded": true,
-      "skipped": 19
+      "failed": null,
+      "passed": null,
+      "recorded": false,
+      "skipped": null
     }
   },
   "waivers": []

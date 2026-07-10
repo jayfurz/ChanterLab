@@ -54,7 +54,7 @@ output.
 |---|---|---|
 | `schema_version` | int | Always `1` for this document. See Compatibility below. |
 | `release_id` | string | `rel-<UTC timestamp>-<content_fingerprint prefix, 12 hex chars>`. Derived from time + a canonical content fingerprint — never a mutable human label, never hand-edited. |
-| `content_fingerprint` | string (64 hex chars) | sha256 over parser/app provenance plus every content-section hash (source inventory, manifest, MusicXML, reports, state, overrides) and the tombstone list. **The** identity of "what this release actually contains" — the same content always produces the same fingerprint; different content collides only with cryptographically negligible probability. `release_id`'s suffix is this value's first 12 hex characters; `validate_descriptor()` checks the two stay consistent. |
+| `content_fingerprint` | string (64 hex chars) | sha256 over parser/app provenance, the raw catalog input hash, every content-section hash (source inventory, manifest, MusicXML, reports, state, overrides), and the tombstone list. **The** identity of "what this release actually contains" — the same content always produces the same fingerprint; different content collides only with cryptographically negligible probability. `validate_descriptor()` recomputes it and checks that `release_id`'s suffix is its first 12 hex characters. |
 | `parent_release_id` | string \| null | The release this one supersedes, for semantic diff/rollback. `null` for the first release, or when generating a standalone descriptor with no promotion history yet (CAT-01's own tooling always passes `null` unless `--parent` is given — CAT-02 owns actually tracking release lineage). |
 | `generated_at` | string (ISO 8601 UTC) | When this descriptor was built. Informational only — never used for identity or content hashing. |
 | `code.builder_git_sha` | string \| null | git SHA of the code checkout that is **actually running `release_descriptor.py` right now** — derived from this file's own location (`__file__`), never from `--omr-dir`. These can genuinely differ: you can point `--omr-dir` at data produced by a completely different checkout. |
@@ -73,7 +73,7 @@ output.
 | `trust.status_counts` | object | Count per ingest status (`accepted`, `review`, `no_music`, `type3`, `download_error`, `extract_error`) — over the full working set in `state`. |
 | `trust.confidence` | object | `mean_integrity_pct`/`median_integrity_pct`/`min_integrity_pct`/`max_integrity_pct` over **accepted** items only. All `null` when there are no accepted items. |
 | `waivers` | array | Approved exceptions to normal gates. **Always `[]` today** — no waiver mechanism exists anywhere in the codebase yet. The field exists now so a future TRUST-01/RIGHTS-01 waiver system never needs a breaking schema bump to add it. |
-| `verification.regression_suite` | object | `{passed, skipped, failed, recorded}` — the OMR pytest regression suite's result, if the caller supplied it via `--verified-passed/--verified-skipped/--verified-failed`. `recorded: false` and all counts `null` when not supplied — this descriptor never claims verification happened when it didn't. |
+| `verification.regression_suite` | object | `{passed, skipped, failed, recorded}` — the OMR pytest regression suite's result, if the caller supplied it via `--verified-passed/--verified-skipped/--verified-failed`. A recorded run requires all three nonnegative counts. `recorded: false` and all counts `null` when not supplied — this descriptor never claims verification happened when it didn't. |
 | `manifest_validation.checked` / `.problems` | | Acceptance criterion "all manifest entries resolve to parseable MusicXML and reports", checked directly: every listed entry's `.musicxml` is confirmed to exist and parse as XML (after passing the containment check) and its `.report.json` is confirmed to exist and parse as JSON. `problems` is a list of human-readable strings; empty means every listed entry resolved cleanly. |
 | `integrity.problems` | array of string | Path-safety and cross-record consistency problems: path traversal or absolute paths in `musicxml`/`pdf` fields, duplicate manifest ids, non-simple ids (containing a path separator — unsafe to build a filename from), and tombstone/active-override conflicts (a stem present in both `overrides/*.musicxml` and `overrides/RETIRED` — `apply_overrides()` silently skips it, which almost always means the file should have been deleted). Distinct from `manifest_validation`, which is about file existence/parseability, not path safety. |
 | `compatibility.min_reader_schema_version` | int | The oldest schema version a reader must understand to safely consume this descriptor. |
@@ -131,10 +131,12 @@ changes, not a migration that exists yet:
 `schema/release_descriptor.schema.json` is the **authoritative** structural
 contract, enforced at runtime via the `jsonschema` package
 (`validate_descriptor()` calls `jsonschema.validate()` against it). Semantic
-checks JSON Schema cannot express — the `release_id`/`content_fingerprint`
-cross-consistency check, and the private-local-path leak scanner — run
-separately in Python on top of the schema check; both must pass for
-`validate_descriptor()` to return no problems.
+checks JSON Schema cannot express run separately in Python: aggregate
+inventory counts/hashes and the content fingerprint are recomputed,
+`release_id` and readiness are checked against that evidence, timestamps are
+checked without optional format dependencies, and every value is scanned for
+private local paths. All checks must pass for `validate_descriptor()` to
+return no problems.
 
 ## What this deliberately does NOT do (CAT-01 scope boundary)
 
