@@ -407,10 +407,12 @@ def release_id_for(now: datetime, content_fingerprint: str) -> str:
 
 
 def compute_content_fingerprint(*, parser_git_sha, app_git_sha, input_section, manifest_section,
-                                 musicxml_section, reports_section, state_section, overrides_section) -> str:
+                                 musicxml_section, reports_section, state_section, overrides_section,
+                                 bundled_content_section=None) -> str:
     """A single canonical hash covering everything that makes two releases
     the SAME release: parser/app provenance, raw catalog input, source
-    inventory, manifest, MusicXML, reports, state, overrides, and tombstones. Same content always
+    inventory, manifest, MusicXML, reports, state, overrides, tombstones, and
+    optional CAT-02 bundled content. Same content always
     produces the same fingerprint; this is a real sha256 over canonical JSON,
     so different content collides only with cryptographically negligible
     probability — never in practice."""
@@ -426,6 +428,8 @@ def compute_content_fingerprint(*, parser_git_sha, app_git_sha, input_section, m
         "overrides_hash": overrides_section["hash"],
         "tombstones": overrides_section["tombstones"],
     }
+    if bundled_content_section is not None:
+        payload["bundled_content_hash"] = bundled_content_section["hash"]
     return _sha256_json_canonical(payload)
 
 
@@ -471,6 +475,7 @@ def compute_readiness(descriptor: dict) -> dict:
 def build_release_descriptor(
     *,
     omr_dir,
+    source_omr_dir=None,
     parent_release_id: str | None = None,
     now: datetime | None = None,
     parser_git_sha: str | None = None,
@@ -478,12 +483,14 @@ def build_release_descriptor(
     verified_passed: int | None = None,
     verified_skipped: int | None = None,
     verified_failed: int | None = None,
+    bundled_content: dict[str, str] | None = None,
 ) -> dict:
     omr_dir = Path(omr_dir)
+    source_omr_dir = Path(source_omr_dir) if source_omr_dir else omr_dir
     out_dir = omr_dir / "out" / "ingest"
     state_path = out_dir / "ingest_state.json"
     manifest_path = out_dir / "manifest.json"
-    catalog_path = omr_dir / "pdfs" / "survey" / "catalog.json"
+    catalog_path = source_omr_dir / "pdfs" / "survey" / "catalog.json"
     override_dir = omr_dir / "overrides"
 
     loaded_state = _load_json(state_path)
@@ -493,7 +500,10 @@ def build_release_descriptor(
     now = now or datetime.now(timezone.utc)
     integrity_problems: list[str] = []
 
-    input_section = build_input_section(catalog_path, state, omr_dir=omr_dir, integrity_problems=integrity_problems)
+    input_section = build_input_section(
+        catalog_path, state, omr_dir=source_omr_dir,
+        integrity_problems=integrity_problems,
+    )
     manifest_section = build_manifest_section(manifest, integrity_problems=integrity_problems)
     musicxml_section = build_musicxml_section(manifest, omr_dir=omr_dir, integrity_problems=integrity_problems)
     reports_section = build_reports_section(manifest, omr_dir=omr_dir, integrity_problems=integrity_problems)
@@ -512,6 +522,11 @@ def build_release_descriptor(
         input_section=input_section, manifest_section=manifest_section,
         musicxml_section=musicxml_section, reports_section=reports_section,
         state_section=state_section, overrides_section=overrides_section,
+        bundled_content_section={
+            "count": len(bundled_content),
+            "hash": _sha256_json_canonical(bundled_content),
+            "per_file": bundled_content,
+        } if bundled_content is not None else None,
     )
 
     descriptor = {
@@ -555,6 +570,12 @@ def build_release_descriptor(
         "integrity": {"problems": integrity_problems},
         "compatibility": {"min_reader_schema_version": MIN_READER_SCHEMA_VERSION},
     }
+    if bundled_content is not None:
+        descriptor["bundled_content"] = {
+            "count": len(bundled_content),
+            "hash": _sha256_json_canonical(bundled_content),
+            "per_file": bundled_content,
+        }
     descriptor["readiness"] = compute_readiness(descriptor)
     return descriptor
 
@@ -654,6 +675,11 @@ def validate_descriptor(descriptor: dict) -> list[str]:
             ("overrides.per_stem", descriptor["overrides"]["per_stem"],
              descriptor["overrides"]["count"], descriptor["overrides"]["hash"]),
         )
+        if "bundled_content" in descriptor:
+            aggregate_specs += (
+                ("bundled_content.per_file", descriptor["bundled_content"]["per_file"],
+                 descriptor["bundled_content"]["count"], descriptor["bundled_content"]["hash"]),
+            )
         for name, value, claimed_count, claimed_hash in aggregate_specs:
             if claimed_count != len(value):
                 problems.append(f"{name} count mismatch: claimed {claimed_count}, actual {len(value)}")
@@ -670,6 +696,7 @@ def validate_descriptor(descriptor: dict) -> list[str]:
             reports_section=descriptor["reports"],
             state_section=descriptor["state"],
             overrides_section=descriptor["overrides"],
+            bundled_content_section=descriptor.get("bundled_content"),
         )
         if fp != expected_fingerprint:
             problems.append(
@@ -708,6 +735,8 @@ def validate_descriptor(descriptor: dict) -> list[str]:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--omr-dir", default=os.path.dirname(os.path.abspath(__file__)))
+    parser.add_argument("--source-omr-dir", default=None,
+                        help="catalog/PDF source root when --omr-dir is a staged release")
     parser.add_argument("--parent", default=None, help="parent release_id, for semantic diff/rollback")
     parser.add_argument("--out", default=None, help="write descriptor JSON here (default: stdout)")
     parser.add_argument("--strict", action="store_true", help="nonzero exit on any validation problem")
@@ -720,6 +749,7 @@ def main(argv=None) -> int:
 
     descriptor = build_release_descriptor(
         omr_dir=args.omr_dir,
+        source_omr_dir=args.source_omr_dir,
         parent_release_id=args.parent,
         parser_git_sha=args.parser_sha,
         app_git_sha=args.app_sha,

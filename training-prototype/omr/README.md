@@ -53,6 +53,10 @@ mixed Byzantine/Western books contribute their Western-notation pages) →
 confidence gate → `out/ingest/manifest.json` (accepted pieces; the training
 app lists them automatically) + review queue in `out/ingest/ingest_state.json`.
 Resumable and idempotent; `--report-only` summarizes without network.
+For release builds, initialize a unique staging candidate and pass
+`--candidate-dir`; never ingest into the served path. See
+[`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md) for build, verification,
+promotion, and rollback commands.
 
 **Full-catalog run (2026-07-03, post staff-grouping fix):** all 3,793
 eligible items processed with zero download/extract errors. **1,487
