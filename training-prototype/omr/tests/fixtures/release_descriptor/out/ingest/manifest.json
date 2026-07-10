@@ -1,0 +1,22 @@
+[
+ {
+  "id": "fixture_piece_a",
+  "title": "Fixture Piece A",
+  "composer": "ChanterLab Test Fixture",
+  "arrangementType": "Choral",
+  "musicxml": "out/ingest/fixture_piece_a.musicxml",
+  "integrity_pct": 95.0,
+  "tone": null,
+  "toneClean": null,
+  "liturgicalDate": null,
+  "bookName": null,
+  "group": "Other services & misc",
+  "sub": null,
+  "rank": 99000,
+  "pdfUrl": "https://example.invalid/fixture_piece_a.pdf",
+  "hymnType": null,
+  "feastId": null,
+  "catalogCode": null,
+  "key": null
+ }
+]

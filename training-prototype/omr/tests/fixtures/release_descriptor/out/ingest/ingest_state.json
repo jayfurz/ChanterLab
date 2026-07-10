@@ -1,0 +1,32 @@
+{
+ "fixture_piece_a": {
+  "id": "fixture_piece_a",
+  "name": "Fixture Piece A",
+  "composer": "ChanterLab Test Fixture",
+  "arrangementType": "Choral",
+  "category": "choral",
+  "url": "https://example.invalid/fixture_piece_a.pdf",
+  "pdf": "pdfs/ingest/fixture_piece_a.pdf",
+  "musicxml": "out/ingest/fixture_piece_a.musicxml",
+  "status": "accepted",
+  "integrity_pct": 95.0,
+  "warnings": 1,
+  "selected_pages": "1",
+  "detail": null
+ },
+ "fixture_piece_b": {
+  "id": "fixture_piece_b",
+  "name": "Fixture Piece B",
+  "composer": "ChanterLab Test Fixture",
+  "arrangementType": "Choral",
+  "category": "choral",
+  "url": "https://example.invalid/fixture_piece_b.pdf",
+  "pdf": "pdfs/ingest/fixture_piece_b.pdf",
+  "musicxml": "out/ingest/fixture_piece_b.musicxml",
+  "status": "review",
+  "integrity_pct": 62.5,
+  "warnings": 4,
+  "selected_pages": "1",
+  "detail": null
+ }
+}

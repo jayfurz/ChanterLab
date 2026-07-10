@@ -1,0 +1,109 @@
+{
+  "code": {
+    "app_git_sha": null,
+    "builder_dirty": true,
+    "builder_git_sha": "a6509f22915e06f2dc2c63b132041425addc22e1",
+    "parser_git_sha": null
+  },
+  "compatibility": {
+    "min_reader_schema_version": 1
+  },
+  "content_fingerprint": "81ccfd7b74640094bf3127c9470e43fa35110a6a19031ca43647995de2041c38",
+  "generated_at": "2026-07-10T19:23:47.221144+00:00",
+  "input": {
+    "catalog_input_hash": "7eb3b4615f94238d8a04e6d4ea9bf832735a3adb34bbf3eb8503fe4d7adbdbd7",
+    "catalog_present": true,
+    "source_inventory": [
+      {
+        "id": "fixture_piece_a",
+        "pdf_sha256": "90277f8441587f5969d67ce9e4ead0ef875c801dfea1ae26427562da3b68f480",
+        "source_url": "https://example.invalid/fixture_piece_a.pdf"
+      },
+      {
+        "id": "fixture_piece_b",
+        "pdf_sha256": null,
+        "source_url": "https://example.invalid/fixture_piece_b.pdf"
+      }
+    ],
+    "source_inventory_count": 2,
+    "source_inventory_hash": "14feca71b518c54e3301aebd7c79a4a729b1867277ba3ba4fd3632c7d74f1bd8"
+  },
+  "integrity": {
+    "problems": []
+  },
+  "manifest": {
+    "entry_count": 1,
+    "hash": "16d81dd243828cfad6b649390de6f7d898f0ed1d97319f53adf3aa48ac27e9f7",
+    "present": true
+  },
+  "manifest_validation": {
+    "checked": 1,
+    "problems": []
+  },
+  "musicxml": {
+    "count": 1,
+    "hash": "dbb42596ee0253c8031778d915fe2c757ae99943608cea031219dd6e69b34687",
+    "per_entry": {
+      "fixture_piece_a": "54f3f183cb5e9841d345e25c2a9f2eef7baf38f49b7932541b60537866ced425"
+    }
+  },
+  "overrides": {
+    "count": 1,
+    "hash": "80773929b6b2cd098e44dc6d6701335027d9e065a3c800a92aa63f5478b51855",
+    "per_stem": {
+      "fixture_override_example": "f44468686553be5b681ea709482c093572640c3bcdcf9c581c90063d9f9f1e4a"
+    },
+    "tombstones": [
+      "fixture_retired_example"
+    ]
+  },
+  "parent_release_id": null,
+  "readiness": {
+    "promotable": false,
+    "reasons": [
+      "parser provenance is unknown (not explicitly supplied)",
+      "app provenance is unknown (not explicitly supplied)",
+      "builder code tree is not confirmed clean (dirty or unknown)",
+      "verification (regression suite) was not recorded for this build"
+    ]
+  },
+  "release_id": "rel-20260710T192347Z-81ccfd7b7464",
+  "reports": {
+    "count": 1,
+    "hash": "ac6255fe59f6f27747a2f92abd978c54a93570cd6bc48eeee4b90a26dd2362ee",
+    "per_entry": {
+      "fixture_piece_a": "960792c5b68c4b38550df6b11bb74d41be9f24c1a9f983828f357b0d2ac9e607"
+    }
+  },
+  "schema_version": 1,
+  "state": {
+    "hash": "7c8454a34eacefffe1aa801c761612ab3d5b8a638b3a93777da123b261973dfd",
+    "present": true,
+    "record_count": 2
+  },
+  "trust": {
+    "confidence": {
+      "max_integrity_pct": 95.0,
+      "mean_integrity_pct": 95.0,
+      "median_integrity_pct": 95.0,
+      "min_integrity_pct": 95.0
+    },
+    "status_counts": {
+      "accepted": 1,
+      "download_error": 0,
+      "extract_error": 0,
+      "no_music": 0,
+      "review": 1,
+      "type3": 0
+    }
+  },
+  "verification": {
+    "regression_suite": {
+      "failed": null,
+      "passed": null,
+      "recorded": false,
+      "skipped": null
+    }
+  },
+  "waivers": []
+}

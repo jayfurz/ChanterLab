@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chanterlab.com/schema/release_descriptor.v1.json",
+  "title": "ChanterLab catalog release descriptor",
+  "description": "CAT-01 (docs/plans/10-catalog-releases/11-release-contract.md). This is the AUTHORITATIVE structural contract, enforced at runtime by release_descriptor.py's validate_descriptor() via the jsonschema package. Semantic checks JSON Schema cannot express (private-path leaks, recomputed aggregate hashes/counts, content fingerprint, release ID, and readiness) run separately in Python — see RELEASE_SCHEMA.md for the full field reference.",
+  "type": "object",
+  "required": [
+    "schema_version", "release_id", "content_fingerprint", "parent_release_id",
+    "generated_at", "code", "input", "manifest", "musicxml", "reports",
+    "state", "overrides", "trust", "waivers", "verification",
+    "manifest_validation", "integrity", "compatibility", "readiness"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "release_id": {
+      "type": "string",
+      "pattern": "^rel-\\d{8}T\\d{6}Z-[0-9a-f]{12}$"
+    },
+    "content_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256 over parser/app provenance + raw catalog input + every content-section hash + tombstones. Same content -> same fingerprint; different content practically never collides."
+    },
+    "parent_release_id": {
+      "type": ["string", "null"],
+      "pattern": "^rel-\\d{8}T\\d{6}Z-[0-9a-f]{12}$"
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "code": {
+      "type": "object",
+      "required": ["builder_git_sha", "builder_dirty", "parser_git_sha", "app_git_sha"],
+      "properties": {
+        "builder_git_sha": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{7,64}$",
+          "description": "git SHA of the code checkout that is actually running release_descriptor.py right now. Derived from __file__'s location, never from --omr-dir."
+        },
+        "builder_dirty": {
+          "type": ["boolean", "null"],
+          "description": "true if the builder's git tree has uncommitted changes; null if git status could not be determined. A promotable descriptor requires this to be exactly false."
+        },
+        "parser_git_sha": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{7,64}$",
+          "description": "git SHA of the code that actually produced the on-disk MusicXML/reports being described. NEVER inferred from builder_git_sha — must be explicitly supplied (--parser-sha) or is null/unknown."
+        },
+        "app_git_sha": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{7,64}$",
+          "description": "git SHA of the app code this release is intended for. NEVER inferred; explicit (--app-sha) or null/unknown."
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "catalog_present", "catalog_input_hash", "source_inventory_count",
+        "source_inventory_hash", "source_inventory"
+      ],
+      "properties": {
+        "catalog_present": { "type": "boolean" },
+        "catalog_input_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "source_inventory_count": { "type": "integer", "minimum": 0 },
+        "source_inventory_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "source_inventory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "source_url", "pdf_sha256"],
+            "properties": {
+              "id": { "type": "string" },
+              "source_url": { "type": ["string", "null"] },
+              "pdf_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "required": ["present", "entry_count", "hash"],
+      "description": "The published catalog only (status=accepted). See musicxml/reports for the same scope note.",
+      "properties": {
+        "present": { "type": "boolean" },
+        "entry_count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "musicxml": {
+      "type": "object",
+      "required": ["count", "hash", "per_entry"],
+      "description": "Covers manifest-PUBLISHED entries only, not the full private working set tracked in `state` (which also includes review/no_music/etc. items with their own MusicXML on disk).",
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "per_entry": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "reports": {
+      "type": "object",
+      "required": ["count", "hash", "per_entry"],
+      "description": "Covers manifest-PUBLISHED entries only, same scope note as musicxml.",
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "per_entry": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": ["present", "record_count", "hash"],
+      "description": "The full private ingest working set (all statuses), hashed but never embedded in content (which would include local pdf paths).",
+      "properties": {
+        "present": { "type": "boolean" },
+        "record_count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "required": ["count", "hash", "per_stem", "tombstones"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "per_stem": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "tombstones": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "trust": {
+      "type": "object",
+      "required": ["status_counts", "confidence"],
+      "properties": {
+        "status_counts": {
+          "type": "object",
+          "required": [
+            "accepted", "review", "no_music", "type3",
+            "download_error", "extract_error"
+          ],
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "confidence": {
+          "type": "object",
+          "required": [
+            "mean_integrity_pct", "median_integrity_pct",
+            "min_integrity_pct", "max_integrity_pct"
+          ],
+          "properties": {
+            "mean_integrity_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "median_integrity_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "min_integrity_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "max_integrity_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }
+          }
+        }
+      }
+    },
+    "waivers": { "type": "array" },
+    "verification": {
+      "type": "object",
+      "required": ["regression_suite"],
+      "properties": {
+        "regression_suite": {
+          "type": "object",
+          "required": ["passed", "skipped", "failed", "recorded"],
+          "properties": {
+            "passed": { "type": ["integer", "null"], "minimum": 0 },
+            "skipped": { "type": ["integer", "null"], "minimum": 0 },
+            "failed": { "type": ["integer", "null"], "minimum": 0 },
+            "recorded": { "type": "boolean" }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "recorded": { "const": true } } },
+              "then": {
+                "properties": {
+                  "passed": { "type": "integer" },
+                  "skipped": { "type": "integer" },
+                  "failed": { "type": "integer" }
+                }
+              },
+              "else": {
+                "properties": {
+                  "passed": { "type": "null" },
+                  "skipped": { "type": "null" },
+                  "failed": { "type": "null" }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "manifest_validation": {
+      "type": "object",
+      "required": ["checked", "problems"],
+      "description": "Existence/parseability of manifest-listed backing files. See `integrity` for path-safety and cross-record consistency problems.",
+      "properties": {
+        "checked": { "type": "integer", "minimum": 0 },
+        "problems": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["problems"],
+      "description": "Path traversal/containment violations, duplicate or non-simple ids, and tombstone/active-override conflicts.",
+      "properties": {
+        "problems": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "required": ["min_reader_schema_version"],
+      "properties": {
+        "min_reader_schema_version": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "required": ["promotable", "reasons"],
+      "description": "A structurally valid descriptor can still be non-promotable (empty catalog, unknown provenance, dirty builder tree, unrecorded/failed verification, manifest or integrity problems).",
+      "properties": {
+        "promotable": { "type": "boolean" },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
