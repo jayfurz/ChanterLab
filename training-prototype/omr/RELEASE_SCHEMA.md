@@ -1,9 +1,8 @@
 # Catalog release descriptor — schema v1 (CAT-01)
 
-Status: schema drafted, tooling implemented, **not yet owner-approved as
-stable** (see docs/plans/10-catalog-releases/11-release-contract.md, step 5).
-Do not build CAT-02's atomic promotion on this schema until that approval is
-recorded here.
+Status: schema v1 approved as stable on 2026-07-10 after independent review,
+synthetic mutation testing, the full OMR suite, and read-only validation of
+all 3,351 published catalog entries. CAT-02 may build on this contract.
 
 ## What this is
 

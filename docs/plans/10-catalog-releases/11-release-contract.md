@@ -1,7 +1,7 @@
 # CAT-01: Catalog Release Contract
 
-Status: implemented 2026-07-10, awaiting owner approval (step 5) before the
-schema is treated as stable. `BASE-00` completed at `e77ffa7`. Priority: P0.
+Status: complete 2026-07-10; schema v1 approved as stable after independent
+review and real-catalog validation. `BASE-00` completed at `e77ffa7`. Priority: P0.
 
 Dependencies: baseline commit. Blocks: atomic promotion, trust ledger, reports.
 
@@ -42,7 +42,7 @@ private paths are not leaked; descriptor validation fails closed.
 Report schema, examples using nonprivate data, compatibility matrix, migrations,
 test evidence, and owner-approved frozen version.
 
-## Implementation record (2026-07-10, pending owner approval)
+## Implementation record (2026-07-10, approved and complete)
 
 Implemented as `training-prototype/omr/release_descriptor.py` (read-only —
 does not change where `ingest_catalog.py` writes) plus
@@ -152,6 +152,8 @@ catalog, not re-derived from source alone).
   attribution enforcement (RIGHTS-01, which depends on this schema existing
   first).
 
-**Awaiting explicit owner approval before this schema is treated as
-stable** — CAT-02 should not build atomic promotion on it until that
-approval is recorded here.
+**Schema v1 approval recorded 2026-07-10.** The final review added
+fail-closed recomputation of serialized inventory hashes/counts, the content
+fingerprint, and readiness; included the raw catalog input in release
+identity; and reran the complete synthetic and real-catalog evidence above.
+CAT-02 is unblocked and may build atomic promotion on this contract.
