@@ -83,11 +83,15 @@ landed via [PR #95](https://github.com/jayfurz/ChanterLab/pull/95), merged as
   "NOT CORPUS VERIFIED" (informational, never blocks `required-gate`) rather
   than silently reporting success. Wiring a real self-hosted runner with the
   corpus checked out is a follow-on owner decision, not done here.
-- **Container publication gate:** `container-image.yml` now triggers on
+- **Container publication gate:** `container-image.yml` triggers ONLY on
   `workflow_run` of `unified-required-ci` completing with
   `conclusion == 'success'`, checks out and tags the image with
-  `github.event.workflow_run.head_sha` (the exact validated commit), instead
-  of firing independently on every push to `main`.
+  `github.event.workflow_run.head_sha` (the exact validated commit). No
+  `workflow_dispatch`/manual-SHA path exists — one invariant, no bypass:
+  every published image was built from a commit `required-gate` actually
+  passed for. (Initially shipped with a `workflow_dispatch` manual override
+  for parity with the pre-BASE-02 workflow; removed on owner request the same
+  day once the gate had proven itself live — see the follow-up commit.)
 - **Branch protection:** `main` now requires the single `required-gate` status
   check (`gh api .../branches/main/protection`, `required_status_checks:
   {strict: false, contexts: ["required-gate"]}`, `enforce_admins: false`, no
@@ -100,7 +104,5 @@ landed via [PR #95](https://github.com/jayfurz/ChanterLab/pull/95), merged as
 - **Known follow-up, out of this plan's scope:** `pages.yml`'s own `test` job
   duplicates the `rust`/`root-js` checks (unrelated legacy Pages site,
   deliberately left untouched to avoid touching a separate live deployment
-  target). `container-image.yml`'s `workflow_dispatch` manual-SHA override
-  path is untested (only the automated `workflow_run` path was exercised for
-  real).
+  target).
 

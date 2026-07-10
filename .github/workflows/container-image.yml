@@ -1,25 +1,24 @@
 name: Publish ChanterLab Container
 
-# BASE-02: publication now depends on Unified Required CI (required-gate)
+# BASE-02: publication depends on Unified Required CI (required-gate)
 # succeeding for this EXACT commit, rather than firing independently on every
 # push to main. Before this change, a push to main built and published an
 # image tagged with that SHA regardless of whether required-gate had run or
 # passed for it yet — branch protection only blocked the PR *merge*, not this
 # workflow, so a red main (however that happened) could still get an image
-# published. workflow_run with head_sha pinned closes that gap: this fires
-# only after Unified Required CI completes on main, and it checks out (and
-# tags) the exact SHA that workflow ran against, not whatever main points to
-# by the time this job starts.
+# published. workflow_run with head_sha pinned closes that gap.
+#
+# workflow_run is the ONLY trigger, deliberately — one invariant, no bypass
+# path. There is no workflow_dispatch/manual-SHA escape hatch: every image
+# this workflow ever publishes was built from a commit Unified Required CI
+# actually validated. If a manual rebuild is ever genuinely needed, re-run
+# Unified Required CI for the target commit (which re-triggers this
+# workflow on success) rather than adding a way to invoke this directly.
 on:
   workflow_run:
     workflows: ["Unified Required CI"]
     types: [completed]
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      sha:
-        description: "SHA to build and publish (defaults to the default branch HEAD for a manual run)"
-        required: false
 
 permissions:
   contents: read
@@ -30,15 +29,14 @@ concurrency:
 
 env:
   IMAGE_NAME: ${{ vars.GITEA_REGISTRY }}/${{ vars.GITEA_REGISTRY_OWNER }}/chanterlab-web
-  # workflow_run: only the exact SHA that Unified Required CI ran against, and
-  # only if it concluded successfully. workflow_dispatch: the SHA the user
-  # asked for, or the default branch HEAD if they didn't (this is a manual
-  # override outside the automated gate, same as before).
-  TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.event.inputs.sha || github.sha }}
+  # The exact SHA Unified Required CI ran against — no fallback. If this is
+  # ever empty, the checkout step below fails loudly rather than silently
+  # building an unintended commit.
+  TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
 
 jobs:
   publish:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the exact gated SHA
