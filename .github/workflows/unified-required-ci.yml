@@ -214,6 +214,19 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@wasm-pack
+      - name: Build worklet WASM
+        # Engaging the mic (browser-gate.mjs's scoring/scope step) fetches
+        # pkg-worklet/* even though 'js' is the default detector mode — same
+        # dependency as fake-mic-verify, needed here for the same reason.
+        run: |
+          make build-worklet
+          mkdir -p training-prototype/pkg-worklet
+          cp web/pkg-worklet/chanterlab_core.js web/pkg-worklet/chanterlab_core_bg.wasm training-prototype/pkg-worklet/
       - name: Resolve app base path
         id: base
         run: |
