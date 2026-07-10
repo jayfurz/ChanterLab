@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChanterLab</title>
-  <link rel="stylesheet" href="style.css?v=chant-script-engine-phase6v">
+  <link rel="stylesheet" href="style.css?v=reference-player-2">
 </head>
 <body>
 
@@ -182,7 +182,50 @@
         <button id="record-toggle-btn" class="record-btn" type="button">Record</button>
         <button id="record-stop-playback-btn" type="button" disabled>Stop</button>
       </div>
-      <div id="recording-status" class="recording-status">Record your mic, then play it back on the singscope.</div>
+      <div class="recording-import">
+        <input id="recording-upload-input" class="recording-file-input" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.flac,.webm,.mp4,.mov" multiple>
+        <form id="recording-url-form" class="recording-url-form">
+          <input id="recording-url-input" type="url" placeholder="audio/video or YouTube URL" autocomplete="off" title="YouTube links are sent to MeTube as MP3, then imported here.">
+          <button id="recording-url-import-btn" type="submit">Add</button>
+        </form>
+      </div>
+      <div id="recording-status" class="recording-status">Record or import audio, then play it back on the singscope.</div>
+      <div id="reference-player" class="reference-player hidden" aria-label="Reference playback controls">
+        <div class="reference-player-head">
+          <span id="reference-player-title" class="reference-player-title">Reference</span>
+          <span id="reference-player-time" class="reference-player-time">0:00 / 0:00</span>
+        </div>
+        <input id="reference-player-seek" class="reference-player-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Seek reference playback">
+        <div class="reference-player-actions">
+          <button id="reference-back-btn" type="button" title="Back 10 seconds">-10s</button>
+          <button id="reference-play-pause-btn" type="button">Play</button>
+          <button id="reference-forward-btn" type="button" title="Forward 10 seconds">+10s</button>
+          <button id="reference-restart-btn" type="button">Restart</button>
+          <button id="reference-stop-btn" type="button">Stop</button>
+        </div>
+        <label class="reference-player-row" for="reference-speed-select">
+          <span>Speed</span>
+          <select id="reference-speed-select">
+            <option value="0.5">0.5x</option>
+            <option value="0.75">0.75x</option>
+            <option value="1" selected>1x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+          </select>
+        </label>
+        <div class="reference-player-row reference-pitch-row">
+          <span>Pitch</span>
+          <input id="reference-pitch-slider" type="range" min="-72" max="72" step="1" value="0" aria-label="Pitch shift in moria">
+          <span id="reference-pitch-readout" class="reference-pitch-readout">0m</span>
+        </div>
+        <div class="reference-pitch-actions">
+          <button type="button" data-reference-pitch-step="-12">-12m</button>
+          <button type="button" data-reference-pitch-step="-2">-2m</button>
+          <button id="reference-pitch-reset-btn" type="button">Reset</button>
+          <button type="button" data-reference-pitch-step="2">+2m</button>
+          <button type="button" data-reference-pitch-step="12">+12m</button>
+        </div>
+      </div>
       <div id="recordings-list" class="recordings-list" aria-label="Saved recordings"></div>
     </div>
 
@@ -335,7 +378,7 @@
           <li>Mobile Scale keeps all labeled pthora targets and the ladder visible together.</li>
           <li>Soft and hard chromatic tuning now use repeating four-phase chromatic cycles.</li>
           <li>The ladder now shows one octave below Reference Ni through two octaves above it.</li>
-          <li>Recordings can be played back with their saved pitch trace on the singscope or downloaded.</li>
+          <li>Recordings and imported media can be played back as a separate reference trace on the singscope or downloaded.</li>
           <li>Reference Ni now stays synced when presets are loaded or changed outside the slider.</li>
           <li>Practice scoring now folds octave-equivalent pitch error, so C3 can match Ni when Reference Ni is C4.</li>
           <li>Bundled Neanes font support for Byzantine symbols.</li>
@@ -371,6 +414,6 @@
   </div>
 </dialog>
 
-<script type="module" src="app.js?v=chant-script-engine-phase6w"></script>
+<script type="module" src="app.js?v=reference-player-2"></script>
 </body>
 </html>

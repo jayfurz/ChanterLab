@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ChanterLab — Getting Started</title>
+<link rel="icon" href="data:," />
+<meta name="theme-color" content="#14151a" />
+<!-- Self-contained written guide (companion to the in-app js/tour.js tour). No
+     app CSS/JS is linked so nothing bleeds in either direction; the design
+     tokens below mirror style.css. The "Take the tour" button deep-links to
+     index.html?tour=1, which force-starts the interactive tour. No copyrighted
+     score imagery is used — the mock-ups are pure CSS/SVG. -->
+<style>
+  :root{
+    --bg:#14151a; --panel:#1e2027; --ink:#e8e6df; --sub:#9aa0a6;
+    --gold:#d4af37; --gold-soft:#e7c96b; --line:#2c2f38; --cyan:#4dd7ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);
+    font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    -webkit-text-size-adjust:100%;
+    padding:0 0 64px}
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  a{color:var(--gold-soft)}
+
+  header.top{position:sticky;top:0;z-index:2;
+    background:rgba(20,21,26,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line)}
+  header.top .wrap{display:flex;align-items:center;gap:12px;padding-top:12px;padding-bottom:12px}
+  header.top h1{margin:0;font-size:18px;font-weight:650;flex:1;min-width:0}
+  .back{flex:0 0 auto;text-decoration:none;color:var(--sub);font-size:14px;
+    border:1px solid var(--line);border-radius:10px;padding:8px 12px;white-space:nowrap}
+  .back:hover{color:var(--gold-soft);border-color:var(--gold-soft)}
+
+  .lead{font-size:18px;color:var(--ink);margin:28px 0 10px}
+  .muted{color:var(--sub)}
+
+  .cta{display:inline-flex;align-items:center;gap:8px;margin:14px 0 6px;
+    background:var(--gold);color:#161616;text-decoration:none;font-weight:700;
+    padding:13px 20px;border-radius:12px;font-size:16px}
+  .cta:hover{background:var(--gold-soft)}
+  .cta-note{font-size:13px;color:var(--sub);margin:6px 0 0}
+
+  h2{font-size:22px;font-weight:650;margin:44px 0 8px;
+    padding-top:16px;border-top:1px solid var(--line)}
+  h2 .badge{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--gold-soft);vertical-align:middle;margin-left:8px;
+    border:1px solid rgba(212,175,55,.4);border-radius:999px;padding:3px 9px}
+  h3{font-size:16px;margin:22px 0 6px;color:var(--gold-soft)}
+
+  ol.steps{margin:12px 0;padding:0;list-style:none;counter-reset:step}
+  ol.steps>li{position:relative;padding:10px 0 10px 44px;
+    border-top:1px solid rgba(44,47,56,.6)}
+  ol.steps>li:first-child{border-top:none}
+  ol.steps>li::before{counter-increment:step;content:counter(step);
+    position:absolute;left:0;top:10px;width:30px;height:30px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:#20232c;border:1px solid var(--line);color:var(--gold-soft);
+    font-weight:800;font-size:14px}
+  ol.steps b{color:var(--ink)}
+
+  /* inline UI chips + keycaps so steps read like the real controls */
+  .chip{display:inline-block;background:#20232c;border:1px solid var(--line);
+    border-radius:8px;padding:1px 8px;font-size:14px;font-weight:600;white-space:nowrap}
+  .chip.gold{background:var(--gold);color:#161616;border-color:var(--gold)}
+  .chip.round{border-radius:999px;background:var(--gold);color:#161616;border-color:var(--gold)}
+  .chip.cyan{background:var(--cyan);color:#0c2530;border-color:var(--cyan)}
+  kbd{display:inline-block;background:#12141a;border:1px solid var(--line);
+    border-bottom-width:2px;border-radius:6px;padding:1px 8px;font:600 13px/1.4 ui-monospace,Menlo,Consolas,monospace;
+    color:var(--ink);white-space:nowrap}
+
+  /* mock-ups */
+  .mock{margin:16px 0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+  .mock-scope{display:block;width:100%;height:120px;background:#101218}
+  .mock-bar{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(24,26,33,.96);
+    border-top:1px solid var(--line)}
+  .mock-bar .spacer{flex:1}
+  .mock-cap{font-size:12px;color:var(--sub);padding:8px 14px}
+
+  table.keys{width:100%;border-collapse:collapse;margin:12px 0;font-size:15px}
+  table.keys th,table.keys td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  table.keys th{color:var(--sub);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  table.keys td:first-child{width:120px;white-space:nowrap}
+
+  .callout{margin:16px 0;padding:12px 14px;border-radius:12px;
+    background:rgba(212,175,55,.07);border:1px solid rgba(212,175,55,.3)}
+  .callout b{color:var(--gold-soft)}
+
+  footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);
+    color:var(--sub);font-size:14px}
+  footer a{color:var(--gold-soft)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <h1>Getting started with ChanterLab</h1>
+    <a class="back" href="index.html">← Open the app</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="lead">ChanterLab is a choir-practice tool. The app plays every voice
+  <em>except yours</em> — you sing your part along with it, watch your pitch on the
+  singscope, and get a note-by-note score.</p>
+
+  <a class="cta" href="index.html?tour=1">▶ Take the interactive tour</a>
+  <p class="cta-note">Best on the device you’ll actually practise on — the tour
+  points at the real buttons. You can also start it anytime from the
+  <span class="chip">?</span> in the app’s top-right, or read on below.</p>
+
+  <h3>The idea in three parts</h3>
+  <p><b>1. The choir</b> sings the other voices. <b>2. The scope</b> shows your
+  sung pitch versus the note you’re aiming for. <b>3. The score</b> tells you,
+  after each pass, which notes you nailed and which drifted flat or sharp.</p>
+
+  <div class="mock" aria-hidden="true">
+    <svg class="mock-scope" viewBox="0 0 600 120" preserveAspectRatio="none" role="img" aria-label="Singscope mock-up">
+      <!-- gold target lane -->
+      <line x1="0" y1="60" x2="600" y2="60" stroke="#d4af37" stroke-width="10" stroke-opacity="0.28"/>
+      <line x1="0" y1="60" x2="600" y2="60" stroke="#d4af37" stroke-width="1.5" stroke-dasharray="6 7" stroke-opacity="0.8"/>
+      <!-- sung pitch trace: cyan drifting onto the lane, turning gold when it lands -->
+      <path d="M0,92 C90,92 120,70 180,66 C240,62 250,61 300,60"
+            fill="none" stroke="#4dd7ff" stroke-width="3" stroke-linecap="round"/>
+      <path d="M300,60 C360,60 460,60 600,60"
+            fill="none" stroke="#d4af37" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="600" cy="60" r="4.5" fill="#d4af37"/>
+    </svg>
+    <div class="mock-cap">Cyan is your voice; it glows <span style="color:var(--gold-soft)">gold</span>
+      when you’re on the note. The dashed line is the note you’re aiming for.</div>
+  </div>
+
+  <!-- ============================ MOBILE ============================ -->
+  <h2>On your phone <span class="badge">tap</span></h2>
+  <p class="muted">On a phone the controls tuck into a bar at the bottom to keep
+  the music in view. Tap the <span class="chip">⌄</span> handle to open them.</p>
+
+  <div class="mock" aria-hidden="true">
+    <div class="mock-cap" style="padding-bottom:0">The bottom bar, collapsed:</div>
+    <div class="mock-bar">
+      <span class="chip gold" style="padding:6px 16px">▶ Play</span>
+      <span class="chip" style="padding:6px 12px">■</span>
+      <span class="muted" style="font-size:13px">m 3</span>
+      <span class="spacer"></span>
+      <span class="chip round">S 🔊</span>
+      <span class="chip" style="padding:6px 10px">⌄</span>
+    </div>
+  </div>
+
+  <ol class="steps">
+    <li>Tap <span class="chip gold">▶ Play</span> to hear the choir. Tap again to
+      pause; <span class="chip">■</span> stops and rewinds to the top.</li>
+    <li>The chip <span class="chip round">S</span> is <b>your part</b> (S/A/T/B).
+      Tap it to <b>mute</b> your part so you sing it yourself — tap again to hear it
+      while you’re still learning it.</li>
+    <li>Tap <span class="chip">⌄</span> to open the full controls. They’re grouped
+      into three tabs: <b>Practice</b>, <b>Sound</b> and <b>More</b>.</li>
+    <li>In <b>Practice</b>, pick <b>Your voice</b>, drag <b>Tempo</b> to slow a hard
+      passage, or set a <b>Loop</b> range and tick <b>on</b> to drill just those bars.</li>
+    <li>In <b>Sound</b>, tap <span class="chip cyan">🎤 Mic</span> to sing along and
+      get scored. Keep <b>🎧 Headphones mode</b> on and wear earbuds — that stops the
+      mic from hearing the backing voices.</li>
+    <li>In <b>More</b>, open <span class="chip">📚 Library</span> to search the full
+      collection, and switch the <b>View</b> between split, score-only and scope-only.</li>
+  </ol>
+
+  <!-- ============================ DESKTOP =========================== -->
+  <h2>On a computer <span class="badge">click</span></h2>
+  <p class="muted">On a wider screen everything is laid out at once: the scope and
+  music on the left, and a control rail down the right with <b>Practice</b>,
+  <b>Sound</b> and <b>More</b> all open — no tapping to reveal them.</p>
+
+  <ol class="steps">
+    <li>Click <span class="chip gold">▶ Play</span> — or press <kbd>Space</kbd> — to
+      hear the choir. <kbd>Space</kbd> again pauses; <span class="chip">■</span> stops.</li>
+    <li>The chip <span class="chip round">S</span> shows your part. Click it to mute
+      your voice so you sing it (or press <kbd>1</kbd>–<kbd>4</kbd> to switch between
+      Soprano, Alto, Tenor and Bass).</li>
+    <li>Under <b>Practice</b>, set the tempo and a loop range. Press <kbd>L</kbd> to
+      toggle the loop on and off.</li>
+    <li>Under <b>Sound</b>, click <span class="chip cyan">🎤 Mic</span> (or press
+      <kbd>M</kbd>) to sing and get scored. Headphones keep the mic clean.</li>
+    <li>Under <b>More</b>, open <span class="chip">📚 Library</span> to browse, and
+      set <b>Scoring</b> to Relaxed or Strict.</li>
+  </ol>
+
+  <h3>Keyboard shortcuts</h3>
+  <table class="keys">
+    <thead><tr><th>Key</th><th>Does</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Toggle the microphone</td></tr>
+      <tr><td><kbd>R</kbd></td><td>Start / stop recording your practice</td></tr>
+      <tr><td><kbd>L</kbd></td><td>Toggle the loop on / off</td></tr>
+      <tr><td><kbd>1</kbd>–<kbd>4</kbd></td><td>Choose your voice (S / A / T / B)</td></tr>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Previous / next section (multi-section pieces)</td></tr>
+      <tr><td><kbd>V</kbd></td><td>Cycle the verse (multi-verse lyrics)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ============================ SCORING =========================== -->
+  <h2>Reading the scope &amp; your score</h2>
+  <p>Once the mic is on and you press Play, sing your part. On the singscope your
+  voice draws in <span style="color:var(--cyan)">cyan</span> and glows
+  <span style="color:var(--gold-soft)">gold</span> the instant you’re on the note —
+  any octave counts. The dashed lane is the pitch you’re aiming for right now.</p>
+  <p>After each pass (or when you Stop), a little report appears above the controls
+  with your hit percentage and your <b>worst spots</b> — the measures with the most
+  missed or off-pitch notes. Tap a spot to loop that neighbourhood and try again.</p>
+
+  <div class="callout">
+    <p style="margin:0"><b>Tips for a good score.</b> Wear <b>headphones</b> so the
+    mic hears only you. <b>Slow the tempo</b> right down while learning. <b>Loop</b>
+    the one bar that keeps tripping you. And start on <b>Relaxed</b> scoring — switch
+    to <b>Strict</b> once the notes are solid and you want tighter intonation.</p>
+  </div>
+
+  <footer>
+    <p>You can replay the interactive tour anytime from the
+    <span class="chip">?</span> button in the app.
+    &nbsp;·&nbsp; <a href="index.html?tour=1">Start the tour</a>
+    &nbsp;·&nbsp; <a href="index.html">Open ChanterLab</a>
+    &nbsp;·&nbsp; <a href="licensing.html">About &amp; licensing</a></p>
+  </footer>
+</main>
+
+</body>
+</html>

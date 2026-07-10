@@ -95,10 +95,26 @@ jobs:
       - name: Disable Jekyll
         run: touch web/.nojekyll
 
+      # Pages deploys the legacy Byzantine engine only (see README.md and
+      # docs/plans/00-baseline/01-branch-and-deployment.md). web/training is a
+      # committed symlink into the training-prototype product app; build the
+      # Pages artifact from a staging copy with that path removed so the
+      # product can never ship on this site by accident, even though the
+      # symlink stays in the repo for local/production serving.
+      - name: Stage Pages artifact without the training app
+        run: |
+          rm -rf /tmp/pages-artifact
+          cp -a web /tmp/pages-artifact
+          rm -f /tmp/pages-artifact/training
+          if [ -e /tmp/pages-artifact/training ]; then
+            echo "web/training still present in the Pages staging copy — refusing to deploy" >&2
+            exit 1
+          fi
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: /tmp/pages-artifact
 
   deploy:
     environment:

@@ -1,0 +1,591 @@
+{
+ "families": {
+  "Maestro": "finale",
+  "Petrucci": "finale"
+ },
+ "_notes": "Keys are raw legacy codepoints (hex). Finale emits each glyph as a MacRoman-mapped Unicode char OR its PUA twin 0xF000+byte; both are listed and map identically. Maestro and Petrucci use the same Sonata-style layout - NO divergences found on any shared codepoint. smufl=null means 'ignore' or 'no engine target'.",
+ "finale": {
+  "0x9": {
+   "smufl": "0xE050",
+   "symbol": "treble clef (control-char encoding)",
+   "confidence": "low",
+   "evidence": "TAB char (0x09) in one Maestro score consistently sits at a treble clef at line start; likely a font/encoding quirk. Verify."
+  },
+  "0xF": {
+   "smufl": null,
+   "symbol": "breath mark (comma above staff)",
+   "confidence": "medium",
+   "evidence": "control char 0x0F in one Maestro score shows a comma breath mark. Ignore."
+  },
+  "0x11": {
+   "smufl": null,
+   "symbol": "unknown (dotted-note/rest region)",
+   "confidence": "low",
+   "evidence": "control char 0x11 (Maestro, count 1). Near dotted note + quarter rest; unresolved."
+  },
+  "0x20": {
+   "smufl": null,
+   "symbol": "space (blank advance)",
+   "confidence": "high",
+   "evidence": "SPACE. Blank spacing glyph. Ignore."
+  },
+  "0x21": {
+   "smufl": null,
+   "symbol": "accent (marcato '>')",
+   "confidence": "high",
+   "evidence": "'!'. Renders '>' accent above notes ('gone forth into all'). Ignore."
+  },
+  "0x23": {
+   "smufl": "0xE262",
+   "symbol": "sharp",
+   "confidence": "high",
+   "evidence": "'#'. Sharp sign. Sonata #=sharp. Both families + twin."
+  },
+  "0x26": {
+   "smufl": "0xE050",
+   "symbol": "treble (G) clef",
+   "confidence": "high",
+   "evidence": "'&'. Unambiguous G-clef at system starts (Soprano/Alto). Sonata convention. Both families + PUA twin identical."
+  },
+  "0x28": {
+   "smufl": null,
+   "symbol": "left parenthesis (around editorial note)",
+   "confidence": "medium",
+   "evidence": "'('. Parenthesis around editorial/cautionary material. Ignore."
+  },
+  "0x29": {
+   "smufl": null,
+   "symbol": "right parenthesis (around cautionary accidental)",
+   "confidence": "medium",
+   "evidence": "')'. Closes parenthesis around a '(natural)' chord. Ignore."
+  },
+  "0x2A": {
+   "smufl": null,
+   "symbol": "asterisk (footnote/reference mark)",
+   "confidence": "high",
+   "evidence": "'*'. Asterisk above staff referencing a note ('C Alternate'). Ignore."
+  },
+  "0x2D": {
+   "smufl": null,
+   "symbol": "tenuto (horizontal bar above note)",
+   "confidence": "high",
+   "evidence": "'-' (Petrucci). Short horizontal tenuto stroke above noteheads. Ignore."
+  },
+  "0x2E": {
+   "smufl": "0xE1E7",
+   "symbol": "augmentation dot",
+   "confidence": "high",
+   "evidence": "'.'. Small filled dot to the RIGHT of noteheads ('Lord.', 'death:'). Same glyph also draws repeat-barline dots. Both families + twin."
+  },
+  "0x32": {
+   "smufl": "0xE082",
+   "symbol": "time signature digit 2",
+   "confidence": "high",
+   "evidence": "'2'. Stacked in 2/2,2/4,4/2 meters at measure starts. Both families + twin."
+  },
+  "0x33": {
+   "smufl": "0xE083",
+   "symbol": "time signature digit 3",
+   "confidence": "high",
+   "evidence": "'3'. In 3/4, 3/2 meters. Both families + twin."
+  },
+  "0x34": {
+   "smufl": "0xE084",
+   "symbol": "time signature digit 4",
+   "confidence": "high",
+   "evidence": "'4'. In 4/4, 2/4, 6/4, 3/4 meters. Both families + twin."
+  },
+  "0x36": {
+   "smufl": "0xE086",
+   "symbol": "time signature digit 6",
+   "confidence": "high",
+   "evidence": "'6'. In 6/4 meter. Both families + twin."
+  },
+  "0x3E": {
+   "smufl": null,
+   "symbol": "accent (marcato '>')",
+   "confidence": "high",
+   "evidence": "'>'. Accent above/below noteheads ('taste ye'). Ignore."
+  },
+  "0x3F": {
+   "smufl": "0xE062",
+   "symbol": "bass (F) clef",
+   "confidence": "high",
+   "evidence": "'?'. Unambiguous F-clef with two dots at system starts. Both families + twin."
+  },
+  "0x43": {
+   "smufl": null,
+   "symbol": "cut-time symbol (C-slash, 2/2) - no engine target",
+   "confidence": "high",
+   "evidence": "'C'. Cut-common time (vertical stroke through C). No engine slot; could be special-cased as 2/2."
+  },
+  "0x44": {
+   "smufl": null,
+   "symbol": "accent/editorial mark (Byzantine score)",
+   "confidence": "low",
+   "evidence": "'D'. In one Byzantine score alongside '>' accents; ambiguous (accent or mode letter). Ignore."
+  },
+  "0x46": {
+   "smufl": null,
+   "symbol": "dynamic 'F'/'mf' (forte)",
+   "confidence": "medium",
+   "evidence": "'F'. Appears in 'mf' dynamics. Ignore."
+  },
+  "0x4A": {
+   "smufl": "0xE241",
+   "symbol": "flag 8th down (stem-down eighth: notehead top, flag at bottom)",
+   "confidence": "high",
+   "evidence": "'J'. Verified on isolated highlighted crop: notehead high, stem down, single flag curling at bottom-right. Both families + twin."
+  },
+  "0x4E": {
+   "smufl": "0xE261",
+   "symbol": "natural, cautionary/parenthesized '(natural)'",
+   "confidence": "medium",
+   "evidence": "'N' (Petrucci). Renders a natural inside parentheses (editorial). Functions as a natural; parentheses are part of glyph."
+  },
+  "0x4F": {
+   "smufl": null,
+   "symbol": "unknown (possibly tie/slur segment or notehead variant)",
+   "confidence": "low",
+   "evidence": "'O' (Petrucci, count 11, 1 pdf). Appears over sustained slurred/tied half notes; ambiguous. Left unmapped to avoid corrupting noteheads."
+  },
+  "0x50": {
+   "smufl": null,
+   "symbol": "dynamic 'P'/'mp' (piano)",
+   "confidence": "medium",
+   "evidence": "'P'. Appears in 'mp' dynamics. Ignore."
+  },
+  "0x55": {
+   "smufl": null,
+   "symbol": "fermata (above)",
+   "confidence": "high",
+   "evidence": "'U'. Fermata arc+dot over held/final notes ('a tempo'). Ignore."
+  },
+  "0x56": {
+   "smufl": "0xE052",
+   "symbol": "treble clef 8vb (G clef with '8' below)",
+   "confidence": "high",
+   "evidence": "'V'. G-clef with integral '8' beneath, used for Tenor systems ('Chanter/Priest', 'Ison'). Maestro+Petrucci agree."
+  },
+  "0x57": {
+   "smufl": "0xE0A0",
+   "symbol": "notehead double-whole / breve (oval with side bars)",
+   "confidence": "high",
+   "evidence": "'W'. Open oval flanked by vertical strokes; used on long held notes ('O Lord save', drone 'Ison'). Maestro+Petrucci agree."
+  },
+  "0x5F": {
+   "smufl": null,
+   "symbol": "melisma/word-extension underline",
+   "confidence": "medium",
+   "evidence": "'_' (Petrucci). Long horizontal line extending a lyric ('wealth.___'). Ignore."
+  },
+  "0x62": {
+   "smufl": "0xE260",
+   "symbol": "flat",
+   "confidence": "high",
+   "evidence": "'b'. Flat sign beside noteheads. Sonata b=flat. Both families + twin."
+  },
+  "0x63": {
+   "smufl": null,
+   "symbol": "common-time symbol (C, 4/4) - no engine target",
+   "confidence": "high",
+   "evidence": "'c'. Plain 'C' meter symbol at measure starts. Engine only supports 0xE080+digit, so no target; could be special-cased as 4/4."
+  },
+  "0x66": {
+   "smufl": null,
+   "symbol": "dynamic 'f' (forte)",
+   "confidence": "high",
+   "evidence": "'f'. Bold-italic forte dynamic. Ignore."
+  },
+  "0x6A": {
+   "smufl": "0xE240",
+   "symbol": "flag 8th up (stem-up eighth: notehead bottom, flag at top)",
+   "confidence": "high",
+   "evidence": "'j'. Verified on isolated highlighted crop (Ps.2096): notehead low, stem up, single flag curling at top-right. Both families + twin."
+  },
+  "0x6E": {
+   "smufl": "0xE261",
+   "symbol": "natural",
+   "confidence": "high",
+   "evidence": "'n'. Natural sign beside noteheads. Sonata n=natural. Both families + twin."
+  },
+  "0x70": {
+   "smufl": null,
+   "symbol": "dynamic 'p' (piano)",
+   "confidence": "high",
+   "evidence": "'p'. Bold-italic piano dynamic below staff. Not a notehead (verified). Dynamics -> ignore."
+  },
+  "0x71": {
+   "smufl": "0xECA5",
+   "symbol": "metronome note, quarter (in tempo mark)",
+   "confidence": "medium",
+   "evidence": "'q'. Standalone quarter note in 'Andante q=62'. Composite quarter used only in tempo text (staff quarters use separate notehead+stem). One Maestro score."
+  },
+  "0x72": {
+   "smufl": null,
+   "symbol": "unknown (sixteenth-note related, beamed)",
+   "confidence": "low",
+   "evidence": "'r' (Petrucci, count 1). In a beamed sixteenth run; could be a beamed 16th note/32nd."
+  },
+  "0x75": {
+   "smufl": null,
+   "symbol": "fermata below",
+   "confidence": "high",
+   "evidence": "'u'. Inverted fermata beneath notes. Ignore."
+  },
+  "0x77": {
+   "smufl": "0xE0A2",
+   "symbol": "notehead whole (open oval, no stem)",
+   "confidence": "high",
+   "evidence": "'w'. Tight+context show stemless open ovals on cadential 'lu-ia' whole notes. Sonata convention w=whole."
+  },
+  "0x84": {
+   "smufl": null,
+   "symbol": "unknown (tempo/intonation text region)",
+   "confidence": "low",
+   "evidence": "control char (Maestro, count 1). In 'Intonation #1 Allegro q=150 D' header; unresolved."
+  },
+  "0x90": {
+   "smufl": null,
+   "symbol": "unknown (tempo/intonation text region)",
+   "confidence": "low",
+   "evidence": "control char (Maestro, count 1). Same header context; unresolved."
+  },
+  "0x95": {
+   "smufl": null,
+   "symbol": "unknown (tempo/intonation text region)",
+   "confidence": "low",
+   "evidence": "control char (Maestro, count 1). Same header context; unresolved."
+  },
+  "0xA0": {
+   "smufl": null,
+   "symbol": "no-break space (blank)",
+   "confidence": "medium",
+   "evidence": "NBSP (byte 0xCA, count 1). Blank. Ignore."
+  },
+  "0xA1": {
+   "smufl": null,
+   "symbol": "breath mark (comma/apostrophe above staff)",
+   "confidence": "high",
+   "evidence": "'inverted-exclamation' U+00A1 (MacRoman byte 0xC1). Comma above staff at phrase ends ('Faith; thou'); confirmed on enlarged Maestro context. Ignore. High Maestro count (77). Twin 0xF0C1."
+  },
+  "0xA7": {
+   "smufl": null,
+   "symbol": "unknown (tempo mark element, 'q.=62')",
+   "confidence": "low",
+   "evidence": "'section' byte 0xA4 (Maestro, count 1). In 'Andante q.=62'; possibly metronome dot/note. Unresolved."
+  },
+  "0xB4": {
+   "smufl": null,
+   "symbol": "wedge accent / martellato (downward wedge)",
+   "confidence": "medium",
+   "evidence": "'acute' (byte 0xAB). Small downward wedge above notes near mode letters. Ignore."
+  },
+  "0xBA": {
+   "smufl": "0xECA5",
+   "symbol": "metronome note, quarter (in tempo mark)",
+   "confidence": "medium",
+   "evidence": "'masc-ordinal' (byte 0xBC). Quarter note in 'q=100/120'. Twin 0xF0BC."
+  },
+  "0xBB": {
+   "smufl": null,
+   "symbol": "unknown (tempo mark element)",
+   "confidence": "low",
+   "evidence": "'raquo' byte 0xC8 (Maestro, count 1). In 'q.=62' tempo; unresolved."
+  },
+  "0xC4": {
+   "smufl": null,
+   "symbol": "unknown (tempo/intonation text region)",
+   "confidence": "low",
+   "evidence": "'A-dieresis' byte 0x80 (Maestro, count 1). Same header context; unresolved."
+  },
+  "0xCC": {
+   "smufl": null,
+   "symbol": "breath mark (comma above staff)",
+   "confidence": "high",
+   "evidence": "'I-grave' (byte 0xED). Comma breath mark ('thy word. There-by'). Ignore."
+  },
+  "0xD3": {
+   "smufl": "0xE4E4",
+   "symbol": "half rest (rectangle sitting on line)",
+   "confidence": "medium",
+   "evidence": "'O-acute' (0x00D3). Filled rectangle sitting on a staff line. Paired opposite to whole-rest 0x2211; whole/half could be swapped - verify."
+  },
+  "0xDA": {
+   "smufl": "0xECA5",
+   "symbol": "metronome note, quarter (in tempo mark)",
+   "confidence": "medium",
+   "evidence": "'U-acute' (byte 0xF2). Quarter note in 'q=56/120'. Twin 0xF0F2."
+  },
+  "0x152": {
+   "smufl": "0xE4E5",
+   "symbol": "quarter rest",
+   "confidence": "high",
+   "evidence": "'OE' (0x0152). Classic quarter-rest squiggle on staff. Sonata OE=quarter rest. Both families + twin."
+  },
+  "0x153": {
+   "smufl": "0xE0A4",
+   "symbol": "notehead black (filled)",
+   "confidence": "high",
+   "evidence": "Most common glyph (M5501/P8350). Tight+context show filled oval noteheads on staff for quarter/eighth notes; identical across Maestro/Petrucci and its PUA twin."
+  },
+  "0x2D9": {
+   "smufl": "0xE0A3",
+   "symbol": "notehead half (open oval, takes stem)",
+   "confidence": "high",
+   "evidence": "SURPRISE: the DOT-ABOVE codepoint is actually the OPEN half notehead. Tight+context show open ovals with stems on 'Al-le-lu-ia' sustained notes. Confirmed both families."
+  },
+  "0x2DA": {
+   "smufl": "0xE242",
+   "symbol": "flag 16th up (double flag, stem up)",
+   "confidence": "medium",
+   "evidence": "'ring-above' (Petrucci). Notehead bottom, stem up, DOUBLE flag at top; appears in dotted-8th+16th rhythms. Mirrors 8th flags j/J. Low count (P8)."
+  },
+  "0x3C0": {
+   "smufl": null,
+   "symbol": "dynamic 'pp' (pianissimo)",
+   "confidence": "medium",
+   "evidence": "'pi' (0x03C0). Bold 'pp' pianissimo. Ignore."
+  },
+  "0x2030": {
+   "smufl": "0xE4E6",
+   "symbol": "eighth rest",
+   "confidence": "high",
+   "evidence": "'per-mille'. Eighth-rest (hooked stroke) confirmed via PUA twin 0xF0E4 and context. Both families."
+  },
+  "0x2122": {
+   "smufl": "0xECA5",
+   "symbol": "metronome note, quarter (in tempo mark)",
+   "confidence": "medium",
+   "evidence": "'TM' (byte 0xAA). Quarter note in 'q=120' tempo marks. Confirmed via context."
+  },
+  "0x2211": {
+   "smufl": "0xE4E3",
+   "symbol": "whole rest (rectangle hanging below line)",
+   "confidence": "medium",
+   "evidence": "'n-ary-sum'. Filled rectangle hanging from a staff line, used for full-measure rests. Distinguished from half-rest 0x00D3 by hang-below vs sit-on; could be swapped with half rest - verify."
+  },
+  "0x221E": {
+   "smufl": null,
+   "symbol": "unknown",
+   "confidence": "low",
+   "evidence": "'infinity' byte 0xB0 (Maestro, count 1). In 'Byzantine Tone 8 q=56 4/4' header near whole notes; unresolved."
+  },
+  "0x2264": {
+   "smufl": null,
+   "symbol": "articulation/breath mark ('V' above note)",
+   "confidence": "medium",
+   "evidence": "'<=' (0x2264). 'V' mark above notes. Ignore (up-bow/lift-type mark)."
+  },
+  "0xF020": {
+   "smufl": null,
+   "symbol": "space (PUA twin of 0x20)",
+   "confidence": "high",
+   "evidence": "byte 0x20 twin."
+  },
+  "0xF023": {
+   "smufl": "0xE262",
+   "symbol": "sharp (PUA twin of 0x23)",
+   "confidence": "high",
+   "evidence": "byte 0x23 twin."
+  },
+  "0xF026": {
+   "smufl": "0xE050",
+   "symbol": "treble clef (PUA twin of 0x26)",
+   "confidence": "high",
+   "evidence": "byte 0x26 twin."
+  },
+  "0xF028": {
+   "smufl": null,
+   "symbol": "left parenthesis (PUA twin of 0x28)",
+   "confidence": "medium",
+   "evidence": "byte 0x28 twin."
+  },
+  "0xF029": {
+   "smufl": null,
+   "symbol": "right parenthesis (PUA twin of 0x29)",
+   "confidence": "medium",
+   "evidence": "byte 0x29 twin."
+  },
+  "0xF02E": {
+   "smufl": "0xE1E7",
+   "symbol": "augmentation dot (PUA twin of 0x2E)",
+   "confidence": "high",
+   "evidence": "byte 0x2E twin."
+  },
+  "0xF032": {
+   "smufl": "0xE082",
+   "symbol": "time sig 2 (PUA twin)",
+   "confidence": "high",
+   "evidence": "byte 0x32 twin."
+  },
+  "0xF033": {
+   "smufl": "0xE083",
+   "symbol": "time sig 3 (PUA twin)",
+   "confidence": "high",
+   "evidence": "byte 0x33 twin."
+  },
+  "0xF034": {
+   "smufl": "0xE084",
+   "symbol": "time sig 4 (PUA twin)",
+   "confidence": "high",
+   "evidence": "byte 0x34 twin."
+  },
+  "0xF036": {
+   "smufl": "0xE086",
+   "symbol": "time sig 6 (PUA twin)",
+   "confidence": "high",
+   "evidence": "byte 0x36 twin."
+  },
+  "0xF03F": {
+   "smufl": "0xE062",
+   "symbol": "bass clef (PUA twin of 0x3F)",
+   "confidence": "high",
+   "evidence": "byte 0x3F twin."
+  },
+  "0xF04A": {
+   "smufl": "0xE241",
+   "symbol": "flag 8th down (PUA twin of 0x4A)",
+   "confidence": "high",
+   "evidence": "byte 0x4A twin."
+  },
+  "0xF04E": {
+   "smufl": "0xE261",
+   "symbol": "cautionary natural (PUA twin of 0x4E)",
+   "confidence": "medium",
+   "evidence": "byte 0x4E twin, '(natural)'."
+  },
+  "0xF055": {
+   "smufl": null,
+   "symbol": "fermata above (PUA twin of 0x55)",
+   "confidence": "high",
+   "evidence": "byte 0x55 twin."
+  },
+  "0xF062": {
+   "smufl": "0xE260",
+   "symbol": "flat (PUA twin of 0x62)",
+   "confidence": "high",
+   "evidence": "byte 0x62 twin."
+  },
+  "0xF063": {
+   "smufl": null,
+   "symbol": "common-time symbol (PUA twin of 0x63)",
+   "confidence": "high",
+   "evidence": "byte 0x63 twin."
+  },
+  "0xF06A": {
+   "smufl": "0xE240",
+   "symbol": "flag 8th up (PUA twin of 0x6A)",
+   "confidence": "high",
+   "evidence": "byte 0x6A twin."
+  },
+  "0xF06E": {
+   "smufl": "0xE261",
+   "symbol": "natural (PUA twin of 0x6E)",
+   "confidence": "high",
+   "evidence": "byte 0x6E twin."
+  },
+  "0xF075": {
+   "smufl": null,
+   "symbol": "fermata below (PUA twin of 0x75)",
+   "confidence": "high",
+   "evidence": "byte 0x75 twin."
+  },
+  "0xF077": {
+   "smufl": "0xE0A2",
+   "symbol": "notehead whole (PUA twin of 0x77)",
+   "confidence": "high",
+   "evidence": "byte 0x77 twin."
+  },
+  "0xF0A2": {
+   "smufl": "0xECA5",
+   "symbol": "metronome note, quarter (in tempo mark)",
+   "confidence": "low",
+   "evidence": "byte 0xA2 (Petrucci, count 1). Quarter note in 'q=104' tempo. Different scores encode the tempo note under different bytes; all render as quarter."
+  },
+  "0xF0A4": {
+   "smufl": null,
+   "symbol": "unknown (PUA twin of 0xA7, tempo element)",
+   "confidence": "low",
+   "evidence": "byte 0xA4 twin."
+  },
+  "0xF0AB": {
+   "smufl": null,
+   "symbol": "wedge accent (PUA twin of 0xB4)",
+   "confidence": "medium",
+   "evidence": "byte 0xAB twin."
+  },
+  "0xF0B7": {
+   "smufl": "0xE4E3",
+   "symbol": "whole rest (PUA twin of 0x2211)",
+   "confidence": "medium",
+   "evidence": "byte 0xB7 twin."
+  },
+  "0xF0BC": {
+   "smufl": "0xECA5",
+   "symbol": "metronome note, quarter (PUA twin of 0xBA)",
+   "confidence": "medium",
+   "evidence": "byte 0xBC twin."
+  },
+  "0xF0C1": {
+   "smufl": null,
+   "symbol": "breath mark (PUA twin of 0xC1)",
+   "confidence": "high",
+   "evidence": "byte 0xC1 twin."
+  },
+  "0xF0CE": {
+   "smufl": "0xE4E5",
+   "symbol": "quarter rest (PUA twin of 0x152)",
+   "confidence": "high",
+   "evidence": "byte 0xCE twin."
+  },
+  "0xF0CF": {
+   "smufl": "0xE0A4",
+   "symbol": "notehead black (PUA twin of 0x153)",
+   "confidence": "high",
+   "evidence": "Renders identically to 0x153 (byte 0xCF)."
+  },
+  "0xF0DE": {
+   "smufl": null,
+   "symbol": "coda symbol (PUA twin of 0xFB01)",
+   "confidence": "low",
+   "evidence": "byte 0xDE twin of 0xFB01; circle-plus next to 'Coda'."
+  },
+  "0xF0E4": {
+   "smufl": "0xE4E6",
+   "symbol": "eighth rest (PUA twin of 0x2030)",
+   "confidence": "high",
+   "evidence": "byte 0xE4 twin; clear eighth-rest shape."
+  },
+  "0xF0EE": {
+   "smufl": "0xE4E4",
+   "symbol": "half rest (PUA twin of 0xD3)",
+   "confidence": "medium",
+   "evidence": "byte 0xEE twin."
+  },
+  "0xF0F0": {
+   "smufl": "0xE243",
+   "symbol": "flag 16th down (double flag, stem down)",
+   "confidence": "medium",
+   "evidence": "byte 0xF0 (Petrucci). Notehead top, stem down, DOUBLE flag at bottom, in dotted-16th rhythms. Low count (P4). Direction read from tight crop."
+  },
+  "0xF0F2": {
+   "smufl": "0xECA5",
+   "symbol": "metronome note, quarter (PUA twin of 0xDA)",
+   "confidence": "medium",
+   "evidence": "byte 0xF2 twin."
+  },
+  "0xF0FA": {
+   "smufl": "0xE0A3",
+   "symbol": "notehead half (PUA twin of 0x2D9)",
+   "confidence": "high",
+   "evidence": "Renders identically to 0x2D9 (byte 0xFA): open half notehead."
+  },
+  "0xFB01": {
+   "smufl": null,
+   "symbol": "coda symbol (circle-plus)",
+   "confidence": "high",
+   "evidence": "'fi'-ligature U+FB01 (MacRoman byte 0xDE). Circle-plus Coda navigation sign next to 'Coda' text. Ignore. Twin 0xF0DE."
+  }
+ }
+}

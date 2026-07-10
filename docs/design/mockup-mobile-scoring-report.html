@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calm Surface — mobile scoring report (mockup)</title>
+<style>
+/* ==== app tokens (copied from training-prototype/style.css) ==== */
+:root{--bg:#14151a;--panel:#1e2027;--ink:#e8e6df;--sub:#9aa0a6;--gold:#d4af37;
+      --gold-soft:#e7c96b;--line:#2c2f38;--cyan:#4dd7ff}
+*{box-sizing:border-box}
+body{margin:0;background:#0b0c10;color:var(--ink);
+     font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+     display:flex;gap:28px;align-items:flex-start;justify-content:center;
+     padding:28px;flex-wrap:wrap}
+.phone{width:390px;height:780px;background:var(--bg);border:1px solid var(--line);
+       border-radius:22px;overflow:hidden;display:flex;flex-direction:column;
+       position:relative;flex:0 0 auto;box-shadow:0 18px 60px rgba(0,0,0,.6)}
+.app-head{padding:10px 14px 6px}
+.app-head h1{margin:0;font-size:16px;font-weight:650;white-space:nowrap;
+             overflow:hidden;text-overflow:ellipsis}
+.app-head .piece{color:var(--sub);font-weight:500}
+.scope{margin:6px 10px;border:1px solid var(--line);border-radius:12px;
+       background:#14161c;height:150px;position:relative;overflow:hidden;flex:0 0 auto}
+.lane{position:absolute;height:9px;border-radius:3px;background:var(--gold)}
+.lane.dim{background:#3a3d46;height:6px}
+.trace{position:absolute;height:3px;border-radius:2px;background:var(--cyan);opacity:.9}
+.readout{position:absolute;top:8px;right:10px;color:var(--sub);font-size:13px}
+.score{margin:0 10px;background:#fbfbf7;border-radius:12px;flex:1;min-height:0;
+       color:#222;padding:12px;overflow:hidden}
+.staff{height:34px;margin:16px 8px;
+       background:repeating-linear-gradient(#0000 0 6px,#777 6px 7px);border-top:1px solid #777}
+
+/* ==== report strip: NEW position — floats just above the transport ==== */
+.report{position:absolute;left:8px;right:8px;bottom:118px;z-index:6;
+        background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:9px 11px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.report-head{display:flex;align-items:center;gap:8px}
+.report-totals{flex:1;font-size:12px;font-weight:600;line-height:1.35}
+.report-close{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);
+              background:#12141a;color:var(--sub);font-size:13px}
+.spots{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.spot{display:flex;align-items:center;gap:10px;background:#12141a;border:1px solid var(--line);
+      border-radius:8px;padding:8px 10px;font-size:12px;min-height:34px;color:var(--ink);
+      text-align:left}
+.spot:first-child{border-color:rgba(212,175,55,.5)}
+.spot-m{min-width:40px;color:var(--gold-soft);font-weight:700}
+.spot-d{flex:1;color:var(--sub)}
+.spot-go{color:var(--gold-soft);font-size:11px;white-space:nowrap}
+
+/* ==== transport (collapsed, post-stop) ==== */
+.transport{background:rgba(24,26,33,.97);border-top:1px solid var(--line);
+           box-shadow:0 -8px 28px rgba(0,0,0,.5);padding:0 10px 10px;flex:0 0 auto}
+.handle-row{display:flex;align-items:center;gap:8px;padding:5px 4px 3px}
+.handle-row .status{flex:1;min-width:0;color:var(--sub);font-size:12px;
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.handle-row .chev{color:var(--sub);font-size:15px;line-height:1;transform:rotate(180deg)}
+.mini-row{display:flex;align-items:center;gap:8px;padding:2px 0 2px}
+.btn{background:#20232c;border:1px solid var(--line);color:var(--ink);
+     padding:12px 14px;border-radius:12px;font-weight:600;font-size:16px;min-height:52px}
+.btn.primary{background:var(--gold);color:#161616;border-color:var(--gold);flex:1;font-size:17px}
+.btn.icon{flex:0 0 auto;width:46px;padding:12px 0;text-align:center}
+.pos{color:var(--sub);font-size:13px;min-width:40px;text-align:center}
+.chip{background:var(--gold);color:#161616;font-weight:700;border:none;border-radius:999px;
+      padding:10px 12px;font-size:14px;white-space:nowrap}
+
+/* annotations */
+.dot{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--cyan);
+     color:#062830;font-size:13px;font-weight:800;display:flex;align-items:center;
+     justify-content:center;box-shadow:0 0 0 3px rgba(77,215,255,.25);z-index:9}
+.notes{max-width:430px;flex:1 1 340px}
+.notes h2{font-size:18px;margin:0 0 4px;color:var(--gold-soft)}
+.notes p.sub2{color:var(--sub);font-size:13px;margin:0 0 14px}
+.note{display:flex;gap:10px;margin:0 0 12px;font-size:13.5px;line-height:1.5}
+.note b{color:var(--gold-soft)}
+.nd{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--cyan);
+    color:#062830;font-size:13px;font-weight:800;display:flex;align-items:center;
+    justify-content:center;margin-top:1px}
+code{background:#12141a;border:1px solid var(--line);padding:1px 5px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="app-head"><h1>ChanterLab <span class="piece">· Trisagion Hymn (10-B)</span></h1></div>
+
+  <div class="scope">
+    <div class="readout">🎤 listening…</div>
+    <div class="lane" style="top:56px;left:8%;width:15%"></div>
+    <div class="lane" style="top:56px;left:26%;width:10%"></div>
+    <div class="lane" style="top:50px;left:39%;width:19%"></div>
+    <div class="lane" style="top:50px;left:61%;width:17%"></div>
+    <div class="trace" style="top:60px;left:8%;width:14%"></div>
+    <div class="trace" style="top:58px;left:26%;width:9%"></div>
+    <div class="trace" style="top:66px;left:39%;width:18%"></div>
+    <div class="lane dim" style="top:92px;left:8%;width:34%"></div>
+    <div class="lane dim" style="top:104px;left:39%;width:39%"></div>
+  </div>
+
+  <div class="score">
+    <div style="font-weight:700;font-size:15px;margin:0 4px 2px">The Trisagion Hymn</div>
+    <div class="staff"></div>
+    <div class="staff"></div>
+    <div class="staff"></div>
+  </div>
+
+  <!-- report strip in its NEW slot -->
+  <div class="report">
+    <div class="report-head">
+      <span class="report-totals">Lap 3: 14 hit · 2 flat · 1 sharp · 1 missed of 18 (78%) · best 82%</span>
+      <button class="report-close">✕</button>
+    </div>
+    <div class="spots">
+      <button class="spot"><span class="spot-m">m 12</span><span class="spot-d">2 flat</span><span class="spot-go">tap → loop 11–13</span></button>
+      <button class="spot"><span class="spot-m">m 7</span><span class="spot-d">1 missed</span><span class="spot-go">tap → loop 6–8</span></button>
+    </div>
+  </div>
+
+  <div class="transport">
+    <div class="handle-row">
+      <span class="status">Lap 3: 78% · best 82%</span>
+      <span class="chev">⌄</span>
+    </div>
+    <div class="mini-row">
+      <button class="btn primary">▶ Play</button>
+      <button class="btn icon">■</button>
+      <output class="pos">m –</output>
+      <button class="btn icon">§</button>
+      <button class="chip">🔇 S · Sop</button>
+    </div>
+  </div>
+
+  <div class="dot" style="top:548px;left:8px">1</div>
+  <div class="dot" style="top:628px;left:250px">2</div>
+  <div class="dot" style="top:672px;left:8px">3</div>
+</div>
+
+<div class="notes">
+  <h2>Mobile · post-lap scoring report (#60)</h2>
+  <p class="sub2">After a lap wrap or Stop with the mic on. Spec §4.</p>
+  <div class="note"><span class="nd">1</span><div><b>The strip moves from page-top to the transport's doorstep</b> — <code>position:fixed; bottom:calc(var(--transport-h) + 8px)</code>, the slot the onboarding bubble already proves out. Today it renders at the top of the page, behind the expanded transport and the coach-mark (see <code>current/mobile-07-score-report.png</code>).</div></div>
+  <div class="note"><span class="nd">2</span><div><b>Worst-spot tap-to-loop</b> (existing machinery): tap → loop is set to the ±1-measure neighborhood, cursor parks there, strip dismisses — and Play is now 60px below your thumb instead of a full screen away. Totals line gains the running <b>best %</b> during loop sessions.</div></div>
+  <div class="note"><span class="nd">3</span><div><b>Same summary on the status line</b> (persists across Stop, as shipped in #58 wave 1). Detail policy: the strip stays summary + navigation; the rich per-note layer of #60 (coloring the practiced voice's noteheads from <code>lastScore().details</code>) is phase 2, drawn on the score itself — never packed into this strip.</div></div>
+</div>
+
+</body>
+</html>

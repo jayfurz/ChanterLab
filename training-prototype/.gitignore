@@ -1,0 +1,33 @@
+# Python OMR environment (large; reproduce via omr/SOURCES.md)
+omr/.venv/
+
+# Copyrighted source scores and anything derived from them are NOT committed.
+# (Antiochian Sacred Music Library PDFs: "© Tendershoot Music 2022, used with
+#  permission" — see omr/SOURCES.md. The project brief forbids committing
+#  copyrighted editions to the repo.)
+omr/pdfs/
+omr/pages/
+omr/out/
+# Hand-authored piece corrections are derived from the copyrighted PDFs too;
+# keep the dir + its README tracked, but never commit the override XML itself.
+omr/overrides/*.musicxml
+omr/gt_crops/
+omr/verify/out/
+omr/verify/shots/
+omr/verify/proof/
+omr/*.log
+omr/*.token
+omr/.token
+content/trisagion_omr.musicxml
+content/trisagion_vector.musicxml
+content/cherubic_vector.musicxml
+content/anaphora_vector.musicxml
+
+# Screenshots derived from the copyrighted score
+omr/shots/trisagion_omr.png
+omr/shots/trisagion_vector*.png
+omr/shots/cherubic_vector*.png
+omr/shots/anaphora_vector*.png
+omr/shots/teaser*.png
+omr/shots/lib*.html
+__pycache__/

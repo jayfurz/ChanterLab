@@ -1,3 +1,9 @@
+# Scope note: these targets cover the legacy Byzantine engine (Rust/WASM) and
+# root-level JS lint only. They do NOT run the OMR Python pipeline's pytest
+# suite or training-prototype's own tests/lint (see
+# training-prototype/omr/tests/ and .github/workflows/training-smoke.yml).
+# `make check` is not full repository validation; unifying that is BASE-02
+# scope (docs/plans/00-baseline/02-unified-required-ci.md).
 .PHONY: build-main build-worklet build test test-rust test-js lint lint-rust lint-js fmt clippy eslint check
 
 build-main:

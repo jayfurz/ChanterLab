@@ -1,0 +1,385 @@
+# ChanterLab — Agile Reset (July 2026)
+
+Status: **approved by owner 2026-07-04, executed same day.** Decisions:
+direction confirmed (training app is the product, Byzantine integrates in as
+we go — distinct notation/font set, inheriting the Rust/WASM crown jewels);
+tracker reset = full scorched earth (all 36 legacy issues closed as
+overcome-by-events; still-valid ideas carried forward inside the new epics);
+PDF exposure remediated (block PDFs + directory listings at the serving
+layer, library stays public pending the licensing epic).
+Prepared from a full audit of the tracker (36 issues, all filed 2026-05-04,
+none ever closed) against the current state of the code (`choir-training`
+@ 60b36fb, 1,491-piece ingested library, live at
+byz.alwaysdobetterllc.com/training/ + chanterlab.com/training/).
+
+---
+
+## 1. Direction (the decision everything else hangs off)
+
+**Recommendation: the training app is the product.** The May plan assumed a
+Byzantine interval-drill curriculum (Grand Tour, course map, badges). What
+actually shipped — and what has users' features — is a score-driven practice
+tool: OMR-ingested liturgical library, per-voice practice, singscope, sections,
+now fast loading. The old `web/` app keeps its two crown jewels (Rust/WASM
+pitch detection + tuning engine, Byzantine neume support); those migrate INTO
+the training app over time rather than the training app being ported into the
+old shell (the roadmap's original Phase 1–2).
+
+Consequences if confirmed:
+- `docs/choir-training-roadmap.md` stays the vision doc; its Phase 1–2 is
+  re-scoped from "integrate into main app" to "extract what main has that
+  training needs" (detector, PSOLA, neume mode).
+- `main` (the Pages-deployed Byzantine app) goes maintenance-only until its
+  assets are absorbed.
+- Branch strategy needs a decision: merge `choir-training` → `main`
+  (Pages would then also publish the training app — no copyrighted content is
+  committed, so this is safe), or flip the default branch. Local `main` is
+  stale (5 ahead / 11 behind origin) and needs a reset to origin either way.
+  Open PR #38 (Byzantine neume OCR) becomes part of the "neume mode" epic.
+
+## 2. Issue triage (36 open issues)
+
+**Close as obsolete (10)** — describe the abandoned drill-curriculum product.
+Close with a comment linking this doc + roadmap:
+#3 (EX-03b moria sequencer), #8 (AUD-05b step-through), #10 (EX-04 Grand Tour
+library), #24 (EX-05 exercise JSON import/export), #25 (EX-06 adaptive
+generator), #29 (CRS-01 course map), #30 (CRS-02 auto-unlock), #31 (CRS-03
+daily plan), #32 (CRS-04 streaks), #33 (CRS-05 badges).
+
+**Rewrite/retarget (8)** — still wanted, wrong framing (moria drills → score
+practice; several are half-shipped in the prototype's singscope):
+#5 (FB-06 live readout → cents for SATB / moria for chant; partially shipped),
+#6 (VIS-04/05 tolerance bands → ±50¢ glow shipped, generalize),
+#7 (TCH-02 persistence → + store imported/verified scores),
+#13 (FB-04 score report → per-loop report on a chosen SATB line),
+#14 (FB-05 pass/fail → per-note against the gold lane),
+#17 (REC-02 ideal trace → gold target lane shipped; close-as-done or extend),
+#21 (AUD-10 timbre → per-voice timbre),
+#35 (DATA-01 stats → per-piece/per-voice trends, not per-interval).
+
+**Keep as-is (18):** #2, #4, #9, #11, #12, #15, #16, #18, #19, #20, #22, #23,
+#26, #27, #28, #34, #36, #37. Generic capabilities that apply to either
+notation world. Highlights that gained relevance: #18 (range/auto-transpose),
+#36 (offline/PWA), #37 (mic calibration — needed for choir bleed handling).
+
+## 3. Milestones (replace the drill-curriculum set)
+
+Retire: "Phase 1: Core Drills", "Phase 2: Interval Training",
+"Phase 3: Course & Polish" (empty), "Post-Launch".
+
+- **M1 — Hardening & Rights** (now): PDF/artifact exposure remediation
+  (done 2026-07-04 if the in-flight fix verifies), licensing & attribution
+  policy for the library (SOURCES.md terms → what may be public; composer
+  attribution surfaced in the app), OMR review-queue triage (1,992 review
+  items; Joseph-of-Damascus cluster extracts at 0% integrity), scrub the one
+  committed copyrighted screenshot going forward.
+- **M2 — Practice Depth**: per-note scoring + pass/fail + loop report
+  (#13/#14 rewritten), verse-2 display toggle (data already in manifest),
+  range/auto-transpose (#18), per-voice timbre (#21), on-target chime (#11),
+  target-pitch replay (#4), mic calibration (#37).
+- **M3 — One App**: WASM pitch detector + PSOLA into the training app
+  (replaces JS autocorrelation), Byzantine neume mode (absorbs PR #38 +
+  `.chant` engine), offline/PWA (#36), persistence (#7 rewritten).
+- **M4 — Ops & Scale**: branch consolidation + default-branch decision, CI for
+  training-prototype (headless Playwright smoke) + omr (pytest on
+  vector_extract regression corpus), OMR correction UI (roadmap §3.4 residuals),
+  section detection for small-header books (Hilko), rubric-word lyric
+  residuals (~60 files), review-queue promotion workflow.
+
+## 4. Labels to add
+
+`area:omr`, `area:choir`, `area:library`, `area:licensing`, `area:infra`
+(existing `audio:`/`viz:`/`feedback:`/`platform:`/`recording:` taxonomy stays).
+
+## 5. New epics to file (seed issues)
+
+1. **EPIC: Library rights & attribution** (M1) — decide + implement what is
+   publicly served vs auth-gated; per-piece attribution in the UI; takedown
+   path documented.
+2. **EPIC: OMR quality loop** (M1/M4) — review-queue triage dashboard,
+   correction UI for the §3.4 residual classes, integrity-gate tuning,
+   Joseph-of-Damascus failure-mode fix, small-title section detection.
+3. **EPIC: Practice scoring v1** (M2) — per-note hit detection on the gold
+   lane → loop report → pass/fail thresholds; reuses exercise_mode patterns.
+4. **EPIC: One app — detector & neume mode** (M3) — WASM detector swap,
+   PSOLA, Byzantine notation as a second score type behind the same transport.
+5. **EPIC: Productionize the training app** (M4) — modularize app.js (2k+
+   lines), error handling, headless smoke suite in CI, PWA shell.
+
+## 6. Proposed Sprint 1 (2 weeks)
+
+1. Verify + document the exposure fix; write the licensing policy page (M1).
+2. Verse-2 toggle in the singscope (small, high singer value; data ships).
+3. Per-note hit detection spike on one piece (scoring v1 seed).
+4. Joseph-of-Damascus extraction failure: diagnose the 0%-integrity cluster
+   (biggest review-queue win; ~9 pieces).
+5. CI: GitHub Action running the headless Playwright smoke (load Finley,
+   sections, play) on pushes to `choir-training`.
+6. Tracker reset execution (close/rewrite/create per §2–§5) once approved.
+
+## 7. Execution checklist (owner chose scorched earth: close ALL 36)
+
+- [ ] `gh issue close` ×36 with a reset comment; still-valid ideas are
+      carried forward by "Carries forward: #N" lines in the new epic bodies
+      (supersedes the §2 close-10/rewrite-8 split)
+- [ ] Create labels (§4), milestones (§3), close old milestones
+- [ ] File 5 epics + Sprint-1 issues, assign milestones
+- [ ] Branch decision executed later under M4 (merge or default-branch flip +
+      local main reset)
+- [ ] PR #38 stays open; absorbed by the M3 "One App" epic
+
+## 8. Sprint 1 retrospective (completed 2026-07-04)
+
+All five issues shipped and closed in one orchestrated day (#47-#51):
+verse toggle (a1d2749), scoring spike (41521b8), CI smoke (016f7e1,
+green from run 1), licensing + attribution (9e9a8bc), and the
+FinaleMaestro font fix (81bc3ba) which grew the accepted library
+1,491 → 1,539 (+48 pieces, 9 Joseph-of-Damascus booklets at 100%).
+Model tiering: opus on the two open-ended tasks (both paid off —
+the font root-cause and the scoring-coverage design call), sonnet on
+the three well-scoped ones (all first-pass clean).
+
+Retro lesson: three of five tasks serialized on app.js — the monolith
+is now the orchestration bottleneck. Addressed in Sprint 2's stretch.
+
+## 9. Sprint 2 (filed 2026-07-04, label `sprint-2`)
+
+Wave A (parallel): #53 OMR regression harness (pytest, locks the
+byte-identical bar — prerequisite for risky OMR work) · #54
+review-queue triage (find the next FinaleMaestro-scale systemic win
+among 1,944 rejects) · #58 monophonic playback UX (play the melody by
+default — tester-reported: Psalm 135 "shows notes but doesn't play";
+first in the app.js queue, small + users actively confused) · #56
+exposure canary + screenshot scrub.
+Wave B: #52 residual Joseph failures (after #53) · #55 scoring v1
+(per-lap scoring, on-screen report, strictness setting; after #58
+frees app.js).
+Wave C (stretch, after #55): #57 modularize app.js into native ES
+modules so future sprints can parallelize app work.
+
+Suggested tiers: opus for #52 and #54 (open-ended diagnosis), sonnet
+for #53/#55/#56/#58, opus for #57 (large refactor, no-regression bar).
+
+## 10. Sprint 3 (filed 2026-07-04, label `sprint-3`) — owner field-testing feedback
+
+Sourced from the owner's first real practice session on the live site:
+- #63 audio unlock — first Play is silent until the mic button is
+  touched (root cause found: Tone.start() only fires in the mic
+  handler; Play never unlocks the AudioContext)
+- #64 landing experience — default piece becomes Trisagion 10A
+  (10a_trisagion_hymn-hilko-t3_0) with fallback to the control fixture
+  (which stays CI-only; it also truncates "have mercy on") + first-run
+  onboarding (absorbs the coach-mark from #61)
+- #65 sound engine: diagnose + fix popping/crackling (envelopes,
+  master limiter, main-thread contention) — measured, not by-ear
+- #66 sampled voices behind a toggle (licensing-clean set, ≤3 MB,
+  synth stays the fallback) — after #65, same module
+- #67 in-app practice recording (mic + accompaniment mixed via
+  MediaStreamDestination) — solves the owner's UGC screen-recording
+  mix problem and gives users a share feature
+- #68 business model & market research memo — Orthodox beachhead →
+  generic "upload your repertoire" choir market; competitive scan;
+  pricing candidates; docs/BUSINESS-MODEL memo for owner decisions
+- #59 (carried in) glyph-attachment tolerances — the ~40-70-piece
+  SATB quick win; the OMR slot is free all sprint
+
+Waves (post-#57 modules permitting): A: #63 + #64 (parallel: audio vs
+library/main modules) + #68 research + #59 omr · B: #65 → #66 · C: #67.
+Tiers: opus #65/#67/#68, sonnet #63/#64/#66/#59.
+
+## 11. Sprint 2 retrospective (completed 2026-07-04)
+
+All seven issues + one owner side-quest shipped in one orchestrated
+day. Headline: **the accepted library more than doubled — 1,539 →
+3,296 pieces** (#52: per-system integrity + evidence-only staff
+grouping, gated behind #53's new 14-test regression harness), after
+#54's triage proved 91% of the review queue was the SATB metric
+mis-scoring chant, not extraction failure. The UX audit (#58) found
+the monophonic-silence bug affected 82% of the library; wave-1 fixes
+shipped same-day (melody-plays-by-default, audio/status desync,
+mobile-collapsed transport, friendly errors). Scoring v1 (#55):
+per-lap results, tappable worst-spots, strictness presets. #56:
+exposure canary timer + screenshot scrub. #57: app.js split into nine
+ES modules, zero behavior change, opening parallel-work seams.
+Side-quest: full corpus archived to truenas (additive daily mirror).
+
+Retro lessons: (1) triage-before-fix paid off enormously — #54
+re-scoped #52 mid-flight from ~13 pieces to ~1,600; (2) the regression
+harness let the riskiest OMR change of the project land with
+confidence same-day; (3) owner field-testing (Sprint 3's source)
+catches what headless audits cannot (audio unlock, sound quality,
+recording workflows).
+
+## 12. Sprint 3 retrospective (completed 2026-07-05)
+
+All seven issues closed (+ #70 added mid-sprint) — every one sourced
+from the owner's first real practice session. Audio-unlock guard +
+Trisagion 10B landing + first-run onboarding (#63/#64, one combined
+agent since they shared files); pops/crackles measured-and-fixed —
+headroom limiter + doubled scheduler lookahead, envelope clicks ruled
+OUT by data (#65); self-generated formant "Voices" instrument, 639KB,
+CC0-risk-free because the CC0 libraries had no vocal samples (#66);
+in-app mixed practice recording — the owner's UGC pipeline (#67);
+glyph-attachment fix landed with an honest negative result — 1
+crossing not 40-70, premise overturned by measurement, follow-up #69
+filed for the real dual-stem refactor (#59); business-model memo
+delivered, #68 left open for owner decisions; chanterlab.com now
+serves the app at ROOT via host-aware origin routing (#70, owner
+go-ahead mid-sprint). Catalog: 3,297 accepted.
+
+Retro lessons: (1) owner field-testing generated the whole sprint —
+institutionalize a "founder plays with it" session per sprint;
+(2) the CI fresh-checkout gate caught a real staging omission
+(state.js exports) that local verification structurally could not;
+(3) measurement-before-fixing paid again twice (#65's ruled-out
+envelope theory, #59's overturned premise) — cheaper than shipping
+plausible-but-wrong fixes.
+
+## 13. Sprint 4 (filed 2026-07-05, label `sprint-4`) — "Calm Surface"
+
+Anchored on two independent tester reports ("screen is pretty busy" on
+mobile; "how would it look as a desktop program?"). Design-first
+because #62/#72/#61/#60 all share index.html/style.css:
+- Wave A (parallel): #73 UI design spec — control inventory, grouping
+  (Practice/Sound/Advanced), always-visible set, desktop two-column
+  rail, keyboard map, scoring-report placement; owner reviews before
+  implementation. Running as the FABLE-subagent experiment (judgment/
+  synthesis task, vs opus for bounded execution). · #69 dual-stem OMR
+  refactor (opus, disjoint, behind the regression harness).
+- Wave B (post-spec, post-owner-review): implement #62 mobile
+  de-densify + #72 desktop mode/shortcuts/PWA manifest, absorbing #61
+  one-tap mute and #60 results panel into the new layout.
+- Floating: #71 outcome may spawn "voices v2" (pending owner listen).
+
+Orchestration retro note (3 sprints in): the stable division of labor
+is agents for bounded deep work, orchestrator for glue (verify/commit/
+GitHub/one-liners). Diagnosis-heavy tasks earn subagent cost (they
+keep returning more than the brief); tokens are the real overhead —
+every agent re-acquires context. Sprint 4 tests whether a fable-tier
+subagent moves the needle on a pure design-judgment task.
+
+## 14. Sprint 4 retrospective (completed 2026-07-05)
+
+All planned issues closed (+3 owner-reported mid-sprint): calm-surface
+spec (fable, #73 — the fable-tier experiment produced a spec that
+found a live clipping defect and specified two clean implementation
+waves) → B1 mobile tabs/mini-row/one-tap-mute (#62/#61) → B2 desktop
+rail/keyboard/PWA (#72); dual-stem OMR refactor (#69: +17 accepted →
+3,314, ~6,200 noteheads recovered); iOS audio arc (#74, still open
+for owner retest): silent-context fix confirmed in the field, then
+the 📞 call-mode mechanism traced to WebKit source (fable analysis) →
+session-type management + auto-recreate + in-app volume; the lyric
+campaign (#77): four owner-reported contamination classes fixed with
+a three-layer QA stack (structural filters, semantic pass, consensus
+layer filed as #78); business memo delivered (#68 open for owner);
+chanterlab.com root routing (#70); stale-edge-cache incident fixed
+structurally (origin no-cache).
+
+Retro lessons: (1) the owner's field loop is now the primary quality
+instrument — every mid-sprint report (silent iOS, 📞 icon, Deacon,
+wor-ship, instruction blocks, stale CSS) converted to a measured fix
+within hours; institutionalized via SendMessage scope-additions to
+in-flight agents rather than new spawns. (2) The live-tree serving
+model needs cache discipline — fixed at the origin, permanently.
+(3) Fable tier earned its slot on design/synthesis tasks (spec,
+session analysis); opus stays right for bounded deep work. (4) One
+agent misfire (instant-exit) — respawn-on-anomaly worked; watch rate.
+
+## 15. Sprint 5 retrospective (completed 2026-07-05)
+
+Four issues, four closes, same-day: tone-aware library search (#76),
+per-note verdict coloring on the score (#79 — the practice loop is
+now sing → score → SEE which notes → tap to drill), the WASM detector
+spike (#80 — honest A/B kept JS as default: better clean-tone accuracy
+and latency; wasm's 13x CPU win waits on real-voice field evidence),
+and the consensus lyric-QA layer (#78 — the owner's "hymn types
+validate each other" insight: 94 translation-family consensuses,
+zero cross-language false flags, one new contamination class, and
+101 dropped-line candidates nothing else could see). Follow-ups
+filed: extractor iteration 4, metadata taxonomy, key/catalogCode
+ingest fields. Two agent anomalies this sprint: one instant-exit
+misfire (respawned clean) and one interleaved-file commit hold
+(resolved by committing after both agents landed, shared file in the
+second commit with attribution note).
+
+Owner-gated items open: #74 iPhone audio retest (+ detector A/B
+feel-test via ?detector=wasm), #68 business decisions.
+
+## 16. Sprint 6 retrospective (completed 2026-07-05)
+
+Three issues, three closes — the OMR-focused sprint the backlog had
+been accumulating toward. The headline was found by one owner
+screenshot: an inline footnote asterisk was condemning entire sung
+lyric lines (the English and Greek Trisagion verses each carry a "*"
+note-reference; Arabic didn't — so only Arabic survived), silently
+deleting 107 lyric lines across 60 pieces including a second
+multilingual trisagion and the "And to thy spirit" response family
+(#82, syllabification-gated fix). The catalog gained a real taxonomy:
+hymnType (85.5% classified, 5-way anaphora split with compilation
+guard), feastId (541 orphaned propers + ~1,967 Menaion), key labels
+(100%), catalogCode (#83, #81) — all additive with sha256-proven zero
+churn, consumed by the consensus QA whose anaphora mega-bucket became
+real families. Sprint-close re-ingest: 3,314 accepted at 99.8%,
+acceptance test green — 10B's three verse streams extract pure
+English/Arabic/Greek end-to-end on the live site.
+
+Retro: (1) the owner screenshot → measured root cause → catalog-wide
+sweep loop is now the project's core quality engine — the asterisk
+find alone justified the sprint; (2) honest-residual discipline held
+(colon-less cues, Slavonic page-3 assignment, editorial tokens all
+deliberately deferred with reasons rather than force-tuned); (3) the
+zero-churn manifest bar (sha256 restore proofs) made three concurrent
+metadata changes land without a single library regression.
+
+## 17. Sprint 7 (filed 2026-07-05, label `sprint-7`)
+
+Anchor: the owner's multipart-recognition ask, reframed from blind
+polyphonic transcription (research-grade, parts unattributable) to
+SCORE-INFORMED ensemble verification — we know the four expected
+pitches at every moment, so per-part harmonic salience at expected
+F0s is classical DSP, real-time-cheap, and the Rust worklet already
+has the FFT + the measured 13x CPU headroom to spend. Killer use
+case: one phone in the rehearsal room scoring each section.
+
+- #84 multipitch spike (fable): synthetic ground truth via the app's
+  own synth, real-recording robustness, Rust-vs-BasicPitch/ONNX
+  comparison, honest go/no-go with numbers
+- #85 library facets for hymnType + key (sonnet) — Sprint 6's fields
+  reach the UI
+- #86 review-workflow seed (opus): PDF-check bundles for the 101
+  missing-text candidates; confirmed drops become extractor
+  iteration 5's measured seed; the correction-UI/moat path begins
+- #87 native-iOS one-page decision memo (sonnet) — #74's evidence in,
+  owner decides
+
+Waves: all four are disjoint (worklet/dsp spike · library.js ·
+omr tooling · docs). Owner-gated in parallel: ?detector=wasm
+single-voice field impressions feed #84.
+
+## 18. Sprint 7 retrospective (completed 2026-07-06)
+
+Four issues, four closes. The anchor delivered the sprint's headline:
+score-informed multipart recognition is a GO — "which section is
+flat" answered correctly in 40/40 realistic conditions with zero
+false accusations, sub-cent intonation accuracy, honest masking
+ceilings, and a days-not-weeks Rust-worklet cost estimate (#84,
+fable). The review-bundle loop (#86) inverted the missing-text story
+(97% QA false positives) but its 3% found the biggest extractor bug
+yet — staff detection silently deleting whole sung responses — now
+measured and filed as iteration 5 (#88) with QA precision (#89).
+Library facets shipped with a taste decision worth keeping (keys only
+where they disambiguate — 57 rows, not 3,314) (#85). The native-iOS
+memo recommends web-only with five tripwires, materially informed by
+the 2025 US external-payment ruling (#87 → owner decision on #75).
+
+Retro: (1) NEW AGENT FAILURE MODE — two agents (one sonnet, one
+fable) stopped to "wait" for their own already-finished background
+jobs; resume-nudges recovered both, but briefs for measurement-heavy
+tasks should mandate foreground execution. The fable spike also ran
+3 passes/660k tokens — the deepest single deliverable yet, worth it
+for a GO decision of this scope, but fable briefs need the
+no-backgrounding rule most. (2) An editor fault wrote NUL bytes into
+a live-served file (caught by node --check; repaired) — the live-tree
+serving model continues to demand byte-level paranoia. (3) The
+screenshot→root-cause loop now extends to tooling: one owner report
+became 144 evidence bundles and two measured follow-up issues.

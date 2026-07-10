@@ -1,5 +1,13 @@
 # ChanterLab — Architecture
 
+**Scope note:** this document is the architecture of the legacy Byzantine
+chant engine (`web/`) specifically — tuning/pthora model, DSP, and voice
+detection. It remains authoritative for that engine and for the Rust/WASM
+pitch-detection work as it migrates into the training app. It is not the
+architecture of the training-prototype product; see
+[`training-prototype/README.md`](../training-prototype/README.md) and
+[`docs/choir-training-roadmap.md`](choir-training-roadmap.md) for that.
+
 Byzantine Organ as a browser application. This is a ground-up redesign, not a
 line-by-line port, of earlier Byzantine organ tools.
 
