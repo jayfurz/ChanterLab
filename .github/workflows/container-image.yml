@@ -1,0 +1,51 @@
+name: Publish ChanterLab Container
+
+# Branch protection is expected to require the repository's checks before a PR
+# can merge. This push event therefore publishes the merge commit only after
+# those required checks have passed. Its permissions and concurrency group are
+# independent from the existing smoke-test and GitHub Pages workflows.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chanterlab-container-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ${{ vars.GITEA_REGISTRY }}/${{ vars.GITEA_REGISTRY_OWNER }}/chanterlab-web
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Manual one-time provisioning outside this PR: create the repository
+      # secret GITEA_REGISTRY_TOKEN and the GITEA_REGISTRY,
+      # GITEA_REGISTRY_OWNER, and GITEA_REGISTRY_USERNAME repository variables.
+      - name: Log in to Gitea registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.GITEA_REGISTRY }}
+          username: ${{ vars.GITEA_REGISTRY_USERNAME }}
+          password: ${{ secrets.GITEA_REGISTRY_TOKEN }}
+
+      - name: Build and push SHA-tagged image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
