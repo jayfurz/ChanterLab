@@ -310,8 +310,12 @@ def _verify_actual_files(release: Path, descriptor: dict) -> list[str]:
     except (OSError, json.JSONDecodeError) as e:
         return [f"manifest unreadable: {e}"]
 
+    if not isinstance(manifest, list):
+        return ["manifest is not a JSON list"]
     if rd._sha256_json_canonical(manifest) != descriptor["manifest"]["hash"]:
         problems.append("manifest hash differs from descriptor")
+    if len(manifest) != descriptor["manifest"]["entry_count"]:
+        problems.append("manifest entry count differs from descriptor")
     manifest_ids = {entry.get("id") for entry in manifest}
     if manifest_ids != set(descriptor["musicxml"]["per_entry"]):
         problems.append("manifest ids differ from descriptor MusicXML inventory")
