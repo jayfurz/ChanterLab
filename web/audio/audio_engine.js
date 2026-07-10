@@ -29,6 +29,10 @@ export class AudioEngine {
     this._voiceInitPromise  = null;
     this._onPitch           = null;
     this._pendingVoiceTable = null;
+    this._currentVoiceTable = [];
+    this._voiceWorkletModulePromise = null;
+    this._voiceWasmPayloadPromise   = null;
+    this._mediaPitchAnalyzers = new Set();
     this._synthFollowCellId = null;
     this._synthFollowVolume = 0;
     this._voicing           = null;
@@ -116,7 +120,7 @@ export class AudioEngine {
         },
         video: false,
       });
-      await this._ctx.audioWorklet.addModule(new URL('./voice_worklet.js', import.meta.url));
+      await this._ensureVoiceWorkletModule();
 
       this._voiceNode = new AudioWorkletNode(this._ctx, 'voice-processor', {
         // ch0 = dry monitor, ch1 = PSOLA-corrected. The downstream graph
@@ -133,32 +137,7 @@ export class AudioEngine {
         amp: DEFAULT_VOICE_GATE_THRESHOLD,
       });
 
-      // Fetch the wasm-bindgen glue + binary on the main thread and transfer
-      // the ArrayBuffer to the worklet. Safari's AudioWorkletGlobalScope
-      // does not reliably expose `importScripts` and will refuse a .wasm
-      // response if a tunnel serves the wrong MIME type; bypass both by
-      // doing all network I/O here and handing bytes over by transfer.
-      const glueUrl = new URL('../../pkg-worklet/chanterlab_core.js',      import.meta.url);
-      const wasmUrl = new URL('../../pkg-worklet/chanterlab_core_bg.wasm', import.meta.url);
-      try {
-        const [glueText, wasmBuffer] = await Promise.all([
-          fetch(glueUrl).then(r => {
-            if (!r.ok) throw new Error(`worklet glue HTTP ${r.status}`);
-            return r.text();
-          }),
-          fetch(wasmUrl).then(r => {
-            if (!r.ok) throw new Error(`worklet wasm HTTP ${r.status}`);
-            return r.arrayBuffer();
-          }),
-        ]);
-        this._voiceNode.port.postMessage(
-          { type: 'init_wasm', glueText, wasmBuffer },
-          [wasmBuffer],
-        );
-      } catch (e) {
-        console.warn('Failed to load worklet WASM; JS DSP fallback will run:', e);
-        this._voiceNode.port.postMessage({ type: 'init_wasm_failed', error: String(e) });
-      }
+      await this._sendVoiceWasmInit(this._voiceNode);
 
       this._micSource = this._ctx.createMediaStreamSource(this._micStream);
       this._micSource.connect(this._voiceNode);
@@ -178,6 +157,90 @@ export class AudioEngine {
     })();
 
     return this._voiceInitPromise;
+  }
+
+  async createMediaPitchAnalyzer(onPitch, options = {}) {
+    if (!this._ready) await this.init();
+    await this._ensureVoiceWorkletModule();
+
+    const analyzer = new AudioWorkletNode(this._ctx, 'voice-processor', {
+      outputChannelCount: [2],
+    });
+    const sink = this._ctx.createGain();
+    sink.gain.value = 0;
+
+    analyzer.port.onmessage = e => {
+      if (e.data && onPitch) onPitch(e.data);
+    };
+    analyzer.port.postMessage({
+      type: 'gate_threshold',
+      amp: Number.isFinite(options.gateThreshold)
+        ? options.gateThreshold
+        : DEFAULT_VOICE_GATE_THRESHOLD,
+    });
+    if (this._currentVoiceTable.length) {
+      analyzer.port.postMessage({ type: 'tuning_table', table: this._currentVoiceTable });
+    }
+
+    analyzer.connect(sink);
+    sink.connect(this._ctx.destination);
+    this._mediaPitchAnalyzers.add(analyzer);
+
+    await this._sendVoiceWasmInit(analyzer);
+
+    let cleaned = false;
+    return {
+      input: analyzer,
+      cleanup: () => {
+        if (cleaned) return;
+        cleaned = true;
+        this._mediaPitchAnalyzers.delete(analyzer);
+        analyzer.port.onmessage = null;
+        try { analyzer.disconnect(); } catch {}
+        try { sink.disconnect(); } catch {}
+      },
+    };
+  }
+
+  async createReferenceRepitchNode({ onPitch, playbackRate = 1, pitchShiftMoria = 0 } = {}) {
+    if (!this._ready) await this.init();
+    await this._ensureVoiceWorkletModule();
+
+    const node = new AudioWorkletNode(this._ctx, 'voice-processor', {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    node.port.postMessage({
+      type: 'reference_repitch',
+      enabled: true,
+      playbackRate,
+      pitchShiftMoria,
+    });
+    node.port.postMessage({
+      type: 'gate_threshold',
+      amp: DEFAULT_VOICE_GATE_THRESHOLD,
+    });
+    node.port.onmessage = e => {
+      if (e.data?.type === 'pitch' && onPitch) onPitch(e.data);
+    };
+
+    await this._sendVoiceWasmInit(node);
+
+    return {
+      input: node,
+      output: node,
+      setPlaybackRate: rate => {
+        node.port.postMessage({ type: 'reference_repitch', playbackRate: rate });
+      },
+      setPitchShift: moria => {
+        node.port.postMessage({ type: 'reference_repitch', pitchShiftMoria: moria });
+      },
+      cleanup: () => {
+        node.port.onmessage = null;
+        try { node.disconnect(); } catch {}
+      },
+    };
   }
 
   // Build and send the tuning table from grid cells.
@@ -202,10 +265,14 @@ export class AudioEngine {
       cell_id: e.cell_id,
       period_24_8: Math.round(sr / e.hz * 256),
     }));
+    this._currentVoiceTable = voiceTable;
     if (this._voiceReady) {
       this._voiceNode.port.postMessage({ type: 'tuning_table', table: voiceTable });
     } else {
       this._pendingVoiceTable = voiceTable;
+    }
+    for (const analyzer of this._mediaPitchAnalyzers) {
+      analyzer.port.postMessage({ type: 'tuning_table', table: voiceTable });
     }
   }
 
@@ -286,6 +353,51 @@ export class AudioEngine {
   setCorrectionVolume(volume) { this.setMonitorVolume(volume); }
 
   // ── Internal: voice signal graph ────────────────────────────────────────
+
+  _ensureVoiceWorkletModule() {
+    if (!this._ctx) throw new Error('AudioContext is not initialized');
+    if (!this._voiceWorkletModulePromise) {
+      this._voiceWorkletModulePromise = this._ctx.audioWorklet.addModule(
+        new URL('./voice_worklet.js?v=reference-player-2', import.meta.url),
+      );
+    }
+    return this._voiceWorkletModulePromise;
+  }
+
+  _loadVoiceWasmPayload() {
+    if (!this._voiceWasmPayloadPromise) {
+      // Fetch the wasm-bindgen glue + binary on the main thread. Safari's
+      // AudioWorkletGlobalScope does not reliably expose importScripts and
+      // will refuse a .wasm response if a tunnel serves the wrong MIME type.
+      const glueUrl = new URL('../../pkg-worklet/chanterlab_core.js',      import.meta.url);
+      const wasmUrl = new URL('../../pkg-worklet/chanterlab_core_bg.wasm', import.meta.url);
+      this._voiceWasmPayloadPromise = Promise.all([
+        fetch(glueUrl).then(r => {
+          if (!r.ok) throw new Error(`worklet glue HTTP ${r.status}`);
+          return r.text();
+        }),
+        fetch(wasmUrl).then(r => {
+          if (!r.ok) throw new Error(`worklet wasm HTTP ${r.status}`);
+          return r.arrayBuffer();
+        }),
+      ]).then(([glueText, wasmBuffer]) => ({ glueText, wasmBuffer }));
+    }
+    return this._voiceWasmPayloadPromise;
+  }
+
+  async _sendVoiceWasmInit(node) {
+    try {
+      const { glueText, wasmBuffer } = await this._loadVoiceWasmPayload();
+      const wasmCopy = wasmBuffer.slice(0);
+      node.port.postMessage(
+        { type: 'init_wasm', glueText, wasmBuffer: wasmCopy },
+        [wasmCopy],
+      );
+    } catch (e) {
+      console.warn('Failed to load worklet WASM; JS DSP fallback will run:', e);
+      node.port.postMessage({ type: 'init_wasm_failed', error: String(e) });
+    }
+  }
 
   _buildVoiceChain() {
     const ctx = this._ctx;

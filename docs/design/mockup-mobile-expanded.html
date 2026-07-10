@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calm Surface — mobile expanded, grouped (mockup)</title>
+<style>
+/* ==== app tokens (copied from training-prototype/style.css) ==== */
+:root{--bg:#14151a;--panel:#1e2027;--ink:#e8e6df;--sub:#9aa0a6;--gold:#d4af37;
+      --gold-soft:#e7c96b;--line:#2c2f38;--cyan:#4dd7ff}
+*{box-sizing:border-box}
+body{margin:0;background:#0b0c10;color:var(--ink);
+     font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+     display:flex;gap:28px;align-items:flex-start;justify-content:center;
+     padding:28px;flex-wrap:wrap}
+.phone{width:390px;height:780px;background:var(--bg);border:1px solid var(--line);
+       border-radius:22px;overflow:hidden;display:flex;flex-direction:column;
+       position:relative;flex:0 0 auto;box-shadow:0 18px 60px rgba(0,0,0,.6)}
+.app-head{padding:10px 14px 6px}
+.app-head h1{margin:0;font-size:16px;font-weight:650;white-space:nowrap;
+             overflow:hidden;text-overflow:ellipsis}
+.app-head .piece{color:var(--sub);font-weight:500}
+.scope{margin:6px 10px;border:1px solid var(--line);border-radius:12px;
+       background:#14161c;height:96px;position:relative;overflow:hidden;flex:0 0 auto}
+.lane{position:absolute;height:8px;border-radius:3px;background:var(--gold)}
+.lane.dim{background:#3a3d46;height:5px}
+.score{margin:0 10px;background:#fbfbf7;border-radius:12px;flex:1;min-height:60px;
+       color:#222;padding:10px;overflow:hidden}
+.staff{height:30px;margin:12px 8px;
+       background:repeating-linear-gradient(#0000 0 5px,#777 5px 6px);border-top:1px solid #777}
+
+/* ==== transport (expanded) ==== */
+.transport{background:rgba(24,26,33,.97);border-top:1px solid var(--line);
+           box-shadow:0 -8px 28px rgba(0,0,0,.5);padding:0 10px 10px;flex:0 0 auto}
+.handle-row{display:flex;align-items:center;gap:8px;padding:5px 4px 3px;cursor:pointer}
+.handle-row .status{flex:1;min-width:0;color:var(--sub);font-size:12px;
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.handle-row .chev{flex:0 0 auto;color:var(--sub);font-size:15px;line-height:1}
+.mini-row{display:flex;align-items:center;gap:8px;padding:2px 0 8px}
+.btn{background:#20232c;border:1px solid var(--line);color:var(--ink);
+     padding:11px 13px;border-radius:12px;font-weight:600;font-size:15px;min-height:48px;
+     white-space:nowrap}
+.btn.primary{background:var(--gold);color:#161616;border-color:var(--gold);flex:1;font-size:17px}
+.btn.icon{flex:0 0 auto;width:46px;padding:11px 0;text-align:center}
+.btn.mic{min-width:88px}
+.pos{color:var(--sub);font-size:13px;min-width:40px;text-align:center;white-space:nowrap}
+.chip{background:var(--gold);color:#161616;font-weight:700;border:none;border-radius:999px;
+      padding:10px 12px;font-size:14px;white-space:nowrap}
+
+/* tab strip: reuses the app's .seg/.segbtn vocabulary */
+.pane-strip{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+            margin:0 0 8px}
+.pstab{flex:1;background:#12141a;border:none;color:var(--sub);padding:10px 4px;
+       font-size:13.5px;font-weight:600;cursor:pointer;min-height:42px}
+.pstab+.pstab{border-left:1px solid var(--line)}
+.pstab.active{background:var(--gold);color:#161616;font-weight:700}
+
+/* panes: bounded + scrollable — the structural fix for the clip defect */
+.pane{display:none;flex-direction:column;gap:8px;max-height:min(46vh,420px);
+      overflow-y:auto;padding-bottom:2px}
+.pane.active{display:flex}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.label{font-size:10px;color:var(--sub);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:1}
+.segbtn{flex:1;background:#12141a;border:none;color:var(--sub);padding:9px 4px;
+        font-size:13px;min-height:40px}
+.segbtn.active{background:var(--gold);color:#161616;font-weight:700}
+.vbtn{flex:1;min-width:48px;height:46px;border-radius:12px;border:1px solid var(--line);
+      background:#12141a;color:var(--ink);font-weight:700;font-size:17px}
+.vbtn.active{background:var(--gold);color:#161616;border-color:var(--gold);
+             box-shadow:0 0 0 3px rgba(212,175,55,.25)}
+input[type=range]{accent-color:var(--gold);flex:1;min-width:90px;height:26px}
+.mnum{width:58px;text-align:center;background:#12141a;color:var(--ink);
+      border:1px solid var(--line);border-radius:8px;padding:8px 6px;font-size:15px}
+.chk{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:13px;white-space:nowrap}
+.chk input{width:18px;height:18px;accent-color:var(--gold)}
+.dash{color:var(--sub)}
+.sec-btn{flex:1;display:flex;align-items:center;gap:8px;background:#20232c;
+         border:1px solid var(--line);color:var(--ink);padding:10px 12px;border-radius:12px;
+         font-size:14px;min-height:46px}
+.sec-btn .si{color:var(--gold-soft);font-weight:800}
+.sec-btn .sl{flex:1;text-align:left;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.btn-sec-nav{width:44px;min-height:46px;background:#12141a;border:1px solid var(--line);
+             color:var(--ink);border-radius:12px;font-size:19px}
+.piece-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.current-piece{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.piece-attrib{color:var(--sub);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pdf-link{padding:8px 10px;border:1px solid var(--line);border-radius:8px;color:var(--sub);
+          font-size:12px;text-decoration:none;white-space:nowrap}
+
+/* annotations */
+.dot{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--cyan);
+     color:#062830;font-size:13px;font-weight:800;display:flex;align-items:center;
+     justify-content:center;box-shadow:0 0 0 3px rgba(77,215,255,.25);z-index:5}
+.notes{max-width:430px;flex:1 1 340px}
+.notes h2{font-size:18px;margin:0 0 4px;color:var(--gold-soft)}
+.notes p.sub2{color:var(--sub);font-size:13px;margin:0 0 14px}
+.note{display:flex;gap:10px;margin:0 0 12px;font-size:13.5px;line-height:1.5}
+.note b{color:var(--gold-soft)}
+.nd{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--cyan);
+    color:#062830;font-size:13px;font-weight:800;display:flex;align-items:center;
+    justify-content:center;margin-top:1px}
+code{background:#12141a;border:1px solid var(--line);padding:1px 5px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="app-head"><h1>ChanterLab <span class="piece">· Divine Liturgy — 4-part, choral</span></h1></div>
+
+  <div class="scope">
+    <div class="lane" style="top:34px;left:8%;width:16%"></div>
+    <div class="lane" style="top:30px;left:30%;width:22%"></div>
+    <div class="lane" style="top:38px;left:56%;width:14%"></div>
+    <div class="lane dim" style="top:60px;left:8%;width:40%"></div>
+    <div class="lane dim" style="top:70px;left:30%;width:52%"></div>
+  </div>
+
+  <div class="score">
+    <div class="staff"></div>
+    <div class="staff"></div>
+  </div>
+
+  <div class="transport">
+    <div class="handle-row">
+      <span class="status">Paused — scroll freely. ▶ resumes where you left off.</span>
+      <span class="chev">⌄</span>
+    </div>
+    <div class="mini-row">
+      <button class="btn primary">▶ Resume</button>
+      <button class="btn icon">■</button>
+      <output class="pos">m 77</output>
+      <button class="btn icon">§</button>
+      <button class="chip">🔇 S · Sop</button>
+    </div>
+
+    <div class="pane-strip" id="strip">
+      <button class="pstab active" data-p="practice">Practice</button>
+      <button class="pstab" data-p="sound">Sound</button>
+      <button class="pstab" data-p="more">More</button>
+    </div>
+
+    <!-- PRACTICE: voice · verse · tempo · loop · sections -->
+    <div class="pane active" id="practice">
+      <div class="row"><span class="label">Your voice</span>
+        <button class="vbtn active">S</button><button class="vbtn">A</button>
+        <button class="vbtn">T</button><button class="vbtn">B</button>
+      </div>
+      <div class="row"><span class="label">Verse</span>
+        <div class="seg"><button class="segbtn active">Verse 1</button><button class="segbtn">Verse 2</button></div>
+      </div>
+      <div class="row"><span class="label">Tempo 70</span><input type="range" min="30" max="160" value="70"></div>
+      <div class="row"><span class="label">Loop</span>
+        <input class="mnum" value="77"><span class="dash">–</span><input class="mnum" value="118">
+        <label class="chk"><input type="checkbox" checked> on</label>
+      </div>
+      <div class="row"><span class="label">Section</span>
+        <button class="btn-sec-nav">‹</button>
+        <button class="sec-btn"><span class="si">§</span><span class="sl">The Trisagion Hymn</span><span style="color:var(--sub);font-size:11px">▾</span></button>
+        <button class="btn-sec-nav">›</button>
+      </div>
+    </div>
+
+    <!-- SOUND: mic · my part · instrument · record -->
+    <div class="pane" id="sound">
+      <div class="row">
+        <button class="btn mic">🎤 Mic</button>
+        <label class="chk" title="Raw mic — backing voices keep constant volume"><input type="checkbox" checked> 🎧 Headphones mode</label>
+      </div>
+      <div class="row"><label class="chk"><input type="checkbox"> 🔊 Also play my part <span style="opacity:.65">(= chip tap)</span></label></div>
+      <div class="row"><span class="label">Sound</span>
+        <div class="seg" style="flex:0 0 auto;min-width:150px"><button class="segbtn active">Synth</button><button class="segbtn">Voices</button></div>
+      </div>
+      <div class="row"><button class="btn">⏺ Record</button></div>
+    </div>
+
+    <!-- MORE: library/piece · scoring · view -->
+    <div class="pane" id="more">
+      <div class="row">
+        <button class="btn">📚 Library</button>
+        <span class="piece-info">
+          <span class="current-piece">Divine Liturgy - 4-part, choral</span>
+          <span class="piece-attrib">Fr. John Finley — Divine Liturgy</span>
+        </span>
+        <a class="pdf-link" href="#">𝄞 PDF</a>
+      </div>
+      <div class="row"><span class="label">Scoring</span>
+        <div class="seg" style="flex:0 0 auto;min-width:150px"><button class="segbtn active">Relaxed</button><button class="segbtn">Strict</button></div>
+      </div>
+      <div class="row"><span class="label">View</span>
+        <div class="seg"><button class="segbtn active">Split</button><button class="segbtn">Score focus</button><button class="segbtn">Scope focus</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dot" style="top:352px;left:8px">1</div>
+  <div class="dot" style="top:492px;left:355px">2</div>
+  <div class="dot" style="top:706px;left:8px">3</div>
+</div>
+
+<div class="notes">
+  <h2>Mobile · expanded — Practice / Sound / More</h2>
+  <p class="sub2">One drawer (the existing transport), three tabs. Tabs are clickable in this mockup. Spec §3.</p>
+  <div class="note"><span class="nd">1</span><div><b>The score never disappears.</b> Panes are capped at <code>min(46vh, 420px)</code> with <code>overflow-y:auto</code> — vs. today's 12–14 rows at <code>70vh overflow:hidden</code> that cover the whole score and clip the Sections row unreachably (measured 67px clip on the Complete Liturgy with mic + save chip).</div></div>
+  <div class="note"><span class="nd">2</span><div><b>Tab strip reuses the app's <code>.seg/.segbtn</code> pattern</b> — no new visual vocabulary. Default tab is Practice on every load. Contextual rows (Verse, Sections, Rec mix) hide exactly as today.</div></div>
+  <div class="note"><span class="nd">3</span><div><b>Grouping by frequency:</b> Practice = touched while practicing (voice, verse, tempo, loop, sections). Sound = what you hear/capture (mic, headphones, my-part, instrument, record). More = persisted taste + piece meta (library, scoring strictness, view). Row markup and every element id are unchanged — rows are <i>moved</i>, not rebuilt.</div></div>
+</div>
+
+<script>
+document.getElementById('strip').addEventListener('click', (e) => {
+  const b = e.target.closest('.pstab'); if (!b) return;
+  document.querySelectorAll('.pstab').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === b.dataset.p));
+});
+</script>
+</body>
+</html>

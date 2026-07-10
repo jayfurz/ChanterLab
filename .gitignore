@@ -5,3 +5,5 @@
 *.wasm
 .codex
 .claude
+.claude.scratch/
+.scratch/
