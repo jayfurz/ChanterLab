@@ -1,0 +1,12 @@
+{
+  "stats": {"measures": 1, "measure_integrity_pct": 95.0, "systems": 1, "single_staff_systems": 0},
+  "warnings": ["synthetic fixture warning — not a real extraction issue"],
+  "info": [],
+  "title": "Fixture Piece A",
+  "voices": ["S"],
+  "tempo_qpm": 80,
+  "sections": [],
+  "key": {"fifths": 0, "mode": null, "label": "C major"},
+  "note_events_per_voice": {"S": 1},
+  "lyric_verses": 0
+}

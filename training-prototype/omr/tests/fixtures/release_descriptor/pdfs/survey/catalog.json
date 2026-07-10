@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "fixture_piece_a",
+      "name": "Fixture Piece A",
+      "composer": "ChanterLab Test Fixture",
+      "arrangementType": "Choral",
+      "descriptionHtml": "<a href=\"https://example.invalid/fixture_piece_a.pdf\">PDF</a>"
+    },
+    {
+      "id": "fixture_piece_b",
+      "name": "Fixture Piece B",
+      "composer": "ChanterLab Test Fixture",
+      "arrangementType": "Choral",
+      "descriptionHtml": "<a href=\"https://example.invalid/fixture_piece_b.pdf\">PDF</a>"
+    }
+  ]
+}

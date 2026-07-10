@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chanterlab.com/schema/release_descriptor.v1.json",
+  "title": "ChanterLab catalog release descriptor",
+  "description": "CAT-01 (docs/plans/10-catalog-releases/11-release-contract.md). Reference copy of the contract enforced in code by release_descriptor.py's validate_descriptor(); see RELEASE_SCHEMA.md for the prose field reference. This file is documentation/interchange-format — release_descriptor.py's own validator is hand-rolled (no jsonschema dependency) and is the one actually run in tests/CI.",
+  "type": "object",
+  "required": [
+    "schema_version", "release_id", "parent_release_id", "generated_at",
+    "code", "input", "manifest", "musicxml", "reports", "state", "overrides",
+    "trust", "waivers", "verification", "manifest_validation", "compatibility"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "release_id": {
+      "type": "string",
+      "pattern": "^rel-\\d{8}T\\d{6}Z-[0-9a-f]+$"
+    },
+    "parent_release_id": { "type": ["string", "null"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "code": {
+      "type": "object",
+      "required": ["repo_git_sha", "parser_git_sha", "app_git_sha"],
+      "properties": {
+        "repo_git_sha": { "type": ["string", "null"] },
+        "parser_git_sha": { "type": ["string", "null"] },
+        "app_git_sha": { "type": ["string", "null"] }
+      }
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "catalog_present", "catalog_input_hash", "source_inventory_count",
+        "source_inventory_hash", "source_inventory"
+      ],
+      "properties": {
+        "catalog_present": { "type": "boolean" },
+        "catalog_input_hash": { "type": ["string", "null"] },
+        "source_inventory_count": { "type": "integer", "minimum": 0 },
+        "source_inventory_hash": { "type": "string" },
+        "source_inventory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "source_url", "pdf_sha256"],
+            "properties": {
+              "id": { "type": "string" },
+              "source_url": { "type": ["string", "null"] },
+              "pdf_sha256": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "required": ["present", "entry_count", "hash"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "entry_count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": ["string", "null"] }
+      }
+    },
+    "musicxml": {
+      "type": "object",
+      "required": ["count", "hash", "per_entry"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string" },
+        "per_entry": { "type": "object" }
+      }
+    },
+    "reports": {
+      "type": "object",
+      "required": ["count", "hash", "per_entry"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string" },
+        "per_entry": { "type": "object" }
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": ["present", "record_count", "hash"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "record_count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": ["string", "null"] }
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "required": ["count", "hash", "per_stem", "tombstones"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string" },
+        "per_stem": { "type": "object" },
+        "tombstones": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "trust": {
+      "type": "object",
+      "required": ["status_counts", "confidence"],
+      "properties": {
+        "status_counts": {
+          "type": "object",
+          "required": [
+            "accepted", "review", "no_music", "type3",
+            "download_error", "extract_error"
+          ],
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "confidence": {
+          "type": "object",
+          "required": [
+            "mean_integrity_pct", "median_integrity_pct",
+            "min_integrity_pct", "max_integrity_pct"
+          ]
+        }
+      }
+    },
+    "waivers": { "type": "array" },
+    "verification": {
+      "type": "object",
+      "required": ["regression_suite"],
+      "properties": {
+        "regression_suite": {
+          "type": "object",
+          "required": ["passed", "skipped", "failed", "recorded"],
+          "properties": {
+            "passed": { "type": ["integer", "null"] },
+            "skipped": { "type": ["integer", "null"] },
+            "failed": { "type": ["integer", "null"] },
+            "recorded": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "manifest_validation": {
+      "type": "object",
+      "required": ["checked", "problems"],
+      "properties": {
+        "checked": { "type": "integer", "minimum": 0 },
+        "problems": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "required": ["min_reader_schema_version"],
+      "properties": {
+        "min_reader_schema_version": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

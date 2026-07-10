@@ -1,0 +1,4 @@
+%FIXTURE-NOT-A-REAL-PDF%
+This is a synthetic placeholder standing in for a source PDF's bytes, used
+only to exercise release_descriptor.py's pdf_sha256 hashing in tests. It is
+not a real PDF and is not derived from any copyrighted source.
