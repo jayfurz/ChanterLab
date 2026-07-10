@@ -45,7 +45,7 @@ export const VOICE_DEFS = [
     { key: 'B', label: 'B', name: 'Bass' },
   ];
 
-  // The 5 built-in dev pieces (the "Prototype" group). These stay reachable via
+  // The built-in dev pieces (the "Prototype" group). These stay reachable via
   // the hidden #pieceSelect (headless tests) AND appear in the library overlay.
   // 'control' is listed LAST on purpose (issue #64): libProto (library.js)
   // mirrors this array's order verbatim for the Prototype group, and the
@@ -63,6 +63,10 @@ export const PIECES = [
     // when the library manifest (gitignored) isn't present, e.g. every CI
     // checkout / fresh clone.
     { id: 'control', title: 'Test fixture — SATB control', composer: 'ChanterLab · dev', arrangement: '4-part, Full choir', label: 'Test fixture — SATB control (hand-made, CI/dev only)', url: 'content/control_satb.musicxml' },
+    // Second hand-made, always-committed fixture (BASE-02): distinct key/melody
+    // from 'control' so CI can prove a REAL cross-piece switch on every fresh
+    // checkout, not just a reselect-the-same-piece fallback.
+    { id: 'control2', title: 'Test fixture — SATB control II', composer: 'ChanterLab · dev', arrangement: '4-part, Full choir', label: 'Test fixture — SATB control II (hand-made, CI/dev only)', url: 'content/control_unison_ii.musicxml' },
   ];
 export const N_BUILTIN = PIECES.length;
 
