@@ -30,29 +30,26 @@ web/score/package.json
 !training-prototype/icons/**
 !training-prototype/vendor/
 !training-prototype/vendor/**
-# All 5 built-ins ship baked into the image, not just the tracked
-# control_satb.musicxml: the other 4 are gitignored (not tracked in git) but
-# are covered by the same owner-confirmed publication permission as the
-# omr/out catalog (see training-prototype/omr/SOURCES.md, 2026-07-10) and are
-# small/static reference pieces, not the actively-growing catalog. The shared
-# tenant-site Helm chart supports exactly one PVC mount per container, already
-# claimed by omr/out below -- baking these in avoids fighting that chart for
-# a second mount for four files that rarely change. This ONLY works because
-# .dockerignore filters the build context, not git tracking, so files that
-# are gitignored but physically present on disk still enter the image unless
-# explicitly excluded (which is exactly why the omr/ exclusions below are
-# comprehensive, not selective).
+# Only the tracked, hand-made control_satb.musicxml ships baked in. The other
+# 4 built-ins are gitignored (see training-prototype/omr/SOURCES.md) and
+# NEVER enter any build context, local or CI -- .dockerignore only filters
+# what's already present, it can't materialize files git never tracked. They
+# reach the image at runtime via a PVC-backed symlink instead (see
+# Dockerfile's data/ mount + symlink step). A prior version of this file
+# tried `!training-prototype/content/*.musicxml` here, which appeared to work
+# on a local build (this dev machine happens to have those gitignored files
+# on disk already) but silently did nothing on the real CI build -- confirmed
+# broken by deploying and testing before this fix.
 !training-prototype/content/
-!training-prototype/content/*.musicxml
+!training-prototype/content/control_satb.musicxml
 !training-prototype/samples/
 !training-prototype/samples/voices/
 !training-prototype/samples/voices/**
 
 # Defense in depth: no OMR code, source corpus, intermediates, verification
-# output, or pipeline environment may enter the context. omr/out is the sole
-# exception: the image creates it as an empty PVC mount point (populated at
-# deploy time by scripts/publish_chanterlab_catalog.sh, infra repo) --
-# everything else under omr/ is excluded below, unconditionally.
+# output, or pipeline environment may enter the context. omr/ is excluded
+# below, unconditionally -- the catalog and the 4 content built-ins both
+# arrive at runtime via the data/ PVC mount, never via the build context.
 training-prototype/omr/
 training-prototype/omr/**
 training-prototype/omr/pdfs/
