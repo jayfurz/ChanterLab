@@ -23,6 +23,14 @@ uv pip install --python .venv/bin/python pytest
 (this is the same `uv pip install --python .venv/bin/python <pkg>` pattern
 `README.md` already uses to install `pymupdf` into this venv.)
 
+`test_release_descriptor.py` (CAT-01) additionally needs `jsonschema`, which
+`release_descriptor.py`'s `validate_descriptor()` uses to enforce
+`schema/release_descriptor.schema.json` at runtime:
+
+```sh
+uv pip install --python .venv/bin/python jsonschema
+```
+
 **Local-only by design.** The corpus PDFs live in `omr/pdfs/ingest/`, which
 is gitignored (copyrighted Antiochian Sacred Music Library material — see
 `SOURCES.md`). Only per-piece sha256 hashes and stat numbers are committed,

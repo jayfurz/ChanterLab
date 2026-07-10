@@ -46,56 +46,108 @@ test evidence, and owner-approved frozen version.
 
 Implemented as `training-prototype/omr/release_descriptor.py` (read-only —
 does not change where `ingest_catalog.py` writes) plus
-`training-prototype/omr/RELEASE_SCHEMA.md` (the full field reference and
-compatibility policy) and `training-prototype/omr/schema/release_descriptor.schema.json`
-(a formal JSON Schema reference copy; the enforced validator in code is
-hand-rolled to avoid a new pip dependency).
+`training-prototype/omr/RELEASE_SCHEMA.md` (the full field reference,
+readiness policy, and compatibility policy) and
+`training-prototype/omr/schema/release_descriptor.schema.json` (the
+**authoritative** JSON Schema, enforced at runtime via the `jsonschema`
+package).
 
-- **Contract fields:** release_id (time + input-identity hash, not a mutable
-  label), parent_release_id, parser/app git SHA (currently always equal —
-  one monorepo commit — recorded as distinct fields for forward
-  compatibility), catalog input hash + source inventory hashes, manifest
-  schema version (`1`) + compatibility policy, MusicXML/report/state/override
-  inventories and hashes, tombstones (from `overrides/RETIRED`), trust status
-  counts + confidence distribution, waivers (always `[]` — no waiver
-  mechanism exists anywhere yet), verification evidence (only recorded when
-  explicitly supplied — never claims a check ran when it didn't).
-- **Determinism:** proven by test, not just asserted — the same fixture
-  inputs produce identical content hashes across two builds a month apart in
-  wall-clock time (only `release_id`/`generated_at` differ, exactly as
+**Amended after an owner review round that caught a real correctness bug**:
+the first version resolved `manifest.json`'s `musicxml` field (which is
+`"out/ingest/<id>.musicxml"`, relative to `omr_dir`) against `out_dir`
+instead — a doubled path that would have silently hashed nothing for every
+real entry. The original synthetic fixture happened to use the same wrong
+convention, so tests passed despite being wrong; only running against the
+real local catalog caught it. Fixed, and the fixture now matches production
+path conventions exactly (confirmed by direct inspection of the real
+catalog, not re-derived from source alone).
+
+- **Contract fields:** `release_id` (time + a canonical `content_fingerprint`,
+  not a mutable label), `parent_release_id`, provenance (see below), catalog
+  input hash + source inventory hashes, manifest schema version (`1`) +
+  compatibility policy, MusicXML/report/state/override inventories and
+  hashes, tombstones (from `overrides/RETIRED`), trust status counts +
+  confidence distribution, waivers (always `[]` — no waiver mechanism exists
+  anywhere yet), verification evidence (only recorded when explicitly
+  supplied), `integrity`/`manifest_validation` problem lists, and an explicit
+  `readiness.promotable` gate with reasons.
+- **Content fingerprint:** a single sha256 covering parser/app provenance +
+  every content-section hash + tombstones — the actual "same content, same
+  identity" property, proven by test to (a) stay identical across builds a
+  month apart in wall-clock time and (b) change when either the on-disk
+  content OR the supplied parser SHA changes (provenance is part of the
+  content identity, not decoration).
+- **Provenance corrected:** `code.builder_git_sha`/`builder_dirty` are always
+  derived from the actual running `release_descriptor.py` checkout (never
+  from `--omr-dir`, which may point at data from a different checkout
+  entirely). `code.parser_git_sha`/`app_git_sha` are **never inferred** from
+  the builder SHA — explicit only (`--parser-sha`/`--app-sha`), `null`
+  otherwise. Every real local catalog has these as `null` today, honestly,
+  because `ingest_catalog.py` doesn't record its own git SHA at ingestion
+  time yet — a real gap, noted as CAT-02 follow-up work, not papered over.
+- **Path safety:** every manifest `musicxml` path and every state `pdf` path
+  is resolved relative to `omr_dir` and required to stay contained within
+  `omr_dir/out/ingest` / `omr_dir/pdfs/ingest` respectively — traversal,
+  absolute paths, duplicate manifest ids, non-simple ids (path separators —
+  unsafe to build a `<id>.report.json` filename from), and
+  tombstone/active-override conflicts are all detected and reported under
+  `integrity.problems`, proven with fixtures built to attempt each one.
+- **Readiness/promotable gate:** a structurally valid descriptor can still be
+  `readiness.promotable: false` — empty catalog, unknown provenance, a dirty
+  builder tree, unrecorded/failed verification, or any
+  `manifest_validation`/`integrity` problem all force it, each proven by
+  test. An empty-catalog descriptor stays structurally valid for
+  diagnostics; only promotability, not validity, is affected.
+- **Manifest-published-only scope, made explicit:** `musicxml`/`reports`
+  cover manifest-published (`accepted`) entries only — `state` is the full
+  private working set (all statuses). Documented in both
+  `RELEASE_SCHEMA.md` and the module/schema docstrings, not just implied.
+- **jsonschema now authoritative:** `schema/release_descriptor.schema.json`
+  is enforced via the `jsonschema` package (new dependency, added to
+  `training-prototype/omr/tests/README.md` and to
+  `.github/workflows/unified-required-ci.yml`'s `omr-rights-safe` and
+  `omr-private-corpus` pip-install steps — both authorized by the owner).
+  Semantic checks JSON Schema can't express (release_id/content_fingerprint
+  cross-consistency, the private-path leak scanner) run on top in Python.
+- **Determinism:** proven by test — same fixture inputs produce identical
+  `content_fingerprint` and every section hash across builds a month apart
+  in wall-clock time (only `release_id`/`generated_at` differ, exactly as
   intended).
-- **Fails closed:** `validate_descriptor()` flags every required-field
-  omission, wrong `schema_version`, malformed `release_id`, and any
-  `manifest_validation` problem. A private-local-path leak scanner rejects
-  any string value matching `pdfs/ingest/`, `pdfs/survey/`, `.venv/`, or a
-  local home-directory-style absolute path anywhere in the tree — proven
-  with a fixture deliberately built to try to leak one.
-- **All manifest entries resolve:** `manifest_validation` checks every
-  manifest-listed entry's `.musicxml` exists and parses as XML and its
-  `.report.json` exists and parses as JSON; proven against fixtures with a
-  deliberately missing/corrupt file of each kind.
-- **Fresh-checkout case:** proven directly — an empty `omr_dir` (the real
-  state of every CI/public checkout, since `out/`/`pdfs/` are gitignored)
-  produces an honest all-zero, still-schema-valid descriptor.
 - **Test evidence:** `training-prototype/omr/tests/test_release_descriptor.py`,
-  31 new tests, all against synthetic hand-made fixtures (never real
-  copyrighted data) — 48 passed, 19 skipped (pre-existing, PDF-corpus-gated)
-  in the full `training-prototype/omr` suite. Picked up automatically by the
-  existing `omr-rights-safe` CI job (BASE-02) with zero new pip dependencies,
-  so no `.github/workflows/` change was needed.
+  64 tests (up from 31), all against synthetic hand-made fixtures whose path
+  conventions match real production data — 81 passed, 19 skipped
+  (pre-existing, PDF-corpus-gated) in the full `training-prototype/omr`
+  suite. Picked up automatically by the existing `omr-rights-safe` CI job.
+- **Real-catalog validation (2026-07-10, read-only, no writes):** ran
+  `release_descriptor.py --omr-dir /mnt/data/code/byzorgan-web/training-prototype/omr --strict`
+  against the actual live local catalog — **valid, zero validation
+  problems.** Manifest: 3,351 entries, all 3,351 resolving to a real
+  MusicXML hash. Reports: 3,351, all hashed. `manifest_validation`: 3,351
+  checked, 0 problems — every published entry's MusicXML parses and its
+  report.json parses. `integrity`: 0 problems (no duplicate/non-simple ids,
+  no path escapes, no tombstone conflicts — matches direct inspection
+  showing zero active override files today). State: 3,793 records
+  (`accepted` 3351, `review` 132, `no_music` 300, `type3` 10,
+  `download_error`/`extract_error` 0). Confidence over accepted items: mean
+  99.81%, median 100.0%, range 90.0–100.0%. Overrides: 0 active, 1 tombstone
+  (`13c_cherubic_hymn-bortniansky-7`, matching the tracked `RETIRED` file).
+  `readiness.promotable: false` — honestly, because `parser_git_sha`/
+  `app_git_sha` weren't supplied and the builder tree had uncommitted work
+  at the time (both expected in this state, neither a defect). `git status`
+  on the real repo directory confirmed unchanged before/after (only the
+  same two untracked files that predate this session).
 - **Example:** `training-prototype/omr/tests/fixtures/release_descriptor/example_descriptor.json`,
-  generated from the checked-in synthetic fixture (safe to read — contains
-  no real catalog data). Its `code.*_git_sha` reflects whatever commit was
-  current when it was generated; illustrative, not asserted by tests.
-- **Compatibility matrix:** none yet — only schema v1 exists. Policy for
-  future versions is documented in RELEASE_SCHEMA.md (additive fields never
-  bump `schema_version`; breaking changes do, plus a migration note here
-  when that first happens). "Current app can read current and previous
-  schema" is satisfied trivially today because no app-facing consumer reads
-  descriptors yet — `manifest.json`'s own shape/path is unchanged.
+  regenerated from the synthetic fixture with the new fields. Illustrative,
+  not asserted by tests.
+- **Compatibility matrix:** none yet — only schema v1 exists. "Current app
+  can read current and previous schema" is satisfied trivially today because
+  no app-facing consumer reads descriptors yet.
 - **Not done here, by design:** no staging directory, pointer, or promotion
-  mechanism (CAT-02); no publication-eligibility/attribution enforcement
-  (RIGHTS-01, which depends on this schema existing first).
+  mechanism (CAT-02, which should also wire `ingest_catalog.py` to record
+  its own git SHA at ingestion time so `parser_git_sha` stops defaulting to
+  unknown for freshly-ingested content); no publication-eligibility/
+  attribution enforcement (RIGHTS-01, which depends on this schema existing
+  first).
 
 **Awaiting explicit owner approval before this schema is treated as
 stable** — CAT-02 should not build atomic promotion on it until that

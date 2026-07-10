@@ -4,7 +4,7 @@
   "title": "Fixture Piece A",
   "composer": "ChanterLab Test Fixture",
   "arrangementType": "Choral",
-  "musicxml": "fixture_piece_a.musicxml",
+  "musicxml": "out/ingest/fixture_piece_a.musicxml",
   "integrity_pct": 95.0,
   "tone": null,
   "toneClean": null,

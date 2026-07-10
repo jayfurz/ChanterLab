@@ -7,6 +7,15 @@ overrides + tombstone) small enough to exercise
 `release_descriptor.build_release_descriptor()` deterministically in CI,
 where no real local catalog exists.
 
+**Path conventions match production exactly, confirmed by direct inspection
+of the real local catalog at `/mnt/data/code/byzorgan-web/training-prototype/omr`**
+(not derivable from source reading alone — this is what caught the original
+path-doubling bug in an earlier version of this fixture): `manifest.json`
+and `ingest_state.json` `musicxml` fields carry the full `out/ingest/<id>.musicxml`
+prefix (relative to `omr_dir`, not to `out/ingest/` itself), `pdf` fields
+carry `pdfs/ingest/<id>.pdf`, and `pdfs/survey/catalog.json` is a flat JSON
+array (the raw upstream API response body, not wrapped in an envelope).
+
 - `fixture_piece_a` — a synthetic `accepted` item, present in `manifest.json`
   with a real (tiny, hand-made) `.musicxml` and `.report.json`.
 - `fixture_piece_b` — a synthetic `review` item (deliberately excluded from

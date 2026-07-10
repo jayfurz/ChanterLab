@@ -1,15 +1,17 @@
 {
   "code": {
-    "app_git_sha": "0fb697acb398a1ed5e652c677ddc87bdd4b860ea",
-    "parser_git_sha": "0fb697acb398a1ed5e652c677ddc87bdd4b860ea",
-    "repo_git_sha": "0fb697acb398a1ed5e652c677ddc87bdd4b860ea"
+    "app_git_sha": null,
+    "builder_dirty": true,
+    "builder_git_sha": "cc62a1314b78ea1bcaf7e817c1e5624fd3ed69ea",
+    "parser_git_sha": null
   },
   "compatibility": {
     "min_reader_schema_version": 1
   },
-  "generated_at": "2026-07-10T18:18:10.468739+00:00",
+  "content_fingerprint": "cd1e0d386a01304724189f1f7619b22af85381a384730753cde2db610a54e457",
+  "generated_at": "2026-07-10T18:40:38.932135+00:00",
   "input": {
-    "catalog_input_hash": "c516d703f671a1fa7e55bc94d6a825e1b4c7f40d2df45f826c48733122d1f69a",
+    "catalog_input_hash": "7eb3b4615f94238d8a04e6d4ea9bf832735a3adb34bbf3eb8503fe4d7adbdbd7",
     "catalog_present": true,
     "source_inventory": [
       {
@@ -26,9 +28,12 @@
     "source_inventory_count": 2,
     "source_inventory_hash": "14feca71b518c54e3301aebd7c79a4a729b1867277ba3ba4fd3632c7d74f1bd8"
   },
+  "integrity": {
+    "problems": []
+  },
   "manifest": {
     "entry_count": 1,
-    "hash": "1122ad2db5fefd465d4508ec263cc4c4ee2fab3de3795382d7d22befa89124d1",
+    "hash": "16d81dd243828cfad6b649390de6f7d898f0ed1d97319f53adf3aa48ac27e9f7",
     "present": true
   },
   "manifest_validation": {
@@ -53,7 +58,15 @@
     ]
   },
   "parent_release_id": null,
-  "release_id": "rel-20260710T181810Z-77f688b831b3",
+  "readiness": {
+    "promotable": false,
+    "reasons": [
+      "parser provenance is unknown (not explicitly supplied)",
+      "app provenance is unknown (not explicitly supplied)",
+      "builder code tree is not confirmed clean (dirty or unknown)"
+    ]
+  },
+  "release_id": "rel-20260710T184038Z-cd1e0d386a01",
   "reports": {
     "count": 1,
     "hash": "ac6255fe59f6f27747a2f92abd978c54a93570cd6bc48eeee4b90a26dd2362ee",
@@ -63,7 +76,7 @@
   },
   "schema_version": 1,
   "state": {
-    "hash": "c2a000519bfa67c4ca74ce6b92694fcc60d25ddbd9d248cec3114da77487e24e",
+    "hash": "7c8454a34eacefffe1aa801c761612ab3d5b8a638b3a93777da123b261973dfd",
     "present": true,
     "record_count": 2
   },
@@ -86,7 +99,7 @@
   "verification": {
     "regression_suite": {
       "failed": 0,
-      "passed": 48,
+      "passed": 81,
       "recorded": true,
       "skipped": 19
     }
