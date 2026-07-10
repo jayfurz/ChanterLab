@@ -39,17 +39,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /srv/chanterlab
 COPY --from=wasm-builder --chown=65532:65532 /build/web/ ./web/
 COPY --from=wasm-builder --chown=65532:65532 /build/training-prototype/ ./training-prototype/
+COPY --chown=65532:65532 server/byzorgan-web-server.py /opt/chanterlab-server/byzorgan-web-server.py
+RUN python3 -c "import ast; ast.parse(open('/opt/chanterlab-server/byzorgan-web-server.py').read())"
 
-# These empty mount points are populated at deployment time. The catalog PVC
-# mounts at omr/out; the four generated built-ins mount as individual content/
-# files. No catalog or OMR pipeline material is baked into this image.
+# The catalog PVC populates this otherwise-empty mount point at deployment
+# time. No catalog or OMR pipeline material is baked into this image.
 RUN mkdir -p /srv/chanterlab/training-prototype/omr/out \
-             /opt/chanterlab-server \
     && chown -R 65532:65532 /srv/chanterlab /opt/chanterlab-server
 
-# Open question for the migration owner: byzorgan-web-server.py is host-owned
-# and absent from this repository. Until it is moved into a versioned build
-# context, the tenant deployment must inject that single file read-only at the
-# following path (for example with a ConfigMap volume). It must honor WEBROOT.
 USER 65532:65532
 ENTRYPOINT ["python3", "/opt/chanterlab-server/byzorgan-web-server.py"]

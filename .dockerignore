@@ -7,6 +7,8 @@
 !Cargo.lock
 !src/
 !src/**
+!server/
+!server/byzorgan-web-server.py
 
 !web/
 !web/**
