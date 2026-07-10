@@ -82,9 +82,9 @@ catalog, not re-derived from source alone).
   from `--omr-dir`, which may point at data from a different checkout
   entirely). `code.parser_git_sha`/`app_git_sha` are **never inferred** from
   the builder SHA — explicit only (`--parser-sha`/`--app-sha`), `null`
-  otherwise. Every real local catalog has these as `null` today, honestly,
-  because `ingest_catalog.py` doesn't record its own git SHA at ingestion
-  time yet — a real gap, noted as CAT-02 follow-up work, not papered over.
+  otherwise. CAT-02 now records both in candidate `build-metadata.json`
+  before ingestion and requires explicit provenance for `import-existing`;
+  legacy source directories may honestly remain unprovenanced.
 - **Path safety:** every manifest `musicxml` path and every state `pdf` path
   is resolved relative to `omr_dir` and required to stay contained within
   `omr_dir/out/ingest` / `omr_dir/pdfs/ingest` respectively — traversal,
@@ -145,15 +145,20 @@ catalog, not re-derived from source alone).
 - **Compatibility matrix:** none yet — only schema v1 exists. "Current app
   can read current and previous schema" is satisfied trivially today because
   no app-facing consumer reads descriptors yet.
-- **Not done here, by design:** no staging directory, pointer, or promotion
-  mechanism (CAT-02, which should also wire `ingest_catalog.py` to record
-  its own git SHA at ingestion time so `parser_git_sha` stops defaulting to
-  unknown for freshly-ingested content); no publication-eligibility/
-  attribution enforcement (RIGHTS-01, which depends on this schema existing
-  first).
+- **Follow-through:** CAT-02 completed the staging directory, immutable
+  release pointer, promotion/rollback mechanism, and candidate provenance
+  recording. Publication-eligibility/attribution enforcement remains
+  RIGHTS-01, which depends on this schema.
 
 **Schema v1 approval recorded 2026-07-10.** The final review added
 fail-closed recomputation of serialized inventory hashes/counts, the content
 fingerprint, and readiness; included the raw catalog input in release
 identity; and reran the complete synthetic and real-catalog evidence above.
 CAT-02 is unblocked and may build atomic promotion on this contract.
+
+**CAT-02 completion addendum (2026-07-10).** The initial sealed production
+release records parser `e77ffa7` and app `61871cf` explicitly, rather than
+inferring either from its builder. The later app image alignment to `f275d67`
+does not alter that release descriptor: its app SHA identifies the code
+revision used when its immutable catalog was sealed. A subsequent catalog
+release will record its own candidate app SHA.

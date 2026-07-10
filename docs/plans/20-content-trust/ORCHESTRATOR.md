@@ -1,6 +1,6 @@
 # Content Trust Orchestrator
 
-Status: blocked on `CAT-01`; golden-fixture preparation may begin after `BASE-02`.
+Status: ready. `CAT-01` and `CAT-02` completed 2026-07-10.
 
 Roadmap IDs: `TRUST-01` through `TRUST-05`.
 
@@ -11,7 +11,7 @@ measurable and honest rather than inferred from measure integrity.
 
 | Order | Plan | Status |
 |---|---|---|
-| 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | blocked on release contract |
+| 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | ready |
 | 2 | [`22-confidence-signals.md`](22-confidence-signals.md) | blocked on 21 |
 | 2 | [`23-golden-corpus-fixtures.md`](23-golden-corpus-fixtures.md) | ready after required CI; parallel-safe with 22 under separate files |
 | 3 | [`24-human-audit-review-clustering.md`](24-human-audit-review-clustering.md) | blocked on 21-23 |

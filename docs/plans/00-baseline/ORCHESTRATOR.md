@@ -42,5 +42,6 @@ to merge; production image publication depends on that same gate succeeding
 for the exact SHA. The private-corpus gate is documented but has no runner yet
 (no self-hosted runner is registered for this repo) — it reports "not corpus
 verified" honestly rather than pretending otherwise; wiring a real runner is a
-follow-on owner decision. Next ready plans: `CAT-01` (release contract) and
-`CAT-02` (atomic build/promote/rollback), per `docs/plans/ORCHESTRATOR.md`.
+follow-on owner decision. `CAT-01` and `CAT-02` are complete. Next ready
+plans are `CAT-03` (release operations follow-through) and `TRUST-01`
+(quality ledger), per `docs/plans/ORCHESTRATOR.md`.

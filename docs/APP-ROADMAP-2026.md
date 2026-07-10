@@ -1,6 +1,8 @@
 # ChanterLab App, Repository, and Content-System Roadmap
 
-Status: canonical roadmap, ready for staged implementation.
+Status: canonical roadmap, actively executing. `BASE-00` through `CAT-02`
+completed 2026-07-10; `CAT-03` and `TRUST-01` are the next content-system
+plans.
 
 Audience: owner, implementation agents, reviewers, and operators.
 
@@ -264,4 +266,3 @@ Roadmap IDs `RIGHTS-*`.
 9. Harden architecture, dependencies, accessibility, and observability.
 10. Unify notation modes, then evaluate uploads, director tools, raster OMR,
     and multipart assessment behind explicit owner gates.
-
