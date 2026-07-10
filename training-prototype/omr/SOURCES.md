@@ -49,7 +49,9 @@ apart (polite). No auth needed for the blob URLs themselves.
 > gitignored built-ins are extracted catalog output (covered by the
 > publication permission, and already served) but stay gitignored like the
 > rest of the generated catalog, per BASE-01's catalog-custody plan. The
-> hand-made `content/control_satb.musicxml` is original and *is* committed.
+> hand-made `content/control_satb.musicxml` and `content/control_unison_ii.musicxml`
+> are both original and *are* committed — the second exists so CI can prove a
+> real cross-piece switch between two rights-safe scores (BASE-02).
 
 ## OMR tooling
 

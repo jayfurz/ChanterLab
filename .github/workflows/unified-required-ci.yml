@@ -1,0 +1,314 @@
+name: Unified Required CI
+
+# BASE-02 (docs/plans/00-baseline/02-unified-required-ci.md): one workflow, one
+# required status check (`required-gate`), covering the full public baseline —
+# Rust, root JS, the training-prototype app's own scoring/OMR/detector/browser
+# gates — on every push/PR to main. Supersedes the old standalone
+# training-smoke.yml (folded into `browser-gate` below, same smoke.mjs command)
+# and pages.yml keeps its own narrower Rust/JS check for the unrelated legacy
+# Pages site untouched. container-image.yml depends on `required-gate`
+# succeeding for the exact main SHA via workflow_run — see that file.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: unified-required-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLAYWRIGHT_VERSION: "1.59.1"
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Rustfmt
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-features --all-targets -- -D warnings
+      - name: Rust tests (all features)
+        # --all-features covers the worklet FFT detector and serde
+        # serialization tests, which the default feature set skips.
+        run: cargo test --all-features
+
+  root-js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: ESLint (web/)
+        run: npm run lint
+      - name: web/score engine tests
+        run: npm test
+
+  training-scoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: training-prototype scoring unit tests
+        run: node --test training-prototype/tests/scoring.test.mjs
+
+  omr-rights-safe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test deps
+        working-directory: training-prototype/omr
+        run: pip install pymupdf pytest
+      - name: Run OMR regression suite
+        id: pytest
+        working-directory: training-prototype/omr
+        # Public/fresh-checkout run: the corpus PDFs (training-prototype/omr/pdfs/)
+        # are gitignored copyrighted material and are never present here, so
+        # every PDF-gated case in test_regression.py + the 4 Bortniansky cases
+        # in test_fixes.py SKIPS via conftest.skip_if_pdf_missing — by design,
+        # not a bug (see tests/README.md). The PDF-independent unit tests
+        # (chord-dots / syllabified-lyric logic) always run for real.
+        run: |
+          set -o pipefail
+          python -m pytest tests/ -v 2>&1 | tee /tmp/omr-pytest.log
+      - name: Publish exact pass/fail/skip counts
+        if: always()
+        run: |
+          summary=$(grep -E '^=+ .*(passed|failed|skipped|error).* in [0-9]' /tmp/omr-pytest.log | tail -1 || true)
+          {
+            echo "### OMR rights-safe suite"
+            echo
+            echo "\`${summary:-no summary line found — see job log}\`"
+            echo
+            echo "Corpus-dependent cases (test_regression.py's 10 pieces + 2 determinism"
+            echo "+ 2 whole-measure-rest spot checks, and test_fixes.py's 4 Bortniansky"
+            echo "cases) always skip on a public runner — the source PDFs are gitignored"
+            echo "copyrighted material, never present here. **This is NOT corpus verified"
+            echo "— it only proves the PDF-independent unit tests.** See the"
+            echo "\`omr-private-corpus\` job for the private-corpus status."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  omr-private-corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report private-corpus verification status
+        # Defined per BASE-02 scope item 5. No self-hosted runner with the
+        # Antiochian PDF corpus is registered for this repo today (checked via
+        # `gh api repos/.../actions/runners` while authoring this job) — a
+        # `runs-on: self-hosted` job would simply queue forever with none
+        # available, so this deliberately stays on ubuntu-latest and reports
+        # honestly instead. The moment such a runner exists, add its label to
+        # `runs-on` below and this step's corpus-present branch takes over —
+        # no other change needed.
+        run: |
+          PDF_DIR="training-prototype/omr/pdfs/ingest"
+          if [ -d "$PDF_DIR" ] && [ -n "$(ls -A "$PDF_DIR" 2>/dev/null)" ]; then
+            echo "Private corpus PDFs found at $PDF_DIR — running the full suite for real."
+            python3 -m venv /tmp/omr-corpus-venv
+            /tmp/omr-corpus-venv/bin/pip install -q pymupdf pytest
+            set -o pipefail
+            ( cd training-prototype/omr && /tmp/omr-corpus-venv/bin/python -m pytest tests/ -v ) 2>&1 | tee /tmp/omr-corpus-pytest.log
+            summary=$(grep -E '^=+ .*(passed|failed|skipped|error).* in [0-9]' /tmp/omr-corpus-pytest.log | tail -1 || true)
+            echo "### OMR private corpus: CORPUS VERIFIED" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`${summary:-no summary line found}\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### OMR private corpus: NOT CORPUS VERIFIED" >> "$GITHUB_STEP_SUMMARY"
+            echo "No private PDF corpus is available on this runner ($PDF_DIR absent or" >> "$GITHUB_STEP_SUMMARY"
+            echo "empty) — copyrighted source material, gitignored, local-only by design." >> "$GITHUB_STEP_SUMMARY"
+            echo "This is expected on every GitHub-hosted run; it is informational, not a" >> "$GITHUB_STEP_SUMMARY"
+            echo "failure, and never blocks \`required-gate\` (see Non-Goals in BASE-02)." >> "$GITHUB_STEP_SUMMARY"
+            echo "No private artifacts are read, uploaded, or exposed by this step." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  detector-thresholds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@wasm-pack
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build worklet WASM
+        run: |
+          make build-worklet
+          mkdir -p training-prototype/pkg-worklet
+          cp web/pkg-worklet/chanterlab_core.js web/pkg-worklet/chanterlab_core_bg.wasm training-prototype/pkg-worklet/
+      - name: Detector A/B thresholds (accuracy/cadence/onset/dropout)
+        run: node training-prototype/tests/detector-ab.mjs
+
+  fake-mic-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@wasm-pack
+      - name: Build worklet WASM
+        run: |
+          make build-worklet
+          mkdir -p training-prototype/pkg-worklet
+          cp web/pkg-worklet/chanterlab_core.js web/pkg-worklet/chanterlab_core_bg.wasm training-prototype/pkg-worklet/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Resolve app base path
+        id: base
+        run: |
+          if [ -L web/training ] && [ -e web/training/index.html ]; then
+            echo "path=/web/training/index.html" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=/training-prototype/index.html" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ env.PLAYWRIGHT_VERSION }}-${{ runner.os }}
+      - name: Install Playwright
+        run: |
+          npm install --no-save "playwright@${PLAYWRIGHT_VERSION}"
+          npx playwright install --with-deps chromium
+      - name: Start static server
+        run: |
+          python3 -m http.server 8765 > /tmp/fake-mic-server.log 2>&1 &
+          echo $! > /tmp/fake-mic-server.pid
+          url="http://localhost:8765${{ steps.base.outputs.path }}"
+          for i in $(seq 1 30); do
+            if curl -sf "$url" -o /dev/null; then echo "server up at $url"; exit 0; fi
+            sleep 1
+          done
+          echo "server never came up serving $url"; cat /tmp/fake-mic-server.log; exit 1
+      - name: Fake-mic detector verification (js + wasm)
+        env:
+          SMOKE_URL: http://localhost:8765${{ steps.base.outputs.path }}
+          PW_PATH: ${{ github.workspace }}/node_modules/playwright/index.js
+        run: node training-prototype/tests/detector-verify.mjs
+      - name: Stop static server
+        if: always()
+        run: kill "$(cat /tmp/fake-mic-server.pid)" 2>/dev/null || true
+
+  browser-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@wasm-pack
+      - name: Build worklet WASM
+        # Engaging the mic (browser-gate.mjs's scoring/scope step) fetches
+        # pkg-worklet/* even though 'js' is the default detector mode — same
+        # dependency as fake-mic-verify, needed here for the same reason.
+        run: |
+          make build-worklet
+          mkdir -p training-prototype/pkg-worklet
+          cp web/pkg-worklet/chanterlab_core.js web/pkg-worklet/chanterlab_core_bg.wasm training-prototype/pkg-worklet/
+      - name: Resolve app base path
+        id: base
+        run: |
+          if [ -L web/training ] && [ -e web/training/index.html ]; then
+            echo "path=/web/training/index.html" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=/training-prototype/index.html" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ env.PLAYWRIGHT_VERSION }}-${{ runner.os }}
+      - name: Install Playwright
+        run: |
+          npm install --no-save "playwright@${PLAYWRIGHT_VERSION}"
+          npx playwright install --with-deps chromium
+      - name: Start static server
+        run: |
+          python3 -m http.server 8765 > /tmp/browser-gate-server.log 2>&1 &
+          echo $! > /tmp/browser-gate-server.pid
+          url="http://localhost:8765${{ steps.base.outputs.path }}"
+          for i in $(seq 1 30); do
+            if curl -sf "$url" -o /dev/null; then echo "server up at $url"; exit 0; fi
+            sleep 1
+          done
+          echo "server never came up serving $url"; cat /tmp/browser-gate-server.log; exit 1
+      - name: Core-loop smoke test
+        env:
+          SMOKE_URL: http://localhost:8765${{ steps.base.outputs.path }}
+          PW_PATH: ${{ github.workspace }}/node_modules/playwright/index.js
+        run: node training-prototype/tests/smoke.mjs
+      - name: Desktop/mobile browser gate (library, voice, loop, scoring, nonblank canvas)
+        env:
+          SMOKE_URL: http://localhost:8765${{ steps.base.outputs.path }}
+          PW_PATH: ${{ github.workspace }}/node_modules/playwright/index.js
+        run: node training-prototype/tests/browser-gate.mjs
+      - name: Stop static server
+        if: always()
+        run: kill "$(cat /tmp/browser-gate-server.pid)" 2>/dev/null || true
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-gate-failures
+          path: |
+            training-prototype/tests/smoke-failure.png
+            training-prototype/tests/browser-gate-*-failure.png
+          if-no-files-found: ignore
+
+  required-gate:
+    # The single required status check (see docs/plans/00-baseline/02-unified-required-ci.md
+    # and the branch-protection config referenced in its completion evidence).
+    # container-image.yml waits on THIS job's success via workflow_run, for
+    # the exact SHA it ran against.
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - rust
+      - root-js
+      - training-scoring
+      - omr-rights-safe
+      - omr-private-corpus
+      - detector-thresholds
+      - fake-mic-verify
+      - browser-gate
+    steps:
+      - name: All required jobs succeeded
+        run: |
+          cat > /tmp/needs.json <<'EOF'
+          ${{ toJSON(needs) }}
+          EOF
+          python3 <<'PYEOF'
+          import json, os
+          needs = json.load(open('/tmp/needs.json'))
+          lines = [f"- {k}: {v.get('result')}" for k, v in needs.items()]
+          bad = [k for k, v in needs.items() if v.get('result') != 'success']
+          summary = "\n".join(["### Unified Required CI — gate result", f"SHA: `{os.environ['GITHUB_SHA']}`", ""] + lines)
+          print(summary)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write(summary + "\n")
+          raise SystemExit(1 if bad else 0)
+          PYEOF

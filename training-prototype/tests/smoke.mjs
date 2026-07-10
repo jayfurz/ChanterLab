@@ -10,40 +10,32 @@
  * choir-training; also runnable standalone on a dev box (see below).
  *
  * ---------------------------------------------------------------------
- * CAVEAT — only ONE of the "5 built-in" pieces is actually usable in CI.
+ * Built-in pieces and what's actually usable in CI.
  * ---------------------------------------------------------------------
- * training-prototype/app.js's PIECES array lists 5 built-in ids: control,
- * trisagion_v, cherubic_v, anaphora_v, trisagion. But training-prototype/
- * .gitignore excludes 4 of their backing MusicXML files (they're vector/OMR
- * extractions of a copyrighted Antiochian Sacred Music Library edition —
- * see omr/SOURCES.md). Only content/control_satb.musicxml is committed.
- * app.js's own loadPieceById() catch block already has a dedicated hint
- * for this exact situation ("score is gitignored (copyrighted source);
- * regenerate via omr/README.md"), so this is a known, intentional state of
- * the repo, not something this test works around by accident.
- *
- * Verified directly: `git archive HEAD | tar -x` into a scratch dir (i.e.
- * exactly what a CI checkout produces) and served that tree — selecting
- * trisagion_v there 404s, and while app.js itself handles the failure
- * gracefully (no thrown/uncaught error), Chromium *also* logs a synthetic
- * "Failed to load resource: ... 404" console error for the network
- * response regardless of whether app code catches it.
+ * training-prototype/js/state.js's PIECES array lists 6 built-in ids:
+ * control, control2, trisagion_v, cherubic_v, anaphora_v, trisagion. But
+ * training-prototype/.gitignore excludes the backing MusicXML for the 4
+ * antiochian.org ids (they're vector/OMR extractions of a copyrighted
+ * Antiochian Sacred Music Library edition — see omr/SOURCES.md). Only
+ * content/control_satb.musicxml and content/control_unison_ii.musicxml
+ * (BASE-02, a second hand-made fixture) are committed. loadPieceById()'s
+ * catch block already has a dedicated hint for the gitignored-id case
+ * ("score is gitignored (copyrighted source); regenerate via
+ * omr/README.md"), so that part is a known, intentional state of the repo.
  *
  * So: the full ready -> parse -> play -> posOut-advances -> stop
  * assertions always run against `control` (guaranteed present in every
  * environment). For the "switch to a second built-in" assertion, this
  * script *probes first* — a plain HTTP GET, not through the app — for
  * whether a second built-in's MusicXML is actually servable here:
- *   - if yes (local dev box, where the OMR-derived files sit on disk even
- *     though gitignored): do a REAL cross-piece switch and check the new
- *     piece's parsed() differs and is non-trivial.
- *   - if no (CI, fresh checkout): fall back to reselecting `control` via
- *     window.__library.select. This still exercises the whole
- *     stop() -> loadScore() -> buildAudio() switching pipeline end to end;
- *     it just can't prove two *different* scores render, because CI has
- *     no second score to prove it with. That gap is real and documented
- *     here rather than papered over with a broad 404/console-error
- *     allowlist.
+ *   - `control2` is committed, so this succeeds on every fresh checkout
+ *     including CI — a REAL cross-piece switch, not a fallback reselect.
+ *   - on a local dev box where the OMR-derived files also sit on disk
+ *     (even though gitignored), the probe may instead pick one of those.
+ *   - the fallback path (reselecting `control`) is kept for the
+ *     unreachable case where even `control2` fails to serve, so this test
+ *     degrades honestly instead of hard-failing on an unrelated hosting
+ *     issue.
  *
  * ---------------------------------------------------------------------
  * Error budget.
@@ -197,9 +189,10 @@ async function resolveBaseUrl() {
 }
 
 // ---- constants ------------------------------------------------------------
-const BUILTIN_IDS = ['control', 'trisagion_v', 'cherubic_v', 'anaphora_v', 'trisagion'];
+const BUILTIN_IDS = ['control', 'control2', 'trisagion_v', 'cherubic_v', 'anaphora_v', 'trisagion'];
 const BUILTIN_URL_SUFFIX = {
   control: 'content/control_satb.musicxml',
+  control2: 'content/control_unison_ii.musicxml',
   trisagion_v: 'content/trisagion_vector.musicxml',
   cherubic_v: 'content/cherubic_vector.musicxml',
   anaphora_v: 'content/anaphora_vector.musicxml',
@@ -265,7 +258,7 @@ async function main() {
     else if (!(parsed1.measureCount > 0)) fail(`parsed().measureCount not > 0 (got ${parsed1.measureCount})`);
 
     // 4. #pieceSelect (the hidden "headless test" select — see index.html's
-    //    comment above it) is populated with all 5 known built-in ids.
+    //    comment above it) is populated with all known built-in ids.
     const optionValues = await page.$$eval('#pieceSelect option', (opts) => opts.map((o) => o.value));
     const missingIds = BUILTIN_IDS.filter((id) => !optionValues.includes(id));
     if (missingIds.length) fail(`#pieceSelect missing option(s): ${missingIds.join(', ')}`);

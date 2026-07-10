@@ -1,13 +1,25 @@
 name: Publish ChanterLab Container
 
-# Branch protection is expected to require the repository's checks before a PR
-# can merge. This push event therefore publishes the merge commit only after
-# those required checks have passed. Its permissions and concurrency group are
-# independent from the existing smoke-test and GitHub Pages workflows.
+# BASE-02: publication now depends on Unified Required CI (required-gate)
+# succeeding for this EXACT commit, rather than firing independently on every
+# push to main. Before this change, a push to main built and published an
+# image tagged with that SHA regardless of whether required-gate had run or
+# passed for it yet — branch protection only blocked the PR *merge*, not this
+# workflow, so a red main (however that happened) could still get an image
+# published. workflow_run with head_sha pinned closes that gap: this fires
+# only after Unified Required CI completes on main, and it checks out (and
+# tags) the exact SHA that workflow ran against, not whatever main points to
+# by the time this job starts.
 on:
-  push:
+  workflow_run:
+    workflows: ["Unified Required CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "SHA to build and publish (defaults to the default branch HEAD for a manual run)"
+        required: false
 
 permissions:
   contents: read
@@ -18,13 +30,21 @@ concurrency:
 
 env:
   IMAGE_NAME: ${{ vars.GITEA_REGISTRY }}/${{ vars.GITEA_REGISTRY_OWNER }}/chanterlab-web
+  # workflow_run: only the exact SHA that Unified Required CI ran against, and
+  # only if it concluded successfully. workflow_dispatch: the SHA the user
+  # asked for, or the default branch HEAD if they didn't (this is a manual
+  # override outside the automated gate, same as before).
+  TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.event.inputs.sha || github.sha }}
 
 jobs:
   publish:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout the exact gated SHA
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -56,6 +76,6 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ env.IMAGE_NAME }}:${{ env.TARGET_SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

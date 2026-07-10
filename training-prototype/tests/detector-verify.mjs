@@ -14,9 +14,13 @@
  *   - zero JS console errors (network 404 noise excluded, as in smoke.mjs).
  *
  * This is the browser counterpart to the deterministic detector-ab.mjs A/B.
- * NOT part of CI (smoke.mjs + scoring.test.mjs are). Run on a dev box:
+ * BASE-02: part of the unified required CI workflow (the "fake-mic browser
+ * verification" gate) as well as runnable standalone on a dev box:
  *   node training-prototype/tests/detector-verify.mjs
  * Honors the same PW_PATH / PW_CHROMIUM / SMOKE_URL env vars as smoke.mjs.
+ * Needs training-prototype/pkg-worklet/ built first (make build-worklet, then
+ * copy chanterlab_core.js + chanterlab_core_bg.wasm from web/pkg-worklet/ —
+ * see the Dockerfile for the exact copy this mirrors) for the wasm mode.
  */
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';

@@ -29,6 +29,11 @@
  *                        the real worklet's one-crossing-per-128-block).
  *
  * Run: node training-prototype/tests/detector-ab.mjs
+ *
+ * BASE-02: thresholds below turn this into a CI gate (exit 1 on regression),
+ * not just a report. Values were set from a real local run (see the commit
+ * that added them) with headroom for cross-runner jitter — they're meant to
+ * catch a real accuracy/cadence/onset/dropout regression, not to be tight.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -295,3 +300,50 @@ console.log(out.join('\n'));
 
 // machine-readable line for any wrapper that wants to diff runs
 console.log('AB_JSON ' + JSON.stringify({ sum, glide: { js: glideJs, wasm: glideWasm }, onset: { js: median(onset.js), wasm: median(onset.wasm) }, cpu: { js: cpuJs, wasm: cpuWasm }, cadenceTargetHz: SR / (RATE_DIV * FFT_BLOCK) }));
+
+// ── CI gate: stable accuracy/cadence/onset/dropout thresholds ────────────────
+// CPU is deliberately NOT gated here (Audio Gate: "CPU is informational unless
+// measured on a controlled runner") — reported above, never asserted.
+const THRESHOLDS = {
+  // per-timbre steady-tone checks, per detector
+  accFoldedCentsMax: { js: 5, wasm: 15 },
+  octaveRateMax: { js: 0.05, wasm: 0.05 },
+  voicedPctMin: { js: 0.90, wasm: 0.80 },
+  cadenceHzMin: { js: 45, wasm: 45 },
+  // glide (50->74 MIDI tracking)
+  glideCentsMax: { js: 40, wasm: 90 },
+  glideVoicedPctMin: { js: 0.85, wasm: 0.80 },
+  // onset latency
+  onsetMsMax: { js: 40, wasm: 90 },
+};
+
+const gateFailures = [];
+function checkMax(label, val, max) {
+  if (!(val <= max)) gateFailures.push(`${label}: ${Number.isFinite(val) ? val.toFixed(2) : val} exceeds max ${max}`);
+}
+function checkMin(label, val, min) {
+  if (!(val >= min)) gateFailures.push(`${label}: ${Number.isFinite(val) ? val.toFixed(2) : val} below min ${min}`);
+}
+
+for (const detector of ['js', 'wasm']) {
+  for (const timbre of ['pure', 'voice', 'weakFund']) {
+    const s = sum[detector][timbre];
+    checkMax(`${detector}/${timbre} accFolded`, s.accFolded, THRESHOLDS.accFoldedCentsMax[detector]);
+    checkMax(`${detector}/${timbre} octaveRate`, s.octaveRate, THRESHOLDS.octaveRateMax[detector]);
+    checkMin(`${detector}/${timbre} voicedPct`, s.voicedPct, THRESHOLDS.voicedPctMin[detector]);
+    checkMin(`${detector}/${timbre} cadence`, s.cadence, THRESHOLDS.cadenceHzMin[detector]);
+  }
+  const g = detector === 'js' ? glideJs : glideWasm;
+  checkMax(`${detector} glide |cents|`, g.acc, THRESHOLDS.glideCentsMax[detector]);
+  checkMin(`${detector} glide voicedPct`, g.voicedPct, THRESHOLDS.glideVoicedPctMin[detector]);
+  const onsetMs = detector === 'js' ? median(onset.js) : median(onset.wasm);
+  checkMax(`${detector} onset latency`, onsetMs, THRESHOLDS.onsetMsMax[detector]);
+}
+
+if (gateFailures.length) {
+  console.error(`\n[detector-ab] GATE FAIL (${gateFailures.length}):`);
+  gateFailures.forEach((f, i) => console.error(`  ${i + 1}. ${f}`));
+  process.exitCode = 1;
+} else {
+  console.log('[detector-ab] GATE PASS — all accuracy/cadence/onset/dropout thresholds held.');
+}

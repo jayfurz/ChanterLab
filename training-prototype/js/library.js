@@ -51,7 +51,7 @@ export let libOpen = false;
   let libPushed = false;     // whether we pushed a history entry for the overlay
   let libSearchTimer = 0, libScrollRaf = 0;
 
-  // Prototype items (the 5 built-ins) rendered into the library too.
+  // Prototype items (the built-ins) rendered into the library too.
 export const libProto = PIECES.slice(0, N_BUILTIN).map((p) => ({
     id: p.id, title: p.title, composer: p.composer, tone: null,
     arrangement: p.arrangement, liturgicalDate: '', section: 'proto',

@@ -12,8 +12,8 @@ before catalog, trust, feedback, or practice work expands.
 | Order | Plan | Status | Blocks |
 |---|---|---|---|
 | 1 | [`00-land-current-omr-fixes.md`](00-land-current-omr-fixes.md) | done at `e77ffa7` | all OMR/catalog work |
-| 2 | [`01-branch-and-deployment.md`](01-branch-and-deployment.md) | decided 2026-07-09; in-progress (worktree `base01-reconcile`) | required CI and releases |
-| 3 | [`02-unified-required-ci.md`](02-unified-required-ci.md) | blocked on plan 01 | all later implementation |
+| 2 | [`01-branch-and-deployment.md`](01-branch-and-deployment.md) | complete 2026-07-10 | required CI and releases |
+| 3 | [`02-unified-required-ci.md`](02-unified-required-ci.md) | in-progress | all later implementation |
 
 ## Ownership
 
