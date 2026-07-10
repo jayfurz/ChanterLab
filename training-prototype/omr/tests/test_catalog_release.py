@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import shutil
 import stat
@@ -250,3 +251,27 @@ def test_entrypoint_can_bind_disposable_pod_to_candidate_release(tmp_path):
 
     with pytest.raises(RuntimeError, match="invalid CATALOG_POINTER"):
         module.configure_catalog("../../etc")
+
+
+def test_public_smoke_uses_explicit_user_agent(monkeypatch):
+    release_id = "rel-20260710T200000Z-" + "a" * 12
+    payloads = iter((
+        json.dumps({
+            "schema_version": 1, "release_id": release_id,
+            "content_fingerprint": "a" * 64,
+        }).encode(),
+        json.dumps([{"musicxml": "out/ingest/piece.musicxml"}]).encode(),
+        b"<score-partwise/>",
+    ))
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append((request, timeout))
+        return io.BytesIO(next(payloads))
+
+    monkeypatch.setattr(cr.urllib.request, "urlopen", fake_urlopen)
+    result = cr.smoke_http("https://chanterlab.com/", release_id)
+    assert result["manifest_entries"] == 1
+    assert len(requests) == 3
+    assert all(request.get_header("User-agent") == "ChanterLab-release-smoke/1.0"
+               for request, _timeout in requests)

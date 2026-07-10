@@ -528,18 +528,26 @@ def rollback(*, store: Path, approval: str, inject_failure: str | None = None) -
 
 def smoke_http(base_url: str, expected_release_id: str) -> dict:
     base = base_url.rstrip("/") + "/"
-    with urllib.request.urlopen(base + "omr/out/ingest/release.json", timeout=15) as r:
+
+    def get(path: str):
+        request = urllib.request.Request(
+            base + path,
+            headers={"User-Agent": "ChanterLab-release-smoke/1.0"},
+        )
+        return urllib.request.urlopen(request, timeout=15)
+
+    with get("omr/out/ingest/release.json") as r:
         marker = json.load(r)
     if marker.get("release_id") != expected_release_id:
         raise ReleaseError(
             f"served release mismatch: expected {expected_release_id}, got {marker.get('release_id')}"
         )
-    with urllib.request.urlopen(base + "omr/out/ingest/manifest.json", timeout=15) as r:
+    with get("omr/out/ingest/manifest.json") as r:
         manifest = json.load(r)
     if not manifest:
         raise ReleaseError("served manifest is empty")
     first = manifest[0]["musicxml"]
-    with urllib.request.urlopen(base + "omr/" + first, timeout=15) as r:
+    with get("omr/" + first) as r:
         ET.fromstring(r.read())
     return {"release_id": marker["release_id"], "manifest_entries": len(manifest), "sample": first}
 
