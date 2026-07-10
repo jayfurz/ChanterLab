@@ -10,12 +10,15 @@ Drop-in replacement for `python3 -m http.server 8765 --directory
      http.server autoindex that was leaking /training/omr/**.
 
   2. /training/omr/** is DENY-BY-DEFAULT (allowlist, not blocklist). Only the
-     two artifact paths the training app actually needs are served:
+     app artifacts and public release marker are served:
          /training/omr/out/ingest/manifest.json
+         /training/omr/out/ingest/release.json
          /training/omr/out/ingest/<name>.musicxml   (single path segment)
      Everything else under /training/omr/ returns 404 — the source PDFs
      (pdfs/**), gt_crops/, pages/, verify/, out/** non-ingest artifacts,
      *.report.json, ingest_state.json, the pipeline *.py sources, *.log, etc.
+     The public ``release.json`` marker is also allowed so smoke checks can
+     identify the exact atomically served catalog release.
 
   3. Host-aware routing (issue #70): on the chanterlab.com brand hosts
      (chanterlab.com, www.chanterlab.com) the training app is served at the
@@ -77,10 +80,10 @@ OMR_INGEST = "out/ingest/"         # allowed subtree (relative to OMR_PREFIX)
 def _omr_allowed(rel: str) -> bool:
     """rel is the path relative to OMR_PREFIX, e.g. 'out/ingest/foo.musicxml'.
 
-    Allow exactly: out/ingest/manifest.json and out/ingest/<seg>.musicxml
-    where <seg> is a single path segment (no further slashes).
+    Allow exactly: manifest.json, release.json, and <seg>.musicxml under
+    out/ingest, where <seg> is one path segment (no further slashes).
     """
-    if rel == OMR_INGEST + "manifest.json":
+    if rel in (OMR_INGEST + "manifest.json", OMR_INGEST + "release.json"):
         return True
     if rel.startswith(OMR_INGEST):
         tail = rel[len(OMR_INGEST):]
