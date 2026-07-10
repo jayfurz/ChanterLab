@@ -1,8 +1,24 @@
 # ChanterLab
 
-ChanterLab is browser-based Byzantine chanting practice software. It provides
-interactive tuning grids, pthora and chroa controls, microphone pitch feedback,
-ison and synth tools, and short pitch-holding exercises.
+**The product is the choir-practice training app in
+[`training-prototype/`](training-prototype/README.md), live at
+[chanterlab.com](https://chanterlab.com).** Everything else in this README
+describes the standalone Byzantine chant engine that shares this repository —
+a maintenance-only app (tuning grids, pthora/chroa controls, ison and synth
+tools), not the product roadmap. Its architecture is documented in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and deployed separately via
+GitHub Pages (see below); its "crown jewels" (the Rust/WASM pitch detector,
+PSOLA, Byzantine notation) are migrating into the training app over time
+rather than being developed as a second product. See
+[`docs/AGILE-RESET-2026-07.md`](docs/AGILE-RESET-2026-07.md) for the current
+plan of record.
+
+---
+
+ChanterLab (legacy engine) is browser-based Byzantine chanting practice
+software. It provides interactive tuning grids, pthora and chroa controls,
+microphone pitch feedback, ison and synth tools, and short pitch-holding
+exercises.
 
 The app runs locally in the browser. Microphone audio is processed in the page's
 AudioWorklet and is not uploaded to a server.
@@ -91,7 +107,11 @@ push and pull request.
 ## GitHub Pages Deployment
 
 This repo includes a GitHub Actions workflow at
-[.github/workflows/pages.yml](.github/workflows/pages.yml). After pushing to
-GitHub, enable Pages for the repository and choose **GitHub Actions** as the
-source. Pushes to `master` or `main` will build the WASM artifacts and deploy
-the `web` directory.
+[.github/workflows/pages.yml](.github/workflows/pages.yml) that deploys this
+legacy Byzantine engine only. After pushing to GitHub, enable Pages for the
+repository and choose **GitHub Actions** as the source. Pushes to `master` or
+`main` build the WASM artifacts and deploy a staging copy of `web` with
+`web/training` (the training-app symlink) excluded, so the Pages site can
+never accidentally ship the product. The training app itself is not deployed
+via Pages — see [Deployment](docs/plans/00-baseline/01-branch-and-deployment.md)
+for how chanterlab.com is actually released.

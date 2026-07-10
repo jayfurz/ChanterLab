@@ -6,8 +6,9 @@ part with a cursor, and **sing it into the mic while the singscope shows your
 pitch hitting the gold notes**. See the full plan in
 [`../docs/choir-training-roadmap.md`](../docs/choir-training-roadmap.md).
 
-Live at `https://byz.alwaysdobetterllc.com/training/` (served from this
-directory via the `web/training` symlink on the `choir-training` branch).
+Live at [chanterlab.com](https://chanterlab.com) (root-mounted there) and at
+`https://byz.alwaysdobetterllc.com/training/` (legacy path) — both served
+from this directory via the `web/training` symlink.
 
 ## Run
 

@@ -18,9 +18,9 @@ name: Choir Training Smoke
 
 on:
   push:
-    branches: [choir-training]
+    branches: [main, choir-training]
   pull_request:
-    branches: [choir-training]
+    branches: [main, choir-training]
 
 concurrency:
   group: training-smoke-${{ github.ref }}
