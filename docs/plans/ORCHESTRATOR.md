@@ -1,6 +1,7 @@
 # ChanterLab Program Orchestrator
 
-Status: ready. Baseline OMR fix set landed at `e77ffa7`.
+Status: active. BASE-00 through CAT-02 completed 2026-07-10; the next
+content-system pickup is `CAT-03`, with `TRUST-01` also ready.
 
 Objective: execute `docs/APP-ROADMAP-2026.md` as independently reviewable
 workstreams while keeping the live practice app and catalog safe.
@@ -19,11 +20,8 @@ workstreams while keeping the live practice app and catalog safe.
 ## Dependency Spine
 
 ```text
-BASE-00 current parser fix
-  -> BASE-01 branch/deploy decision
-  -> BASE-02 required CI
-  -> CAT-01 release contract
-  -> CAT-02 atomic build/promote/rollback
+BASE-00 -> BASE-01 -> BASE-02 -> CAT-01 -> CAT-02 [complete]
+  -> CAT-03 backup/restore/generated statistics
   -> TRUST-01 quality ledger
   -> LOOP-01 report capture/storage
   -> LOOP-02 reviewer/correction workbench
@@ -43,7 +41,7 @@ The reviewed parser sequence landed as `7be4d13`, `6815071`, and `e77ffa7`.
 Treat `e77ffa7` as the content-system baseline until a later plan deliberately
 changes it. Do not mix unplanned parser work into branch, CI, or release plans.
 
-### Wave 1: Make Changes Reproducible
+### Wave 1: Make Changes Reproducible (Complete)
 
 Run branch/deploy consolidation, required CI, and the catalog-release contract.
 Rights-policy clarification and transport characterization may run in parallel
@@ -51,7 +49,7 @@ only with disjoint files.
 
 ### Wave 2: Establish Content Trust
 
-Implement atomic releases, then the quality ledger and golden fixtures.
+Atomic releases are complete; implement the quality ledger and golden fixtures.
 Confidence instrumentation and human-audit tooling follow the frozen schemas.
 
 ### Wave 3: Close The User Feedback Loop

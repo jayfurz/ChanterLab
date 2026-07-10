@@ -1,6 +1,7 @@
 # TRUST-01: Quality Ledger And Status Schema
 
-Status: blocked on `CAT-01`. Priority: P0.
+Status: ready; immutable release/score identity is available from `CAT-01` and
+`CAT-02`. Priority: P0.
 
 Dependencies: immutable release/score identity. Blocks: reports, review UI,
 provenance UI, human audit.
@@ -37,4 +38,3 @@ with human verification.
 Every active score has exactly one valid status; transitions are audited; manual
 overrides and retired overrides cannot conflict; missing provenance fails the
 appropriate publication gate; current and previous schema remain readable.
-

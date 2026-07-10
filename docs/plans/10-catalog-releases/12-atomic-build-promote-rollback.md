@@ -77,6 +77,12 @@ are release-scoped; production smoke identifies the served release ID.
 - Code deployment and catalog promotion remained separate throughout: the
   sealed pointer was installed while the legacy pod still served its old
   paths; only afterward did GitOps deploy the current-pointer-aware image.
+- **Deployment reconciliation (2026-07-10):** infra PR #7 advanced the
+  GitOps image pin to app `main` `f275d67`; Argo reconciled infra revision
+  `4716630` as `Synced/Healthy`, and the VPS deployment reported one ready
+  `f275d67` replica with zero restarts. This is a runtime-image alignment,
+  not a catalog reseal: the active immutable descriptor continues to name
+  `61871cf`, the app revision used to seal that catalog release.
 
 Operational commands and first-import details are in
 `training-prototype/omr/RELEASE_RUNBOOK.md`.

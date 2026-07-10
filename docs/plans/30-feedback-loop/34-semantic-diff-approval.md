@@ -1,6 +1,7 @@
 # LOOP-04: Semantic Catalog Diff And Approval
 
-Status: blocked on `CAT-02` and `LOOP-03`. Priority: P1.
+Status: blocked on `LOOP-03`; immutable staged releases are available from
+`CAT-02`. Priority: P1.
 
 Dependencies: immutable staged releases, ledger, corrections. Blocks: routine
 safe parser rollout.
@@ -33,4 +34,3 @@ status/trust; overrides/tombstones; manifest metadata and source identity.
 The Bortniansky-style change reads as named musical improvements, not only bytes;
 unchanged formatting is distinguishable from semantics; waivers are explicit;
 rollback diff is empty against the previous release; approval identity is stored.
-

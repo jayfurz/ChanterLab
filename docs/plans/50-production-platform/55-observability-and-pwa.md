@@ -1,7 +1,7 @@
 # PROD-05: Privacy-Conscious Observability And Versioned PWA
 
-Status: observability blocked on owner data decision; PWA blocked on `CAT-02` and
-asset versioning. Priority: P2.
+Status: observability blocked on owner data decision; PWA is ready for asset
+versioning/compatibility design now that `CAT-02` is complete. Priority: P2.
 
 Dependencies: release identity, security policy, rights/privacy policy.
 
@@ -31,4 +31,3 @@ No unapproved data leaves the browser; diagnostics identify release/app versions
 offline never mixes incompatible manifest/MusicXML/app assets; rollback purges or
 selects compatible caches; users can inspect/clear stored data; PWA failures do
 not block ordinary online use.
-
