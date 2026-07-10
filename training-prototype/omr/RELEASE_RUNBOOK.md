@@ -1,4 +1,4 @@
-# Catalog release runbook (CAT-02)
+# Catalog Release Runbook
 
 The active catalog is never an ingest directory. It is one symlink:
 
@@ -14,6 +14,17 @@ and public `release.json` marker), release-scoped `overrides/`, the four
 publication-approved `content/` built-ins, `release-descriptor.json`, build
 metadata, and verification evidence. Source PDFs are shared inputs and are
 never copied into a release or onto the production PVC.
+
+## Release environment
+
+Release, promotion, and restore validation fail closed unless the OMR venv has
+the declared JSON Schema validator. Before running any command in this
+runbook, provision it once in the venv:
+
+```sh
+cd training-prototype/omr
+uv pip install --python .venv/bin/python -r requirements-release.txt
+```
 
 ## Build a new extraction
 
@@ -126,9 +137,10 @@ for the exact source/state/override, sealed-release, pointer, and verification
 evidence sets. `staging/`, `.promotion.lock`, and OMR scratch directories are
 deliberately excluded because they are unserved and regenerable.
 
-Infra's `chanterlab-corpus-archive.timer` performs the transport to the
-private TrueNAS mirror with permanent retention. It archives mutable PDFs,
-state, reports, overrides, and tombstones from the source checkout, but
+Infra's `chanterlab-corpus-archive.timer` runs daily at 03:00 MST and performs
+the transport to the private TrueNAS mirror with permanent retention. It
+archives mutable PDFs, state, reports, overrides, and tombstones from the
+source checkout, but
 captures sealed releases plus `current`/`previous` from the live VPS PVC while
 the shared promotion lock is held. Each run also stores two required pieces of
 evidence beside the release tree:
@@ -139,18 +151,18 @@ evidence beside the release tree:
   captured with the tar stream.
 
 No credentials are in the payload; SSH access and any future at-rest key stay
-in infra's secrets store, never in this catalog. This backup class deliberately
+in `infra/secrets/`, never in this catalog. This backup class deliberately
 matches the existing platform convention of no file-level encryption at rest.
 The TrueNAS archive root is owner-only (`0700`) and this waiver must be
 revisited if the platform's storage-encryption baseline changes.
 
 Recovery objectives: target RPO is 24 hours (the daily timer; trigger it
 manually after an exceptional catalog promotion), and target RTO is 30 minutes
-from available TrueNAS access to a validated restored tree. The local drill
-validated the full 1.9 GB catalog in under two seconds after data was present;
-the first off-machine drill records the end-to-end RTO separately. Run a full
-off-machine restore drill quarterly and after any material backup-layout
-change.
+from available TrueNAS access to a validated restored tree. The initial
+off-machine drill on 2026-07-10 transferred a 1,953,410,131-byte, 25,555-file
+archive in 18 seconds and reached strict restore validation in 24 seconds.
+Run a full off-machine restore drill quarterly and after any material
+backup-layout change; the next scheduled drill is due 2026-10-10.
 
 Restore into a clean location and prove every byte, not just "the copy
 completed":
@@ -167,6 +179,7 @@ ssh "$ARCHIVE_HOST" "tar -C '$ARCHIVE_PATH' -cf - ." \
   | tar -C "$ARCHIVE_COPY" -xpf -
 
 cd training-prototype/omr
+uv pip install --python .venv/bin/python -r requirements-release.txt
 EVIDENCE="$ARCHIVE_COPY/out/release-store/backup-hash-manifest.json"
 .venv/bin/python backup_restore.py materialize \
   --archive-root "$ARCHIVE_COPY" \
@@ -183,11 +196,20 @@ match `backup-hash-manifest.json`. Exit code is nonzero on any problem.
 
 Prove the restored data is actually operable, not just byte-valid, by running
 the normal local promotion/rollback commands above against
-`$RESTORE_DIR/out/release-store` before trusting it. The prior local drill
-against the real 1.9 GB catalog restored and validated in under two seconds
-once the bytes were present, and its promotion/rollback rehearsal reproduced
-the exact prior hashes. It is not a substitute for the required off-machine
-drill.
+`$RESTORE_DIR/out/release-store` before trusting it.
+
+### Off-machine drill record (2026-07-10)
+
+The actual TrueNAS archive was restored into a clean location. Its bound
+12,125-file mutable hash manifest, both sealed release fingerprints, and the
+exact `current`/`previous` snapshot all validated with zero problems. The
+restored store began at
+`rel-20260710T200845Z-d1d822d75972` with
+`rel-20260710T202424Z-d1d822d75972` as `previous`; it was promoted to the
+previous release and rolled back. The original pointer/evidence digest was
+reproduced exactly, then strict verification passed again. This is the measured
+24-second end-to-end recovery result used for the RTO above, not the earlier
+local-only validation metric.
 
 ## Generated statistics (CAT-03)
 

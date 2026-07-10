@@ -1,7 +1,7 @@
 # ChanterLab Program Orchestrator
 
-Status: active. BASE-00 through CAT-02 completed 2026-07-10; the next
-content-system pickup is `CAT-03`, with `TRUST-01` also ready.
+Status: active. BASE-00 through CAT-03 completed 2026-07-10; the next
+content-system pickup is `TRUST-01`.
 
 Objective: execute `docs/APP-ROADMAP-2026.md` as independently reviewable
 workstreams while keeping the live practice app and catalog safe.
@@ -20,8 +20,7 @@ workstreams while keeping the live practice app and catalog safe.
 ## Dependency Spine
 
 ```text
-BASE-00 -> BASE-01 -> BASE-02 -> CAT-01 -> CAT-02 [complete]
-  -> CAT-03 backup/restore/generated statistics
+BASE-00 -> BASE-01 -> BASE-02 -> CAT-01 -> CAT-02 -> CAT-03 [complete]
   -> TRUST-01 quality ledger
   -> LOOP-01 report capture/storage
   -> LOOP-02 reviewer/correction workbench

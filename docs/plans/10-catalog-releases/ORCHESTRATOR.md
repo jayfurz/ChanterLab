@@ -1,6 +1,6 @@
 # Catalog Release Orchestrator
 
-Status: `CAT-01` and `CAT-02` complete 2026-07-10. `CAT-03` is ready.
+Status: `CAT-01` through `CAT-03` complete 2026-07-10.
 `BASE-00` completed at `e77ffa7`.
 
 Roadmap IDs: `CAT-01` through `CAT-03`, plus `RIGHTS-01` publication controls.
@@ -14,7 +14,7 @@ validated, atomically promoted, and restorable catalog releases.
 |---|---|---|
 | 1 | [`11-release-contract.md`](11-release-contract.md) | complete 2026-07-10; schema v1 approved |
 | 2 | [`12-atomic-build-promote-rollback.md`](12-atomic-build-promote-rollback.md) | complete 2026-07-10; production rollback proven |
-| 3 | [`13-backup-restore-generated-stats.md`](13-backup-restore-generated-stats.md) | ready |
+| 3 | [`13-backup-restore-generated-stats.md`](13-backup-restore-generated-stats.md) | complete 2026-07-10; off-machine restore and rollback proven |
 | 4 | [`14-publication-rights-controls.md`](14-publication-rights-controls.md) | owner/legal gate; design parallel-safe |
 
 ## Collision Rule
@@ -27,4 +27,5 @@ the release schema is frozen.
 
 Build a candidate without changing production, validate it, compare it, promote
 with one atomic operation, smoke it, roll back to exact previous hashes, restore
-from backup in a clean location, and regenerate the published statistics.
+from backup in a clean location, and regenerate the published statistics. That
+sequence is complete; `RIGHTS-01` remains behind its owner/legal gate.
