@@ -54,6 +54,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import Counter
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SURVEY_DIR = os.path.join(HERE, "pdfs", "survey")
@@ -65,6 +66,7 @@ MANIFEST = os.path.join(OUT_DIR, "manifest.json")
 OVERRIDE_DIR = os.path.join(HERE, "overrides")              # gitignored *.musicxml
 PYTHON = os.path.join(HERE, ".venv", "bin", "python")
 PIPELINE = os.path.join(HERE, "pipeline.py")
+CANDIDATE_METADATA = None
 
 UA = "byzorgan-research (justinpeter0815theotokos@gmail.com)"
 TOKEN_URL = "https://www.antiochian.org/connect/token"
@@ -81,6 +83,40 @@ TERMINAL = {"accepted", "review", "no_music", "type3", "extract_error"}
 
 _PDF_RE = re.compile(
     r'https://[a-z0-9.]*blob\.core\.windows\.net/[^"\'<> ]+\.pdf')
+
+
+def configure_candidate(candidate_dir):
+    """Redirect every generated artifact into an initialized CAT-02
+    candidate. Source PDFs/catalog remain under HERE; only derived output and
+    the release-scoped override snapshot move into the candidate tree."""
+    global OUT_DIR, STATE, MANIFEST, OVERRIDE_DIR, CANDIDATE_METADATA
+    candidate = Path(candidate_dir).resolve()
+    metadata = candidate / "build-metadata.json"
+    if not metadata.is_file():
+        raise SystemExit(
+            f"candidate is not initialized: {metadata} missing; run "
+            "catalog_release.py new first"
+        )
+    with metadata.open(encoding="utf-8") as f:
+        provenance = json.load(f)
+    parser_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=HERE, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    dirty = bool(subprocess.run(
+        ["git", "status", "--porcelain"], cwd=HERE, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip())
+    if dirty or provenance.get("parser_git_sha") != parser_sha:
+        raise SystemExit(
+            "candidate provenance no longer matches a clean parser checkout; "
+            "discard it and start a new candidate"
+        )
+    OUT_DIR = str(candidate / "out" / "ingest")
+    STATE = os.path.join(OUT_DIR, "ingest_state.json")
+    MANIFEST = os.path.join(OUT_DIR, "manifest.json")
+    OVERRIDE_DIR = str(candidate / "overrides")
+    CANDIDATE_METADATA = str(metadata)
 
 
 # --------------------------------------------------------------- catalog access
@@ -931,7 +967,13 @@ def main():
     ap.add_argument("--classify-report", action="store_true",
                     help="print the liturgical_group() distribution over the "
                          "full cached catalog and exit; read-only, no network")
+    ap.add_argument("--candidate-dir", default=None,
+                    help="write all derived artifacts into an initialized "
+                         "CAT-02 staging candidate instead of live out/ingest")
     args = ap.parse_args()
+
+    if args.candidate_dir:
+        configure_candidate(args.candidate_dir)
 
     if args.classify_report:
         classify_report()
@@ -976,7 +1018,9 @@ def main():
         pdf_path = os.path.join(INGEST_PDF_DIR, fname)
         rel_pdf = os.path.relpath(pdf_path, HERE)
         xml_path = os.path.join(OUT_DIR, stem + ".musicxml")
-        rel_xml = os.path.relpath(xml_path, HERE)
+        # The manifest/state path is the app-facing path inside a release,
+        # independent of where this unique staging candidate lives on disk.
+        rel_xml = os.path.join("out", "ingest", stem + ".musicxml")
 
         record = {
             "id": item_id, "name": item.get("name"),

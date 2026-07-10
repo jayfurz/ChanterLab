@@ -2,6 +2,7 @@
 /web/pkg
 /web/pkg-worklet
 /node_modules
+__pycache__/
 *.wasm
 .codex
 .claude

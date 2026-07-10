@@ -69,6 +69,7 @@ output.
 | `reports.count` / `.hash` / `.per_entry` | | Same, for each entry's `<id>.report.json` (always at a fixed `out/ingest/<id>.report.json` location by convention — there's no stored path field to trust here, but `<id>` itself must still be a "simple" single-segment token before it's safe to interpolate into a filename; see `integrity`). Report *content* is never embedded — only its hash — because `*.report.json` is never served publicly (`server/byzorgan-web-server.py`'s allowlist explicitly excludes it). **Manifest-published entries only**, same scope note as `musicxml`. |
 | `state.present` / `.record_count` / `.hash` | | Whether `ingest_state.json` exists, how many records **(the full private working set — all statuses, not just published)**, and a whole-file hash. State content (which includes the local `pdf` path) is never embedded, only hashed. |
 | `overrides.count` / `.hash` / `.per_stem` / `.tombstones` | | Per-stem sha256 of each hand-edited override MusicXML file, and the tombstone list from `overrides/RETIRED`. |
+| `bundled_content.count` / `.hash` / `.per_file` | | Optional additive CAT-02 section for the four publication-approved built-in MusicXML files shipped in the same atomic release as the catalog. Included in `content_fingerprint` when present. |
 | `trust.status_counts` | object | Count per ingest status (`accepted`, `review`, `no_music`, `type3`, `download_error`, `extract_error`) — over the full working set in `state`. |
 | `trust.confidence` | object | `mean_integrity_pct`/`median_integrity_pct`/`min_integrity_pct`/`max_integrity_pct` over **accepted** items only. All `null` when there are no accepted items. |
 | `waivers` | array | Approved exceptions to normal gates. **Always `[]` today** — no waiver mechanism exists anywhere in the codebase yet. The field exists now so a future TRUST-01/RIGHTS-01 waiver system never needs a breaking schema bump to add it. |
@@ -137,14 +138,17 @@ checked without optional format dependencies, and every value is scanned for
 private local paths. All checks must pass for `validate_descriptor()` to
 return no problems.
 
-## What this deliberately does NOT do (CAT-01 scope boundary)
+## CAT-02 integration
 
-- Does not change where `ingest_catalog.py` writes, or add any staging
-  directory, pointer, or promotion mechanism — that is CAT-02
-  (`docs/plans/10-catalog-releases/12-atomic-build-promote-rollback.md`).
-  CAT-02 should also wire `ingest_catalog.py` itself to record its own git
-  SHA at ingestion time, so `parser_git_sha` stops being `null` by default
-  for freshly-ingested content.
+- `catalog_release.py new` records parser/app provenance and snapshots
+  overrides plus approved built-ins into a unique staging candidate.
+  `ingest_catalog.py --candidate-dir` writes only into that unserved tree.
+- `catalog_release.py seal` requires candidate-bound verification evidence,
+  validates every descriptor and artifact hash, and moves the candidate into
+  immutable `releases/<release-id>/`. Promotion and rollback atomically
+  replace the `current` symlink; see `RELEASE_RUNBOOK.md`.
+- Historical pre-CAT-02 data can only use `import-existing` with an explicitly
+  supplied parser SHA. Provenance is never inferred from the importer.
 - Does not enforce publication eligibility/attribution completeness — that
   is RIGHTS-01 (`docs/plans/10-catalog-releases/14-publication-rights-controls.md`),
   which explicitly depends on this schema existing first.

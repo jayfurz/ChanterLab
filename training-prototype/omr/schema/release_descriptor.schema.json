@@ -136,6 +136,19 @@
         "tombstones": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "bundled_content": {
+      "type": "object",
+      "description": "Optional additive CAT-02 section for publication-approved built-in MusicXML shipped atomically with the catalog.",
+      "required": ["count", "hash", "per_file"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "per_file": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
     "trust": {
       "type": "object",
       "required": ["status_counts", "confidence"],
