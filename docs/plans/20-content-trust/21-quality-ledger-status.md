@@ -2,7 +2,8 @@
 
 Status: complete 2026-07-11; Quality Ledger Schema v1 owner-approved as
 written and implemented by ChanterLab PR #105 (`b2fc8a3`) and infra PR #16
-(`872d11b`). This did not authorize a catalog promotion. Priority: P0.
+(`872d11b`). The separate owner production approval promoted its first
+ledger-bearing release, `rel-20260711T155237Z-a3fdb875e54f`. Priority: P0.
 
 Dependencies: immutable release/score identity. Blocks: reports, review UI,
 provenance UI, human audit.
@@ -91,3 +92,40 @@ real review event and run the archive/restore drill with it present. The
 non-promoted candidate recorded above is tied to app SHA `61c29df`, so it must
 not be promoted after the merge; a future promotion must build and verify a new
 candidate from merged `main` and use its separate exact-release approval token.
+
+### Production Promotion Record (2026-07-11)
+
+- The owner separately approved production. A fresh candidate was built from
+  clean `main@9cd53e3697c5d127fa7abfceab7cc09beffff7d6`, verified against the
+  private corpus (`176 passed, 0 skipped`), sealed, and strictly validated as
+  `rel-20260711T155237Z-a3fdb875e54f`.
+- The descriptor binds app and parser SHA
+  `9cd53e3697c5d127fa7abfceab7cc09beffff7d6`, content fingerprint
+  `a3fdb875e54fd6a35a53aa9495d55f9aca9822e733e4075de161d90a795fd7da`,
+  and the immutable ledger snapshot SHA-256
+  `614552bd115d2b7f9636928407cbe32ab258af6b5b8ebddede7dcdac2911c8b8`.
+  It contains 3,358 active `auto-imported` records, 3,358 published
+  MusicXML/reports, and 3,793 state records; no mutable journal was sealed.
+- Semantic review found seven stale review-cache recoveries and 47 published
+  score corrections. All 3,793 PDF hashes were unchanged. Historical-parser
+  reproduction traced every score change to the already-reviewed chord-dot,
+  divisi, and above-staff lyric fixes; no unexplained parser or environment
+  drift remained.
+- The matching GitOps image
+  `git.lab.alwaysdobetterllc.com/jfursov/chanterlab-web:9cd53e3697c5d127fa7abfceab7cc09beffff7d6`
+  was healthy before promotion. A disposable read-only candidate pod passed,
+  then public smoke passed on `chanterlab.com`, `www.chanterlab.com`, and
+  `byz.alwaysdobetterllc.com`. Each serves 3,358 entries and the exact release
+  marker. The previous release
+  `rel-20260710T200845Z-d1d822d75972` remains the rollback target.
+- The public boundary was checked after promotion: release descriptor, ledger
+  snapshot, ingest state, and report paths return `404` on all three hosts.
+
+### Archive Follow-up
+
+The ledger-aware archive script is merged in infra, but this session does not
+have authorized Beast SSH access to install it or trigger the post-promotion
+archive service. No archive transport, TrueNAS snapshot, or new restore drill
+is claimed here. From an authorized Beast session, atomically install the
+single script, trigger the service once, and record the resulting
+release-snapshot and hash-manifest evidence.
