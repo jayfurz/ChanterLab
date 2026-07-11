@@ -1,6 +1,6 @@
 # TRUST-02: Multidimensional Confidence Signals
 
-Status: blocked on `TRUST-01`. Priority: P0/P1.
+Status: ready; `TRUST-01` schema v1 approved 2026-07-11. Priority: P0/P1.
 
 Dependencies: ledger schema. Blocks: trust UI, review prioritization, uploads.
 
@@ -33,4 +33,3 @@ duplicates, page-selection confidence, and override status.
 Signals are deterministic, versioned, explainable, and independently testable;
 no score changes status merely because fields were added; policy changes produce
 an explicit candidate diff; unexplained distribution shifts block completion.
-

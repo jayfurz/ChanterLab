@@ -45,6 +45,7 @@ def _sealed_release(store: Path) -> Path:
         "source_catalog_hash": rd._sha256_file(FIXTURE / "pdfs" / "survey" / "catalog.json"),
         "created_at": FIXED_NOW.isoformat(),
     }), encoding="utf-8")
+    cr._stamp_missing_candidate_source_hashes(candidate, FIXTURE)
     return cr.seal_candidate(
         store=store, candidate=candidate, source_omr_dir=FIXTURE,
         verified_passed=88, verified_skipped=19, verified_failed=0, now=FIXED_NOW,
@@ -63,10 +64,12 @@ def test_summarize_exposes_only_nonprivate_counts_and_trust(tmp_path):
     assert summary["counts"]["musicxml"] == descriptor["musicxml"]["count"]
     assert summary["counts"]["bundled_content"] == 4
     assert summary["trust"]["status_counts"] == descriptor["trust"]["status_counts"]
+    assert summary["quality_ledger"] == descriptor["quality_ledger"]
     assert summary["readiness"]["promotable"] is True
     # Never leak the private per-entry path/hash map or local filesystem paths.
     dumped = json.dumps(summary)
     assert "per_entry" not in dumped
+    assert "history" not in dumped
     assert str(tmp_path) not in dumped
 
 

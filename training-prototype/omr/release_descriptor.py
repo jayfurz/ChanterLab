@@ -51,6 +51,8 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
+from override_state import load_retired_stems
+
 try:
     import jsonschema
 except ImportError:  # pragma: no cover - exercised only if the dep is missing
@@ -104,17 +106,8 @@ def _load_json(path) -> object | None:
 
 
 def load_retired(override_dir) -> list[str]:
-    """Parse overrides/RETIRED: one stem per line, #-comments/blanks ignored."""
-    retired_path = Path(override_dir) / "RETIRED"
-    if not retired_path.is_file():
-        return []
-    stems = []
-    for line in retired_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        stems.append(line)
-    return sorted(stems)
+    """Compatibility wrapper for the shared override tombstone parser."""
+    return load_retired_stems(override_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +401,7 @@ def release_id_for(now: datetime, content_fingerprint: str) -> str:
 
 def compute_content_fingerprint(*, parser_git_sha, app_git_sha, input_section, manifest_section,
                                  musicxml_section, reports_section, state_section, overrides_section,
-                                 bundled_content_section=None) -> str:
+                                 bundled_content_section=None, quality_ledger_section=None) -> str:
     """A single canonical hash covering everything that makes two releases
     the SAME release: parser/app provenance, raw catalog input, source
     inventory, manifest, MusicXML, reports, state, overrides, tombstones, and
@@ -430,6 +423,8 @@ def compute_content_fingerprint(*, parser_git_sha, app_git_sha, input_section, m
     }
     if bundled_content_section is not None:
         payload["bundled_content_hash"] = bundled_content_section["hash"]
+    if quality_ledger_section is not None:
+        payload["quality_ledger_hash"] = quality_ledger_section["hash"]
     return _sha256_json_canonical(payload)
 
 
@@ -484,6 +479,7 @@ def build_release_descriptor(
     verified_skipped: int | None = None,
     verified_failed: int | None = None,
     bundled_content: dict[str, str] | None = None,
+    quality_ledger: dict | None = None,
 ) -> dict:
     omr_dir = Path(omr_dir)
     source_omr_dir = Path(source_omr_dir) if source_omr_dir else omr_dir
@@ -527,6 +523,7 @@ def build_release_descriptor(
             "hash": _sha256_json_canonical(bundled_content),
             "per_file": bundled_content,
         } if bundled_content is not None else None,
+        quality_ledger_section=quality_ledger,
     )
 
     descriptor = {
@@ -576,6 +573,8 @@ def build_release_descriptor(
             "hash": _sha256_json_canonical(bundled_content),
             "per_file": bundled_content,
         }
+    if quality_ledger is not None:
+        descriptor["quality_ledger"] = quality_ledger
     descriptor["readiness"] = compute_readiness(descriptor)
     return descriptor
 
@@ -687,6 +686,17 @@ def validate_descriptor(descriptor: dict) -> list[str]:
             if claimed_hash != actual_hash:
                 problems.append(f"{name} hash mismatch: claimed {claimed_hash!r}, recomputed {actual_hash!r}")
 
+        ledger = descriptor.get("quality_ledger")
+        if ledger is not None:
+            ledger_counts = ledger["status_counts"]
+            if sum(ledger_counts.values()) != ledger["record_count"]:
+                problems.append(
+                    "quality_ledger status counts do not sum to record_count: "
+                    f"{sum(ledger_counts.values())} vs {ledger['record_count']}"
+                )
+            if ledger["active_count"] > ledger["record_count"]:
+                problems.append("quality_ledger active_count exceeds record_count")
+
         expected_fingerprint = compute_content_fingerprint(
             parser_git_sha=descriptor["code"]["parser_git_sha"],
             app_git_sha=descriptor["code"]["app_git_sha"],
@@ -697,6 +707,7 @@ def validate_descriptor(descriptor: dict) -> list[str]:
             state_section=descriptor["state"],
             overrides_section=descriptor["overrides"],
             bundled_content_section=descriptor.get("bundled_content"),
+            quality_ledger_section=descriptor.get("quality_ledger"),
         )
         if fp != expected_fingerprint:
             problems.append(

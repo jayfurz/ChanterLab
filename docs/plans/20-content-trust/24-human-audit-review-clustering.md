@@ -1,6 +1,6 @@
 # TRUST-04: Human Accuracy Audit And Review Clustering
 
-Status: blocked on `TRUST-01` through `TRUST-03`. Priority: P1.
+Status: blocked on `TRUST-02` and `TRUST-03`. Priority: P1.
 
 Dependencies: stable ledger/signals/fixtures. Blocks: credible accuracy claims
 and review campaign ordering.
@@ -30,4 +30,3 @@ parser campaigns rather than an unstructured pile.
 Sampling is reproducible; results distinguish structural and semantic accuracy;
 private source material is not published; clusters link to evidence; every
 accuracy claim names release, strata, sample size, and review date.
-

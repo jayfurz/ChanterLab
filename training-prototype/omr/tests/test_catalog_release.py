@@ -20,6 +20,7 @@ sys.path.insert(0, str(OMR_DIR))
 
 import catalog_release as cr  # noqa: E402
 import ingest_catalog as ingest  # noqa: E402
+import quality_ledger as ql  # noqa: E402
 import release_descriptor as rd  # noqa: E402
 
 SHA = "a" * 40
@@ -51,6 +52,7 @@ def _candidate(store: Path, *, name: str, change_xml=False) -> Path:
         "source_catalog_hash": rd._sha256_file(FIXTURE / "pdfs" / "survey" / "catalog.json"),
         "created_at": FIXED_NOW.isoformat(),
     }), encoding="utf-8")
+    cr._stamp_missing_candidate_source_hashes(candidate, FIXTURE)
     return candidate
 
 
@@ -74,6 +76,8 @@ def test_seal_creates_immutable_valid_release_with_public_marker(tmp_path):
     assert sealed.parent == store / "releases"
     assert descriptor["readiness"] == {"promotable": True, "reasons": []}
     assert descriptor["bundled_content"]["count"] == 4
+    assert descriptor["quality_ledger"]["active_count"] == 1
+    assert (sealed / ql.SNAPSHOT_REL).is_file()
     marker = json.loads((sealed / "out" / "ingest" / "release.json").read_text())
     assert marker["release_id"] == descriptor["release_id"]
     assert not (sealed.stat().st_mode & stat.S_IWUSR)
@@ -108,6 +112,27 @@ def test_legacy_import_copies_only_published_artifacts_with_explicit_provenance(
     assert descriptor["code"]["parser_git_sha"] == "b" * 40
 
 
+def test_legacy_import_snapshots_private_quality_journal_with_candidate_inputs(tmp_path):
+    store = tmp_path / "store"
+    source_root = tmp_path / "source"
+    shutil.copytree(FIXTURE, source_root)
+    journal = source_root / ql.JOURNAL_REL
+    journal.parent.mkdir(parents=True)
+    journal.write_text(json.dumps({"schema_version": 1, "events": []}), encoding="utf-8")
+    content = tmp_path / "content"
+    content.mkdir()
+    builtin_source = FIXTURE / "overrides" / "fixture_override_example.musicxml"
+    for name in cr.APPROVED_BUILTINS:
+        shutil.copy2(builtin_source, content / name)
+
+    candidate = cr.import_existing(
+        store=store, source_omr_dir=source_root, content_dir=content,
+        parser_git_sha=SHA, app_git_sha=SHA, now=FIXED_NOW,
+    )
+
+    assert (candidate / ql.JOURNAL_REL).read_text(encoding="utf-8") == journal.read_text(encoding="utf-8")
+
+
 def test_promotion_requires_exact_explicit_approval(tmp_path):
     store = tmp_path / "store"
     sealed = _seal(store, _candidate(store, name=".staging-a"))
@@ -126,10 +151,128 @@ def test_verification_evidence_is_candidate_bound_and_complete(tmp_path, monkeyp
             stdout="99 passed, 19 skipped in 1.00s\n", stderr="", returncode=0,
         ),
     )
-    result = cr.verify_candidate(candidate, Path("/venv/bin/python"))
+    result = cr.verify_candidate(candidate, Path("/venv/bin/python"), FIXTURE)
     assert result["candidate_parser_git_sha"] == SHA
     assert result["verifier_git_sha"] == SHA
     assert (result["passed"], result["skipped"], result["failed"]) == (99, 19, 0)
+
+
+def test_seal_refuses_private_journal_changed_after_candidate_verification(tmp_path, monkeypatch):
+    store = tmp_path / "store"
+    candidate = _candidate(store, name=".staging-a")
+    journal = candidate / ql.JOURNAL_REL
+    journal.parent.mkdir(parents=True)
+    journal.write_text(json.dumps({"schema_version": 1, "events": []}), encoding="utf-8")
+    monkeypatch.setattr(
+        cr.subprocess, "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout="99 passed, 19 skipped in 1.00s\n", stderr="", returncode=0,
+        ),
+    )
+    cr.verify_candidate(candidate, Path("/venv/bin/python"), FIXTURE)
+    journal.write_text(json.dumps({"schema_version": 1, "events": []}, indent=2), encoding="utf-8")
+
+    with pytest.raises(cr.ReleaseError, match="journal changed after candidate verification"):
+        cr.seal_candidate(store=store, candidate=candidate, source_omr_dir=FIXTURE, now=FIXED_NOW)
+
+
+def test_verified_candidate_seals_with_bound_source_and_artifact_inventories(tmp_path, monkeypatch):
+    store = tmp_path / "store"
+    candidate = _candidate(store, name=".staging-a")
+    monkeypatch.setattr(
+        cr.subprocess, "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout="99 passed, 19 skipped in 1.00s\n", stderr="", returncode=0,
+        ),
+    )
+
+    evidence = cr.verify_candidate(candidate, Path("/venv/bin/python"), FIXTURE)
+    sealed = cr.seal_candidate(store=store, candidate=candidate, source_omr_dir=FIXTURE, now=FIXED_NOW)
+
+    assert evidence["source_inventory_hash"]
+    assert evidence["candidate_artifact_inventory_hash"]
+    assert cr.validate_release(sealed)["release_id"] == sealed.name
+
+
+def test_verification_refuses_source_pdf_changed_after_candidate_input_snapshot(tmp_path, monkeypatch):
+    store = tmp_path / "store"
+    source = tmp_path / "source"
+    shutil.copytree(FIXTURE, source)
+    candidate = _candidate(store, name=".staging-a")
+    (source / "pdfs" / "ingest" / "fixture_piece_a.pdf").write_bytes(b"changed source bytes")
+    monkeypatch.setattr(
+        cr.subprocess, "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout="99 passed, 19 skipped in 1.00s\n", stderr="", returncode=0,
+        ),
+    )
+
+    with pytest.raises(cr.ReleaseError, match="source PDF inventory differs"):
+        cr.verify_candidate(candidate, Path("/venv/bin/python"), source)
+
+
+def test_seal_refuses_source_pdf_changed_after_verification(tmp_path, monkeypatch):
+    store = tmp_path / "store"
+    source = tmp_path / "source"
+    shutil.copytree(FIXTURE, source)
+    candidate = _candidate(store, name=".staging-a")
+    monkeypatch.setattr(
+        cr.subprocess, "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout="99 passed, 19 skipped in 1.00s\n", stderr="", returncode=0,
+        ),
+    )
+    cr.verify_candidate(candidate, Path("/venv/bin/python"), source)
+    (source / "pdfs" / "ingest" / "fixture_piece_a.pdf").write_bytes(b"changed source bytes")
+
+    with pytest.raises(cr.ReleaseError, match="source PDF inventory differs"):
+        cr.seal_candidate(store=store, candidate=candidate, source_omr_dir=source, now=FIXED_NOW)
+
+
+def test_seal_refuses_source_pdf_changed_during_descriptor_finalization(tmp_path, monkeypatch):
+    store = tmp_path / "store"
+    source = tmp_path / "source"
+    shutil.copytree(FIXTURE, source)
+    candidate = _candidate(store, name=".staging-a")
+    original_build = rd.build_release_descriptor
+    calls = 0
+
+    def mutate_after_first_descriptor(**kwargs):
+        nonlocal calls
+        descriptor = original_build(**kwargs)
+        calls += 1
+        if calls == 1:
+            (source / "pdfs" / "ingest" / "fixture_piece_a.pdf").write_bytes(b"changed source bytes")
+        return descriptor
+
+    monkeypatch.setattr(cr.rd, "build_release_descriptor", mutate_after_first_descriptor)
+    with pytest.raises(cr.ReleaseError, match="source PDF inventory changed while finalizing"):
+        cr.seal_candidate(
+            store=store,
+            candidate=candidate,
+            source_omr_dir=source,
+            verified_passed=88,
+            verified_skipped=19,
+            verified_failed=0,
+            now=FIXED_NOW,
+        )
+
+
+def test_seal_refuses_candidate_artifacts_changed_after_verification(tmp_path, monkeypatch):
+    store = tmp_path / "store"
+    candidate = _candidate(store, name=".staging-a")
+    monkeypatch.setattr(
+        cr.subprocess, "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout="99 passed, 19 skipped in 1.00s\n", stderr="", returncode=0,
+        ),
+    )
+    cr.verify_candidate(candidate, Path("/venv/bin/python"), FIXTURE)
+    xml = candidate / "out" / "ingest" / "fixture_piece_a.musicxml"
+    xml.write_text(xml.read_text(encoding="utf-8").replace("C</step>", "D</step>"), encoding="utf-8")
+
+    with pytest.raises(cr.ReleaseError, match="candidate artifacts changed"):
+        cr.seal_candidate(store=store, candidate=candidate, source_omr_dir=FIXTURE, now=FIXED_NOW)
 
 
 def test_failure_before_atomic_current_replace_preserves_active_hashes(tmp_path):
@@ -198,6 +341,57 @@ def test_tampered_sealed_file_is_refused_before_promotion(tmp_path):
         cr.promote(store=store, release_id=sealed.name, approval=sealed.name)
 
 
+def test_tampered_quality_ledger_snapshot_is_refused_before_promotion(tmp_path):
+    store = tmp_path / "store"
+    sealed = _seal(store, _candidate(store, name=".staging-a"))
+    snapshot = sealed / ql.SNAPSHOT_REL
+    snapshot.chmod(snapshot.stat().st_mode | stat.S_IWUSR)
+    payload = json.loads(snapshot.read_text(encoding="utf-8"))
+    payload["records"][0]["status"] = "human-verified"
+    snapshot.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(cr.ReleaseError, match="ledger_hash|status does not match"):
+        cr.promote(store=store, release_id=sealed.name, approval=sealed.name)
+
+
+def test_seal_prunes_unpublished_musicxml_and_does_not_ship_mutable_journal(tmp_path):
+    store = tmp_path / "store"
+    candidate = _candidate(store, name=".staging-a")
+    out = candidate / "out" / "ingest"
+    (out / "fixture_piece_b.musicxml").write_text("<score-partwise/>", encoding="utf-8")
+    (out / "fixture_piece_b.report.json").write_text("{}", encoding="utf-8")
+    journal = candidate / ql.JOURNAL_REL
+    journal.parent.mkdir(parents=True)
+    journal.write_text(json.dumps({"schema_version": 1, "events": []}), encoding="utf-8")
+
+    sealed = _seal(store, candidate)
+
+    assert not (sealed / "out" / "ingest" / "fixture_piece_b.musicxml").exists()
+    assert not (sealed / "out" / "ingest" / "fixture_piece_b.report.json").exists()
+    assert not (sealed / ql.JOURNAL_REL).exists()
+    assert not (sealed / ql.JOURNAL_REL.parent).exists()
+
+
+def test_validate_release_rejects_mutable_journal_or_extra_trust_content(tmp_path):
+    store = tmp_path / "store"
+    sealed = _seal(store, _candidate(store, name=".staging-a"))
+    sealed.chmod(sealed.stat().st_mode | stat.S_IWUSR)
+    journal = sealed / ql.JOURNAL_REL
+    journal.parent.mkdir()
+    journal.write_text(json.dumps({"schema_version": 1, "events": []}), encoding="utf-8")
+    with pytest.raises(cr.ReleaseError, match="mutable quality-ledger directory"):
+        cr.validate_release(sealed)
+
+    journal.unlink()
+    journal.parent.rmdir()
+    trust_dir = sealed / "trust"
+    trust_dir.chmod(trust_dir.stat().st_mode | stat.S_IWUSR)
+    trust_extra = trust_dir / "extra.json"
+    trust_extra.write_text("{}", encoding="utf-8")
+    with pytest.raises(cr.ReleaseError, match="trust directory has unexpected content"):
+        cr.validate_release(sealed)
+
+
 def test_candidate_configuration_redirects_every_generated_path(tmp_path, monkeypatch):
     candidate = tmp_path / ".staging-test"
     (candidate / "out" / "ingest").mkdir(parents=True)
@@ -223,6 +417,19 @@ def test_server_allowlist_exposes_marker_but_not_descriptor():
     spec.loader.exec_module(module)
     assert module._omr_allowed("out/ingest/release.json") is True
     assert module._omr_allowed("release-descriptor.json") is False
+    assert module._omr_allowed("trust/quality-ledger.json") is False
+
+
+def test_release_runbook_binds_source_root_during_every_candidate_verification():
+    runbook = (OMR_DIR / "RELEASE_RUNBOOK.md").read_text(encoding="utf-8")
+    assert runbook.count("catalog_release.py verify") == 2
+    verify_positions = [
+        index for index in range(len(runbook))
+        if runbook.startswith("catalog_release.py verify", index)
+    ]
+    assert len(verify_positions) == 2
+    for index in verify_positions:
+        assert '--source-omr-dir "$PWD"' in runbook[index:index + 220]
 
 
 def test_entrypoint_can_bind_disposable_pod_to_candidate_release(tmp_path):

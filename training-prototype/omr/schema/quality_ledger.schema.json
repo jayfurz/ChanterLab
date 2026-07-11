@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chanterlab.com/schema/quality_ledger.v1.json",
+  "title": "ChanterLab private quality ledger release snapshot",
+  "description": "TRUST-01 immutable release-local snapshot. The mutable journal is private and is validated by quality_ledger.py; this schema covers only the sealed snapshot bound to a release descriptor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "release_id", "release_content_fingerprint", "ledger_hash",
+    "summary", "records"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "release_id": {
+      "type": "string",
+      "pattern": "^rel-\\d{8}T\\d{6}Z-[0-9a-f]{12}$"
+    },
+    "release_content_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ledger_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "sourceId": { "type": "string", "pattern": "^source-[0-9a-f]{64}$" },
+    "scoreId": { "type": "string", "pattern": "^score-[0-9a-f]{64}$" },
+    "opaqueRef": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$" },
+    "status": {
+      "enum": [
+        "auto-imported", "human-verified", "known-issue", "review-required",
+        "manual-override", "retired"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "record_count", "active_count", "status_counts", "hash"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "record_count": { "type": "integer", "minimum": 0 },
+        "active_count": { "type": "integer", "minimum": 0 },
+        "status_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "auto-imported", "human-verified", "known-issue", "review-required",
+            "manual-override", "retired"
+          ],
+          "properties": {
+            "auto-imported": { "type": "integer", "minimum": 0 },
+            "human-verified": { "type": "integer", "minimum": 0 },
+            "known-issue": { "type": "integer", "minimum": 0 },
+            "review-required": { "type": "integer", "minimum": 0 },
+            "manual-override": { "type": "integer", "minimum": 0 },
+            "retired": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id", "catalog_id", "score_id", "source_id", "from_status",
+        "to_status", "recorded_at", "actor", "evidence"
+      ],
+      "properties": {
+        "event_id": { "type": "string", "pattern": "^evt-[0-9a-f]{16,64}$" },
+        "catalog_id": { "type": "string", "pattern": "^[^/\\\\]+$" },
+        "score_id": { "$ref": "#/$defs/scoreId" },
+        "source_id": { "$ref": "#/$defs/sourceId" },
+        "from_status": { "$ref": "#/$defs/status" },
+        "to_status": { "$ref": "#/$defs/status" },
+        "recorded_at": { "type": "string", "format": "date-time" },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["role", "ref"],
+          "properties": {
+            "role": { "enum": ["system", "reviewer", "owner"] },
+            "ref": { "type": ["string", "null"] }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+              "ref": { "$ref": "#/$defs/opaqueRef" }
+            }
+          }
+        }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalog_id", "source_id", "score_id", "previous_score_id", "parser_git_sha",
+        "active", "initial_status", "status", "provenance", "artifacts", "confidence",
+        "override_history", "history"
+      ],
+      "properties": {
+        "catalog_id": { "type": "string", "pattern": "^[^/\\\\]+$" },
+        "source_id": { "$ref": "#/$defs/sourceId" },
+        "score_id": { "$ref": "#/$defs/scoreId" },
+        "previous_score_id": { "anyOf": [{ "$ref": "#/$defs/scoreId" }, { "type": "null" }] },
+        "parser_git_sha": { "type": "string", "pattern": "^[0-9a-f]{7,64}$" },
+        "active": { "type": "boolean" },
+        "initial_status": { "$ref": "#/$defs/status" },
+        "status": { "$ref": "#/$defs/status" },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title", "composer", "book", "edition", "source_url", "pdf_sha256"],
+          "properties": {
+            "title": { "type": ["string", "null"] },
+            "composer": { "type": ["string", "null"] },
+            "book": { "type": ["string", "null"] },
+            "edition": { "type": ["string", "null"] },
+            "source_url": { "type": ["string", "null"] },
+            "pdf_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+          }
+        },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["musicxml_sha256", "report_sha256"],
+          "properties": {
+            "musicxml_sha256": { "$ref": "#/$defs/sha256" },
+            "report_sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "confidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reference", "integrity_pct", "warning_count", "warning_summary"],
+          "properties": {
+            "reference": { "const": "legacy-measure-integrity-v1" },
+            "integrity_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "warning_count": { "type": "integer", "minimum": 0 },
+            "warning_summary": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["count"],
+              "properties": { "count": { "type": "integer", "minimum": 0 } }
+            }
+          }
+        },
+        "override_history": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["active_override_sha256", "last_override_sha256", "tombstoned"],
+          "properties": {
+            "active_override_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "last_override_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "tombstoned": { "type": "boolean" }
+          }
+        },
+        "history": { "type": "array", "items": { "$ref": "#/$defs/event" } }
+      }
+    }
+  }
+}

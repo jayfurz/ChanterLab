@@ -1,7 +1,7 @@
 # Feedback And Correction Loop Orchestrator
 
-Status: blocked on `TRUST-01` and the report-storage owner decision; immutable
-release IDs are available from `CAT-02`.
+Status: blocked on the report-storage owner decision; immutable release IDs and
+Quality Ledger Schema v1 are available.
 
 Roadmap IDs: `LOOP-01` through `LOOP-04`.
 

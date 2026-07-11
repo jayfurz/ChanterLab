@@ -43,6 +43,7 @@ Only stdlib + PyMuPDF (fitz), matching survey_catalog.py (urllib, no requests).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -55,6 +56,9 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
+
+from override_state import load_retired_stems
+import quality_ledger as ql
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SURVEY_DIR = os.path.join(HERE, "pdfs", "survey")
@@ -125,6 +129,14 @@ def http(url, data=None, headers=None):
         url, data=data, headers={"User-Agent": UA, **(headers or {})})
     with urllib.request.urlopen(req, timeout=60) as r:
         return r.read()
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def fetch_catalog():
@@ -625,16 +637,7 @@ def catalog_code(item_id):
 def _load_retired_overrides():
     """Stems recorded in overrides/RETIRED — overrides the parser has since
     superseded and must not silently re-apply if a backup reappears."""
-    path = os.path.join(OVERRIDE_DIR, "RETIRED")
-    if not os.path.exists(path):
-        return set()
-    out = set()
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.split("#", 1)[0].strip()
-            if line:
-                out.add(line)
-    return out
+    return set(load_retired_stems(OVERRIDE_DIR))
 
 
 def apply_overrides(state):
@@ -688,6 +691,7 @@ def apply_overrides(state):
             rec = {"id": stem, "name": None, "composer": None,
                    "arrangementType": None, "category": None, "url": None,
                    "pdf": None, "musicxml": os.path.relpath(dst, HERE),
+                   "source_pdf_sha256": None,
                    "status": "accepted", "integrity_pct": None,
                    "warnings": None, "selected_pages": None, "detail": None}
             state[stem] = rec
@@ -700,7 +704,35 @@ def apply_overrides(state):
     return overridden
 
 
-def write_manifest(state, catalog=None, overridden=None):
+def _review_required_stems(state):
+    """Resolve copied journal events that remove this candidate score.
+
+    The gate is intentionally candidate-only. A review-required or retired
+    event must affect the next generated manifest, otherwise a normal reimport
+    would silently republish the score. Since events use immutable score
+    identity, changed source or MusicXML bytes are not withheld by a stale
+    decision.
+    """
+    if not CANDIDATE_METADATA:
+        return set()
+    journal = ql.load_journal(Path(CANDIDATE_METADATA).parent / ql.JOURNAL_REL)
+    latest = {event["score_id"]: event for event in journal["events"]}
+    withheld = set()
+    for item_id, record in state.items():
+        if not isinstance(record, dict) or record.get("status") != "accepted":
+            continue
+        source_id = ql.source_id_for(record.get("url"), record.get("source_pdf_sha256"))
+        xml_path = os.path.join(OUT_DIR, item_id + ".musicxml")
+        xml_hash = _sha256_file(xml_path) if os.path.isfile(xml_path) else None
+        score_id = ql.score_id_for(item_id, source_id, xml_hash)
+        if score_id and latest.get(score_id, {}).get("to_status") in {
+            "review-required", "retired",
+        }:
+            withheld.add(item_id)
+    return withheld
+
+
+def write_manifest(state, catalog=None, overridden=None, withheld=None):
     # join back to the catalog by id (blob filename stem) for the browse/filter
     # fields the state records don't carry (tone, liturgical date)
     extra = {}
@@ -712,10 +744,13 @@ def write_manifest(state, catalog=None, overridden=None):
                 stem = fname[:-4] if fname.lower().endswith(".pdf") else fname
                 extra[stem] = item
     overridden = overridden or set()
+    withheld = withheld or set()
     accepted = []
     guarded = 0
     for r in state.values():
         if r["status"] != "accepted":
+            continue
+        if r["id"] in withheld:
             continue
         # re-check the tripwire here too: state may hold accepts from before
         # the guard existed (or before an engine fix) — keep them out of the
@@ -984,7 +1019,10 @@ def main():
     if args.report_only:
         catalog = load_catalog(offline=True) if os.path.exists(CATALOG) else None
         overridden = apply_overrides(state)
-        accepted = write_manifest(state, catalog, overridden)
+        withheld = _review_required_stems(state)
+        accepted = write_manifest(state, catalog, overridden, withheld)
+        if withheld:
+            print(f"[quality-ledger] withheld {len(withheld)} non-published score(s)")
         summarize(state)
         print(f"\nmanifest: {MANIFEST}  ({len(accepted)} accepted)")
         print(f"state:    {STATE}")
@@ -1027,6 +1065,7 @@ def main():
             "composer": item.get("composer"),
             "arrangementType": item.get("arrangementType"),
             "category": cat, "url": url, "pdf": rel_pdf, "musicxml": rel_xml,
+            "source_pdf_sha256": None,
             "status": None, "integrity_pct": None, "warnings": None,
             "selected_pages": None, "detail": None,
         }
@@ -1047,9 +1086,20 @@ def main():
                       f"{(item.get('name') or '')[:40]}: {str(e)[:60]}")
                 continue
 
+        # Capture exactly the input bytes immediately before extraction and
+        # prove they did not change while the parser was reading them. This
+        # candidate-local fact later prevents a source PDF from drifting under
+        # already-emitted MusicXML before verification or sealing.
+        source_hash_before = _sha256_file(pdf_path)
+        record["source_pdf_sha256"] = source_hash_before
+
         # --- extract ---
         res = run_pipeline(pdf_path, xml_path)
         record.update(res)
+        if _sha256_file(pdf_path) != source_hash_before:
+            record["source_pdf_sha256"] = None
+            record["status"] = "extract_error"
+            record["detail"] = "source PDF changed while extraction was running"
         if record["status"] == "accepted":
             reason = voice_guard(item_id, record["arrangementType"])
             if reason:
@@ -1065,7 +1115,10 @@ def main():
               f"{(item.get('name') or '')[:44]}")
 
     overridden = apply_overrides(state)     # re-stamp hand-edits over fresh extraction
-    accepted = write_manifest(state, catalog, overridden)
+    withheld = _review_required_stems(state)
+    accepted = write_manifest(state, catalog, overridden, withheld)
+    if withheld:
+        print(f"[quality-ledger] withheld {len(withheld)} non-published score(s)")
     summarize(state)
     print(f"\nmanifest: {MANIFEST}  ({len(accepted)} accepted)")
     print(f"state:    {STATE}")

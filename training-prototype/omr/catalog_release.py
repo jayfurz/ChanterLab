@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import release_descriptor as rd
+import quality_ledger as ql
 
 HERE = Path(__file__).resolve().parent
 APPROVED_BUILTINS = (
@@ -130,6 +131,162 @@ def _pointer_release_id(store: Path, name: str) -> str | None:
     return target.name
 
 
+def _copy_quality_ledger(source_omr_dir: Path, candidate: Path) -> None:
+    """Snapshot the private journal with candidate inputs, if it exists.
+
+    The journal is ignored corpus state, not a live file that a candidate may
+    read later from the source checkout. Its absence is the valid initial
+    migration state and produces an all-auto-imported ledger.
+    """
+    source = source_omr_dir / ql.JOURNAL_REL
+    if not source.is_file():
+        return
+    ql.load_journal(source)
+    target = candidate / ql.JOURNAL_REL
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+
+
+def _candidate_journal_hash(candidate: Path) -> str | None:
+    journal = candidate / ql.JOURNAL_REL
+    if journal.is_file():
+        ql.load_journal(journal)
+    return rd._sha256_file(journal)
+
+
+def _candidate_source_inventory_hash(candidate: Path, source_omr_dir: Path) -> str:
+    """Hash the exact source PDFs named by the staged candidate state.
+
+    A catalog.json hash alone does not prove that the source PDF bytes stayed
+    fixed between extraction and seal. This derives the same inventory hash
+    that the release descriptor will bind, but does so at verification time so
+    a later source-PDF mutation is a sealing failure rather than new ledger
+    provenance attached to old MusicXML.
+    """
+    try:
+        state = _load_json(candidate / "out" / "ingest" / "ingest_state.json")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReleaseError(f"candidate state is unreadable for source verification: {exc}") from exc
+    if not isinstance(state, dict):
+        raise ReleaseError("candidate state is not a JSON object for source verification")
+    problems: list[str] = []
+    section = rd.build_input_section(
+        source_omr_dir / "pdfs" / "survey" / "catalog.json",
+        state,
+        omr_dir=source_omr_dir,
+        integrity_problems=problems,
+    )
+    if problems:
+        raise ReleaseError("candidate source inventory is unsafe:\n  - " + "\n  - ".join(problems))
+    return section["source_inventory_hash"]
+
+
+def _recorded_candidate_source_inventory_hash(candidate: Path) -> str:
+    """Hash the PDF identities recorded by extraction/import, not live bytes."""
+    try:
+        state = _load_json(candidate / "out" / "ingest" / "ingest_state.json")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReleaseError(f"candidate state is unreadable for source verification: {exc}") from exc
+    if not isinstance(state, dict):
+        raise ReleaseError("candidate state is not a JSON object for source verification")
+    inventory = []
+    for item_id in sorted(state):
+        record = state[item_id]
+        if not rd._is_simple_id(item_id) or not isinstance(record, dict):
+            raise ReleaseError(f"candidate state has an unsafe source record: {item_id!r}")
+        if "source_pdf_sha256" not in record:
+            raise ReleaseError(f"{item_id}: source PDF hash was not recorded at candidate input time")
+        pdf_hash = record["source_pdf_sha256"]
+        if pdf_hash is not None and not re.fullmatch(r"[0-9a-f]{64}", pdf_hash):
+            raise ReleaseError(f"{item_id}: recorded source PDF hash is invalid")
+        inventory.append({
+            "id": item_id,
+            "source_url": record.get("url"),
+            "pdf_sha256": pdf_hash,
+        })
+    return rd._sha256_json_canonical(inventory)
+
+
+def _stamp_missing_candidate_source_hashes(candidate: Path, source_omr_dir: Path) -> None:
+    """Migration-only input snapshot for legacy import candidates.
+
+    Fresh ingestion records source_pdf_sha256 while it extracts. Legacy state
+    predates that field, so import-existing stamps the source bytes observed at
+    candidate initialization. It still cannot prove earlier historical output
+    used those bytes; it merely prevents later source drift from being silently
+    attached to the imported candidate.
+    """
+    state_path = candidate / "out" / "ingest" / "ingest_state.json"
+    try:
+        state = _load_json(state_path)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReleaseError(f"legacy import state is unreadable: {exc}") from exc
+    if not isinstance(state, dict):
+        raise ReleaseError("legacy import state is not a JSON object")
+    source_root = source_omr_dir / "pdfs" / "ingest"
+    changed = False
+    for item_id, record in state.items():
+        if not rd._is_simple_id(item_id) or not isinstance(record, dict):
+            raise ReleaseError(f"legacy import state has an unsafe source record: {item_id!r}")
+        if "source_pdf_sha256" in record:
+            continue
+        pdf_hash = None
+        pdf_rel = record.get("pdf")
+        if pdf_rel:
+            pdf_path, problem = rd._resolve_contained(source_omr_dir, pdf_rel, source_root)
+            if problem:
+                raise ReleaseError(f"{item_id}: legacy source PDF path rejected: {problem}")
+            pdf_hash = rd._sha256_file(pdf_path)
+        record["source_pdf_sha256"] = pdf_hash
+        changed = True
+    if changed:
+        _write_json_atomic(state_path, state)
+
+
+def _candidate_artifact_inventory_hash(candidate: Path) -> str:
+    """Canonical inventory of every candidate artifact that sealing publishes.
+
+    Tests run against parser code in ``HERE`` and generate their own temporary
+    output, so a green test process alone cannot prove the staged candidate
+    was unchanged afterward. Bind the candidate's manifest, state, published
+    artifacts, overrides, and approved built-ins into its verification result.
+    Source-PDF identity and the private journal are bound separately.
+    """
+    out = candidate / "out" / "ingest"
+    try:
+        manifest = _load_json(out / "manifest.json")
+        loaded_state = _load_json(out / "ingest_state.json")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReleaseError(f"candidate artifact inventory is unreadable: {exc}") from exc
+    if not isinstance(manifest, list) or not isinstance(loaded_state, dict):
+        raise ReleaseError("candidate manifest/state have invalid shapes for verification")
+    problems: list[str] = []
+    manifest_section = rd.build_manifest_section(manifest, integrity_problems=problems)
+    musicxml_section = rd.build_musicxml_section(
+        manifest, omr_dir=candidate, integrity_problems=problems,
+    )
+    reports_section = rd.build_reports_section(
+        manifest, omr_dir=candidate, integrity_problems=problems,
+    )
+    overrides_section = rd.build_overrides_section(
+        candidate / "overrides", integrity_problems=problems,
+    )
+    manifest_validation = rd.build_manifest_validation(manifest, omr_dir=candidate)
+    if problems or manifest_validation["problems"]:
+        details = problems + manifest_validation["problems"]
+        raise ReleaseError("candidate artifacts are not valid for verification:\n  - " + "\n  - ".join(details))
+    payload = {
+        "manifest": manifest_section,
+        "musicxml": musicxml_section,
+        "reports": reports_section,
+        "state": rd.build_state_section(out / "ingest_state.json", loaded_state),
+        "overrides": overrides_section,
+        "bundled_content": _bundled_content(candidate),
+        "build_metadata_hash": rd._sha256_file(candidate / "build-metadata.json"),
+    }
+    return rd._sha256_json_canonical(payload)
+
+
 def new_candidate(*, store: Path, source_omr_dir: Path, content_dir: Path,
                   app_git_sha: str, now: datetime | None = None) -> Path:
     store = store.resolve()
@@ -157,6 +314,7 @@ def new_candidate(*, store: Path, source_omr_dir: Path, content_dir: Path,
         for override in sorted(source_overrides.glob("*.musicxml")):
             ET.parse(override)
             shutil.copy2(override, candidate / "overrides" / override.name)
+        _copy_quality_ledger(source_omr_dir, candidate)
 
         for name in APPROVED_BUILTINS:
             src = content_dir / name
@@ -209,6 +367,7 @@ def import_existing(*, store: Path, source_omr_dir: Path, content_dir: Path,
         manifest = _load_json(source_out / "manifest.json")
         shutil.copy2(source_out / "manifest.json", candidate / "out" / "ingest" / "manifest.json")
         shutil.copy2(source_out / "ingest_state.json", candidate / "out" / "ingest" / "ingest_state.json")
+        _stamp_missing_candidate_source_hashes(candidate, source_omr_dir)
         for entry in manifest:
             item_id = entry.get("id")
             rel = entry.get("musicxml")
@@ -227,6 +386,7 @@ def import_existing(*, store: Path, source_omr_dir: Path, content_dir: Path,
         for override in sorted(source_overrides.glob("*.musicxml")):
             ET.parse(override)
             shutil.copy2(override, candidate / "overrides" / override.name)
+        _copy_quality_ledger(source_omr_dir, candidate)
         for name in APPROVED_BUILTINS:
             src = content_dir / name
             if not src.is_file():
@@ -260,6 +420,49 @@ def _bundled_content(candidate: Path) -> dict[str, str]:
     return {name: _sha256_file(candidate / "content" / name) for name in actual}
 
 
+def _published_ingest_file_names(manifest: list, *, include_marker: bool) -> set[str]:
+    names = {"manifest.json", "ingest_state.json"}
+    if include_marker:
+        names.add("release.json")
+    for entry in manifest:
+        item_id = entry.get("id") if isinstance(entry, dict) else None
+        rel = entry.get("musicxml") if isinstance(entry, dict) else None
+        if not rd._is_simple_id(item_id) or rel != f"out/ingest/{item_id}.musicxml":
+            raise ReleaseError(f"unsafe or inconsistent manifest entry: {item_id!r} / {rel!r}")
+        names.add(f"{item_id}.musicxml")
+        names.add(f"{item_id}.report.json")
+    return names
+
+
+def _prune_candidate_to_published_artifacts(candidate: Path) -> None:
+    """Remove non-manifest OMR output before an unserved candidate is sealed.
+
+    Ingestion deliberately retains review/no_music diagnostics while building.
+    A sealed release must retain only manifest-backed MusicXML/reports: the
+    web server's MusicXML route is filename based, so leaving those extras
+    would make a withheld score guessable despite its absence from manifest.
+    """
+    out = candidate / "out" / "ingest"
+    try:
+        manifest = _load_json(out / "manifest.json")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReleaseError(f"candidate manifest is unreadable for publication pruning: {exc}") from exc
+    if not isinstance(manifest, list):
+        raise ReleaseError("candidate manifest is not a JSON list for publication pruning")
+    allowed = _published_ingest_file_names(manifest, include_marker=True)
+    for path in out.iterdir():
+        if path.name in allowed:
+            if path.is_symlink() or not path.is_file():
+                raise ReleaseError(f"candidate published artifact is not a regular file: {path.name}")
+            continue
+        if path.is_symlink() or path.is_dir():
+            raise ReleaseError(f"candidate ingest output has unsupported path: {path.name}")
+        if path.suffix in {".musicxml", ".json"}:
+            path.unlink()
+        else:
+            raise ReleaseError(f"candidate ingest output has unsupported file: {path.name}")
+
+
 def _make_read_only(root: Path) -> None:
     for path in sorted(root.rglob("*"), reverse=True):
         if path.is_symlink():
@@ -269,12 +472,18 @@ def _make_read_only(root: Path) -> None:
     root.chmod(root.stat().st_mode & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
 
 
-def verify_candidate(candidate: Path, python: Path) -> dict:
+def verify_candidate(candidate: Path, python: Path, source_omr_dir: Path | None = None) -> dict:
     candidate = candidate.resolve()
     metadata = _load_json(candidate / "build-metadata.json")
     parser_sha, dirty = _git_state(HERE)
     if dirty or (metadata.get("mode") != "import" and metadata.get("parser_git_sha") != parser_sha):
         raise ReleaseError("verification checkout does not match clean candidate provenance")
+    source_inventory_hash = None
+    if source_omr_dir is not None:
+        source_omr_dir = source_omr_dir.resolve()
+        source_inventory_hash = _candidate_source_inventory_hash(candidate, source_omr_dir)
+        if _recorded_candidate_source_inventory_hash(candidate) != source_inventory_hash:
+            raise ReleaseError("source PDF inventory differs from hashes recorded at candidate input time")
     command = [str(python), "-m", "pytest", str(HERE / "tests"), "-q"]
     proc = subprocess.run(command, cwd=HERE, capture_output=True, text=True)
     output = (proc.stdout or "") + (proc.stderr or "")
@@ -293,6 +502,12 @@ def verify_candidate(candidate: Path, python: Path) -> dict:
         "skipped": count("skipped"),
         "failed": count("failed") + count("errors?"),
         "exit_code": proc.returncode,
+        # The private journal is an input to ledger sealing even though it
+        # does not alter parser output. Bind its exact candidate copy to
+        # verification so it cannot be edited between verify and seal.
+        "quality_ledger_journal_hash": _candidate_journal_hash(candidate),
+        "source_inventory_hash": source_inventory_hash,
+        "candidate_artifact_inventory_hash": _candidate_artifact_inventory_hash(candidate),
     }
     _write_json_atomic(candidate / "verification-results.json", result)
     if proc.returncode != 0 or result["failed"] != 0 or result["passed"] == 0:
@@ -312,6 +527,20 @@ def _verify_actual_files(release: Path, descriptor: dict) -> list[str]:
 
     if not isinstance(manifest, list):
         return ["manifest is not a JSON list"]
+    try:
+        expected_ingest = _published_ingest_file_names(manifest, include_marker=True)
+    except ReleaseError as exc:
+        return [str(exc)]
+    actual_ingest = {path.name for path in out.iterdir()}
+    if actual_ingest != expected_ingest:
+        problems.append(
+            "sealed ingest inventory differs from manifest-backed artifacts: "
+            f"missing={sorted(expected_ingest - actual_ingest)}, "
+            f"unexpected={sorted(actual_ingest - expected_ingest)}"
+        )
+    for path in out.iterdir():
+        if path.is_symlink() or not path.is_file():
+            problems.append(f"sealed ingest artifact is not a regular file: {path.name}")
     if rd._sha256_json_canonical(manifest) != descriptor["manifest"]["hash"]:
         problems.append("manifest hash differs from descriptor")
     if len(manifest) != descriptor["manifest"]["entry_count"]:
@@ -345,6 +574,27 @@ def _verify_actual_files(release: Path, descriptor: dict) -> list[str]:
             ET.parse(release / "content" / name)
         except ET.ParseError as e:
             problems.append(f"bundled content is invalid XML: {name}: {e}")
+    ledger_path = release / ql.SNAPSHOT_REL
+    trust_dir = ledger_path.parent
+    journal_dir = release / ql.JOURNAL_REL.parent
+    if journal_dir.exists() or journal_dir.is_symlink():
+        problems.append("mutable quality-ledger directory must not be inside a sealed release")
+    if "quality_ledger" in descriptor:
+        if not trust_dir.is_dir() or trust_dir.is_symlink():
+            problems.append("quality ledger trust directory is missing or unsafe")
+        elif {path.name for path in trust_dir.iterdir()} != {ledger_path.name}:
+            problems.append("quality ledger trust directory has unexpected content")
+        elif ledger_path.is_symlink() or not ledger_path.is_file():
+            problems.append("quality ledger snapshot is missing or not a regular file")
+        else:
+            try:
+                snapshot = _load_json(ledger_path)
+            except (OSError, json.JSONDecodeError) as e:
+                problems.append(f"quality ledger snapshot unreadable: {e}")
+            else:
+                problems.extend(ql.validate_snapshot(snapshot, descriptor=descriptor))
+    elif trust_dir.exists() or trust_dir.is_symlink():
+        problems.append("unbound quality ledger trust directory exists in a legacy descriptor release")
     return problems
 
 
@@ -399,6 +649,13 @@ def seal_candidate(*, store: Path, candidate: Path, source_omr_dir: Path,
         raise ReleaseError(
             "source catalog changed after candidate initialization; discard it and start a new candidate"
         )
+    current_source_inventory_hash = _candidate_source_inventory_hash(
+        candidate, source_omr_dir.resolve(),
+    )
+    if _recorded_candidate_source_inventory_hash(candidate) != current_source_inventory_hash:
+        raise ReleaseError("source PDF inventory differs from hashes recorded at candidate input time")
+    current_artifact_inventory_hash = _candidate_artifact_inventory_hash(candidate)
+    current_journal_hash = _candidate_journal_hash(candidate)
     _require_git_sha(metadata.get("parser_git_sha"), "parser_git_sha")
     _require_git_sha(metadata.get("app_git_sha"), "app_git_sha")
     if verified_passed is None or verified_skipped is None or verified_failed is None:
@@ -407,14 +664,32 @@ def seal_candidate(*, store: Path, candidate: Path, source_omr_dir: Path,
             raise ReleaseError("verification evidence parser SHA does not match candidate")
         if verification.get("exit_code") != 0:
             raise ReleaseError("verification evidence records a nonzero exit")
+        if verification.get("quality_ledger_journal_hash") != _candidate_journal_hash(candidate):
+            raise ReleaseError("quality ledger journal changed after candidate verification")
+        if verification.get("source_inventory_hash") != current_source_inventory_hash:
+            raise ReleaseError("source PDF inventory changed after candidate verification")
+        if verification.get("candidate_artifact_inventory_hash") != current_artifact_inventory_hash:
+            raise ReleaseError("candidate artifacts changed after candidate verification")
         verified_passed = verification.get("passed")
         verified_skipped = verification.get("skipped")
         verified_failed = verification.get("failed")
     if verified_failed != 0:
         raise ReleaseError(f"cannot seal with {verified_failed} failing verification test(s)")
 
+    _prune_candidate_to_published_artifacts(candidate)
+
     parent = _pointer_release_id(store, "current")
-    descriptor = rd.build_release_descriptor(
+    parent_ledger = None
+    if parent:
+        parent_release = _release_path(store, parent)
+        # A child must never inherit history from a current pointer whose
+        # release is already invalid or whose ledger binding was tampered.
+        validate_release(parent_release)
+        parent_path = parent_release / ql.SNAPSHOT_REL
+        if parent_path.is_file():
+            parent_ledger = ql.load_snapshot(parent_path)
+
+    descriptor_base = rd.build_release_descriptor(
         omr_dir=candidate,
         source_omr_dir=source_omr_dir,
         parent_release_id=parent,
@@ -426,18 +701,70 @@ def seal_candidate(*, store: Path, candidate: Path, source_omr_dir: Path,
         verified_failed=verified_failed,
         bundled_content=_bundled_content(candidate),
     )
+    if descriptor_base["input"]["source_inventory_hash"] != current_source_inventory_hash:
+        raise ReleaseError("source PDF inventory changed while building the candidate descriptor")
+    ledger_body, ledger_summary = ql.build_ledger_body(
+        candidate=candidate,
+        descriptor=descriptor_base,
+        parent_snapshot=parent_ledger,
+    )
+    descriptor = rd.build_release_descriptor(
+        omr_dir=candidate,
+        source_omr_dir=source_omr_dir,
+        parent_release_id=parent,
+        now=now,
+        parser_git_sha=metadata["parser_git_sha"],
+        app_git_sha=metadata["app_git_sha"],
+        verified_passed=verified_passed,
+        verified_skipped=verified_skipped,
+        verified_failed=verified_failed,
+        bundled_content=_bundled_content(candidate),
+        quality_ledger=ledger_summary,
+    )
+    if descriptor["input"]["source_inventory_hash"] != current_source_inventory_hash:
+        raise ReleaseError("source PDF inventory changed while finalizing the candidate descriptor")
+    if rd._sha256_file(source_omr_dir / "pdfs" / "survey" / "catalog.json") != current_catalog_hash:
+        raise ReleaseError("source catalog changed while finalizing the candidate")
+    if _candidate_source_inventory_hash(candidate, source_omr_dir.resolve()) != current_source_inventory_hash:
+        raise ReleaseError("source PDF inventory changed while finalizing the candidate")
+    if _recorded_candidate_source_inventory_hash(candidate) != current_source_inventory_hash:
+        raise ReleaseError("recorded source PDF inventory changed while finalizing the candidate")
+    if _candidate_artifact_inventory_hash(candidate) != current_artifact_inventory_hash:
+        raise ReleaseError("candidate artifacts changed while finalizing the candidate")
+    if _candidate_journal_hash(candidate) != current_journal_hash:
+        raise ReleaseError("quality ledger journal changed while finalizing the candidate")
     problems = rd.validate_descriptor(descriptor)
     if problems or not descriptor["readiness"]["promotable"]:
         detail = problems or descriptor["readiness"]["reasons"]
         raise ReleaseError("candidate is not sealable:\n  - " + "\n  - ".join(detail))
 
     _write_json_atomic(candidate / "release-descriptor.json", descriptor)
+    ql.write_snapshot(candidate / ql.SNAPSHOT_REL, ledger_body, descriptor)
     _write_json_atomic(candidate / "out" / "ingest" / "release.json", {
         "schema_version": descriptor["schema_version"],
         "release_id": descriptor["release_id"],
         "content_fingerprint": descriptor["content_fingerprint"],
     })
-    validate_release(candidate)
+    journal_path = candidate / ql.JOURNAL_REL
+    journal_dir = journal_path.parent
+    journal_bytes = None
+    if journal_dir.exists() or journal_dir.is_symlink():
+        if journal_dir.is_symlink() or not journal_dir.is_dir():
+            raise ReleaseError("candidate quality-ledger path is unsafe")
+        contents = {path.name for path in journal_dir.iterdir()}
+        if contents != {journal_path.name} or not journal_path.is_file() or journal_path.is_symlink():
+            raise ReleaseError("candidate quality-ledger directory has unexpected content")
+        journal_bytes = journal_path.read_bytes()
+    try:
+        if journal_bytes is not None:
+            journal_path.unlink()
+            journal_dir.rmdir()
+        validate_release(candidate)
+    except Exception:
+        if journal_bytes is not None:
+            journal_path.parent.mkdir(parents=True, exist_ok=True)
+            journal_path.write_bytes(journal_bytes)
+        raise
 
     (store / "releases").mkdir(parents=True, exist_ok=True)
     destination = _release_path(store, descriptor["release_id"])
@@ -479,6 +806,10 @@ def release_diff(old: dict | None, new: dict) -> dict:
         "confidence": {
             "before": old.get("trust", {}).get("confidence"),
             "after": new["trust"]["confidence"],
+        },
+        "quality_ledger": {
+            "before": old.get("quality_ledger"),
+            "after": new.get("quality_ledger"),
         },
     }
 
@@ -587,6 +918,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("verify", help="run the required OMR suite and record candidate-bound evidence")
     p.add_argument("--candidate", required=True, type=Path)
     p.add_argument("--python", required=True, type=Path)
+    p.add_argument("--source-omr-dir", required=True, type=Path)
 
     p = sub.add_parser("diff", help="print semantic differences from active to candidate")
     p.add_argument("--store", required=True, type=Path)
@@ -632,7 +964,9 @@ def main(argv=None) -> int:
                 source_omr_dir=args.source_omr_dir,
             ))
         elif args.command == "verify":
-            print(json.dumps(verify_candidate(args.candidate, args.python), sort_keys=True))
+            print(json.dumps(verify_candidate(
+                args.candidate, args.python, args.source_omr_dir,
+            ), sort_keys=True))
         elif args.command == "diff":
             current = _pointer_release_id(args.store.resolve(), "current")
             print(json.dumps(release_diff(

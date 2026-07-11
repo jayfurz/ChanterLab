@@ -49,6 +49,7 @@ def _candidate(store: Path, *, name: str, change_xml=False) -> Path:
         "source_catalog_hash": rd._sha256_file(FIXTURE / "pdfs" / "survey" / "catalog.json"),
         "created_at": FIXED_NOW.isoformat(),
     }), encoding="utf-8")
+    cr._stamp_missing_candidate_source_hashes(candidate, FIXTURE)
     return candidate
 
 
@@ -69,6 +70,16 @@ def _make_writable(path: Path) -> None:
     path.chmod(path.stat().st_mode | stat.S_IWUSR)
 
 
+def _write_private_ledger(root: Path) -> Path:
+    path = root / "quality-ledger" / "ledger.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "schema_version": 1,
+        "events": [],
+    }), encoding="utf-8")
+    return path
+
+
 def _build_omr_root_with_two_releases(tmp_path: Path) -> Path:
     """A realistic <omr>/out/release-store/{releases,current,previous} tree,
     plus the non-release backup sets, so it looks like a real source_omr_dir."""
@@ -76,6 +87,7 @@ def _build_omr_root_with_two_releases(tmp_path: Path) -> Path:
     shutil.copytree(FIXTURE / "pdfs", omr_root / "pdfs")
     shutil.copytree(FIXTURE / "overrides", omr_root / "overrides")
     shutil.copytree(FIXTURE / "out" / "ingest", omr_root / "out" / "ingest")
+    _write_private_ledger(omr_root)
     store = omr_root / "out" / "release-store"
     first = _seal(store, _candidate(store, name=".staging-a"))
     cr.promote(store=store, release_id=first.name, approval=first.name)
@@ -95,6 +107,7 @@ def _build_omr_root_with_one_release(tmp_path: Path) -> Path:
     shutil.copytree(FIXTURE / "pdfs", omr_root / "pdfs")
     shutil.copytree(FIXTURE / "overrides", omr_root / "overrides")
     shutil.copytree(FIXTURE / "out" / "ingest", omr_root / "out" / "ingest")
+    _write_private_ledger(omr_root)
     store = omr_root / "out" / "release-store"
     first = _seal(store, _candidate(store, name=".staging-a"))
     cr.promote(store=store, release_id=first.name, approval=first.name)
@@ -117,6 +130,19 @@ def test_build_hash_manifest_covers_sources_state_overrides():
     assert "overrides/RETIRED" in manifest
     assert "overrides/fixture_override_example.musicxml" in manifest
     assert manifest["pdfs/survey/catalog.json"] == cr._sha256_file(FIXTURE / "pdfs" / "survey" / "catalog.json")
+
+
+def test_hash_manifest_covers_private_quality_ledger_and_rejects_mutation(tmp_path):
+    root = tmp_path / "omr"
+    shutil.copytree(FIXTURE, root)
+    ledger = _write_private_ledger(root)
+    manifest = br.build_hash_manifest(root)
+
+    assert manifest["quality-ledger/ledger.json"] == cr._sha256_file(ledger)
+    restored = tmp_path / "restored"
+    shutil.copytree(root, restored)
+    (restored / "quality-ledger" / "ledger.json").write_text("{}", encoding="utf-8")
+    assert "hash mismatch: quality-ledger/ledger.json" in br.verify_hash_manifest(restored, manifest)
 
 
 def test_verify_hash_manifest_clean_restore_has_no_problems(tmp_path):
@@ -303,6 +329,9 @@ def test_materialize_restore_uses_bound_evidence_and_omits_archive_history(tmp_p
 
     assert result["ok"] is True
     assert not (destination / "overrides" / "retired-piece.musicxml").exists()
+    assert (destination / "quality-ledger" / "ledger.json").read_text(encoding="utf-8") == (
+        omr_root / "quality-ledger" / "ledger.json"
+    ).read_text(encoding="utf-8")
     assert (destination / br.BACKUP_HASH_MANIFEST_REL).is_file()
 
 
@@ -342,7 +371,9 @@ def test_find_releases_excludes_staging(tmp_path):
 def test_cli_sets_prints_backup_set_definition(capsys):
     assert br.main(["sets"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert set(payload["sets"]) == {"sources", "state", "overrides", "releases", "pointers", "verification"}
+    assert set(payload["sets"]) == {
+        "sources", "state", "overrides", "quality_ledger", "releases", "pointers", "verification",
+    }
     assert "out/release-store/staging" in payload["excluded"]
     assert str(br.RELEASE_SNAPSHOT_REL) in payload["sets"]["verification"]["paths"]
 
