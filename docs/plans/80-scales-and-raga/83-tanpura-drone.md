@@ -20,8 +20,11 @@ Sa — with tempo and volume controls, coexisting with (not replacing) the ison.
 - v1 is synthesized (plucked envelope + slow jawari-like shimmer on the
   existing synth path). No bundled third-party samples without a recorded
   license decision — global rights rule.
-- Off by default; independent volume; usable alongside ison, metronome, and
-  voice monitor.
+- Off by default; independent volume; usable alongside metronome and voice
+  monitor.
+- Mode-scoped (owner, 2026-07-11): the tanpura exists only in Hindustani
+  mode and the ison only in Byzantine mode; a hidden drone must never keep
+  sounding, so switching modes stops the other tradition's drone.
 
 ## Scope And Non-Goals
 

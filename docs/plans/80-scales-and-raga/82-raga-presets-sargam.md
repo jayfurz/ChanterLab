@@ -20,11 +20,22 @@ classical student can practice against the same pitch-detection HUD.
 
 ## Owner Decisions
 
-- Ship both Hindustani and Carnatic names on preset labels.
-- Label mode is an explicit toggle, never mixed: Byzantine Ni is the tonic
-  while Indian Ni is the 7th (Pa and Ga also collide with different meanings).
+- Naming is Hindustani-only (owner, 2026-07-11; the friend's tradition).
+  Carnatic melakarta equivalents stay as code comments for reference.
+- One tradition at a time (owner, 2026-07-11): an app-mode switch in the
+  HEADER (mobile and desktop) selects Byzantine or Hindustani, replacing the
+  earlier settings-panel label toggle. Hindustani mode forces sargam labels,
+  shows only raga presets, retitles Reference Ni to Reference Sa, and hides
+  Byzantine notation tools (pthora/chroa palettes, quick pthora, score
+  practice, exercises and the Train tab pending RAGA-03) — Byzantine
+  notation is meaningless to a Hindustani learner and vice versa. Byzantine
+  mode is unchanged from today. Names never mix: Byzantine Ni is the tonic
+  while sargam Ni is the 7th (Pa and Ga also collide).
+- Hindustani mode carries a distinct warm accent so the modes read
+  differently at a glance; deeper visual overhaul iterates on the
+  field-test checkpoint.
 - Initial intervals are 12-ET-snapped onto the 72-moria grid; Sa maps to the
-  existing Reference Ni anchor ("Reference Sa" when the toggle is on).
+  existing Reference Ni anchor.
 
 ## Starter Presets (moria steps from Sa, sum 72)
 
