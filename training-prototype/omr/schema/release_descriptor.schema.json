@@ -149,6 +149,25 @@
         }
       }
     },
+    "quality_ledger": {
+      "type": "object",
+      "description": "Optional additive TRUST-01 binding for a private immutable trust/quality-ledger.json snapshot. Legacy CAT-01/CAT-02 descriptors omit it and remain readable.",
+      "required": ["schema_version", "record_count", "active_count", "status_counts", "hash"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "record_count": { "type": "integer", "minimum": 0 },
+        "active_count": { "type": "integer", "minimum": 0 },
+        "status_counts": {
+          "type": "object",
+          "required": [
+            "auto-imported", "human-verified", "known-issue", "review-required",
+            "manual-override", "retired"
+          ],
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "trust": {
       "type": "object",
       "required": ["status_counts", "confidence"],

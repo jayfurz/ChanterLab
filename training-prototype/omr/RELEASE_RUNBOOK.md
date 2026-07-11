@@ -12,8 +12,10 @@ The active catalog is never an ingest directory. It is one symlink:
 Each release contains `out/` (manifest, published MusicXML, reports, state,
 and public `release.json` marker), release-scoped `overrides/`, the four
 publication-approved `content/` built-ins, `release-descriptor.json`, build
-metadata, and verification evidence. Source PDFs are shared inputs and are
-never copied into a release or onto the production PVC.
+metadata, verification evidence, and a private immutable
+`trust/quality-ledger.json` snapshot when built by TRUST-01-aware tooling.
+Source PDFs are shared inputs and are never copied into a release or onto the
+production PVC.
 
 ## Release environment
 
@@ -46,7 +48,8 @@ CANDIDATE=$(.venv/bin/python catalog_release.py new \
 
 .venv/bin/python catalog_release.py verify \
   --candidate "$CANDIDATE" \
-  --python "$PWD/.venv/bin/python"
+  --python "$PWD/.venv/bin/python" \
+  --source-omr-dir "$PWD"
 
 RELEASE_DIR=$(.venv/bin/python catalog_release.py seal \
   --store "$STORE" \
@@ -58,7 +61,15 @@ RELEASE_ID=$(basename "$RELEASE_DIR")
   --store "$STORE" --release-id "$RELEASE_ID"
 ```
 
-`new` snapshots overrides/tombstones and approved built-ins before extraction.
+`new` snapshots overrides/tombstones, the private quality-ledger journal (if
+one exists), and approved built-ins before extraction. The ledger journal is
+reconciled only at seal time into an immutable release snapshot; do not edit a
+candidate's copied journal after verification. Fresh ingestion records each
+source PDF hash immediately around extraction; verification and sealing both
+refuse source, journal, metadata, manifest, MusicXML, report, override, or
+built-in changes after candidate verification. Sealing prunes non-manifest
+MusicXML/reports, removes the mutable journal, and retains exactly the private
+`trust/quality-ledger.json` snapshot in the sealed release.
 Resuming with `ingest_catalog.py --candidate-dir` is allowed only while the
 parser checkout and cached upstream catalog still match the recorded build
 metadata. A crash leaves files under `staging/`; it cannot affect `current`.
@@ -74,13 +85,20 @@ CANDIDATE=$(.venv/bin/python catalog_release.py import-existing \
   --store "$STORE" --source-omr-dir "$PWD" \
   --parser-sha <historical-parser-sha> --app-sha <target-app-sha>)
 .venv/bin/python catalog_release.py verify \
-  --candidate "$CANDIDATE" --python "$PWD/.venv/bin/python"
+  --candidate "$CANDIDATE" --python "$PWD/.venv/bin/python" \
+  --source-omr-dir "$PWD"
 RELEASE_DIR=$(.venv/bin/python catalog_release.py seal \
   --store "$STORE" --candidate "$CANDIDATE" --source-omr-dir "$PWD")
 ```
 
 Only manifest-published MusicXML/reports, full state, overrides/tombstones,
-and approved built-ins are copied. Stale unlisted MusicXML is excluded.
+the private quality-ledger journal when present, and approved built-ins are
+copied. Stale unlisted MusicXML is excluded.
+
+`import-existing` stamps the PDF bytes observed when the migration candidate
+starts, then binds them through verify/seal. That detects drift during the
+migration but cannot prove what bytes produced an older legacy extraction; use
+a fresh `new` reimport when extraction-time provenance is required.
 
 ## Local promotion and rollback
 
@@ -98,6 +116,10 @@ PREVIOUS=$(.venv/bin/python catalog_release.py status --store "$STORE" \
 
 Promotion validates the descriptor and every actual file hash again before
 switching. Releases are retained; CAT-02 deliberately performs no pruning.
+For a ledger-bearing candidate, validation additionally proves the immutable
+ledger hash, exact manifest reconciliation, score/source provenance, and
+descriptor binding. Owner approval of the TRUST-01 vocabulary is required
+before promoting the first ledger-bearing production release.
 
 ## Production publish
 
@@ -128,19 +150,21 @@ retained `previous` release:
 The public marker is `/omr/out/ingest/release.json` on ChanterLab root hosts
 and `/training/omr/out/ingest/release.json` on the legacy host. It contains
 only schema version, release ID, and content fingerprint; reports, state,
-descriptor, overrides, and source material remain denied by the server.
+descriptor, quality ledger, overrides, and source material remain denied by
+the server.
 
 ## Backup and restore (CAT-03)
 
 `backup_restore.py` defines the restore contract; run `backup_restore.py sets`
-for the exact source/state/override, sealed-release, pointer, and verification
-evidence sets. `staging/`, `.promotion.lock`, and OMR scratch directories are
-deliberately excluded because they are unserved and regenerable.
+for the exact source/state/override/private-quality-journal, sealed-release,
+pointer, and verification evidence sets. `staging/`, `.promotion.lock`, and
+OMR scratch directories are deliberately excluded because they are unserved
+and regenerable.
 
 Infra's `chanterlab-corpus-archive.timer` runs daily at 03:00 MST and performs
 the transport to the private TrueNAS mirror with permanent retention. It
-archives mutable PDFs, state, reports, overrides, and tombstones from the
-source checkout, but
+archives mutable PDFs, state, reports, overrides, tombstones, and the private
+quality-ledger journal from the source checkout, but
 captures sealed releases plus `current`/`previous` from the live VPS PVC while
 the shared promotion lock is held. Each run also stores two required pieces of
 evidence beside the release tree:
@@ -192,7 +216,9 @@ mirror, so a deleted retired override cannot reappear in the recovery tree.
 It then runs strict `verify-store`: every sealed release fingerprint and file
 hash is recomputed; the pointer targets must be valid, distinct, relative,
 and match `release-snapshot.json`; and the mutable inventory must exactly
-match `backup-hash-manifest.json`. Exit code is nonzero on any problem.
+match `backup-hash-manifest.json`. A ledger-bearing release also revalidates
+its private `trust/quality-ledger.json` snapshot. Exit code is nonzero on any
+problem.
 
 Prove the restored data is actually operable, not just byte-valid, by running
 the normal local promotion/rollback commands above against
@@ -225,4 +251,5 @@ above) or point at this command:
 
 The command validates the selected sealed release before formatting. Output is
 the nonprivate subset of its release descriptor only: counts, trust/status
-distribution, and confidence — never paths, PDF content, or report text.
+distribution, confidence, and aggregate quality-ledger counts — never paths,
+PDF content, report text, reviewer references, or evidence history.

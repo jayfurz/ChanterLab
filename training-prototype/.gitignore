@@ -16,6 +16,10 @@ omr/out/
 # Hand-authored piece corrections are derived from the copyrighted PDFs too;
 # keep the dir + its README tracked, but never commit the override XML itself.
 omr/overrides/*.musicxml
+# Private append-only reviewer/evidence journal. The directory README is
+# tracked so the storage boundary remains visible in fresh checkouts.
+omr/quality-ledger/ledger.json
+omr/quality-ledger/.ledger.lock
 omr/gt_crops/
 omr/verify/out/
 omr/verify/shots/

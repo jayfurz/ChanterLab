@@ -38,6 +38,9 @@ def summarize(descriptor: dict) -> dict:
             "status_counts": descriptor["trust"]["status_counts"],
             "confidence": descriptor["trust"]["confidence"],
         },
+        # Aggregate-only. Reviewer/evidence history remains in the private
+        # release-local snapshot and is intentionally never projected here.
+        "quality_ledger": descriptor.get("quality_ledger"),
         "readiness": descriptor["readiness"],
     }
 

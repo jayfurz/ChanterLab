@@ -28,8 +28,8 @@ from pathlib import Path
 import catalog_release as cr
 
 # Every path is relative to an OMR source dir (e.g. training-prototype/omr).
-# Grouped to match CAT-03's scope item 1 (sources, releases, state,
-# overrides/tombstones, pointers, verification evidence).
+# Grouped to match CAT-03/TRUST-01's scope (sources, releases, state,
+# overrides/tombstones, private review journal, pointers, verification evidence).
 BACKUP_SETS: dict[str, dict[str, object]] = {
     "sources": {
         "paths": ["pdfs", "SOURCES.md"],
@@ -52,6 +52,14 @@ BACKUP_SETS: dict[str, dict[str, object]] = {
         "why": (
             "live hand-authored corrections plus RETIRED tombstones — the "
             "working copy each new release candidate snapshots from"
+        ),
+    },
+    "quality_ledger": {
+        "paths": ["quality-ledger/ledger.json"],
+        "why": (
+            "private append-only reviewer/evidence journal; each sealed "
+            "release contains its own immutable trust/quality-ledger.json "
+            "snapshot, while this source journal drives future candidates"
         ),
     },
     "releases": {
@@ -77,7 +85,7 @@ BACKUP_SETS: dict[str, dict[str, object]] = {
             "out/release-store/release-snapshot.json",
         ],
         "why": (
-            "timestamped sha256 inventory for mutable sources/state/overrides "
+            "timestamped sha256 inventory for mutable sources/state/overrides/quality ledger "
             "and the production current/previous pointer snapshot, captured "
             "with each archive so an off-machine restore can prove both "
             "content and rollback selection"
@@ -120,7 +128,7 @@ SECRETS_NOTE = (
 
 # Sets with no built-in content fingerprint of their own (unlike "releases",
 # which is self-validating via each release-descriptor.json).
-_HASHED_SETS = ("sources", "state", "overrides")
+_HASHED_SETS = ("sources", "state", "overrides", "quality_ledger")
 
 
 def _iter_files(root: Path) -> list[Path]:
