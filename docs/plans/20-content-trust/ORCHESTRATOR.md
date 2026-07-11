@@ -1,6 +1,7 @@
 # Content Trust Orchestrator
 
-Status: ready. `CAT-01` through `CAT-03` completed 2026-07-10.
+Status: `TRUST-01` implementation complete 2026-07-11; owner approval is
+required before its vocabulary is frozen or it unblocks schema consumers.
 
 Roadmap IDs: `TRUST-01` through `TRUST-05`.
 
@@ -11,8 +12,8 @@ measurable and honest rather than inferred from measure integrity.
 
 | Order | Plan | Status |
 |---|---|---|
-| 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | ready |
-| 2 | [`22-confidence-signals.md`](22-confidence-signals.md) | blocked on 21 |
+| 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | owner approval pending |
+| 2 | [`22-confidence-signals.md`](22-confidence-signals.md) | blocked on 21 schema approval |
 | 2 | [`23-golden-corpus-fixtures.md`](23-golden-corpus-fixtures.md) | ready after required CI; parallel-safe with 22 under separate files |
 | 3 | [`24-human-audit-review-clustering.md`](24-human-audit-review-clustering.md) | blocked on 21-23 |
 | 4 | [`25-library-provenance-ui.md`](25-library-provenance-ui.md) | blocked on 21 schema and catalog IDs |

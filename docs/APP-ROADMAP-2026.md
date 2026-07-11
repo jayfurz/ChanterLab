@@ -1,7 +1,9 @@
 # ChanterLab App, Repository, and Content-System Roadmap
 
 Status: canonical roadmap, actively executing. `BASE-00` through `CAT-03`
-completed 2026-07-10; `TRUST-01` is the next content-system plan.
+completed 2026-07-10; `TRUST-01` implementation completed 2026-07-11 and
+awaits owner approval before its schema is frozen or a ledger-bearing catalog
+is promoted.
 
 Audience: owner, implementation agents, reviewers, and operators.
 
