@@ -116,12 +116,16 @@ The engine is [`vector_extract.py`](vector_extract.py) (importable:
 
 ### Confidence report
 
-Every run writes JSON with `stats` (counts of every assumption taken:
-unison duplications, chord splits, divisi drops, ambiguous routings...),
-`warnings` (measure-level inconsistencies with locations), and per-voice
-note counts. The headline number is `measure_integrity_pct` — the share of
-measures where all four voices agree on total beats. On the 3-piece corpus
-it is 100% for all pieces.
+Every run writes JSON with `stats` (counts of every assumption taken),
+human-readable `warnings`, stable machine-readable `warning_counts`, per-voice
+note counts, and the additive `omr-confidence-vector-v1`. The vector separates
+12 raw evidence dimensions from the legacy acceptance policy; it does not turn
+those observations into an accuracy claim. See
+[`CONFIDENCE_SIGNALS.md`](CONFIDENCE_SIGNALS.md) for the versioned contract.
+
+`measure_integrity_pct` remains available and the pipeline still uses only its
+existing 90% threshold. Adding the vector does not change MusicXML, exit codes,
+ingest status, or publication policy.
 
 ## Verification harness (`verify/`)
 
