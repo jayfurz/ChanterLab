@@ -1,7 +1,8 @@
 # Content Trust Orchestrator
 
-Status: `TRUST-01` schema v1 owner-approved and implemented 2026-07-11. No
-catalog promotion is authorized by that approval.
+Status: `TRUST-01` schema v1 was owner-approved and implemented 2026-07-11.
+After separate owner production approval, its first ledger-bearing catalog
+release, `rel-20260711T155237Z-a3fdb875e54f`, was promoted the same day.
 
 Roadmap IDs: `TRUST-01` through `TRUST-05`.
 
@@ -12,7 +13,7 @@ measurable and honest rather than inferred from measure integrity.
 
 | Order | Plan | Status |
 |---|---|---|
-| 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | complete; schema v1 merged; no catalog promotion |
+| 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | complete; schema v1 merged and first ledger-bearing release promoted |
 | 2 | [`22-confidence-signals.md`](22-confidence-signals.md) | ready; schema v1 approved |
 | 2 | [`23-golden-corpus-fixtures.md`](23-golden-corpus-fixtures.md) | ready; required CI complete; parallel-safe with 22 under separate files |
 | 3 | [`24-human-audit-review-clustering.md`](24-human-audit-review-clustering.md) | blocked on 22-23 |
