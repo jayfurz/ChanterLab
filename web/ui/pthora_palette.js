@@ -82,6 +82,8 @@ const ROWS = [
   }
 ];
 
+import { degreeLabelText } from './degree_labels.js?v=raga-1';
+
 const CHROMATIC_PHASES_BY_GENUS = Object.fromEntries(
   ROWS.filter(row => row.kind === 'phase').map(row => [row.genus, row.phases])
 );
@@ -98,10 +100,12 @@ export function buildQuickPthoraControls({ genusSelect, degreeContainer, onPick 
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'quick-pthora-btn';
-      btn.textContent = option.label;
+      // degreeLabelText, not degreeLabel: quick options include octave-marked
+      // composites like "Ni′" that must map token-wise (→ "Sa′").
+      btn.textContent = degreeLabelText(option.label);
       btn.title = phases
         ? `Apply ${genus === 'SoftChromatic' ? 'soft' : 'hard'} chromatic phase ${option.phase} to the sung note`
-        : `Apply selected pthora as ${option.label} to the sung note`;
+        : `Apply selected pthora as ${degreeLabelText(option.label)} to the sung note`;
       btn.addEventListener('click', () => {
         onPick({
           type: 'pthora',

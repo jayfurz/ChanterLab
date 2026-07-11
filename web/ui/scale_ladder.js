@@ -1,6 +1,8 @@
 // ScaleLadder — canvas-based scale degree visualizer.
 // Paints cells top-to-bottom: high moria at top.
 
+import { degreeLabel } from './degree_labels.js?v=raga-1';
+
 // degree field in JSON is either a string variant name or null.
 const DEGREE_INDEX = { Ni: 0, Pa: 1, Vou: 2, Ga: 3, Di: 4, Ke: 5, Zo: 6 };
 const DEGREE_H = 26;
@@ -374,7 +376,7 @@ export class ScaleLadder {
       if (!isDeg) continue;
 
       // Degree label.
-      const name = cell.degree ?? '?';
+      const name = degreeLabel(cell.degree ?? '?');
       ctx.textBaseline = 'middle';
       ctx.font = `700 ${Math.max(10, Math.round(11 * scale))}px 'Segoe UI', system-ui, sans-serif`;
       ctx.fillStyle = (isActive || isDetected) ? '#ffffff' : (cell.enabled ? accent : '#52657a');

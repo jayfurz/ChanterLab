@@ -1,5 +1,7 @@
 // NoteIndicator — bottom-center sung-note feedback with martyria rendering.
 
+import { degreeLabel, getLabelMode } from './degree_labels.js?v=raga-1';
+
 const DEGREE_INDEX = { Ni: 0, Pa: 1, Vou: 2, Ga: 3, Di: 4, Ke: 5, Zo: 6 };
 const SOLFEGE = {
   Ni: 'do',
@@ -347,14 +349,19 @@ export class NoteIndicator {
     this.el.classList.remove('hidden', 'no-pitch', ...HIDDEN_CLASSES);
     this.el.classList.toggle('has-exercise', activeExercise);
     this.el.classList.add(grade.className);
-    this._nameEl.textContent = cell.degree;
+    this._nameEl.textContent = degreeLabel(cell.degree);
     this._scoreEl.textContent = grade.label;
     this._offsetEl.textContent = `${direction} ${offsetLabel}`;
     this._cursorEl.style.left = `${50 + cursor * 48}%`;
 
-    if (genus === 'Western') {
+    // A Custom genus (raga preset) serializes as an object, not a string,
+    // and has no martyria glyphs; sargam display mode likewise bypasses the
+    // Byzantine-notation branch below.
+    const isCustomGenus = Boolean(genus) && typeof genus === 'object';
+    if (genus === 'Western' || isCustomGenus || getLabelMode() === 'sargam') {
       this._martyriaEl.classList.add('western-mode');
-      this._westernEl.textContent = solfegeFor(cell, linearIndex);
+      this._westernEl.textContent =
+        genus === 'Western' ? solfegeFor(cell, linearIndex) : '';
       this._noteGlyphEl.textContent = '';
       this._belowGlyphEl.textContent = '';
       return;

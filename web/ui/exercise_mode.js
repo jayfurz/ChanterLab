@@ -1,5 +1,7 @@
 // ExerciseMode — local practice drills scored from live pitch events.
 
+import { degreeLabelText } from './degree_labels.js?v=raga-1';
+
 const EXERCISES = [
   {
     id: 'match-ni',
@@ -376,7 +378,7 @@ export class ExerciseMode {
 
     const targetText = this.finished
       ? 'Complete'
-      : `${step ? step.label : '-'} (${this.stepIdx + 1}/${this.exercise.steps.length})`;
+      : `${step ? degreeLabelText(step.label) : '-'} (${this.stepIdx + 1}/${this.exercise.steps.length})`;
     if (this._targetEl) this._targetEl.textContent = targetText;
 
     let hintText;
@@ -388,7 +390,7 @@ export class ExerciseMode {
     } else if (this.finished) {
       hintText = `${scoreLabel(overall.score)}. ${overall.score}/100`;
     } else {
-      hintText = `Sing ${step ? step.label : 'the target'} until the bar fills. Tolerance: +/-${this.exercise.tolerance} moria.`;
+      hintText = `Sing ${step ? degreeLabelText(step.label) : 'the target'} until the bar fills. Tolerance: +/-${this.exercise.tolerance} moria.`;
     }
     if (this._hintEl) this._hintEl.textContent = hintText;
 

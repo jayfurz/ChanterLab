@@ -96,6 +96,45 @@ mod main_exports {
             self.inner.apply_pthora(moria, g, d)
         }
 
+        /// Apply a user-defined genus at `moria` — e.g. a raga scale preset
+        /// (RAGA-01, docs/plans/80-scales-and-raga/82-raga-presets-sargam.md).
+        ///
+        /// `intervals_json` is a JSON array of moria steps starting from
+        /// `canonical_root`. Only closed octave scales are accepted: exactly
+        /// 7 positive steps summing to 72 (`Genus::is_closed`). Open interval
+        /// sets are rejected rather than silently becoming tiled generators,
+        /// because every current caller means a closed scale and
+        /// `Region::degree_positions` panics in debug on non-closed genera.
+        #[wasm_bindgen(js_name = applyCustomGenus)]
+        pub fn apply_custom_genus(
+            &mut self,
+            moria: i32,
+            target_degree: &str,
+            name: &str,
+            intervals_json: &str,
+            canonical_root: &str,
+        ) -> bool {
+            let (Some(d), Some(root)) = (parse_degree(target_degree), parse_degree(canonical_root))
+            else {
+                return false;
+            };
+            let Ok(intervals) = serde_json::from_str::<Vec<i32>>(intervals_json) else {
+                return false;
+            };
+            if intervals.len() != 7
+                || intervals.iter().any(|&step| step <= 0)
+                || intervals.iter().sum::<i32>() != 72
+            {
+                return false;
+            }
+            let genus = Genus::Custom {
+                name: name.to_string(),
+                intervals,
+                canonical_root: root,
+            };
+            self.inner.apply_pthora(moria, genus, d)
+        }
+
         /// Apply a semantic palette drop from JSON.
         ///
         /// Shape:
@@ -277,5 +316,57 @@ mod main_exports {
             }
         };
         Some(symbol_drop)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// Enabled base-degree moria within the first octave, from cellsJson —
+        /// the same JSON surface the web app consumes.
+        fn first_octave_positions(grid: &JsTuningGrid) -> Vec<i64> {
+            let cells: Vec<serde_json::Value> =
+                serde_json::from_str(&grid.cells_json().unwrap()).unwrap();
+            let mut positions: Vec<i64> = cells
+                .iter()
+                .filter(|c| c["enabled"].as_bool() == Some(true))
+                .filter_map(|c| c["moria"].as_i64())
+                .filter(|m| (0..72).contains(m))
+                .collect();
+            positions.sort_unstable();
+            positions.dedup();
+            positions
+        }
+
+        #[test]
+        fn custom_genus_lays_out_declared_intervals() {
+            let mut grid = JsTuningGrid::new();
+            // Yaman / Kalyani, 12-ET-snapped (Lydian): steps from Sa.
+            assert!(grid.apply_custom_genus(
+                0,
+                "Ni",
+                "Yaman / Kalyani",
+                "[12,12,12,6,12,12,6]",
+                "Ni",
+            ));
+            assert_eq!(
+                first_octave_positions(&grid),
+                vec![0, 12, 24, 36, 42, 54, 66],
+            );
+        }
+
+        #[test]
+        fn custom_genus_rejects_non_closed_or_malformed_input() {
+            let mut grid = JsTuningGrid::new();
+            let baseline = first_octave_positions(&grid);
+            // Wrong count, wrong sum, non-positive step, bad JSON, bad names.
+            assert!(!grid.apply_custom_genus(0, "Ni", "x", "[12,60]", "Ni"));
+            assert!(!grid.apply_custom_genus(0, "Ni", "x", "[12,12,12,6,12,12,7]", "Ni"));
+            assert!(!grid.apply_custom_genus(0, "Ni", "x", "[0,12,24,6,12,12,6]", "Ni"));
+            assert!(!grid.apply_custom_genus(0, "Ni", "x", "not json", "Ni"));
+            assert!(!grid.apply_custom_genus(0, "Sa", "x", "[12,12,12,6,12,12,6]", "Ni"));
+            assert!(!grid.apply_custom_genus(0, "Ni", "x", "[12,12,12,6,12,12,6]", "Sa"));
+            assert_eq!(first_octave_positions(&grid), baseline);
+        }
     }
 }
