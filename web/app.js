@@ -7,7 +7,7 @@ import { NoteIndicator  } from './ui/note_indicator.js?v=raga-1';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=raga-1';
 import { Metronome      } from './ui/metronome.js?v=0.2.0-alpha.0';
 import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=raga-1';
-import { degreeLabel, getLabelMode, setLabelMode } from './ui/degree_labels.js?v=raga-1';
+import { degreeLabel, degreeLabelText, setLabelMode } from './ui/degree_labels.js?v=raga-1';
 import { RAGA_PRESETS } from './raga_presets.js?v=raga-1';
 import { ShadingPalette, buildQuickShadingControls } from './ui/shading_palette.js?v=0.2.0-alpha.0';
 import {
@@ -64,7 +64,7 @@ import {
 
 // ── App state ────────────────────────────────────────────────────────────────
 
-const PRESETS = [
+const BYZANTINE_PRESETS = [
   { label: 'Diatonic',      genus: 'Diatonic',      degree: 'Ni'  },
   { label: 'Hard Chromatic',genus: 'HardChromatic',  degree: 'Pa'  },
   { label: 'Soft Chromatic',genus: 'SoftChromatic',  degree: 'Ni'  },
@@ -72,8 +72,14 @@ const PRESETS = [
   // { label: 'Grave Diatonic',genus: 'GraveDiatonic',  degree: 'Ga'  },
   // { label: 'Enharmonic Zo', genus: 'EnharmonicZo',   degree: 'Zo'  },
   // { label: 'Enharmonic Ga', genus: 'EnharmonicGa',   degree: 'Ga'  },
-  ...RAGA_PRESETS,
 ];
+
+// Each tradition sees only its own scales; the header mode switch picks the
+// list. Exercise presetIdx values index the Byzantine list and exercises are
+// Byzantine-mode-only, so the indices stay valid.
+function activePresets() {
+  return app.appMode === 'hindustani' ? RAGA_PRESETS : BYZANTINE_PRESETS;
+}
 
 const DEFAULT_REF_NI_HZ = 130.81;
 const APP_VERSION = '0.2.0-alpha.0';
@@ -162,6 +168,7 @@ const app = {
   engine:          null,
   keyboard:        null,
   activePresetIdx: 0,
+  appMode:         'byzantine',
   gridChanged:     null,
   refNiHz:         DEFAULT_REF_NI_HZ,
   // Ison state
@@ -242,7 +249,7 @@ async function main() {
   wireAccidentalPopup();
   wirePresetSaveLoad();
   wireIsonControls();
-  wireLabelModeControls();
+  wireAppModeControls();
   wireVoicingControls();
   wireMetronomeControls();
   wireCorrectionControls();
@@ -1715,9 +1722,10 @@ function nearestEnabledMoriaCell(rawMoria, lastCellId) {
 
 function buildPresetButtons() {
   const container = document.getElementById('preset-buttons');
-  PRESETS.forEach((p, i) => {
+  container.innerHTML = '';
+  activePresets().forEach((p, i) => {
     const btn = document.createElement('button');
-    btn.className = 'preset-btn' + (i === 0 ? ' active' : '');
+    btn.className = 'preset-btn' + (i === app.activePresetIdx ? ' active' : '');
     btn.textContent = p.label;
     btn.title = p.name ?? p.label;
     btn.dataset.idx = i;
@@ -1727,7 +1735,8 @@ function buildPresetButtons() {
 }
 
 function selectPreset(idx) {
-  const p = PRESETS[idx];
+  const p = activePresets()[idx];
+  if (!p) return;
   app.grid = new JsTuningGrid();
   app.grid.refNiHz = app.refNiHz;
   const applied = p.genus === 'Custom'
@@ -1737,9 +1746,6 @@ function selectPreset(idx) {
     : app.grid.applyPthora(0, p.genus, p.degree);
   if (!applied) console.warn('Preset failed to apply:', p.label);
   app.activePresetIdx = idx;
-  // Raga presets declare labels:'sargam' and switch the display names with
-  // them; builtin presets declare nothing and leave the user's choice alone.
-  if (p.labels) applyLabelMode(p.labels);
 
   document.querySelectorAll('.preset-btn').forEach((b, i) => {
     b.classList.toggle('active', i === idx);
@@ -1747,41 +1753,69 @@ function selectPreset(idx) {
   gridChanged();
 }
 
-// ── Degree label mode (Byzantine / Sargam) ────────────────────────────────────
+// ── App mode (Byzantine / Hindustani) ─────────────────────────────────────────
+//
+// One tradition at a time: the header switch flips presets, degree labels,
+// and which tools exist. Byzantine notation (pthora/chroa palettes, quick
+// pthora, martyria, exercises) is meaningless to a Hindustani learner and
+// vice versa, so cross-tradition UI hides via body[data-mode] CSS rather
+// than being relabeled.
 
-const LABEL_MODE_KEY = 'chanterlab_label_mode';
+const APP_MODE_KEY = 'chanterlab_app_mode';
 
-function applyLabelMode(mode, { persist = true } = {}) {
-  setLabelMode(mode);
-  if (persist) {
-    try {
-      localStorage.setItem(LABEL_MODE_KEY, getLabelMode());
-    } catch {
-      // Private browsing: the toggle still works for this session.
+function retitleReferenceControls() {
+  const heading = document.getElementById('reference-heading');
+  if (heading) heading.textContent = `Reference ${degreeLabel('Ni')}`;
+  const rangeSelect = document.getElementById('reference-range-select');
+  if (rangeSelect) {
+    for (const option of rangeSelect.options) {
+      option.dataset.orig ??= option.textContent;
+      option.textContent = degreeLabelText(option.dataset.orig);
     }
   }
-  document.querySelectorAll('.label-mode-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.labelMode === getLabelMode());
+}
+
+function applyAppMode(mode, { persist = true } = {}) {
+  app.appMode = mode === 'hindustani' ? 'hindustani' : 'byzantine';
+  if (persist) {
+    try {
+      localStorage.setItem(APP_MODE_KEY, app.appMode);
+    } catch {
+      // Private browsing: the switch still works for this session.
+    }
+  }
+  document.body.dataset.mode = app.appMode;
+  setLabelMode(app.appMode === 'hindustani' ? 'sargam' : 'byzantine');
+  document.querySelectorAll('.mode-switch-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.appMode === app.appMode);
   });
+  retitleReferenceControls();
   syncIsonControls();
   // Quick-pthora degree buttons re-render on genus change; reuse that path.
   document.getElementById('quick-pthora-genus')?.dispatchEvent(new Event('change'));
+  // The Train tab does not exist in Hindustani mode (exercises are Byzantine
+  // until RAGA-03); bounce off it before it disappears.
+  if (app.appMode === 'hindustani' && document.body.dataset.mobileView === 'train') {
+    document.querySelector('.mobile-tab[data-mobile-view="sing"]')?.click();
+  }
+  app.activePresetIdx = 0;
+  buildPresetButtons();
+  selectPreset(0);
 }
 
-function wireLabelModeControls() {
+function wireAppModeControls() {
   let stored = null;
   try {
-    stored = localStorage.getItem(LABEL_MODE_KEY);
+    stored = localStorage.getItem(APP_MODE_KEY);
   } catch {
     stored = null;
   }
-  applyLabelMode(stored === 'sargam' ? 'sargam' : 'byzantine', { persist: false });
-  document.getElementById('label-mode-buttons')?.addEventListener('click', e => {
-    const btn = e.target.closest('.label-mode-btn');
-    if (!btn) return;
-    applyLabelMode(btn.dataset.labelMode);
-    gridChanged();
+  document.getElementById('mode-switch')?.addEventListener('click', e => {
+    const btn = e.target.closest('.mode-switch-btn');
+    if (!btn || btn.dataset.appMode === app.appMode) return;
+    applyAppMode(btn.dataset.appMode);
   });
+  applyAppMode(stored === 'hindustani' ? 'hindustani' : 'byzantine', { persist: false });
 }
 
 // ── Wiring ────────────────────────────────────────────────────────────────────
