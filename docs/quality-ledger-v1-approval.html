@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Quality Ledger v1 - Owner Approval</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7fafb;
+      --surface: #ffffff;
+      --ink: #17212b;
+      --muted: #52616d;
+      --line: #d5e0e5;
+      --teal: #086b70;
+      --teal-soft: #e2f3f2;
+      --green: #28623c;
+      --green-soft: #e8f3eb;
+      --amber: #875900;
+      --amber-soft: #fff3d8;
+      --red: #9c3b31;
+      --red-soft: #fae9e6;
+      --violet: #62518f;
+      --violet-soft: #f0ecf8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    a { color: var(--teal); }
+
+    code, pre, textarea {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .page {
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 20px 16px 56px;
+    }
+
+    .hero {
+      border-left: 5px solid var(--teal);
+      padding: 4px 0 4px 16px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--teal);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 32px;
+      line-height: 1.15;
+    }
+
+    h2 {
+      margin-bottom: 12px;
+      font-size: 22px;
+      line-height: 1.25;
+    }
+
+    h3 {
+      margin-bottom: 6px;
+      font-size: 17px;
+      line-height: 1.3;
+    }
+
+    .lede {
+      margin-bottom: 12px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .badge {
+      display: inline-block;
+      border: 1px solid var(--amber);
+      background: var(--amber-soft);
+      color: #5d3f00;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .notice, .decision-panel, .fact-grid, .decision-card, .status, details {
+      border: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .notice {
+      border-left: 4px solid var(--teal);
+      padding: 14px 16px;
+      margin: 18px 0 24px;
+      border-radius: 6px;
+    }
+
+    .notice strong { color: var(--teal); }
+
+    .decision-panel {
+      padding: 16px;
+      margin: 0 0 28px;
+      border-radius: 8px;
+    }
+
+    .decision-panel p:last-child { margin-bottom: 0; }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0 12px;
+    }
+
+    button {
+      min-height: 44px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: #ffffff;
+      background: var(--teal);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button[data-choice="changes"] { background: var(--red); }
+    button[data-choice][aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 2px; }
+    button.secondary { background: var(--surface); border-color: var(--teal); color: var(--teal); }
+
+    textarea {
+      display: block;
+      width: 100%;
+      min-height: 86px;
+      margin-top: 10px;
+      padding: 10px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: var(--ink);
+      background: var(--paper);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    #copy-decision[hidden] { display: none; }
+
+    .section { margin-top: 32px; }
+
+    .fact-grid, .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      overflow: hidden;
+      background: var(--line);
+      border-radius: 8px;
+    }
+
+    .fact {
+      padding: 13px;
+      background: var(--surface);
+    }
+
+    .fact strong, .status strong { display: block; }
+    .fact span, .status span { color: var(--muted); font-size: 14px; }
+
+    .status { padding: 13px; }
+    .status.publishable { border-top: 4px solid var(--green); }
+    .status.withheld { border-top: 4px solid var(--red); }
+    .status.override { border-top: 4px solid var(--violet); }
+
+    .decision-list { display: grid; gap: 12px; }
+
+    .decision-card {
+      position: relative;
+      padding: 16px;
+      border-radius: 8px;
+    }
+
+    .number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      margin-right: 8px;
+      border-radius: 50%;
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-weight: 800;
+    }
+
+    .proposal {
+      margin: 10px 0;
+      padding: 10px 12px;
+      border-left: 3px solid var(--teal);
+      background: var(--teal-soft);
+    }
+
+    .consequence { color: var(--muted); margin-bottom: 0; }
+
+    ul { padding-left: 21px; }
+    li + li { margin-top: 7px; }
+
+    .checklist {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .checklist ul { margin-bottom: 0; }
+
+    details {
+      margin-top: 12px;
+      padding: 0 14px 14px;
+      border-radius: 8px;
+    }
+
+    summary {
+      padding: 14px 0;
+      color: var(--teal);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 10px 8px;
+      border-top: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { color: var(--muted); font-weight: 800; }
+
+    pre {
+      overflow-x: auto;
+      margin: 0;
+      padding: 12px;
+      border-radius: 4px;
+      background: #17212b;
+      color: #f5f8fa;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .scope-list { color: var(--muted); }
+
+    footer {
+      margin-top: 36px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 520px) {
+      .page { padding: 16px 12px 40px; }
+      h1 { font-size: 28px; }
+      .fact-grid, .status-grid, .button-row { grid-template-columns: 1fr; }
+      .hero { padding-left: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">CHANTERLAB OWNER DECISION</p>
+      <h1>Quality Ledger v1</h1>
+      <p class="lede">Approve the private contract that records whether a score is parser-imported, reviewed, known flawed but usable, withheld, overridden, or retired.</p>
+      <span class="badge">Decision pending</span>
+    </header>
+
+    <section class="notice" aria-label="Scope">
+      <strong>This is not a catalog promotion.</strong> Approval permits the held code to be merged as the v1 contract. It does not create a journal, publish review records, change the live catalog, run a backup timer, or promote a release. Each future catalog promotion still needs its own exact-release approval.
+    </section>
+
+    <section class="decision-panel" aria-labelledby="decision-heading">
+      <h2 id="decision-heading">Decision</h2>
+      <p>Choose the response that reflects your decision. The page prepares a message for this chat; it does not change repository or production state.</p>
+      <div class="button-row">
+        <button type="button" data-choice="approve" aria-pressed="false">Approve v1 as written</button>
+        <button type="button" data-choice="changes" aria-pressed="false">Request changes</button>
+      </div>
+      <textarea id="decision-text" aria-label="Prepared decision" readonly>No decision selected.</textarea>
+      <button id="copy-decision" class="secondary" type="button" hidden>Copy decision</button>
+      <p id="decision-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="section" aria-labelledby="summary-heading">
+      <h2 id="summary-heading">30-second summary</h2>
+      <div class="fact-grid">
+        <div class="fact"><strong>Private</strong><span>Reviewer history never becomes a public endpoint.</span></div>
+        <div class="fact"><strong>Release-bound</strong><span>Every sealed release binds a snapshot hash into its fingerprint.</span></div>
+        <div class="fact"><strong>Revision-safe</strong><span>Changed source or MusicXML bytes get a new score identity and fresh trust state.</span></div>
+        <div class="fact"><strong>Honest</strong><span><code>accepted</code> remains a parser outcome, never proof of human review.</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="statuses-heading">
+      <h2 id="statuses-heading">The six statuses</h2>
+      <div class="status-grid">
+        <article class="status publishable"><strong><code>auto-imported</code></strong><span>Passed current parser/publication guards. It has not been human-verified.</span></article>
+        <article class="status publishable"><strong><code>human-verified</code></strong><span>A reviewer or owner supplied explicit evidence for this exact revision.</span></article>
+        <article class="status publishable"><strong><code>known-issue</code></strong><span>An evidenced problem is known, but the score remains usable and publishable.</span></article>
+        <article class="status withheld"><strong><code>review-required</code></strong><span>Withheld from the manifest and direct artifact URLs pending review.</span></article>
+        <article class="status override"><strong><code>manual-override</code></strong><span>A current override file is authoritative. This status is derived from its exact hash.</span></article>
+        <article class="status withheld"><strong><code>retired</code></strong><span>A historical score revision is terminal and never publishable.</span></article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="decisions-heading">
+      <h2 id="decisions-heading">What you are approving</h2>
+      <div class="decision-list">
+        <article class="decision-card">
+          <h3><span class="number">1</span>Vocabulary and honesty</h3>
+          <p class="proposal">Adopt exactly the six statuses above. Keep <code>accepted</code> separate as a structural ingest/publication result.</p>
+          <p class="consequence">No score will be presented as human-verified merely because it imported cleanly, has a high integrity percentage, or uses an override.</p>
+        </article>
+        <article class="decision-card">
+          <h3><span class="number">2</span>Publication and reapproval</h3>
+          <p class="proposal"><code>review-required</code> and <code>retired</code> revisions are not published. A held revision can return only as <code>human-verified</code> or <code>known-issue</code>.</p>
+          <p class="consequence">Withholding removes it from both the manifest and the sealed artifact tree, so a guessed direct URL cannot retrieve it.</p>
+        </article>
+        <article class="decision-card">
+          <h3><span class="number">3</span>Authority and terminal retirement</h3>
+          <p class="proposal">Reviewers or owners may classify, document a known issue, or withhold a score. Only the owner may retire a revision, and retirement is terminal.</p>
+          <p class="consequence">A manual override is never asserted by a review event; it exists only while the exact override file is active. A retired override file is not a retired score.</p>
+        </article>
+        <article class="decision-card">
+          <h3><span class="number">4</span>Immutable revision identity</h3>
+          <p class="proposal">Trust attaches to exact source and emitted MusicXML bytes, not just a catalog title. Changed bytes create a new <code>score_id</code> and reset to <code>auto-imported</code>.</p>
+          <p class="consequence">Old review events cannot silently bless a changed transcription. The new revision retains only a link to its previous score identity.</p>
+        </article>
+        <article class="decision-card">
+          <h3><span class="number">5</span>Privacy boundary</h3>
+          <p class="proposal">The mutable journal, reviewer history, release descriptor, and sealed snapshot stay private. Actor and evidence references are opaque tokens only.</p>
+          <p class="consequence">The server exposes none of those files. Names, email addresses, paths, excerpts, free-form notes, and private evidence do not enter this v1 ledger.</p>
+        </article>
+        <article class="decision-card">
+          <h3><span class="number">6</span>Provenance and migration honesty</h3>
+          <p class="proposal">Record source/PDF and output hashes. Fresh ingest detects a source PDF changing during extraction. Existing-catalog migration records bytes observed at migration time.</p>
+          <p class="consequence">The migration proves no later source drift; it does not pretend to prove which PDF bytes generated historical legacy output. Missing provenance blocks the relevant gate.</p>
+        </article>
+        <article class="decision-card">
+          <h3><span class="number">7</span>Release and backup integrity</h3>
+          <p class="proposal">Bind every immutable ledger snapshot hash into the release content fingerprint. Delete the mutable journal before sealing; back it up separately as a hashed private set.</p>
+          <p class="consequence">A missing, altered, or unexpected journal/snapshot blocks release validation and promotion. Sealed releases contain exactly <code>trust/quality-ledger.json</code>, never the mutable journal.</p>
+        </article>
+        <article class="decision-card">
+          <h3><span class="number">8</span>Compatibility and deliberate scope</h3>
+          <p class="proposal">Keep legacy releases readable without a ledger. Store legacy integrity and warning counts only; defer a confidence model, review UI, and public provenance UI to later plans.</p>
+          <p class="consequence">This stabilizes a small, auditable trust contract without overstating confidence or expanding the public product surface.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="checks-heading">
+      <h2 id="checks-heading">Safeguards already proven</h2>
+      <div class="checklist">
+        <ul>
+          <li>Final read-only candidate: 3,351 active <code>auto-imported</code> records, with no invented human-verification claims.</li>
+          <li>Every one of 3,793 candidate state records carried a source-PDF hash; the candidate verified source, artifact, and journal snapshots before sealing.</li>
+          <li>Fresh rights-safe checkout: <code>157 passed, 19 skipped</code>. Private-corpus suite: <code>176 passed</code>.</li>
+          <li>Final candidate <code>rel-20260711T075217Z-49ce9c8023ed</code> validated without changing a production pointer, served catalog, source corpus, or backup timer.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="unlock-heading">
+      <h2 id="unlock-heading">What approval unlocks</h2>
+      <ul>
+        <li>Merge the held ChanterLab and infrastructure pull requests as the stable v1 contract.</li>
+        <li>Create a private journal only when there is a real review event to record.</li>
+        <li>Run a real archive/restore drill after that journal exists.</li>
+      </ul>
+      <p class="scope-list"><strong>Still separate:</strong> approving this contract does not authorize a catalog promotion. That remains an explicit, release-specific decision after candidate verification.</p>
+    </section>
+
+    <section class="section" aria-labelledby="reference-heading">
+      <h2 id="reference-heading">Technical reference</h2>
+      <details>
+        <summary>Allowed status transitions</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>From</th><th>Allowed next status</th><th>Authority</th></tr></thead>
+            <tbody>
+              <tr><td><code>auto-imported</code></td><td><code>human-verified</code>, <code>known-issue</code>, <code>review-required</code>, <code>retired</code></td><td>Reviewer/owner; owner for retirement</td></tr>
+              <tr><td><code>human-verified</code></td><td><code>known-issue</code>, <code>review-required</code>, <code>retired</code></td><td>Reviewer/owner; owner for retirement</td></tr>
+              <tr><td><code>known-issue</code></td><td><code>human-verified</code>, <code>review-required</code>, <code>retired</code></td><td>Reviewer/owner; owner for retirement</td></tr>
+              <tr><td><code>review-required</code></td><td><code>human-verified</code>, <code>known-issue</code>, <code>retired</code></td><td>Reviewer/owner; owner for retirement</td></tr>
+              <tr><td><code>manual-override</code></td><td><code>review-required</code>, <code>retired</code></td><td>Reviewer/owner; owner for retirement</td></tr>
+              <tr><td><code>retired</code></td><td>None</td><td>Terminal</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <details>
+        <summary>Immutable identity and snapshot binding</summary>
+        <ul>
+          <li><code>source_id</code> is based on canonical public source URL plus source-PDF SHA-256.</li>
+          <li><code>score_id</code> is based on <code>catalog_id</code>, <code>source_id</code>, and emitted MusicXML SHA-256.</li>
+          <li><code>previous_score_id</code> links the parent release revision for the same catalog ID when bytes change.</li>
+          <li>Identities exclude the release ID. The release descriptor later binds the canonical ledger body hash into its content fingerprint.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Snapshot shape</summary>
+        <pre>{
+  "schema_version": 1,
+  "release_id": "rel-...",
+  "release_content_fingerprint": "&lt;sha256&gt;",
+  "ledger_hash": "&lt;sha256 of canonical body&gt;",
+  "summary": {
+    "record_count": 3351,
+    "active_count": 3351,
+    "status_counts": { "auto-imported": 3351 }
+  },
+  "records": []
+}</pre>
+      </details>
+      <details>
+        <summary>Canonical source documents</summary>
+        <p><a href="../training-prototype/omr/QUALITY_LEDGER_SCHEMA.md">Quality Ledger Schema v1 (Markdown)</a></p>
+        <p><a href="../training-prototype/omr/schema/quality_ledger.schema.json">Authoritative JSON schema</a></p>
+        <p><a href="../training-prototype/omr/RELEASE_RUNBOOK.md">Release runbook</a></p>
+      </details>
+    </section>
+
+    <footer>
+      Review copy for owner approval. The canonical contract is <code>training-prototype/omr/QUALITY_LEDGER_SCHEMA.md</code> and its JSON schema. This page reflects ChanterLab commit <code>61c29df</code>.
+    </footer>
+  </main>
+  <script>
+    const choices = document.querySelectorAll("button[data-choice]");
+    const text = document.getElementById("decision-text");
+    const copy = document.getElementById("copy-decision");
+    const status = document.getElementById("decision-status");
+
+    const messages = {
+      approve: "I approve Quality Ledger Schema v1 as written. This authorizes merging ChanterLab PR #105 and infra PR #16, but does not authorize a catalog promotion.",
+      changes: "I do not approve Quality Ledger Schema v1 as written. Requested changes: "
+    };
+
+    choices.forEach((button) => {
+      button.addEventListener("click", () => {
+        choices.forEach((candidate) => candidate.setAttribute("aria-pressed", "false"));
+        button.setAttribute("aria-pressed", "true");
+        text.value = messages[button.dataset.choice];
+        copy.hidden = false;
+        status.textContent = "Decision prepared for this chat.";
+      });
+    });
+
+    copy.addEventListener("click", async () => {
+      text.select();
+      try {
+        await navigator.clipboard.writeText(text.value);
+        status.textContent = "Decision copied.";
+      } catch {
+        status.textContent = "Decision selected. Copy it into this chat.";
+      }
+    });
+  </script>
+</body>
+</html>
