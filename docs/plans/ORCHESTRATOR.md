@@ -32,6 +32,9 @@ BASE-02 -> PRACTICE/AUDIO lanes
 CAT-02 + TRUST-01 -> production/PWA lanes
 TRUST + LOOP + RIGHTS -> uploads/director expansion
 stable practice shell -> one-app convergence
+
+SCALES-01 -> RAGA-01 -> RAGA-02 [owner-approved 2026-07-11; independent lane
+  on legacy web/ + server routing files only — see 80-scales-and-raga/]
 ```
 
 ## Global Waves
