@@ -1,8 +1,8 @@
 # ChanterLab Program Orchestrator
 
 Status: active. BASE-00 through CAT-03 completed 2026-07-10; `TRUST-01` schema
-v1 was owner-approved 2026-07-11. Its held merges are authorized; no catalog
-promotion is authorized.
+v1 was owner-approved and implemented 2026-07-11. No catalog promotion is
+authorized.
 
 Objective: execute `docs/APP-ROADMAP-2026.md` as independently reviewable
 workstreams while keeping the live practice app and catalog safe.
@@ -22,7 +22,7 @@ workstreams while keeping the live practice app and catalog safe.
 
 ```text
 BASE-00 -> BASE-01 -> BASE-02 -> CAT-01 -> CAT-02 -> CAT-03 [complete]
-  -> TRUST-01 quality ledger [schema v1 approved; merge authorized]
+  -> TRUST-01 quality ledger [schema v1 approved; implementation merged]
   -> LOOP-01 report capture/storage
   -> LOOP-02 reviewer/correction workbench
   -> LOOP-03 semantic diff/promotion

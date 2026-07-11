@@ -1,8 +1,8 @@
 # TRUST-01: Quality Ledger And Status Schema
 
 Status: complete 2026-07-11; Quality Ledger Schema v1 owner-approved as
-written. This authorizes merging ChanterLab PR #105 and infra PR #16, not a
-catalog promotion. Priority: P0.
+written and implemented by ChanterLab PR #105 (`b2fc8a3`) and infra PR #16
+(`872d11b`). This did not authorize a catalog promotion. Priority: P0.
 
 Dependencies: immutable release/score identity. Blocks: reports, review UI,
 provenance UI, human audit.
@@ -84,9 +84,9 @@ appropriate publication gate; current and previous schema remain readable.
 
 ### Approval Record (2026-07-11)
 
-The owner approved Quality Ledger Schema v1 as written, authorizing the merge
-of ChanterLab PR #105 and infra PR #16. That approval does not authorize a
-catalog promotion. After merging, create the initial private journal only for a
+The owner approved Quality Ledger Schema v1 as written; ChanterLab PR #105 and
+infra PR #16 were then merged at `b2fc8a3` and `872d11b`. That approval did not
+authorize a catalog promotion. Create the initial private journal only for a
 real review event and run the archive/restore drill with it present. The
 non-promoted candidate recorded above is tied to app SHA `61c29df`, so it must
 not be promoted after the merge; a future promotion must build and verify a new
