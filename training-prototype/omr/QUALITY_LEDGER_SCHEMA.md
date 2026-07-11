@@ -1,7 +1,8 @@
 # Quality Ledger Schema v1
 
-Status: proposed implementation, pending owner approval before the vocabulary
-is treated as stable or any ledger-bearing catalog release is promoted.
+Status: approved stable v1 (owner approval recorded 2026-07-11). This approval
+authorizes merging the held implementation changes; it does not authorize a
+ledger-bearing catalog promotion.
 
 The ingest pipeline's `accepted` status is a structural publication outcome.
 It is not evidence of human review. TRUST-01 records review state separately

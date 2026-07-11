@@ -42,5 +42,6 @@ to merge; production image publication depends on that same gate succeeding
 for the exact SHA. The private-corpus gate is documented but has no runner yet
 (no self-hosted runner is registered for this repo) — it reports "not corpus
 verified" honestly rather than pretending otherwise; wiring a real runner is a
-follow-on owner decision. `CAT-01` through `CAT-03` are complete. Next ready
-plan is `TRUST-01` (quality ledger), per `docs/plans/ORCHESTRATOR.md`.
+follow-on owner decision. `CAT-01` through `CAT-03` are complete. With Quality
+Ledger Schema v1 owner-approved 2026-07-11, the next ready trust plans are
+`TRUST-02` and `TRUST-05`; `TRUST-03` remains parallel-ready.

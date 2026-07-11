@@ -1,7 +1,7 @@
 # Content Trust Orchestrator
 
-Status: `TRUST-01` implementation complete 2026-07-11; owner approval is
-required before its vocabulary is frozen or it unblocks schema consumers.
+Status: `TRUST-01` schema v1 owner-approved 2026-07-11; held implementation
+merges authorized. No catalog promotion is authorized by that approval.
 
 Roadmap IDs: `TRUST-01` through `TRUST-05`.
 
@@ -12,11 +12,11 @@ measurable and honest rather than inferred from measure integrity.
 
 | Order | Plan | Status |
 |---|---|---|
-| 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | owner approval pending |
-| 2 | [`22-confidence-signals.md`](22-confidence-signals.md) | blocked on 21 schema approval |
-| 2 | [`23-golden-corpus-fixtures.md`](23-golden-corpus-fixtures.md) | ready after required CI; parallel-safe with 22 under separate files |
-| 3 | [`24-human-audit-review-clustering.md`](24-human-audit-review-clustering.md) | blocked on 21-23 |
-| 4 | [`25-library-provenance-ui.md`](25-library-provenance-ui.md) | blocked on 21 schema and catalog IDs |
+| 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | approved; merge authorized; no catalog promotion |
+| 2 | [`22-confidence-signals.md`](22-confidence-signals.md) | ready; schema v1 approved |
+| 2 | [`23-golden-corpus-fixtures.md`](23-golden-corpus-fixtures.md) | ready; required CI complete; parallel-safe with 22 under separate files |
+| 3 | [`24-human-audit-review-clustering.md`](24-human-audit-review-clustering.md) | blocked on 22-23 |
+| 4 | [`25-library-provenance-ui.md`](25-library-provenance-ui.md) | ready; schema v1 and catalog IDs available |
 
 ## Ownership
 

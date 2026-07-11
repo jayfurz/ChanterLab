@@ -118,8 +118,9 @@ Promotion validates the descriptor and every actual file hash again before
 switching. Releases are retained; CAT-02 deliberately performs no pruning.
 For a ledger-bearing candidate, validation additionally proves the immutable
 ledger hash, exact manifest reconciliation, score/source provenance, and
-descriptor binding. Owner approval of the TRUST-01 vocabulary is required
-before promoting the first ledger-bearing production release.
+descriptor binding. Quality Ledger Schema v1 was owner-approved 2026-07-11.
+That schema approval does not authorize promotion; the exact release ID remains
+the required promotion approval token.
 
 ## Production publish
 

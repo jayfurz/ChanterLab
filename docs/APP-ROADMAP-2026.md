@@ -1,9 +1,9 @@
 # ChanterLab App, Repository, and Content-System Roadmap
 
 Status: canonical roadmap, actively executing. `BASE-00` through `CAT-03`
-completed 2026-07-10; `TRUST-01` implementation completed 2026-07-11 and
-awaits owner approval before its schema is frozen or a ledger-bearing catalog
-is promoted.
+completed 2026-07-10; `TRUST-01` schema v1 was owner-approved 2026-07-11. The
+held implementation merges are authorized; catalog promotion remains a separate
+exact-release approval.
 
 Audience: owner, implementation agents, reviewers, and operators.
 

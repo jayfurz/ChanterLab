@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:,">
-  <title>Quality Ledger v1 - Owner Approval</title>
+  <title>Quality Ledger v1 - Approved</title>
   <style>
     :root {
       color-scheme: light;
@@ -120,46 +120,6 @@
     }
 
     .decision-panel p:last-child { margin-bottom: 0; }
-
-    .button-row {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin: 14px 0 12px;
-    }
-
-    button {
-      min-height: 44px;
-      border: 1px solid transparent;
-      border-radius: 6px;
-      padding: 10px 12px;
-      color: #ffffff;
-      background: var(--teal);
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    button[data-choice="changes"] { background: var(--red); }
-    button[data-choice][aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 2px; }
-    button.secondary { background: var(--surface); border-color: var(--teal); color: var(--teal); }
-
-    textarea {
-      display: block;
-      width: 100%;
-      min-height: 86px;
-      margin-top: 10px;
-      padding: 10px;
-      resize: vertical;
-      border: 1px solid var(--line);
-      border-radius: 4px;
-      color: var(--ink);
-      background: var(--paper);
-      font-size: 14px;
-      line-height: 1.45;
-    }
-
-    #copy-decision[hidden] { display: none; }
 
     .section { margin-top: 32px; }
 
@@ -281,7 +241,7 @@
     @media (max-width: 520px) {
       .page { padding: 16px 12px 40px; }
       h1 { font-size: 28px; }
-      .fact-grid, .status-grid, .button-row { grid-template-columns: 1fr; }
+      .fact-grid, .status-grid { grid-template-columns: 1fr; }
       .hero { padding-left: 12px; }
     }
   </style>
@@ -289,26 +249,21 @@
 <body>
   <main class="page">
     <header class="hero">
-      <p class="eyebrow">CHANTERLAB OWNER DECISION</p>
-      <h1>Quality Ledger v1</h1>
-      <p class="lede">Approve the private contract that records whether a score is parser-imported, reviewed, known flawed but usable, withheld, overridden, or retired.</p>
-      <span class="badge">Decision pending</span>
+      <p class="eyebrow">CHANTERLAB OWNER APPROVAL</p>
+      <h1>Quality Ledger v1: Approved</h1>
+      <p class="lede">The approved private contract records whether a score is parser-imported, reviewed, known flawed but usable, withheld, overridden, or retired.</p>
+      <span class="badge">Approved 2026-07-11</span>
     </header>
 
     <section class="notice" aria-label="Scope">
-      <strong>This is not a catalog promotion.</strong> Approval permits the held code to be merged as the v1 contract. It does not create a journal, publish review records, change the live catalog, run a backup timer, or promote a release. Each future catalog promotion still needs its own exact-release approval.
+      <strong>This is not a catalog promotion.</strong> The owner approval authorizes merging the held v1 contract. It does not create a journal, publish review records, change the live catalog, run a backup timer, or promote a release. Each future catalog promotion still needs its own exact-release approval.
     </section>
 
     <section class="decision-panel" aria-labelledby="decision-heading">
-      <h2 id="decision-heading">Decision</h2>
-      <p>Choose the response that reflects your decision. The page prepares a message for this chat; it does not change repository or production state.</p>
-      <div class="button-row">
-        <button type="button" data-choice="approve" aria-pressed="false">Approve v1 as written</button>
-        <button type="button" data-choice="changes" aria-pressed="false">Request changes</button>
-      </div>
-      <textarea id="decision-text" aria-label="Prepared decision" readonly>No decision selected.</textarea>
-      <button id="copy-decision" class="secondary" type="button" hidden>Copy decision</button>
-      <p id="decision-status" role="status" aria-live="polite"></p>
+      <h2 id="decision-heading">Approval recorded</h2>
+      <p>The owner approved Quality Ledger Schema v1 as written in this chat on 2026-07-11.</p>
+      <p><strong>Authorized:</strong> merge ChanterLab PR #105 and infra PR #16.</p>
+      <p><strong>Not authorized:</strong> any catalog promotion. A future promotion requires a newly verified candidate built from merged <code>main</code> and its own exact-release approval token.</p>
     </section>
 
     <section class="section" aria-labelledby="summary-heading">
@@ -452,39 +407,8 @@
     </section>
 
     <footer>
-      Review copy for owner approval. The canonical contract is <code>training-prototype/omr/QUALITY_LEDGER_SCHEMA.md</code> and its JSON schema. This page reflects ChanterLab commit <code>61c29df</code>.
+      Approval record. The canonical contract is <code>training-prototype/omr/QUALITY_LEDGER_SCHEMA.md</code> and its JSON schema. This page reflects the approved v1 implementation at ChanterLab commit <code>61c29df</code>.
     </footer>
   </main>
-  <script>
-    const choices = document.querySelectorAll("button[data-choice]");
-    const text = document.getElementById("decision-text");
-    const copy = document.getElementById("copy-decision");
-    const status = document.getElementById("decision-status");
-
-    const messages = {
-      approve: "I approve Quality Ledger Schema v1 as written. This authorizes merging ChanterLab PR #105 and infra PR #16, but does not authorize a catalog promotion.",
-      changes: "I do not approve Quality Ledger Schema v1 as written. Requested changes: "
-    };
-
-    choices.forEach((button) => {
-      button.addEventListener("click", () => {
-        choices.forEach((candidate) => candidate.setAttribute("aria-pressed", "false"));
-        button.setAttribute("aria-pressed", "true");
-        text.value = messages[button.dataset.choice];
-        copy.hidden = false;
-        status.textContent = "Decision prepared for this chat.";
-      });
-    });
-
-    copy.addEventListener("click", async () => {
-      text.select();
-      try {
-        await navigator.clipboard.writeText(text.value);
-        status.textContent = "Decision copied.";
-      } catch {
-        status.textContent = "Decision selected. Copy it into this chat.";
-      }
-    });
-  </script>
 </body>
 </html>

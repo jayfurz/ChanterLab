@@ -1,8 +1,8 @@
 # TRUST-01: Quality Ledger And Status Schema
 
-Status: implementation complete 2026-07-11; owner approval pending before the
-vocabulary/schema is treated as stable or a ledger-bearing catalog release is
-promoted. Priority: P0.
+Status: complete 2026-07-11; Quality Ledger Schema v1 owner-approved as
+written. This authorizes merging ChanterLab PR #105 and infra PR #16, not a
+catalog promotion. Priority: P0.
 
 Dependencies: immutable release/score identity. Blocks: reports, review UI,
 provenance UI, human audit.
@@ -32,7 +32,8 @@ with human verification.
 3. Define compatibility and migration for the active catalog.
 4. Add deterministic validation and transition tests.
 5. Generate a candidate ledger and reconcile every manifest entry.
-6. Obtain owner approval before promotion.
+6. Record owner approval of the schema, then require a separate exact-release
+   approval before any promotion.
 
 ## Acceptance
 
@@ -81,11 +82,12 @@ appropriate publication gate; current and previous schema remain readable.
   match the descriptor app SHA. The live timer and dirty infra checkout remain
   untouched.
 
-### Remaining Owner Gate
+### Approval Record (2026-07-11)
 
-Approve or amend the six-status vocabulary and its privacy/transition contract
-in `training-prototype/omr/QUALITY_LEDGER_SCHEMA.md`. After approval, merge
-the app and infra changes, create the initial private journal only when a real
-review event exists, run the archive/restore drill with that journal present,
-then separately approve any catalog promotion using the normal exact-release
-approval token.
+The owner approved Quality Ledger Schema v1 as written, authorizing the merge
+of ChanterLab PR #105 and infra PR #16. That approval does not authorize a
+catalog promotion. After merging, create the initial private journal only for a
+real review event and run the archive/restore drill with it present. The
+non-promoted candidate recorded above is tied to app SHA `61c29df`, so it must
+not be promoted after the merge; a future promotion must build and verify a new
+candidate from merged `main` and use its separate exact-release approval token.

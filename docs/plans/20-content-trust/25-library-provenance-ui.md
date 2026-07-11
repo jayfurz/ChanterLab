@@ -1,6 +1,6 @@
 # TRUST-05: Library Trust And Provenance UI
 
-Status: blocked on `TRUST-01` schema. Priority: P1.
+Status: ready; `TRUST-01` schema v1 and catalog IDs are available. Priority: P1.
 
 Dependencies: immutable IDs and trust vocabulary. Parallel-safe with audit work;
 conflicts with feedback-loop library changes.
@@ -27,4 +27,3 @@ dashboard or implying auto-imported scores are human verified.
 Labels use approved vocabulary; missing data does not become verified; original
 PDF remains one click away; screen reader names are useful; 3,000+ item search
 stays within the performance budget; desktop/mobile screenshots have no overlap.
-

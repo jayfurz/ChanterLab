@@ -1,7 +1,8 @@
 # ChanterLab Program Orchestrator
 
-Status: active. BASE-00 through CAT-03 completed 2026-07-10; `TRUST-01` was
-implemented 2026-07-11 and awaits its explicit owner approval gate.
+Status: active. BASE-00 through CAT-03 completed 2026-07-10; `TRUST-01` schema
+v1 was owner-approved 2026-07-11. Its held merges are authorized; no catalog
+promotion is authorized.
 
 Objective: execute `docs/APP-ROADMAP-2026.md` as independently reviewable
 workstreams while keeping the live practice app and catalog safe.
@@ -21,7 +22,7 @@ workstreams while keeping the live practice app and catalog safe.
 
 ```text
 BASE-00 -> BASE-01 -> BASE-02 -> CAT-01 -> CAT-02 -> CAT-03 [complete]
-  -> TRUST-01 quality ledger [approval gate]
+  -> TRUST-01 quality ledger [schema v1 approved; merge authorized]
   -> LOOP-01 report capture/storage
   -> LOOP-02 reviewer/correction workbench
   -> LOOP-03 semantic diff/promotion
@@ -49,8 +50,8 @@ only with disjoint files.
 ### Wave 2: Establish Content Trust
 
 Atomic releases and the quality-ledger implementation are complete. Confidence
-instrumentation and human-audit tooling follow explicit owner approval of the
-ledger vocabulary.
+instrumentation and human-audit tooling may proceed under the approved ledger
+vocabulary.
 
 ### Wave 3: Close The User Feedback Loop
 
