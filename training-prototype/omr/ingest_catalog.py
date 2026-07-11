@@ -57,6 +57,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
+import confidence_signals
 from override_state import load_retired_stems
 import quality_ledger as ql
 
@@ -685,6 +686,17 @@ def apply_overrides(state):
         os.makedirs(OUT_DIR, exist_ok=True)
         dst = os.path.join(OUT_DIR, stem + ".musicxml")
         shutil.copyfile(src, dst)
+        report_path = os.path.join(OUT_DIR, stem + ".report.json")
+        if os.path.isfile(report_path):
+            try:
+                with open(report_path, encoding="utf-8") as f:
+                    report_data = json.load(f)
+                confidence_signals.mark_override_applied(report_data)
+                with open(report_path, "w", encoding="utf-8") as f:
+                    json.dump(report_data, f, indent=2)
+            except (OSError, json.JSONDecodeError) as exc:
+                print(f"[override] WARNING {fn}: confidence report was not "
+                      f"updated ({exc})")
         overridden.add(stem)
         rec = state.get(stem)
         if rec is None:                       # override for a piece never ingested
