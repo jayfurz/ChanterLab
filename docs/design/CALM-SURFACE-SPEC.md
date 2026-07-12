@@ -1,450 +1,678 @@
 # Calm Surface — UI design spec (issue #73)
 
-**Status: awaiting owner review — no production code changes until approved.**
+**Version 2 — 2026-07-11. Status: as-built contract + forward plan.**
 
-Restructures the choir-practice app's control surface for mobile calm and adds a real
-desktop mode. Absorbs the designs of **#60** (scoring results panel), **#61** (one-tap
-mute), **#62** (mobile de-densify / thumb-zone grouping half), and **#72** (desktop
-layout, keyboard, PWA), building on the **#58** audit. Implementation is wave B, split
-across two agents (§8).
+v1 of this spec (2026-07-04, commit `a290430`) was the pre-implementation design gate
+for Sprint 4. Its wave-B implementation shipped the next day — B1 `cdd1189`
+(mini-row, tabbed drawer, one-tap mute; closed #62/#61) and B2 `0ce6f15` (desktop
+rail, keyboard map, PWA; closed #72) — and reached `main` in the BASE-01 reconcile
+(PR #91). The surface then kept evolving: per-note verdict coloring (#79), the guided
+tour replacing the coach-mark bubbles, and the iOS-driven Sound-pane rows (#74).
 
-Audiences: **owner** — read §0, §2, §3, §9 and open the mockups; **implementers** —
-§7–§8 are your contract, §1 is your checklist.
-
-Evidence gallery (all states captured live on 390×844 and 1400×900, 2026-07-04):
-`docs/design/current/*.png`. Mockups: `mockup-mobile-collapsed.html`,
-`mockup-mobile-expanded.html`, `mockup-mobile-scoring-report.html`, `mockup-desktop.html`
-(self-contained, open in any browser; they reuse the app's real color tokens).
-
----
-
-## 0. The problem, in numbers (measured, not felt)
-
-* The expanded transport is **12–14 rows** (piece-dependent). On a 390×844 phone it
-  covers **100% of the score** (`mobile-02-transport-expanded.png`).
-* **Discovered defect while screenshotting:** `.full` is `max-height:70vh;
-  overflow:hidden` — *hidden*, not *auto*. With the Complete Liturgy loaded (verse row +
-  sections row) plus mic on and a saved-recording chip, content is 658px in a 591px box:
-  **67px clipped, and the Sections row — the only navigation for a 422-measure service —
-  shows 9px of its 48px height and cannot be scrolled to**
-  (`mobile-12-sections-row-clipped.png`, measured via getBoundingClientRect). Any control
-  restructure must give the panel a bounded, scrollable interior.
-* Desktop (1400×900) is a stretched phone: bottom sheet spanning 1400px, Play stretched
-  to ~200px in a mostly-empty mini-row, control rows wrapping into an uneven flex soup
-  occupying the bottom ~45% (`desktop-02-transport-expanded.png`).
-* The post-lap report strip renders at the **top** of the page while every control that
-  reacts to it (Play, loop) is at the **bottom** (`desktop-07-score-report.png`,
-  `mobile-07-score-report.png` — where it is additionally half-hidden behind the
-  onboarding bubble and the expanded transport).
-* Two independent testers, unprompted: "as a phone app the screen is pretty busy" and
-  "I wonder how it would look as a desktop program?" (#62, #72).
-
-What already works and must keep its spirit: the **collapse-on-Play transport** (mobile
-starts collapsed since #58 wave 1; playing auto-collapses to the mini-row), the
-**section bottom-sheet** (`mobile-11-section-sheet.png` is the calmest surface in the
-app), the library overlay, and the dark/gold identity.
+v2 reconciles the spec with what actually shipped, adds the normative layers v1
+lacked (design tokens, component states, calm rules during singing, accessibility),
+records three **measured compliance violations** found in the 2026-07-11 as-built
+audit, and phases the remaining work into reviewable PRs. **This document is the
+UI contract for the training app surface**: implementation agents build against it;
+changes to the surface that contradict it require amending it first.
 
 ---
 
-## 1. Control inventory
+## Table of contents
 
-Every interactive control, its module owner, and usage-frequency class.
-Classes: **ES** = every-session (touched most practice sessions), **PP** = per-piece
-(touched when the piece changes), **SO** = setup-once (persisted taste setting),
-**R** = rare/contextual.
-
-| # | Control | id / hook | Owner module | Class | Reasoning |
-|---|---------|-----------|--------------|-------|-----------|
-| 1 | Play / Pause | `#play` | transport.js | ES | The core loop; touched dozens of times per session. |
-| 2 | Stop | `#stop` | transport.js | ES | Ends a lap → produces the final score; pairs with Play. |
-| 3 | Position readout | `#posOut` | transport.js | ES (passive) | Orientation while playing; feeds the smoke test. |
-| 4 | Voice chip | `#voiceChip` | voices.js (text) / transport.js (click) | ES | Identity of "your part" + persistent 🔇 glyph; becomes the one-tap mute (#61). |
-| 5 | Expand handle | `#expandHandle` | transport.js | ES | The drawer's own control. |
-| 6 | Voice picker S/A/T/B (or mono Playing/Muted seg) | `#voicePicker` | voices.js | PP | A singer picks their part once; revisited on piece switch or when coaching another part. |
-| 7 | Verse picker | `#versePicker` / `#verseRow` | voices.js | PP | Only multi-verse pieces; picked when drilling the alternate text. |
-| 8 | Tempo slider | `#bpm` `#bpmOut` | wired in main.js, consumed by transport.js | ES | Slow-to-learn / speed-to-perform is a core practice move. |
-| 9 | Loop from/to/on | `#loopFrom` `#loopTo` `#loopOn` | wired in main.js; written by sections.js & scoring-ui.js | ES | Drilling a passage is the product's core loop; also machine-written (section jump, worst-spot tap). |
-| 10 | Mic | `#micBtn` | main.js | ES | Scored practice is the headline feature. |
-| 11 | Headphones mode | `#hpMode` | main.js | SO | Default on; changes only when practicing on speakers. |
-| 12 | Also play my part | `#hearMine` | main.js / voices.js / transport.applyMix | ES-adjacent | Learning-stage toggle (hear it while learning, mute when confident). Becomes the checkbox twin of the chip's one-tap mute. |
-| 13 | Record | `#recBtn` | recording.js | R | Content capture, not practice; explicitly "grown a row per feature" territory. |
-| 14 | Recording timer | `#recTime` | recording.js | R (passive) | Visible only while recording. |
-| 15 | Save recording chip | `#recSave` | recording.js | R | Appears after a recording stops. |
-| 16 | Rec Voice/Music balance | `#recBalance` `#recBalRow` | recording.js | R | Only shown while mic is on; affects the recording only. |
-| 17 | Rec headphones hint | `#recHint` | recording.js | R | One-time hint. |
-| 18 | Scoring strictness | `#strictnessPicker` | scoring-ui.js | SO | Persisted; a taste setting, not a practice move. |
-| 19 | Instrument Synth/Voices | `#instrumentPicker` | transport.js | SO | Persisted; a taste setting. |
-| 20 | View Split/Score/Scope | `#viewPicker` | loader.js (setView) | SO | Persona preference; most users never leave Split. |
-| 21 | Library | `#libraryBtn` | library.js | PP | Session start, then occasional browsing. |
-| 22 | Current piece + attribution | `#currentPiece` `#pieceAttrib` | loader.js | PP (passive) | Orientation + licensing duty. |
-| 23 | PDF link | `#pdfLink` | loader.js | R | Checking the original engraving. |
-| 24 | Section prev/next | `#secPrev` `#secNext` | sections.js | ES (liturgies) | Primary navigation for long services. |
-| 25 | Sections button + label | `#sectionsBtn` `#sectionsLabel` `#sectionsRow` | sections.js | ES (liturgies) | Opens the (good) bottom sheet; currently the row that gets clipped. |
-| 26 | Section sheet (list, close, scrim) | `#sectionSheet*` | sections.js | ES (liturgies) | Keep as-is. |
-| 27 | Score report strip (totals, spots, close) | `#scoreReport*` | scoring-ui.js | ES (with mic) | The feedback readout; currently misplaced at page top. |
-| 28 | Status line | `#status` | state.js (setStatus) | ES (passive) | The app's single aria-live voice; smoke test reads it. |
-| 29 | Retry | `#retryStart` | main.js / loader.js | R | Failed-startup affordance. |
-| 30 | Onboarding bubble + close | `#onboardHint*` | onboarding.js | R (first run) | Three-moment coach-mark sequence. |
-| 31 | Windowed-render footer + Render full | `#scoreMore` `#renderFull` | loader.js | R | Large scores only; lives inside the score box. |
-| 32 | Library overlay internals (search, facets, rows, licensing) | `#libSearch` etc. | library.js | PP | Keep as-is; already calm. |
-| 33 | Hidden piece select | `#pieceSelect` | main.js | never (CI only) | `.sr-only`; smoke test drives it. **Must survive untouched.** |
-| 34 | Header h1 + tag + sub-paragraph | static | — | passive | Costs ~100px of phone height every session; §6/§9. |
-| 35 | Footer "Prototype only…" | static `.app-foot` | — | passive | Dev pointer; deletion proposed (§9). |
+- [§0 How to read this document](#0-how-to-read-this-document)
+- [§1 The problem, in numbers (v1 baseline, historical)](#1-the-problem-in-numbers-v1-baseline--historical)
+- [§2 What "calm" means — design principles](#2-what-calm-means--design-principles)
+- [§3 Design tokens](#3-design-tokens)
+- [§4 Information hierarchy per surface](#4-information-hierarchy-per-surface)
+- [§5 Component inventory with states](#5-component-inventory-with-states)
+- [§6 Interaction rules during singing — the calm rules](#6-interaction-rules-during-singing--the-calm-rules)
+- [§7 Scoring results surface (#60)](#7-scoring-results-surface-60)
+- [§8 Keyboard and pointer map](#8-keyboard-and-pointer-map)
+- [§9 Accessibility](#9-accessibility)
+- [§10 As-built drift ledger (v1 → shipped)](#10-as-built-drift-ledger-v1--shipped)
+- [§11 Forward plan — phases mapping to reviewable PRs](#11-forward-plan--phases-mapping-to-reviewable-prs)
+- [§12 Evidence galleries and mockups](#12-evidence-galleries-and-mockups)
+- [§13 Decision log](#13-decision-log)
 
 ---
 
-## 2. The always-visible set (mobile)
+## §0 How to read this document
 
-**Mini-row (collapsed transport), left → right:**
+* **Owner**: §2 (principles), §6 (calm rules + the three violations), §11 (what the
+  next PRs are), §13 (decisions awaiting you).
+* **Implementation agent**: §11 Phase 1 is fully specified — files, exact changes,
+  acceptance criteria, and the MUST-NOT-BREAK contract. §3/§5 are your reference for
+  any pixel you touch; §6 is the law every change is reviewed against.
+* **Historian**: §1 is the measured 2026-07-04 baseline that motivated the redesign;
+  §10 is what shipped versus what was drawn.
+
+Roadmap anchors: `docs/APP-ROADMAP-2026.md` §7-10 — "Preserve the calm surface;
+advanced controls stay secondary" — and `docs/plans/40-practice-audio/ORCHESTRATOR.md`
+— "deepen repeated practice while preserving the calm interface". Every plan in the
+40-lane that touches `index.html`/`style.css`/`transport.js` inherits §6 as an
+acceptance gate.
+
+---
+
+## §1 The problem, in numbers (v1 baseline — historical)
+
+Measured live on 390×844 and 1400×900, 2026-07-04 (`docs/design/current/*.png`):
+
+* The expanded transport was **12–14 rows**, covering **100 % of the score** on a
+  phone (`mobile-02-transport-expanded.png`).
+* **Measured defect:** `.full` was `max-height:70vh; overflow:hidden`. With the
+  Complete Liturgy loaded plus mic and a saved-recording chip, content was 658 px in
+  a 591 px box: the Sections row — the only navigation for a 422-measure service —
+  showed **9 px of its 48 px height and could not be scrolled to**
+  (`mobile-12-sections-row-clipped.png`).
+* Desktop was a stretched phone: a 1400 px-wide bottom sheet, Play stretched to
+  ~200 px, control rows wrapping into flex soup over the bottom ~45 %.
+* The post-lap report rendered at the **top** of the page; every control that reacts
+  to it sat at the **bottom**.
+* Two testers, unprompted: "as a phone app the screen is pretty busy"; "I wonder how
+  it would look as a desktop program?" (#62, #72).
+
+**Resolution, verified as-built 2026-07-11** (`docs/design/asbuilt-2026-07-11/`):
+the tabbed panes are bounded (`max-height:min(46vh,420px); overflow-y:auto`) so no
+row can ever be clipped unreachable (Sound pane measured 368/368 px on 390×844 —
+fits; scrolls when taller); the desktop rail replaced the stretched sheet; the
+report moved to the transport's doorstep. The baseline stands as the cautionary
+record: density regrows one "just one more row" at a time — §4's placement rules
+exist to stop that.
+
+---
+
+## §2 What "calm" means — design principles
+
+The product's core loop is a singer, mid-phrase, eyes on a gold line. Everything
+else is secondary. Concretely:
+
+1. **One primary action.** Play/Pause is the only large gold button. Nothing else on
+   the default view competes with it in size or saturation.
+2. **The default view is the singing view.** Score + singscope + mini-row. Every
+   control that is not touched *while sound is happening* lives one tap away, behind
+   the handle, grouped by question ("what am I practicing" / "what do I hear" /
+   "everything else").
+3. **Stability over discoverability.** While a singer is mid-phrase, **nothing may
+   move, appear over a control, or reflow** (§6 is the precise law). Feedback during
+   playback is text in fixed slots and paint on existing surfaces — never geometry.
+4. **Contextual controls vanish, not disable.** Sectionless pieces show no section
+   controls; single-verse pieces show no verse row; mic-off shows no rec-mix row.
+   Hidden means `display:none` — a greyed row is still noise. (Corollary: every
+   element that can carry `hidden` MUST have a `[hidden]{display:none}` escape hatch
+   if any author rule sets its `display` — see V2 in §6.)
+5. **One vocabulary.** Segmented `.seg/.segbtn` for exclusive choices, `.chk` for
+   independent toggles, `.btn` for actions, chips for status-that-acts. A new
+   control reuses one of these or amends this spec first.
+6. **Dark room, gold ink.** The dark/gold identity is the brand (§3); the score
+   stays paper-white because notation legibility beats theme purity.
+
+---
+
+## §3 Design tokens
+
+Single source of truth: `training-prototype/style.css` `:root` plus the derived
+constants below. Anything not in this section is not part of the palette — a new
+color/size/shadow is a spec amendment, not a local convenience.
+
+### 3.1 Color
+
+| Token | Value | Role |
+|---|---|---|
+| `--bg` | `#14151a` | App background; PWA `theme_color`/`background_color`. |
+| `--panel` | `#1e2027` | Cards: report strip, sheets, calibrate panel. |
+| `--ink` | `#e8e6df` | Primary text. |
+| `--sub` | `#9aa0a6` | Secondary text: labels, status, meta. |
+| `--gold` | `#d4af37` | THE accent: primary action, active segment, selected voice, "your part". Text on gold is `#161616`. |
+| `--gold-soft` | `#e7c96b` | Hover/focus tint, section glyphs, group labels, tour ring. |
+| `--line` | `#2c2f38` | 1 px borders everywhere; elevation is borders first, shadows second. |
+| `--cyan` | `#4dd7ff` | The singer's live voice: scope trace, readout, mic-on state. Never used for anything else. |
+
+Derived surfaces (fixed constants in rules): input well `#12141a`; button face
+`#20232c`; overlay scrims `rgba(24,26,33,.96)` (transport), `rgba(10,11,15,.92)`
+(library), `rgba(8,9,12,.66)` (tour dim); score paper `#fbfbf7`.
+
+Semantic families:
+* **Recording = red**, quarantined to the record control: `#ff4b3e` pulse dot,
+  `#c0392b` border, `#3a1414` face, `#ffd7d0`/`#ff8a7a` text.
+* **Verdict tints** (per-note coloring #79; single source `loader.js
+  VERDICT_TINTS`): hit `#4f9d2e`, flat `#2f7fc4`, sharp `#e07a1c`, missed
+  `#a35050`. These appear only on noteheads and in the report legend dots.
+* **Diagnostics** (audio-debug overlay, never part of the normal UI): monospace
+  greens/blues on near-black.
+
+Rule: one accent per meaning. Gold = yours/active; cyan = your live voice; red =
+recording; verdict tints = scoring. A feature needing a "new color" almost
+certainly means one of these four meanings — reuse it.
+
+### 3.2 Typography
+
+Stack: `system-ui, -apple-system, Segoe UI, Roboto, sans-serif`; base
+`15px/1.45`; diagnostics use `ui-monospace` (never in the product surface).
+
+| Size | Weight | Use |
+|---|---|---|
+| 10 px | 700–800, uppercase, `.05–.09em` tracking | `.label` row labels, tour step, desktop pane group labels. Smallest text in the app — never smaller. |
+| 11 px | 400–600 | Hints (scope hint, rec hint, attribution, licensing link). |
+| 12 px | 400–700 | Status line, report totals/spots, meta rows, `.btn-mini`. |
+| 13–13.5 px | 400–700 | Checkboxes, seg buttons, pane tabs, position readout, chips. |
+| 14–15 px | 600 | Standard buttons, list rows, tour body. |
+| 16 px | 650 | h1 (mobile), standard `.btn`, library search. |
+| 17 px | 600 | Play (`.btn.big`). |
+| 18–20 px | 650–700 | Voice letters (`.vbtn`), h1 desktop, scope readout. |
+
+Rules: **no new sizes**; **`font-variant-numeric: tabular-nums` on every live
+number** (position readout, lap counts, timers, library count) so ticking text
+never changes width; single-line truncation is `ellipsis`, never wrap, for status /
+chip / piece title.
+
+### 3.3 Spacing, radius, hit targets
+
+* Spacing steps: 2 / 4 / 6 / 8 / 10 / 12 / 14 / 16 / 20 px. Row gap 8 (10 for roomy
+  rows); page gutter 10 px mobile, 20 px ≥760.
+* Radius: 8 (inputs, small buttons), 10 (segs, menus), 12 (buttons, panels, tour
+  spot), 14–16 (cards, sheets), 999 (chips, pills). Sheets square off the
+  screen-edge side (`16 16 0 0`).
+* Hit targets: **44 px minimum**; 48 px preferred (`.btn`, `.vbtn`, library rows);
+  Play 52 px. The handle row is 26 px tall but full-width (the whole row toggles).
+  `touch-action: manipulation` on every custom control.
+* Safe areas: transport bottom padding and library head/foot include
+  `env(safe-area-inset-*)`; `--transport-h` already incorporates it — consumers of
+  the var must not double-count.
+
+### 3.4 Elevation and blur
+
+Borders first (`1px var(--line)`), shadows only for genuinely floating surfaces:
+transport `0 -8px 28px rgba(0,0,0,.5)`; report/help/menus `0 8–10px 24–30px .5–.55`;
+sheets/tour/calibrate `0 ±12–18px 40–50px .6`. Backdrop blur: 8 px transport, 4 px
+library/calibrate, 3 px sheet/diagnostics. Desktop rail is **flat** (border only) —
+it is architecture, not a floater.
+
+### 3.5 Motion
+
+| Duration | Use |
+|---|---|
+| 0.12 s | Control state (vbtn hover/active). |
+| 0.2 s | Tour spot/card glide. |
+| 0.22 s | Sheet slide-up, drawer opacity. |
+| 0.25–0.3 s | Chevron rotate, drawer max-height. |
+| 0.7 s / 1.1 s | Spinner / recording pulse (the only loops). |
+
+`:active { transform: translateY(1px) }` is the standard press. Structural motion
+(drawer, sheets) runs only on user action or at play-start (auto-collapse) — never
+mid-playback (§6). `prefers-reduced-motion` is not yet honored — Phase 3 (§11).
+
+---
+
+## §4 Information hierarchy per surface
+
+Same DOM everywhere; three CSS presentations. Breakpoints: `<760` phone,
+`760–999` tablet (roomier phone, tabs kept, content capped 820 px),
+`≥1000` desktop (two floated columns; the fenced append-only block at the end of
+`style.css`).
+
+### 4.1 Mobile (<760 px)
+
+Cold load (`asbuilt…/mobile-01-cold-load.png`) — transport starts collapsed:
 
 ```
-[ ▶ Play (flex) ] [ ■ ] [ m 12 ] [ § ] [ 🔇 S · Soprano ]
+┌──────────────────────────────────────┐
+│ ChanterLab                        (?)│  header: h1 + help menu only
+│ ┌──────────────────────────────────┐ │
+│ │ singscope (27vh in split view)   │ │  gold lane = your part
+│ │  …mic hint text (bottom edge)…   │ │
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │
+│ │ score (paper, internal scroll)   │ │
+│ │                                  │ │
+│ └──────────────────────────────────┘ │
+│         (reserved: report airspace)  │  fixed slot above transport
+├──────────────────────────────────────┤
+│ Loaded: 4 voices, 4 measures…      ⌄ │  handle row = status + chevron
+│ [ ▶ Play      ] [■] [m –] [§] [🔇 S·Soprano] │  mini-row
+└──────────────────────────────────────┘
 ```
 
-| Slot | What | Why it earns the space |
-|------|------|------------------------|
-| ▶ Play/Pause | unchanged `#play` | Only control touched every minute of every session. |
-| ■ Stop | unchanged `#stop` | Ends the lap → triggers the score report; 44px. |
-| m 12 | unchanged `#posOut` | Passive orientation; shrinks to `min-width:40px`. |
-| § | **new** `#sectionsMini`, shown only for multi-section pieces | Opens the existing `#sectionSheet`. Long services are the collection's backbone (Complete Liturgy = 22 sections / 422 measures) and section access is currently the control most at risk of clipping (§0). Hidden (`[hidden]`) for sectionless pieces — zero cost for the 4-measure hymn case. |
-| 🔇 S · Soprano | `#voiceChip`, behavior changes | **One-tap mute (#61):** tap toggles whether *your* part is audible. Multi-voice: toggles `#hearMine`'s checked state (then `applyMix()` + `updateVoiceChip()` + status repaint) so chip and checkbox can never desync — the checkbox input remains the single source of truth. Monophonic: calls the existing `setMelodyMuted(!melodyMuted)`. The 🔇/🔊 glyph flip is the state feedback; the #58-era persistent 🔇 glyph logic in `updateVoiceChip()` already does this. |
+**Always-visible set** (the mini-row, defended in v1 §2, unchanged): Play/Pause
+(flex), Stop, position readout, `§` section shortcut (**contextual** — hidden for
+sectionless pieces), voice chip (**one-tap mute**, 🔇/🔊 glyph is the state).
+Mic is deliberately NOT here (v1's hardest call, confirmed by shipping): a sixth
+item breaks the 390 px budget, and mic has three other prompts. The handle row
+(status + chevron, full-width tap target) owns expansion.
 
-**Defended exclusions:** Tempo and Loop are every-session but are *adjustments made
-while paused* — one tap away behind the handle, on the default tab. **Mic** was the
-hardest call: it is every-session and the differentiator, but a sixth mini-row item
-breaks the 390px budget (measured: Play ≥110 + 44 + 40 + 44 + ~110 + 5 gaps ≈ 390px),
-and the mic already has three other prompts (scope hint text, onboarding moment (c),
-first row of the Sound tab). If the owner overrules, the § slot is the one to trade —
-see §9-2.
+Expanded (`mobile-02…04.png`): three tabs inside the drawer — **Practice / Sound /
+More** — each pane bounded `min(46vh,420px)` and independently scrollable, so ≥50 %
+of the screen always shows scope/score. Default tab is Practice on every load; no
+persistence. Playing auto-collapses the drawer to the mini-row.
 
-What the chip tap *loses* is "open the controls" — that stays on the handle, which
-becomes a full-width status+chevron row (§6), a bigger target than today's bare chevron.
-
----
-
-## 3. Grouping: tabs inside the existing drawer
-
-**Decision: three tabs — Practice / Sound / More — inside the existing expandable
-transport.** Not a second drawer, not an accordion.
-
-Rationale, grounded in the existing mechanics:
-
-1. **The transport already is a drawer** with beloved collapse-on-Play behavior
-   (`setOverlay(false)` on play; mobile starts collapsed since #58 wave 1). A separate
-   settings overlay would create a third modal system beside the library overlay and the
-   section sheet, and would need its own dismissal/z-index/onboarding rules. The
-   existing one can carry this.
-2. **Accordion fails on evidence:** unbounded vertical stacking is exactly what produced
-   the 67px clip defect (§0). Tabs give each pane a bounded, predictable height; the
-   worst pane (Practice, 5 rows on a liturgy) fits in ~300px.
-3. **Zero new visual vocabulary:** the tab strip reuses `.seg`/`.segbtn` (already used
-   for verse/strictness/instrument/view). Gold active state = current tab.
-
-**Pane contents** (top→bottom; † = contextual row, hidden exactly as today):
+**What leaves the default view and where it goes (as-built pane map;**
+† = contextual, hidden exactly as before):
 
 | Practice (default) | Sound | More |
 |---|---|---|
-| Your voice (`.row-voice`) | Mic + Headphones mode (`.row-mic`) | Library + piece + PDF (`.row-piece`) |
-| Verse † (`#verseRow`) | Also play my part (from `.row-mic`, sync w/ chip) | Scoring strictness (`.row-strictness`) |
-| Tempo (`.row-fine` group 1) | Sound Synth/Voices (`.row-instrument`) | View (`.row-view`) |
-| Loop (`.row-fine` group 2) | Record (`.row-record`) | |
-| Section row † (`#sectionsRow`) | Rec mix † (`#recBalRow`) + hint † | |
+| Your voice (S/A/T/B or mono Playing/Muted) | Mic + Headphones mode + Also play my part | Library + current piece + PDF † |
+| Verse † | Volume (#74 F5) | Scoring strictness |
+| Tempo | Playback sync (#74) | View Split/Score/Scope |
+| Loop from–to–on | Voice response (#74) | |
+| Section row † | Calibrate wizard (disabled, hidden — see §6 V2) | |
+| | Sound Synth/Voices | |
+| | Record + timer + save chip | |
+| | Rec mix † + rec hint † | |
 
-* Pane container: `max-height: min(46vh, 420px); overflow-y: auto` — **fixes the clip
-  defect structurally**: every row is always reachable, and ≥50% of the screen always
-  shows scope/score even while expanded.
-* Tab state: default **Practice** on every load (calm default; no persistence — a
-  Sound-tab user is one tap away). Switching tabs does not resize the collapsed state;
-  the `ResizeObserver` in `initOverlay` already keeps `--transport-h` live for the
-  expanded height changes.
-* Frequency logic: everything ES that isn't mini-row-worthy landed in Practice;
-  Sound = "what do I hear / capture"; More = persisted taste settings + piece
-  meta. Library at 2 taps (expand → More → Library) is acceptable because a session
-  usually keeps one piece; if piece-hopping becomes common, promote 📚 into the tab
-  strip as a 4th action-tab (explicitly *not* chosen now — §9-5).
+Placement rule for future controls (this is how density stays dead): classify
+every new control as **ES** (every-session) / **PP** (per-piece) / **SO**
+(setup-once) / **R** (rare) — v1 §1 has the worked 35-row example. ES-while-paused
+→ Practice; hearing/capture → Sound; SO/meta → More; **nothing** joins the mini-row
+without naming which of the five items it displaces. Timing sliders (SO) sit in
+Sound rather than More as an accepted exception — they are ear-adjacent and were
+field-tuned; revisit if Sound grows past one pane-height again (§13 D4).
 
----
+### 4.2 Tablet (760–999 px)
 
-## 4. Scoring results (#60)
+The same tabbed layout with more air: 20 px gutters, 44 px buttons, pane cap
+`min(52vh,460px)`, transport content max-width 820 px centered. No layout branch.
 
-**Mobile — the strip moves to the transport's doorstep.** `#scoreReport` becomes
-`position:fixed; left:8px; right:8px; bottom:calc(var(--transport-h) + 8px)` — the same
-slot the onboarding bubble uses, directly above the controls that react to it. Content
-unchanged: totals line + ≤3 worst-spot rows. Lifecycle unchanged: appears on lap
-wrap/Stop, ✕ dismisses until next Play, next Play clears. Two additions:
+### 4.3 Desktop (≥1000 px)
 
-* `showReport()` hides the onboarding bubble if visible (only possible collision:
-  first-run moment (b) during a first mic'd loop; a report is better onboarding than the
-  bubble). Moment (c) cannot collide — a report implies the mic was used, which
-  suppresses (c).
-* When looping, the totals line appends the running best: `Lap 3: 14 hit … (78%) · best 82%`
-  (data already in `sessionLaps`/`bestLapHitPct`).
-
-**Worst-spot tap-to-loop flow** (unchanged machinery, now legible): tap a spot row →
-`loopWorstSpot()` sets loop to the ±1-measure neighborhood, parks the cursor, dismisses
-the strip → the singer is looking at the mini-row directly below → taps Play. On mobile
-the strip sits ~60px from Play, closing the loop the current top-of-page placement
-breaks.
-
-**Desktop — a rail card, not an overlay.** The report renders as a card in the right
-rail directly beneath the transport card (same DOM node; the ≥1000px media query lays it
-into the rail grid instead of fixed positioning). It never covers the score.
-
-**How much per-note detail to surface:** none in the strip. The strip stays summary +
-navigation (totals, worst spots). The rich per-note layer of #60 — coloring the
-practiced voice's noteheads on the score/scope from `lastScore().details` (hit gold,
-flat/sharp/missed distinctly), which is currently computed and thrown away — is **phase
-2 of #60**, after this restructure lands: the score itself is the right canvas for
-per-note detail, and a strip that tried to carry it would rebuild the density this spec
-removes. Console `console.table` dump stays as-is for dev.
-
----
-
-## 5. Desktop mode (#72) — ≥1000px
-
-**Two-column grid.** Left: header (one line) + singscope + score, `1fr`. Right: a
-**380px rail** — the transport, re-homed. The existing 760px media block remains as the
-tablet layer; the new block is `@media (min-width:1000px)`.
+Two floated columns (`desktop-01-cold-load.png`); floats, not grid — grid's row
+auto-placement couples row heights across columns (documented in the CSS fence):
 
 ```
-┌────────────────────────────────────────────┬──────────────────┐
-│ ChanterLab · piece title                    │ [▶ Play][■][m 12]│
-│ ┌────────────────────────────────────────┐ │ [ § ][ 🔇 S·Sop ]│
-│ │ singscope (full column width)          │ │ status line      │
-│ └────────────────────────────────────────┘ │ ── report card ──│
-│ ┌────────────────────────────────────────┐ │ ── PRACTICE ─────│
-│ │                                        │ │ voice/verse/     │
-│ │ score (fills remaining height)         │ │ tempo/loop/sects │
-│ │                                        │ │ ── SOUND ────────│
-│ │                                        │ │ mic/instrument/  │
-│ │                                        │ │ record           │
-│ └────────────────────────────────────────┘ │ ── MORE ─────────│
-└────────────────────────────────────────────┴──────────────────┘
+┌───────────────────────────────────────────┬──────────────────────┐
+│ ChanterLab                            (?) │ status line          │ ← rail = #transport,
+│ ┌───────────────────────────────────────┐ │ [▶ Play][■][m –][🔇 S]│   static, border-left,
+│ │ singscope (full column width)         │ │  ↑ mini-row: sticky  │   internal scroll
+│ └───────────────────────────────────────┘ │ ── PRACTICE ──────── │
+│ ┌───────────────────────────────────────┐ │ voice S A T B        │
+│ │ score                                 │ │ tempo ───────●────   │
+│ │ (fills remaining height)              │ │ loop [1]–[4] ☐ on    │
+│ │                                       │ │ ── SOUND ─────────── │
+│ │                                       │ │ mic · volume · sync  │
+│ │                                       │ │ record …             │
+│ │                                       │ │ ── MORE ──────────── │
+│ └───────────────────────────────────────┘ │ library · view …     │
+└───────────────────────────────────────────┴──────────────────────┘
+   1fr, 20px gutters                            380px
 ```
 
-* **Same DOM, second presentation.** The rail is `#transport` made `position:static`
-  and grid-placed. The tab strip is hidden; all three panes display stacked with small
-  caps group labels (the `.label` pattern) — desktop has the vertical room, and stacking
-  means the tab JS is mobile-only sugar, not a load-bearing dependency. Rail scrolls
-  (`overflow-y:auto`) if the window is short.
-* **Collapse behavior on desktop:** the rail never covers the score, so auto-collapse is
-  unnecessary; `.collapsed` has no effect ≥1000px (CSS ignores it; `setOverlay()` keeps
-  firing harmlessly). The *spirit* — playback shows a calm surface — is preserved
-  because the rail is calm by construction. `--transport-h` body padding zeroes out.
-* **Singscope placement: left column, above the score.** Its time axis is horizontal —
-  crushing it into a 380px rail wrecks the one visualization that makes pitch practice
-  legible; and keeping it above the score keeps the now-line vertically adjacent to the
-  gold cursor.
-* **Score height:** `fitScoreHeight()`'s vh budgets are viewport-based and stay sane in
-  a narrower column (`isNarrow()` is already container-based: `el.osmd.clientWidth <
-  560`); one contained change — at ≥1000px use the `score`-mode budget (66vh) for
-  `split` so the column fills — is the single loader.js touch (§7).
+* Rail = the same `#transport` node made static; tab strip hidden; all three panes
+  stacked with small-caps gold group labels (`.pane::before` from `data-pane`);
+  mini-row sticky at the rail's scrolled top; chevron hidden (collapse mechanics
+  are visually neutralized — `setOverlay()` still fires harmlessly).
+* Singscope stays in the left column above the score (its time axis is horizontal;
+  a 380 px rail would crush it), keeping the now-line adjacent to the gold cursor.
+* The report card lays into the rail (currently at its top — **that placement is
+  V1, the displacement violation**; Phase 1 defers the card during playback, §11).
+* PWA: manifest + committed icons, `display:standalone`, dark theme; no service
+  worker yet (offline remains a roadmap item).
 
-**Keyboard map** (new `js/keys.js`; active at all widths, advertised on desktop):
+---
 
-| Key | Action | Notes |
-|-----|--------|-------|
-| `Space` | Play/Pause (`playPause()`) | `preventDefault` (page scroll); the big three below guard against focus in `input/select/textarea/[contenteditable]` and against library/section overlays being open. |
-| `←` / `→` | Previous / next section (`jumpToSection`) | No-op for sectionless pieces (matches `#secPrev/Next` disabled logic). |
-| `V` | Cycle verse (`setVerse(activeVerse % maxVerse + 1)`) | No-op for single-verse pieces. |
-| `M` | Toggle mic (`toggleMic`) | |
-| `R` | Toggle record | |
-| `L` | Toggle loop on/off (mirrors `#loopOn` change handler) | Added: loop is the drill primitive; keyboard parity is cheap. |
-| `1–4` | Select S/A/T/B | Added: matches the vbtn row; no-op mono/absent parts. |
-| `Esc` | Close section sheet / library | Already implemented; unchanged. |
+## §5 Component inventory with states
 
-**Hover/tooltip policy:** every icon-only or abbreviated control keeps/gains `title`
-(audit: most already have one). At ≥1000px, `keys.js` appends the shortcut to the title
-(`"Play/Pause (Space)"`). No custom tooltip component — native titles, zero build cost.
+Composite widgets first, then shared primitives. "Hidden" always means
+`display:none` via `[hidden]` (see §6 V2 for the one broken case). The v1 §1
+35-row control-by-control table (ids, owner modules, frequency classes) remains
+accurate for ids/ownership; this table is the states layer on top.
 
-**PWA manifest** (`training-prototype/manifest.webmanifest` + `<link rel="manifest">`):
+| Component | States | Notes |
+|---|---|---|
+| Play `#play` | `▶ Play` / `⏸ Pause` label swap | Same geometry both states; only gold `.primary.big`. Space. |
+| Stop `#stop` | enabled (always) | Ends lap → final score → report. |
+| Position `#posOut` | idle `m –` / ticking `m N` | Passive; tabular-nums; smoke asserts exact `m –` after Stop. |
+| Voice chip `#voiceChip` | audible 🔊 / muted 🔇 × voice letter+name | Tap = one-tap mute (#61): multi-voice flips `#hearMine`; mono calls `setMelodyMuted`. Gold pill, ellipsizes ≤48 vw. |
+| `§` mini `#sectionsMini` | hidden / visible (multi-section pieces) | Opens `#sectionSheet`; gold glyph. |
+| Handle row | status text: loading (`.busy` spinner) / `Loaded: …` / `Playing — X muted…` / `Lap N: X% · best Y%` / error + Retry visible | Whole row toggles the drawer; chevron rotates 180° when collapsed; hidden ≥1000. Status is one text node (`setStatus` writes `textContent` — smoke reads it; keep it a single node). Triple-tap opens audio diagnostics. |
+| Pane strip `#paneStrip` | active tab (gold) ×3; `aria-selected` maintained | Hidden ≥1000 (panes stack). Default Practice every load. |
+| Panes ×3 | active/inactive; internal scroll when content > cap | Bounded `min(46vh,420px)` / 52vh tablet / unbounded stacked desktop. |
+| Voice picker | 4×`.vbtn` idle/hover/**active** (gold + ring) — or mono 2-seg Playing/Muted | Rebuilt per piece; keys 1–4. |
+| Verse row † | hidden / seg with active verse | Multi-verse pieces only; key V cycles. |
+| Tempo / Volume / Sync / Response sliders | value + live `<output>` in label | Gold accent; no state classes. |
+| Loop | from/to number inputs + `on` checkbox | Machine-written by section jumps and worst-spot taps; key L toggles. |
+| Mic `#micBtn` | off / **on** (cyan face) | Cyan = live-voice semantic; key M. |
+| Headphones / Also-play-my-part | checked/unchecked | `#hearMine` is the chip's source of truth — they can never desync. |
+| Record `#recBtn` | idle / **recording** (red face, pulsing dot, timer visible) / stopped (Save chip + size until next start) | Suffix `(music only)` with mic off. Key R. |
+| Rec mix row † | hidden / visible while mic on | Affects recording legs only. |
+| Instrument / Strictness / View segs | 2–3 segments, one active | Persisted (localStorage). View sets `body.view-*` classes. |
+| Library button + overlay | closed / open (search, facet chips on/off, windowed list, collapsible groups, count live region) | Full-screen modal, Esc closes, `body.lib-lock`. |
+| Section row † / sheet | row hidden/visible; prev/next disabled at ends; sheet closed/open, active item gold-tinted | Sheet is the app's calmest surface — the pattern to copy. |
+| Score report `#scoreReport` | hidden / shown: totals line (`· best N%` when looping) + ≤3 spot rows or "Clean lap" / coloring chip hidden ∨ off ∨ **on** (+ legend) | Non-modal. Fixed above transport (mobile); rail card (desktop). ✕ dismisses until next Play; next Play clears. Spot tap → loop ±1 measure, park cursor, dismiss. |
+| Per-note coloring (#79) | off (default per report) / on: noteheads tinted by verdict | Cleared on next Play / voice / verse / piece switch. |
+| Score busy overlay | hidden / spinner + phase text | Over the score box only; `aria-live=polite`. |
+| Windowed-render footer | hidden / info + Render-full / working | Inside the score box, pill. |
+| Guided tour | idle / running (spotlight ring + card; Back/Next/Skip) | `pointer-events:none` except card; `body.tour-active` gates keys.js; auto-runs first visit, never under WebDriver. |
+| Help `#helpBtn` | closed / menu open (Tour, Written guide) | `aria-expanded` maintained. |
+| Calibrate dialog | **disabled this wave** (entry row hidden — see §6 V2) | Speaker-echo redesign needed before re-enable. |
+| Audio diagnostics | hidden / open via `?audiodebug=1` or status triple-tap | Field tool; never part of the product surface. |
+| Retry `#retryStart` | hidden / visible on failed startup | Adjacent to the status text it explains. |
+| `#pieceSelect` | `.sr-only`, 5 built-in options | CI-only affordance. **Must survive every restructure** (§11 contract). |
 
-```json
-{
-  "name": "ChanterLab — Choir Practice",
-  "short_name": "ChanterLab",
-  "description": "Practice your choir part: follow the score, sing, get scored.",
-  "start_url": "./",
-  "scope": "./",
-  "display": "standalone",
-  "background_color": "#14151a",
-  "theme_color": "#14151a",
-  "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ]
-}
+---
+
+## §6 Interaction rules during singing — the calm rules
+
+`playState === 'playing'` is a contract. A singer mid-phrase is doing the hardest
+thing the app asks; the surface's job is to be furniture.
+
+**R1 — Nothing repositions.** No control may change position, size, or visibility
+while playing. This includes indirect displacement (something else appearing in
+flow). Verified mechanism today: mobile auto-collapse happens *at* Play (a
+transition into the playing state, allowed), then the surface is frozen.
+
+**R2 — Feedback is paint, not geometry.** Allowed while playing:
+  * the gold cursor advancing + the score's scroll-follow (the score box is the
+    only surface that may scroll, and only to follow the cursor);
+  * the singscope canvas (trace, now-line, readout text/color);
+  * text swaps inside fixed slots: `#posOut` digits (tabular-nums), the status
+    line (single line, ellipsis, constant height), Play's `▶/⏸` label;
+  * the voice chip's 🔇/🔊 glyph when the singer taps it;
+  * the recording pulse/timer if a recording is running (user started it).
+
+**R3 — New surfaces only at boundaries, and only if displacement-free.** The
+mobile report strip may appear at a **lap boundary** (it lives in reserved fixed
+airspace above the transport and displaces nothing). Nothing may appear over a
+control. Modals (library, sheet, calibrate) are user-opened only.
+
+**R4 — Renders are deferred.** Score re-renders triggered while playing (window
+extension, coloring) queue behind `requestRender()`'s mid-playback deferral; no
+OSMD re-layout under a moving cursor. (OSMD gotcha: `load()` resets zoom — resize
+re-render only.)
+
+**R5 — Focus stays put.** No programmatic focus moves during playback; keyboard
+shortcuts act without stealing focus from the score region.
+
+### Measured violations (as-built audit, 2026-07-11)
+
+* **V1 — Desktop rail displacement at lap wrap.** `showReport()` fires on every
+  loop lap wrap; on ≥1000 px the report card is a static float **above** the rail,
+  so when it appears mid-loop the entire rail — including sticky Play — jumps
+  **225.4 px down** (measured: `#play` top 300.0 → 525.4 px at 1400×900;
+  `desktop-02-report-card.png`). Breaks R1 in the product's headline flow
+  (mic + loop drilling). Fix in Phase 1 (§11): defer the desktop card to Stop;
+  the status line (which the rail keeps at its top) already carries
+  `Lap N: X% · best Y%` live.
+* **V2 — Ghost "Calibrate timing" row.** The wizard's entry row is `hidden` in
+  markup (wizard deliberately disabled after field-testing) but **renders on both
+  form factors** (`mobile-03-sound-pane.png`, `desktop-01-cold-load.png`): the
+  author rule `.row{display:flex}` overrides the UA `[hidden]` default, and
+  `.row-calibrate` is the one hideable row without its
+  `[hidden]{display:none}` escape hatch (`.row-verse`, `.row-sections`,
+  `.row-recbal` all have one). A dead control on the calm surface — and it opens
+  a dialog whose wizard is known-broken on speakers. One-line CSS fix, Phase 1.
+* **V3 — The status line is not a live region.** v1 called `#status` "the app's
+  single aria-live voice"; as-built it has no `aria-live` (and never did — the
+  claim was aspirational). Everything a screen-reader user needs during practice
+  (playing state, lap scores, errors) lands in this node silently. Phase 1 adds
+  `aria-live="polite"` (§9).
+
+---
+
+## §7 Scoring results surface (#60)
+
+As-built (v1 §4's design, shipped, plus #79 landing early):
+
+* **Lifecycle**: report appears on lap wrap and on Stop; ✕ dismisses until the
+  next Play; next Play hides it and clears any verdict coloring. With loop on, the
+  totals line appends `· best N%`; the status line mirrors
+  `Lap N: X% · best Y%`. Every lap also appends a practice-history entry
+  (localStorage, capped 200).
+* **Content**: one totals line (`Lap 3: 14 hit · 2 flat · 1 sharp · 3 missed of
+  20 (70%) · best 78%`) + up to 3 worst-spot rows (measure + defect counts) or
+  "Clean lap — no rough spots."
+* **Worst-spot tap → drill loop**: sets loop to the ±1-measure neighborhood, parks
+  the cursor, dismisses the strip; the singer is looking at Play, one tap from the
+  drill. This is the loop the top-of-page placement used to break.
+* **Per-note coloring (#79)**: a per-report, off-by-default "🎨 Show on score"
+  chip paints the lap's noteheads by verdict (tints §3.1) with a legend; cleared by
+  the next Play or any voice/verse/piece switch. The score is the canvas for
+  per-note detail — the strip stays summary + navigation, by design.
+
+Remaining scope for #60 (Phase 2, §11): a **session summary** at Stop for
+multi-lap sessions — the per-lap trajectory currently visible only in the console
+table / localStorage. Desktop placement inherits Phase 1's deferral (card at Stop
+only); mobile keeps lap-boundary strips (R3-compliant).
+
+---
+
+## §8 Keyboard and pointer map
+
+Active at all widths (`js/keys.js`); advertised via title suffixes only ≥1000 px
+(re-applied on breakpoint change; MutationObserver re-suffixes rebuilt
+voice/verse buttons).
+
+| Key | Action | Guarded no-op when |
+|---|---|---|
+| `Space` | Play/Pause | typing in input/select/textarea/contenteditable; library or section sheet open; tour running; any ⌘/Ctrl/Alt chord; key auto-repeat |
+| `←` / `→` | Prev / next section | section nav disabled (sectionless piece) + guards above |
+| `V` | Cycle verse | single-verse piece |
+| `M` | Toggle mic | (guards above) |
+| `R` | Toggle record | (guards above) |
+| `L` | Toggle loop on/off | (guards above) |
+| `1–4` | Select S/A/T/B | monophonic piece (no `.vbtn`s) |
+| `Esc` | Close library / sheet / tour / calibrate | owned by each overlay, not keys.js |
+
+Pointer policy: native `title` tooltips everywhere (no tooltip component);
+`:hover` affordances are color/border only — geometry never changes on hover.
+Every shortcut drives the same element/exported function the touch path uses, so
+disabled/hidden logic is inherited, never re-implemented.
+
+---
+
+## §9 Accessibility
+
+As-built inventory (audited 2026-07-11) and the gaps, phased in §11.
+
+**In place:**
+* Live regions: `#scoreBusy`, `#scoreReport`, `#libCount`, `#tour` (`polite`);
+  `#recTime`, `#audioDebug` explicitly `off`.
+* State attributes maintained by JS: `aria-expanded` (handle, help),
+  `aria-selected` (pane strip), `aria-pressed` (record, coloring chip),
+  `aria-controls` (handle→panes, § buttons→sheet, library button→overlay).
+* Dialog semantics on library / sheet / calibrate (`role=dialog`,
+  `aria-modal=true`, Esc, scrim, body scroll lock); the tour is deliberately
+  non-modal (`aria-modal=false`, spotlighted control stays usable).
+* Hit targets §3.3; `aria-label` on icon-only controls (Stop is `title`-only —
+  Phase 3 sweep); `.sr-only` keeps the CI select accessible-but-invisible.
+* Live numbers are tabular; status/report text single-line stable (no reflow for
+  screen magnifiers).
+
+**Gaps (fix phase in brackets):**
+1. `#status` lacks `aria-live="polite"` — §6 V3. **[P1]**
+2. `role=tab` without tab keyboard semantics: pane strip and the seg pickers
+   (voice-mono/verse/strictness/instrument/view) declare `role=tab`, but only the
+   pane strip maintains `aria-selected`, and none implement roving
+   tabindex/arrow-keys. Recommendation: pane strip gets real tab semantics
+   (arrows + roving tabindex); seg pickers drop `role=tab` for
+   `role=radiogroup`/`aria-checked` (they are exclusive choices, not tab panels).
+   **[P3]**
+3. No `:focus-visible` styling — custom buttons ride UA defaults, near-invisible
+   on the dark theme; `#libSearch` swaps border-color instead of a ring. Add a
+   token ring: `outline:2px solid var(--gold-soft); outline-offset:2px`. **[P3]**
+4. No `prefers-reduced-motion` handling — disable tour glide, sheet slide,
+   chevron spin, recording pulse (keep opacity change); spinners may stay. **[P3]**
+5. Contrast: dark theme is broadly high-contrast (`--ink` ≈ 13:1, `--sub` ≈ 7:1 on
+   `--bg`); verify with tooling the marginal pairs — `--sub` on `#20232c` button
+   faces, `--gold-soft` on `--panel`, 10 px uppercase labels (size, not ratio, is
+   the risk), cyan-on-paper if verdict tints ever move onto the score paper
+   (flat `#2f7fc4` on `#fbfbf7` is the one to measure). **[P3]**
+6. Emoji inside accessible names ("🎤 Mic", "⏺ Record", "𝄞 PDF") — screen readers
+   announce the emoji; sweep to `aria-hidden` spans or plain labels. **[P3]**
+
+---
+
+## §10 As-built drift ledger (v1 → shipped)
+
+What shipped versus what v1 drew. Everything not listed shipped as specced.
+
+| v1 § | Drawn | Shipped | Verdict |
+|---|---|---|---|
+| §2 mini-row | Play ■ pos § chip | identical | ✅ as specced (B1) |
+| §3 tabs-in-drawer | 3 tabs, bounded panes | identical; pane cap + tablet 52vh | ✅ as specced (B1) |
+| §4 report | fixed above transport; coloring "deferred to #60 phase 2" | placement as specced; **coloring arrived early as #79** (in-strip chip + legend) | ✅ + early |
+| §5 desktop | CSS **grid** `1fr 380px` | **floats** (grid couples row heights across columns; documented in the CSS fence); mini-row additionally **sticky** at rail top | ⚠ amended, better |
+| §5 keyboard | Space ←→ V M R + L, 1–4 | identical, plus tour/overlay guards | ✅ as specced (B2) |
+| §5 PWA | manifest + icons, no SW | identical | ✅ as specced (B2) |
+| §6 onboarding | keep 3-moment coach bubbles, reword moment (b) | **replaced whole-cloth by the guided tour** (`tour.js`: spotlight + card, replayable from the ? help menu, written guide page) — bubble copy problem mooted | ⚠ superseded |
+| §6 status relocation | status into handle row | identical (+ #74 triple-tap diagnostics gesture) | ✅ as specced (B1) |
+| §7.1 map | 12-file change map | executed; `onboarding.js` never existed (tour.js instead) | ✅ |
+| §9 deletions | tagline, footer, micNote; h1 "ChanterLab" alone | all executed | ✅ |
+
+**Post-B additions the surface absorbed** (not in v1; all pane-placed, mini-row
+untouched — the placement rules held): ? help menu (header); Volume slider
+(#74 F5); Playback-sync + Voice-response sliders with field-tuned defaults;
+calibrate wizard (built, then disabled — §6 V2); audio diagnostics overlay
+(`?audiodebug=1`); WASM detector default; library tone/key metadata (#76/#85) and
+hymn-type facet.
+
+---
+
+## §11 Forward plan — phases mapping to reviewable PRs
+
+One phase = one PR to `main`, sequential (they share `style.css`/`scoring-ui.js`).
+Every phase inherits the MUST-NOT-BREAK contract (below) and — per
+`docs/plans/40-practice-audio/ORCHESTRATOR.md` — user-facing practice changes get
+an owner/singer field check before the issue closes.
+
+### MUST-NOT-BREAK contract (all phases; v1 §7.2, still exact)
+
+1. `window.__training` / `window.__library` hooks keep their method shapes.
+2. `#status` stays one text node `setStatus` writes via `textContent`; readiness
+   is `/^Loaded:/`. (Adding attributes is safe; nesting child elements is not.)
+3. `#pieceSelect` stays present, `.sr-only`, populated with the 5 built-in ids,
+   actionable by Playwright `selectOption`.
+4. `#play`/`#stop` remain clickable buttons driving `playState`; `#posOut` reads
+   exactly `m –` after Stop.
+5. Zero-unexpected-404 budget (only `omr/out/ingest/manifest.json` is
+   allow-listed); no new console/page errors.
+6. `--transport-h` keeps tracking `#transport` (ResizeObserver), and
+   `setOverlay()` semantics are untouched.
+
+### Phase 1 — calm-compliance fixes (S; closes the §6 violations)
+
+Four changes, each traceable to a measured defect. No visual redesign.
+
+1. **Defer the desktop report card during playback** (V1).
+   `js/scoring-ui.js`, in `showReport(entry)` — first line, before any DOM writes:
+
+   ```js
+   // Calm rule R1 (spec §6): on desktop the card is a static float above the
+   // rail — appearing mid-loop shoves Play down 225px. The rail's status line
+   // already carries "Lap N: X% · best Y%" live; the card waits for Stop.
+   if (playState === 'playing'
+       && window.matchMedia('(min-width:1000px)').matches) return;
+   ```
+
+   `playState` is already imported from `./transport.js`. No stashing needed:
+   `stop()` → `finalizeScoringOnStop()` → `scoreCurrentLap()` → `showReport()`
+   shows the final lap's card at Stop; per-lap details stay in
+   `sessionLaps`/practice history. Mobile behavior unchanged (R3 allows it).
+2. **Hide the disabled calibrate row** (V2). `style.css`, next to the
+   `.row-verse[hidden]` rule:
+
+   ```css
+   .row-calibrate[hidden]{display:none}
+   ```
+
+   And adopt the standing rule (add as a comment beside it): any element that can
+   carry `hidden` while an author rule sets its `display` ships its
+   `[hidden]{display:none}` escape hatch in the same change.
+3. **Make the status line audible** (V3). `index.html`:
+   `<span id="status" class="status" aria-live="polite">Loading…</span>`.
+   `setStatus` writes `textContent`, which live regions announce; smoke's
+   `/^Loaded:/` read is unaffected.
+4. **Regression assertions**, `tests/smoke.mjs` (both are one-line `evaluate`s
+   against the already-loaded page):
+   * `getComputedStyle(document.querySelector('.row-calibrate')).display === 'none'`;
+   * `document.getElementById('status').getAttribute('aria-live') === 'polite'`.
+
+   The deferral itself needs live scored audio, which headless CI cannot produce
+   — it is covered by the singer checkpoint: loop 2+ laps with mic on at ≥1000 px
+   wide and confirm Play never moves; card appears on Stop.
+
+**Acceptance**: smoke green incl. the two new assertions; the 2026-07-11 gallery
+shots re-taken show no calibrate row and (desktop, simulated report) an
+undisplaced rail; contract items 1–6 intact.
+
+### Phase 2 — #60 close-out: session summary at Stop (M)
+
+For sessions with ≥2 scored laps, the Stop-time report gains a lap-trajectory
+block between the totals line and the worst spots (data already in
+`sessionLaps`; render max last 5, oldest first):
+
+```
+│ Lap 5: 17 hit · 1 flat · 2 missed of 20 (85%) · best 85%   ✕ │
+│ 🎨 Show on score                                             │
+│   lap 1 ▹ 60%   lap 2 ▹ 70%   lap 3 ▹ 70%   lap 4 ▹ 80%     │
+│   lap 5 ▹ 85% ★best                                          │
+│ [ m 12   2 missed · 1 flat ]                                 │
+│ [ m 7    1 missed          ]                                 │
 ```
 
-Icons: committed static PNGs (no build step) — dark `#14151a` rounded square, gold
-`#d4af37` treble-clef/"CL" monogram; maskable variant with 20% safe-zone padding. Plus
-`<meta name="theme-color" content="#14151a">` and a 180px `apple-touch-icon` for iOS.
-**No service worker in this wave** — manifest-only is installable on Chromium (windowed
-"desktop program", exactly what the tester asked for) and home-screen-able on iOS;
-offline remains the roadmap item. CI note: the manifest and every icon it references
-must exist in the commit that links them, or the smoke test's zero-unexpected-404 budget
-fails (§7).
+Plain text rows in the existing 12 px report vocabulary — no chart, no new
+colors; ★ marks the best lap. Single-lap sessions render exactly as today.
+Worst spots stay those of the final lap (owner may prefer best-lap — §13 D2).
+Files: `js/scoring-ui.js` (render block), `style.css` (one `.report-laps` row
+style), smoke untouched. Closes #60 (the panel design absorbed here; per-note
+coloring already shipped as #79).
+
+### Phase 3 — accessibility & motion hardening (M)
+
+§9 gaps 2–6 as one sweep: pane-strip arrow keys + roving tabindex; seg pickers
+`role=tab`→`radiogroup`; `:focus-visible` gold-soft ring token;
+`prefers-reduced-motion` block; tooled contrast pass on the §9-5 pairs (fix any
+AA misses by nudging within the token family); emoji-in-name sweep. Pure
+additive CSS/attribute work plus one keydown handler on `#paneStrip`; no layout
+changes, so it can run parallel to 40-lane audio work if the collision rules are
+respected (it owns `index.html`/`style.css` for its window).
+
+**Explicit non-goals** (owner direction 2026-07: the training app is the
+product): no visual rebrand, no build step, no component framework, no service
+worker in these phases, no rail-width or breakpoint changes.
 
 ---
 
-## 6. Onboarding + status line
+## §12 Evidence galleries and mockups
 
-**Status line** (`#status`, the app's one aria-live region, smoke-test-read): moves into
-the transport's handle row — `[ status text (flex) ] [ ⌄ ]` — so "Lap 3: 78% · best
-82%", "Playing — Soprano muted", and load progress appear next to the controls that
-caused them, on both form factors (on desktop the handle row is the rail's status row;
-the chevron hides ≥1000px). The `busy` spinner class and `setStatus()` semantics are
-untouched; it's a relocation of the same node. The header keeps only the h1 (one line).
-`#retryStart` moves adjacent (same failure surface, now next to the status text it
-explains).
+| Artifact | What it shows |
+|---|---|
+| `docs/design/current/*.png` (29 shots, 2026-07-04) | The pre-implementation baseline: 12-row transport, clipped Sections row, stretched-phone desktop, top-of-page report. Historical — do not re-shoot into this directory. |
+| `docs/design/asbuilt-2026-07-11/*.png` (9 shots) | The shipped surface: mobile cold-load/three panes/playing/report; desktop cold-load/report-card/playing. **Note:** the report content in `mobile-06`/`desktop-02` is representative sample data injected into the real component (a scored lap needs live singing, which headless capture cannot produce); geometry and styling are real. `desktop-02` is the V1 displacement evidence. |
+| `docs/design/mockup-mobile-collapsed.html`, `mockup-mobile-expanded.html`, `mockup-mobile-scoring-report.html`, `mockup-desktop.html` | v1's annotated intent mockups (self-contained, real tokens). Superseded by the implementation for geometry; still the best statement of intent-with-rationale callouts. |
 
-**Onboarding** (three moments, `onboarding.js`) survives structurally — both anchors
-(`el.play`, `el.voiceChip`) remain on the always-visible mini-row, and the bubble's
-`bottom: calc(var(--transport-h) + 10px)` contract still holds on mobile. Changes:
-
-* **Moment (b) copy must change** — it currently says "Pick a different part **here**"
-  anchored at the chip, but the chip's tap becomes mute-toggle. New copy:
-  `"Your part is muted — you sing it. Tap the chip to hear it; pick parts under ⌄."`
-  (anchor unchanged).
-* Desktop override: `.onboard-hint { bottom: 24px }` at ≥1000px (the rail isn't
-  height-tracked); `positionHint()`'s left-clamp already handles rail-anchored elements.
-* `showReport()` hides the bubble (§4).
+Screenshot policy: built-in public pieces only (`control_satb` etc.); never the
+private corpus.
 
 ---
 
-## 7. Implementation map (wave B)
+## §13 Decision log
 
-### 7.1 What changes where
+v1 §9 put eleven decisions to the owner; shipping wave B confirmed them. Ledger:
 
-| File | Change | Nature |
-|------|--------|--------|
-| `index.html` | Transport region: add `#sectionsMini` to `.mini-row`; handle row becomes status+chevron; wrap existing `.row-*` rows into three pane divs `#panePractice #paneSound #paneMore` under a `.pane-strip` of three `.segbtn`s (**move nodes, rename nothing** — every existing id keeps working, `el` map untouched for existing entries); move `#scoreReport` markup adjacent to `#transport`; delete `.sub`, `.app-foot`, `#micNote` (§9); head: manifest link + theme-color meta + apple-touch-icon. | Structural |
-| `style.css` | Pane styles (`.pane`, active state, `max-height:min(46vh,420px); overflow-y:auto`); report strip fixed positioning (mobile); handle-row layout; delete `.sub`/`.app-foot`/`.mic-note` standing rules; **new fenced `@media (min-width:1000px)` block**: body grid `1fr 380px`, rail (`#transport` static), stacked panes + hidden strip, report-as-card, scope/score column, `.onboard-hint{bottom:24px}`. | Mostly pure CSS; the ≥1000px layer is CSS-only by design |
-| `js/state.js` | Add `el.sectionsMini`, `el.paneStrip`, `el.panePractice/Sound/More`. | Additive |
-| `js/transport.js` | `initOverlay()`: remove the chip→`setOverlay(true)` binding (moves to voices.js); add pane-strip switching (3 lines: toggle `.active` on strip buttons + panes); handle-row click target update. Collapse/auto-collapse logic **unchanged**. | Small |
-| `js/voices.js` | Chip one-tap mute: multi-voice → flip `el.hearMine.checked` + fire its change path (`applyMix`, `updateVoiceChip`, status repaint); mono → `setMelodyMuted(!melodyMuted)`. | Small |
-| `js/sections.js` | Wire `#sectionsMini` → open sheet; show/hide it in `updateSectionsUI()` alongside `#sectionsRow`. | Small |
-| `js/scoring-ui.js` | `showReport()` hides onboarding bubble; totals line appends `· best N%` when looping. | Small |
-| `js/onboarding.js` | Moment (b) copy string only. | Copy |
-| `js/keys.js` | **New**: keyboard map + desktop title-suffix pass (§5). Imported+init'd from main.js. | New file |
-| `js/main.js` | Import/init keys.js. Everything else (incl. all `window.__training`/`__library` hooks) untouched. | Minimal |
-| `js/loader.js` | One contained change in `fitScoreHeight()`: ≥1000px, treat `split` with the 66vh budget. **No other loader edits.** | One-liner |
-| `manifest.webmanifest`, `icons/*` | New static files. | New files |
+| # | Decision (v1) | Outcome |
+|---|---|---|
+| 1 | Tabs-in-drawer over settings-drawer/accordion | ✅ shipped |
+| 2 | Mini-row = Play ■ pos § chip; mic excluded | ✅ shipped, held through 5 later features |
+| 3 | Chip tap = one-tap mute; handle row owns expansion | ✅ shipped |
+| 4 | Tab names Practice / Sound / More | ✅ shipped |
+| 5 | Library lives in More (2 taps) | ✅ shipped; no piece-hopping complaints on record |
+| 6 | Desktop right rail 380 px; scope stays left | ✅ shipped (floats amendment, §10) |
+| 7 | Report above transport / rail card; coloring deferred | ✅ shipped; coloring early via #79 |
+| 8 | Delete tagline, footer, micNote | ✅ shipped |
+| 9 | h1 → "ChanterLab" alone | ✅ shipped |
+| 10 | Keyboard extras L, 1–4 | ✅ shipped |
+| 11 | PWA manifest-only, no SW | ✅ shipped |
 
-Untouched: `library.js`, `recording.js`, `model.js`, `scoring.js`, `scope.js`, tests.
+**Open decisions for the owner (v2):**
 
-### 7.2 MUST NOT break — explicit contract
-
-`tests/smoke.mjs` DOM/hook dependencies (verified by reading the test):
-
-1. `window.__training` and `window.__library` exist with their current method shapes
-   (`playState`, `parsed`, `audioContextState`, `__library.select`, …) — main.js hooks
-   untouched.
-2. `#status` exists and `setStatus` writes its `textContent`; readiness is
-   `/^Loaded:/.test(#status.textContent)`. Relocating the node is safe; renaming/nesting
-   its text into child elements is **not** (setStatus uses `textContent`, keep it a
-   single text node).
-3. `#pieceSelect` remains present, `.sr-only`, populated with the 5 built-in option
-   values (`control`, `trisagion_v`, `cherubic_v`, `anaphora_v`, `trisagion`), and its
-   `change` listener still loads pieces (Playwright `selectOption`).
-4. `#play` and `#stop` remain clickable buttons driving `playState`
-   `'playing'`/`'stopped'`.
-5. `#posOut` textContent advances during play and reads exactly `"m –"` after Stop.
-6. **Zero-unexpected-404 error budget**: the only allow-listed failing fetch is
-   `omr/out/ingest/manifest.json`. Therefore `manifest.webmanifest` and every icon it
-   names must be committed in the same change that links them, and no other new fetch
-   may 404.
-7. Console/page-error budget: no new console errors (e.g. from keys.js touching missing
-   elements — guard every `el.*` access as the codebase already does).
-
-App-internal contracts to preserve: `--transport-h` (body padding + onboarding bubble +
-report strip all key off it; the `ResizeObserver` in `initOverlay` must keep observing
-`#transport`); `setOverlay()` semantics (auto-collapse on play, expand on pause/stop);
-view-mode body classes (`view-split|score|scope`); `el` map ids; the mono
-Playing/Muted seg being built inside `#voicePicker`.
-
-### 7.3 Two-agent split (parallel)
-
-* **Agent B1 — mobile surface** (the structural half): index.html *body*, style.css
-  base+tablet sections, transport.js, voices.js, sections.js, scoring-ui.js,
-  onboarding.js, state.js. Verifies on 390×844 (re-run the §0 clip measurement — must be
-  zero clip in every state — plus the full before-gallery script).
-* **Agent B2 — desktop shell** (the additive half): the fenced ≥1000px style.css block
-  (**append-only**), `js/keys.js` (new), index.html *head* only, manifest + icons (new
-  files), the loader.js one-liner. Verifies on 1400×900 + smoke test (manifest 404
-  check) + keyboard walkthrough.
-* **Seam discipline:** B2 never edits inside `<body>`'s transport markup or existing CSS
-  blocks; B1 never touches `<head>`, new files, or loader.js. Land B1 first; B2 rebases
-  (its surfaces can't conflict if discipline holds).
-
-### 7.4 Risks
-
-1. **style.css shared file** — mitigated by B2's append-only fenced block; still the
-   likeliest merge friction. Land sequentially.
-2. **`--transport-h` feedback loop**: pane switching changes expanded height; the
-   ResizeObserver updates the var; the report strip and onboarding bubble ride it.
-   Test: expand each tab with the report visible; bubble/strip must never overlap the
-   transport.
-3. **Chip behavior change** is the only *removed* affordance (chip-tap-expand). Risk:
-   muscle memory of existing testers. Mitigations: handle row is now full-width; moment
-   (b) copy teaches the new tap; #58's persistent 🔇 glyph gains a live toggle meaning.
-4. **Breakpoint crossing** (resize across 1000px): OSMD re-render via the existing
-   debounced resize handler; verify no zoom reset (OSMD gotcha: `load()` resets zoom —
-   resize path only re-renders, safe, but verify).
-5. **CI 404 budget** with the new manifest/icons (§7.2-6) — the classic silent-fail.
-6. **Keyboard shortcuts vs. inputs**: `Space` in `#libSearch` must type a space —
-   guard on `e.target` tag + overlay-open state.
-7. **`fitScoreHeight` one-liner**: gate strictly on `min-width:1000px` matchMedia so
-   mobile budgets are untouched.
-8. **iOS safe-area**: the relocated report strip must include
-   `env(safe-area-inset-bottom)` awareness only via `--transport-h` (it already
-   incorporates the padding) — don't double-count.
-
----
-
-## 8. Mockups
-
-| File | Shows |
-|------|-------|
-| `mockup-mobile-collapsed.html` | New mini-row (Play/■/pos/§/chip-mute), status-in-handle, playing state calm surface. |
-| `mockup-mobile-expanded.html` | The drawer with Practice/Sound/More tabs (tab switching works in the mockup), bounded pane height, score still visible above. |
-| `mockup-mobile-scoring-report.html` | Post-lap report strip in its new slot above the transport; worst-spot → loop flow annotated. |
-| `mockup-desktop.html` | 1400px two-column: scope+score left, 380px rail right with transport card, report card, stacked groups; keyboard map legend. |
-
-All are self-contained HTML with the app's real tokens (`#14151a` bg, `#1e2027` panel,
-`#d4af37` gold, `#e7c96b` gold-soft, `#2c2f38` line, `#9aa0a6` sub, `#4dd7ff` cyan) and
-numbered annotation callouts.
-
----
-
-## 9. Decisions for the owner (confirm or veto)
-
-1. **Tabs-in-drawer** (Practice/Sound/More inside the existing transport) over a
-   separate settings drawer or accordion. (§3)
-2. **Mini-row set**: Play, Stop, position, § sections (contextual), voice chip. **Mic is
-   NOT on the mini-row** — the deliberate hard call; trade § for 🎤 if you disagree. (§2)
-3. **Chip tap = one-tap mute** (#61), losing chip-tap-to-expand (handle row takes over
-   expansion). (§2)
-4. **Tab names**: "Practice / Sound / More" (backlog suggested "Advanced"; "More" is
-   honest — nothing in it is advanced). (§3)
-5. **Library lives in More** (2 taps) rather than in the tab strip or mini-row. (§3)
-6. **Desktop rail on the RIGHT at 380px**; singscope stays in the left column above the
-   score, not in the rail. (§5)
-7. **Report strip placement**: floating above the transport on mobile, rail card on
-   desktop; **per-note score coloring deferred** to #60 phase 2 (on the score itself,
-   not the strip). (§4)
-8. **Deletions** (outright, this wave):
-   * the header sub-paragraph ("Pick your voice — it turns gold…") — redundant with
-     the shipped #64 onboarding; costs ~60px above the fold every session;
-   * the `.app-foot` "Prototype only — see docs/…" footer — dev pointer (belongs in the
-     README); attribution duty is already met by the library's About & licensing link +
-     the per-piece attribution line (#47);
-   * the standing `#micNote` paragraph — its content moves into the headphones
-     checkbox's `title` and the status messages `onHeadphonesToggle` already emits.
-9. **"SATB prototype" tag + h1**: propose shrinking to `ChanterLab` alone (piece title
-   is the real headline). Soft call — ties into #62's branding decision; veto freely.
-10. **Keyboard map additions** beyond #72's list: `L` (loop toggle) and `1–4` (voice
-    select). (§5)
-11. **PWA scope**: manifest + icons only, `display:standalone`, dark theme-color; no
-    service worker this wave. (§5)
+* **D1 — Desktop report deferral (Phase 1-1).** Recommended: card waits for Stop;
+  status line carries per-lap totals live. Alternative (rejected: permanent
+  ~220 px dead rail space): always-reserved card slot. Veto before Phase 1 lands.
+* **D2 — Phase 2 worst spots: final lap (default) or best lap?**
+* **D3 — Calibrate wizard row**: Phase 1 hides it (honoring the existing `hidden`
+  intent). When the wizard's speaker-echo redesign happens, its row returns to
+  Sound below the timing sliders — no spec change needed.
+* **D4 — Sound-pane growth**: the timing sliders (setup-once) sit in Sound as an
+  ear-adjacency exception. If Sound outgrows one pane-height on a 390×844 phone
+  again, the agreed relief valve is moving Playback sync / Voice response to More
+  — flagged here so it's a decision, not a drift.
