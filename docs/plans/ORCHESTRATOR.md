@@ -6,7 +6,8 @@ catalog release, `rel-20260711T155237Z-a3fdb875e54f`, was then promoted after
 separate owner production approval. `TRUST-02` confidence instrumentation was
 then completed and corpus-verified without a catalog promotion. `TRUST-03`
 golden fixtures subsequently made the public/private evidence boundary
-machine-verifiable.
+machine-verifiable. `TRUST-04` audit tooling and a release-bound private sample
+are staged, but no human accuracy result has been claimed.
 
 Objective: execute `docs/APP-ROADMAP-2026.md` as independently reviewable
 workstreams while keeping the live practice app and catalog safe.
@@ -55,7 +56,8 @@ only with disjoint files.
 
 Atomic releases, the quality-ledger implementation, the first ledger-bearing
 promotion, confidence instrumentation, and golden fixtures are complete.
-Human-audit tooling may now proceed under the approved ledger vocabulary.
+Human-audit tooling is implemented under the approved ledger vocabulary; its
+staged source comparisons still require human reviewers.
 
 ### Wave 3: Close The User Feedback Loop
 
