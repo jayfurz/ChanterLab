@@ -3,7 +3,7 @@
  *
  * SHARED MUTABLE-STATE OWNERSHIP (one writer per field; everyone else imports
  * it read-only via ESM live bindings). Edit a field only in its owner module:
- *   model.js     : parsed
+ *   model.js     : parsed, transposeSemitones
  *   loader.js    : osmd, osmdSteps, windowed, sourceMeasureCount,
  *                  renderFromIdx, renderToIdx, printedFirst/Last, lastPrinted,
  *                  extending, renderDeferred, viewMode, loadToken, currentPieceId
@@ -120,6 +120,9 @@ export const el = {
     voicePicker: document.getElementById('voicePicker'),
     bpm: document.getElementById('bpm'),
     bpmOut: document.getElementById('bpmOut'),
+    transposeDown: document.getElementById('transposeDown'),
+    transposeUp: document.getElementById('transposeUp'),
+    transposeOut: document.getElementById('transposeOut'),
     play: document.getElementById('play'),
     stop: document.getElementById('stop'),
     loopFrom: document.getElementById('loopFrom'),

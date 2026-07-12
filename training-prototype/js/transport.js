@@ -2,7 +2,7 @@
  * and the Play/Pause/Stop + transport-overlay state machine.
  */
 import { el, setStatus, GOLD, VOICE_DEFS, INSTRUMENT_KEY, VOLUME_KEY } from './state.js';
-import { parsed, clampMeasure, measureBeatRange, isMonophonic } from './model.js';
+import { parsed, clampMeasure, measureBeatRange, isMonophonic, transposeSemitones } from './model.js';
 import { osmd, osmdSteps, ensureRenderWindow, flushDeferredRender } from './loader.js';
 import { selectedVoice, melodyMuted, buildScopeLane, toggleChipMute } from './voices.js';
 import { beginScoringSession, scoreLapAndRoll, finalizeScoringOnStop, scoreSummaryShown } from './scoring-ui.js';
@@ -1008,7 +1008,7 @@ export async function captureOfflineAB(fromMeasure, toMeasure, bpmValue) {
     const notesByPart = parsed.parts.map((part) => part.notes
       .filter((n) => n.startBeat >= range.start - 1e-6 && n.startBeat < range.end - 1e-6)
       .map((n) => ({
-        freq: midiToFreq(n.midi),
+        freq: midiToFreq(n.midi + transposeSemitones),
         t: (n.startBeat - range.start) * spb,
         dur: Math.max(0.05, n.durBeat * spb * 0.95),
       })));
@@ -1104,7 +1104,7 @@ export function applyMix() {
         const t = (n.startBeat - winStart) * spb;
         const dur = Math.max(0.05, n.durBeat * spb * 0.95);
         const id = Tone.Transport.schedule((time) => {
-          instruments[idx].triggerAttackRelease(midiToFreq(n.midi), dur, time);
+          instruments[idx].triggerAttackRelease(midiToFreq(n.midi + transposeSemitones), dur, time);
         }, t);
         scheduledIds.push(id);
       });

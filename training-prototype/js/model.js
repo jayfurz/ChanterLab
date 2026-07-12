@@ -6,6 +6,21 @@ import { VOICE_DEFS } from './state.js';
 export let parsed = null;   // { parts:[{voiceKey,voiceName,index,notes}], measureCount, maxVerse }
 export function setParsed(p) { parsed = p; return p; }
 
+  // Practice transpose, in semitones (issue: practice keys). Consumers add it
+  // wherever a note's midi LEAVES the model — playback scheduling, the scope
+  // lane, lap-scoring targets, the section-check timeline — so sound and every
+  // sung-pitch comparison shift together. The PRINTED notation is deliberately
+  // untouched: choirs read the page as engraved and sing the announced shift,
+  // and re-spelling the engraving would desync it from the physical copies.
+  // Reset to 0 on every piece load (loader.loadScore) — a shift chosen for one
+  // piece's range means nothing in the next piece's key.
+export let transposeSemitones = 0;
+export function setTransposeSemitones(n) {
+    n = Math.round(Number(n) || 0);
+    transposeSemitones = Math.max(-12, Math.min(12, n));
+    return transposeSemitones;
+  }
+
   /* ---------- MusicXML parsing ---------------------------------------- */
 
   const STEP_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };

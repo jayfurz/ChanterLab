@@ -4,7 +4,7 @@
  * classic scripts (OSMD, Tone, scoring.js, scope.js) have defined their globals.
  */
 import { el, setStatus, PIECES, PRACTICE_HISTORY_KEY } from './state.js';
-import { parsed } from './model.js';
+import { parsed, transposeSemitones, setTransposeSemitones } from './model.js';
 import {
   osmd, osmdSteps, viewMode, windowed, sourceMeasureCount, renderFromIdx, renderToIdx,
   lastPrinted, loadPieceById, loadStartingPiece, resolvePieceId, setView,
@@ -48,6 +48,23 @@ import { initKeys } from './keys.js';
 let resizeTimer = 0;
 let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
 
+  // Practice transpose: set the absolute value and propagate everywhere a
+  // change matters — same live-change contract as the tempo slider (rebuild
+  // the lane, re-sync verdict tints, restart mid-play so the schedule picks
+  // up the new pitches). Shared by the ± buttons and the __training hook.
+  const fmtTranspose = (n) => (n > 0 ? `+${n}` : String(n));
+  function applyTranspose(value) {
+    const v = setTransposeSemitones(value);
+    if (el.transposeOut) el.transposeOut.textContent = fmtTranspose(v);
+    buildScopeLane();
+    syncScopeVerdicts();
+    if (playState === 'playing') { stop(); startPlayback(); }
+    else if (playState === 'paused') stop();
+    setStatus(v === 0 ? 'Transpose off — original key.'
+      : `Transposed ${fmtTranspose(v)} semitone${Math.abs(v) === 1 ? '' : 's'} — the score shows the original key.`);
+    return v;
+  }
+
   /* ---------- Wire-up ------------------------------------------------- */
 
   function initControls() {
@@ -65,6 +82,8 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
       if (playState === 'playing') { stop(); startPlayback(); }
       else if (playState === 'paused') stop();
     });
+    if (el.transposeDown) el.transposeDown.addEventListener('click', () => applyTranspose(transposeSemitones - 1));
+    if (el.transposeUp) el.transposeUp.addEventListener('click', () => applyTranspose(transposeSemitones + 1));
     el.play.addEventListener('click', playPause);
     el.stop.addEventListener('click', stop);
     if (el.retryStart) el.retryStart.addEventListener('click', loadStartingPiece);
@@ -1020,6 +1039,15 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // no audio device needed) and returns base64 16-bit PCM for each side.
     // The app itself never calls this.
     captureOfflineAB: (fromMeasure, toMeasure, bpm) => captureOfflineAB(fromMeasure, toMeasure, bpm),
+    // --- practice transpose (semitones) ---
+    // transpose(): the current shift; setTranspose(n): drives the SAME path
+    // as the ± buttons (clamp, lane rebuild, mid-play restart) so a headless
+    // test exercises the real propagation, not just the state variable.
+    // scoreTargets(): the loop window's scoring targets as the scorer will
+    // see them — lets a test assert the midi shift lands in scoring.
+    transpose: () => transposeSemitones,
+    setTranspose: (n) => applyTranspose(n),
+    scoreTargets: () => buildScoreTargets(),
     // Test-only pitch injection: headless checks (and any dev box without a
     // real mic) have no way to drive TrainingScope's actual pitch detector,
     // so this pushes straight into the CURRENT lap's sample buffer exactly as

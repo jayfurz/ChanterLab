@@ -150,6 +150,20 @@
         </span>
       </div>
 
+      <!-- Practice transpose (±12 semitones): playback and every sung-pitch
+           target (singscope lane, lap scoring, section check) shift together;
+           the printed score stays in the original key — singers read the page
+           as engraved and sing the announced shift. Resets per piece. -->
+      <div class="row row-transpose">
+        <span class="group">
+          <span class="label">Transpose <output id="transposeOut">0</output> st</span>
+          <button id="transposeDown" class="btn-sec-nav" type="button"
+                  title="Down a semitone" aria-label="Transpose down one semitone">−</button>
+          <button id="transposeUp" class="btn-sec-nav" type="button"
+                  title="Up a semitone" aria-label="Transpose up one semitone">+</button>
+        </span>
+      </div>
+
       <!-- Jump-to-section controls. Shown only for multi-section pieces (services
            with ≥2 named sections). The button opens a bottom-sheet list; the
            chevrons step section-by-section. -->
