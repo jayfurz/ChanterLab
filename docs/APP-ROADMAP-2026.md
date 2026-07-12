@@ -9,7 +9,8 @@ all production hostnames. `TRUST-02` confidence signals were subsequently
 implemented and corpus-verified without changing catalog status or MusicXML;
 they have not been promoted in a catalog release. `TRUST-03` then completed
 the rights-safe/private golden-fixture matrix and unblocked the human-audit
-workstream.
+workstream. `TRUST-04` tooling and a release-bound 48-piece audit sample are
+staged; accuracy results remain pending human source review.
 
 Audience: owner, implementation agents, reviewers, and operators.
 

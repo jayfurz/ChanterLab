@@ -1,7 +1,8 @@
 # Content Trust Orchestrator
 
-Status: `TRUST-01` through `TRUST-03` completed 2026-07-11. After separate
-owner production approval, the first ledger-bearing catalog release,
+Status: `TRUST-01` through `TRUST-03` completed 2026-07-11. `TRUST-04` tooling
+and its release-bound private sample are staged; human grading remains. After
+separate owner production approval, the first ledger-bearing catalog release,
 `rel-20260711T155237Z-a3fdb875e54f`, was promoted the same day.
 
 Roadmap IDs: `TRUST-01` through `TRUST-05`.
@@ -16,7 +17,7 @@ measurable and honest rather than inferred from measure integrity.
 | 1 | [`21-quality-ledger-status.md`](21-quality-ledger-status.md) | complete; schema v1 merged and first ledger-bearing release promoted |
 | 2 | [`22-confidence-signals.md`](22-confidence-signals.md) | complete; corpus-verified with no status or MusicXML changes |
 | 2 | [`23-golden-corpus-fixtures.md`](23-golden-corpus-fixtures.md) | complete; 170 public passes and 200 private passes |
-| 3 | [`24-human-audit-review-clustering.md`](24-human-audit-review-clustering.md) | ready; confidence signals and golden fixtures complete |
+| 3 | [`24-human-audit-review-clustering.md`](24-human-audit-review-clustering.md) | in progress; 48-piece/141-measure private review staged |
 | 4 | [`25-library-provenance-ui.md`](25-library-provenance-ui.md) | ready; schema v1 and catalog IDs available |
 
 ## Ownership
