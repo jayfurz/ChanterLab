@@ -253,6 +253,22 @@
 
       <!-- One-time hint shown the first time you record with the mic on. -->
       <p id="recHint" class="rec-hint" hidden>🎧 Headphones give the cleanest recording — the mic hears only you.</p>
+
+      <!-- ============================================================
+           Section Check (issue #90) — WIRING BLOCK (the sole index.html
+           touch for this feature). Post-hoc ensemble analysis of the last
+           in-app recording against the loaded score; all behavior lives in
+           js/section_check.js (which self-initializes), all styling is
+           inline there — style.css is untouched.
+           ============================================================ -->
+      <div class="row row-seccheck">
+        <button id="secCheckBtn" class="btn"
+                title="Ensemble mode: analyze the last recording — which section is in tune / flat / not heard (record with Rec mix at full Voice while the piece plays)">🎼 Section check</button>
+        <span id="secCheckStatus" class="sec-check-status" aria-live="polite"></span>
+      </div>
+      <div id="secCheckReport" hidden></div>
+      <script type="module" src="js/section_check.js"></script>
+      <!-- /Section Check wiring block (issue #90) -->
     </div>
 
     <!-- MORE: library + piece + PDF · scoring strictness · view -->
