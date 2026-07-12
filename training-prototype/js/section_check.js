@@ -42,7 +42,7 @@
  * scope.js or scoring.js. All shared modules are imported read-only.
  */
 import { el, setStatus } from './state.js';
-import { parsed, clampMeasure, measureBeatRange } from './model.js';
+import { parsed, clampMeasure, measureBeatRange, transposeSemitones } from './model.js';
 import { playState, getDisplayLatency } from './transport.js';
 import { recordingState } from './recording.js';
 import { currentSections } from './sections.js';
@@ -91,7 +91,7 @@ function captureTakeContext(recSt) {
       .map((n) => {
         const startSec = (n.startBeat - winStart) * spb;
         return {
-          midi: n.midi,
+          midi: n.midi + transposeSemitones,
           measure: n.measure,
           startSec,
           endSec: startSec + Math.max(0.05, n.durBeat * spb * 0.95),

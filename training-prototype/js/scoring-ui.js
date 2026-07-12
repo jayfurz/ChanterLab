@@ -5,7 +5,7 @@
  * finalizeScoringOnStop.
  */
 import { el, setStatus, STRICTNESS_KEY, PRACTICE_HISTORY_KEY } from './state.js';
-import { parsed, clampMeasure, measureBeatRange } from './model.js';
+import { parsed, clampMeasure, measureBeatRange, transposeSemitones } from './model.js';
 import { selectedVoice, activeVerse, buildScopeLane } from './voices.js';
 import {
   currentPieceId, ensureRenderWindow, requestRender,
@@ -41,7 +41,7 @@ export function buildScoreTargets() {
     return sel.notes
       .filter((n) => n.startBeat >= winStart - 1e-6 && n.startBeat < winEnd - 1e-6)
       .map((n) => ({
-        midi: n.midi,
+        midi: n.midi + transposeSemitones,
         startSec: (n.startBeat - winStart) * spb,
         endSec: (n.startBeat - winStart + n.durBeat) * spb,
         lyric: n.lyric || null,

@@ -3,7 +3,7 @@
  * selectedVoice / activeVerse / melodyMuted.
  */
 import { el, setStatus, VOICE_DEFS } from './state.js';
-import { parsed, isMonophonic, applyVerseLyrics, clampMeasure, measureBeatRange } from './model.js';
+import { parsed, isMonophonic, applyVerseLyrics, clampMeasure, measureBeatRange, transposeSemitones } from './model.js';
 import { applyVoiceColors } from './loader.js';
 import { applyMix, statusForPlaying, playState } from './transport.js';
 
@@ -173,7 +173,7 @@ export function buildScopeLane() {
       .map((n) => ({
         start: (n.startBeat - winStart) * spb,
         end: (n.startBeat - winStart + n.durBeat) * spb,
-        midi: n.midi,
+        midi: n.midi + transposeSemitones,
         lyric: n.lyric || null,
       }));
     const sel = parsed.parts.find((p) => p.voiceKey === selectedVoice);

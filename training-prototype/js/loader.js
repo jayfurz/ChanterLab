@@ -2,7 +2,7 @@
  * view/fit sizing, and piece switching. Owns osmd + the render-window state.
  */
 import { el, setStatus, GOLD, DIM, VOICE_DEFS, PIECES, WINDOW_THRESHOLD, INITIAL_WINDOW, WINDOW_BUFFER, DEFAULT_STARTING_PIECE_ID } from './state.js';
-import { parseMusicXML, setParsed, parsed, isMonophonic } from './model.js';
+import { parseMusicXML, setParsed, parsed, isMonophonic, setTransposeSemitones } from './model.js';
 import { buildVoicePicker, buildVersePicker, buildScopeLane, resetVoiceStateForLoad, selectedVoice } from './voices.js';
 import { buildAudio, stop, playState } from './transport.js';
 import { applySections, updateSectionNav, prepareXmlSections, clearXmlSections } from './sections.js';
@@ -161,6 +161,8 @@ export function applyResponsiveOsmdOptions() {
       const doc = new DOMParser().parseFromString(xml, 'application/xml');
       setParsed(parseMusicXML(doc));
       resetVoiceStateForLoad();   // activeVerse=1, melodyMuted=false (voices.js)
+      setTransposeSemitones(0);   // per-piece practice transpose starts fresh
+      if (el.transposeOut) el.transposeOut.textContent = '0';
       // Fallback section index: scan the top part's <words> directions now while
       // the parsed Document is in hand. Used only when the manifest lacks
       // sections for this piece (see resolveSectionsFor).
