@@ -52,6 +52,7 @@ def test_registry_is_complete_rights_safe_and_source_bound():
     for case in registry["public"]:
         assert case["why"] and case["test"].startswith("test_golden_fixtures.py::")
     for case in registry["private"]:
+        assert case["why"]
         assert re.fullmatch(r"[0-9a-f]{64}", case["source_sha256"])
         assert Path(case["pdf"]).name == case["pdf"]
         assert not (Path(__file__).parent / case["pdf"]).exists()

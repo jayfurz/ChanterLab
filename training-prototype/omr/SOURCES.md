@@ -103,3 +103,13 @@ Rendered-score screenshots (e.g. `shots/`, `shots/mobile/`) show copyrighted
 notation and must not be committed to git — they're local-only and
 regenerable from the OMR/verification steps above; delete them from the
 working tree instead of adding them to a commit.
+
+## Hand-encoded ground truth
+
+`ground_truth/trisagion_p2_gt.json` is hand-transcribed pitch/rhythm data
+derived from the Trisagion source above. It is covered by the same
+owner-confirmed publication permission as the extracted notation this app
+serves, and is tracked in git deliberately (it is the regression suite's
+reference truth, not a rendering of the engraved page). Any future
+hand-encoded ground truth for a source WITHOUT that permission must stay
+local-only like the PDFs themselves.
