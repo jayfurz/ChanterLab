@@ -1,6 +1,6 @@
 # TRUST-03: Golden Corpus And Rights-Safe Fixtures
 
-Status: ready after `BASE-02`. Priority: P0/P1.
+Status: complete 2026-07-11. Priority: P0/P1.
 
 Dependencies: required CI. Parallel-safe with ledger design under disjoint files.
 
@@ -33,3 +33,23 @@ hash re-blessing cannot bypass semantic checks; no protected artifact is tracked
 Run the suite once with all private fixtures and once in a clean public-style
 checkout, recording pass and skip counts for both.
 
+## Implementation Record
+
+`tests/golden_fixtures.json` now defines the versioned feature matrix, fixture
+purpose, rights boundary, and source sha256 for all 11 private golden pieces.
+It covers every requested feature. All high-risk decision classes feasible
+without protected engraving run in public semantic tests; mid-piece layout
+switching is explicitly private-only and covered by three real pieces.
+
+Public fixtures construct four-part MusicXML models and assert chords, dots,
+rests, beams, flags, ties, accidentals, divisi voice 2, verses, sections,
+staff ownership, font routing, and lyric/rubric decisions by meaning rather
+than byte hash. Blank and prose-only PDFs are generated at test time and must
+be refused with exit code 3 and no output artifacts. No binary fixture or
+protected derivative is tracked.
+
+Verification on 2026-07-11 passed 200 tests with all private PDFs present and
+passed 170 with exactly 30 declared private-only skips after removing the
+private corpus from the checkout. The documented defect workflow requires a
+semantic regression before re-blessing; `--bless` cannot modify or bypass the
+public semantic tests.

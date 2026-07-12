@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,7 @@ OMR_DIR = Path(__file__).resolve().parent.parent
 TESTS_DIR = Path(__file__).resolve().parent
 PDF_DIR = OMR_DIR / "pdfs" / "ingest"
 VENV_PYTHON = OMR_DIR / ".venv" / "bin" / "python"
+PIPELINE_PYTHON = VENV_PYTHON if VENV_PYTHON.exists() else Path(sys.executable)
 PIPELINE = OMR_DIR / "pipeline.py"
 EXPECTATIONS_PATH = TESTS_DIR / "expectations.json"
 
@@ -104,7 +106,7 @@ def run_pipeline(pdf_path: Path, out_dir: Path, *, env: dict | None = None):
     if env:
         run_env.update(env)
     proc = subprocess.run(
-        [str(VENV_PYTHON), str(PIPELINE), str(pdf_path),
+        [str(PIPELINE_PYTHON), str(PIPELINE), str(pdf_path),
          "-o", str(xml_path), "--report", str(report_path)],
         capture_output=True, text=True, timeout=EXTRACT_TIMEOUT,
         cwd=OMR_DIR, env=run_env,
