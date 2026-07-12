@@ -4,16 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChanterLab</title>
-  <link rel="stylesheet" href="style.css?v=reference-player-2">
+  <link rel="stylesheet" href="style.css?v=raga-3">
 </head>
 <body>
 
 <header id="app-header">
   <h1>ChanterLab</h1>
   <span class="app-version">v0.2.0-alpha.0</span>
+  <div id="mode-switch" role="group" aria-label="Music tradition">
+    <button type="button" class="mode-switch-btn active" data-app-mode="byzantine">Byzantine</button>
+    <button type="button" class="mode-switch-btn" data-app-mode="hindustani">Hindustani</button>
+  </div>
   <span id="audio-status" class="audio-status audio-off" title="Click or press a key to start audio">&#9654; Audio off</span>
   <div class="header-actions">
-    <button id="score-practice-mode-btn" class="header-btn desktop-practice-toggle" type="button" aria-pressed="false">Practice</button>
+    <button id="score-practice-mode-btn" class="header-btn desktop-practice-toggle byz-only" type="button" aria-pressed="false">Practice</button>
     <a id="source-link" class="header-btn" href="https://github.com/jayfurz/ChanterLab" target="_blank" rel="noopener">Source</a>
     <button id="help-open-btn" class="header-btn" type="button">Help</button>
   </div>
@@ -22,7 +26,7 @@
 <nav id="mobile-tabs" aria-label="Mobile workspace">
   <button class="mobile-tab active" type="button" data-mobile-view="sing">Sing</button>
   <button class="mobile-tab" type="button" data-mobile-view="scale">Scale</button>
-  <button class="mobile-tab" type="button" data-mobile-view="train">Train</button>
+  <button class="mobile-tab byz-only" type="button" data-mobile-view="train">Train</button>
   <button class="mobile-tab" type="button" data-mobile-view="more">Settings</button>
 </nav>
 
@@ -36,7 +40,7 @@
     </div>
 
     <div class="control-group mobile-scale mobile-more">
-      <h2>Reference Ni</h2>
+      <h2 id="reference-heading">Reference Ni</h2>
       <div class="reference-ni-row">
         <label for="ni-hz-slider" class="reference-ni-readout">
           <span id="ni-hz-display">130.81</span> Hz
@@ -64,7 +68,7 @@
       <button id="reset-btn">Reset Grid</button>
     </div>
 
-    <div class="control-group exercise-panel mobile-train" id="exercise-panel">
+    <div class="control-group exercise-panel mobile-train byz-only" id="exercise-panel">
       <h2>Exercise Mode</h2>
       <select id="exercise-select" aria-label="Choose exercise">
         <option value="match-ni">Match Ni</option>
@@ -250,7 +254,7 @@
         <button id="zoom-follow-btn" class="zoom-follow-btn" type="button" aria-pressed="false" title="Zoom follow — track voice pitch close-up">Follow</button>
       </div>
       <canvas id="singscope"></canvas>
-      <div id="quick-pthora-panel" class="quick-pthora-panel" aria-label="Quick pthora while singing">
+      <div id="quick-pthora-panel" class="quick-pthora-panel byz-only" aria-label="Quick pthora while singing">
         <div class="quick-pthora-row">
           <span class="quick-pthora-title">Pthora</span>
           <select id="quick-pthora-genus" aria-label="Quick pthora genus">
@@ -300,7 +304,7 @@
     </div>
 
     <!-- Pthora + shading palettes -->
-    <div id="palettes">
+    <div id="palettes" class="byz-only">
       <div class="palette-section">
         <div class="palette-section-header">
           <h3>Pthora</h3>
@@ -414,6 +418,6 @@
   </div>
 </dialog>
 
-<script type="module" src="app.js?v=reference-player-2"></script>
+<script type="module" src="app.js?v=raga-3"></script>
 </body>
 </html>
