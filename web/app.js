@@ -6,6 +6,7 @@ import { Singscope      } from './ui/singscope.js?v=reference-player-2';
 import { NoteIndicator  } from './ui/note_indicator.js?v=raga-1';
 import { ExerciseMode   } from './ui/exercise_mode.js?v=raga-1';
 import { Metronome      } from './ui/metronome.js?v=0.2.0-alpha.0';
+import { Tanpura        } from './audio/tanpura.js?v=raga-2';
 import { PthoraPalette, buildQuickPthoraControls } from './ui/pthora_palette.js?v=raga-1';
 import { degreeLabel, degreeLabelText, setLabelMode } from './ui/degree_labels.js?v=raga-1';
 import { RAGA_PRESETS } from './raga_presets.js?v=raga-1';
@@ -183,6 +184,10 @@ const app = {
   metronomeBpm:     80,
   metronomeBeats:   4,
   metronomeVolume:  0.5,
+  tanpura:            null,
+  tanpuraFirstString: 'Pa',
+  tanpuraPpm:         66,
+  tanpuraVolume:      0.5,
   scorePracticeIsonOverride: null,
   scorePracticeManualIsonState: null,
   // Mic / PSOLA correction state. Off by default — chanters should hear
@@ -252,6 +257,7 @@ async function main() {
   wireAppModeControls();
   wireVoicingControls();
   wireMetronomeControls();
+  wireTanpuraControls();
   wireCorrectionControls();
   wireSynthFollowControls();
   wirePsolaControls();
@@ -296,6 +302,7 @@ function gridChanged() {
   app.voiceCurrentCellId = null;
   app.engine.updateTuning(cells, app.refNiHz);
   updateIsonVoice(cells);
+  updateTanpuraVoice(cells);
   stopSynthFollow();
   app.exercise?.syncReferenceNiHz(app.refNiHz);
   app.exercise?.refresh();
@@ -1789,6 +1796,19 @@ function applyAppMode(mode, { persist = true } = {}) {
   document.querySelectorAll('.mode-switch-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.appMode === app.appMode);
   });
+  // A hidden drone must not keep sounding: each tradition keeps only its
+  // own. The ison silences via the gridChanged below; the tanpura stops
+  // directly.
+  if (app.appMode === 'hindustani') {
+    app.isonEnabled = false;
+  } else if (app.tanpura?.isRunning) {
+    app.tanpura.stop();
+    const tanpuraBtn = document.getElementById('tanpura-toggle-btn');
+    if (tanpuraBtn) {
+      tanpuraBtn.textContent = 'Off';
+      tanpuraBtn.classList.remove('active');
+    }
+  }
   retitleReferenceControls();
   syncIsonControls();
   // Quick-pthora degree buttons re-render on genus change; reuse that path.
@@ -2252,6 +2272,51 @@ function wireMetronomeControls() {
   });
 }
 
+function wireTanpuraControls() {
+  const toggleBtn    = document.getElementById('tanpura-toggle-btn');
+  const stringSelect = document.getElementById('tanpura-string-select');
+  const ppmInput     = document.getElementById('tanpura-ppm-input');
+  const volSlider    = document.getElementById('tanpura-volume-slider');
+  if (!toggleBtn) return;
+
+  const t = new Tanpura(app.engine);
+  app.tanpura = t;
+  t.setPpm(app.tanpuraPpm);
+  t.setVolume(app.tanpuraVolume);
+  stringSelect.value = app.tanpuraFirstString;
+  ppmInput.value     = String(app.tanpuraPpm);
+  volSlider.value    = String(app.tanpuraVolume);
+
+  toggleBtn.addEventListener('click', async () => {
+    if (t.isRunning) {
+      t.stop();
+      toggleBtn.textContent = 'Off';
+      toggleBtn.classList.remove('active');
+    } else {
+      updateTanpuraVoice(JSON.parse(app.grid.cellsJson()));
+      await t.start();
+      toggleBtn.textContent = 'On';
+      toggleBtn.classList.add('active');
+    }
+  });
+
+  stringSelect.addEventListener('change', () => {
+    app.tanpuraFirstString = stringSelect.value;
+    updateTanpuraVoice(JSON.parse(app.grid.cellsJson()));
+  });
+
+  ppmInput.addEventListener('change', () => {
+    app.tanpuraPpm = Math.max(20, Math.min(200, parseInt(ppmInput.value, 10) || app.tanpuraPpm));
+    ppmInput.value = String(app.tanpuraPpm);
+    t.setPpm(app.tanpuraPpm);
+  });
+
+  volSlider.addEventListener('input', () => {
+    app.tanpuraVolume = parseFloat(volSlider.value);
+    t.setVolume(app.tanpuraVolume);
+  });
+}
+
 app.setIsonDrone = function({ degree = app.isonDegree, octave = app.isonOctave, enabled = true } = {}) {
   releaseScorePracticeIson();
   app.isonDegree = degree;
@@ -2343,6 +2408,28 @@ function updateIsonVoice(cells) {
   } else {
     app.engine.setIson(null, 0);
   }
+}
+
+// Tanpura string names are sargam relative to Sa; engine degrees stay
+// Byzantine. Sa = Ni, and the selectable first string maps Pa→Di, Ma→Ga,
+// Ni→Zo, one octave below the reference octave (the traditional tanpura
+// register). Frequencies come from the live cells, so komal/tivra degrees
+// in the active raga tune the drone automatically.
+const TANPURA_FIRST_STRING_DEGREES = { Pa: 'Di', Ma: 'Ga', Ni: 'Zo' };
+
+function updateTanpuraVoice(cells) {
+  if (!app.tanpura) return;
+  const hzFor = (degree, octave) => {
+    const cell = cells.find(c =>
+      c.degree === degree && Math.floor(c.moria / 72) === octave && c.enabled);
+    return cell ? app.grid.moriaToHz(cell.moria + (cell.accidental ?? 0)) : null;
+  };
+  const firstDegree = TANPURA_FIRST_STRING_DEGREES[app.tanpuraFirstString] ?? 'Di';
+  app.tanpura.setFrequencies({
+    firstHz: hzFor(firstDegree, -1),
+    saHz: hzFor('Ni', 0),
+    saLowHz: hzFor('Ni', -1),
+  });
 }
 
 // ── Mic / PSOLA correction ───────────────────────────────────────────────────

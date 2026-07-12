@@ -94,7 +94,7 @@
       </div>
     </div>
 
-    <div class="control-group mobile-more" id="ison-controls">
+    <div class="control-group mobile-more byz-only" id="ison-controls">
       <h2>Ison Drone</h2>
       <div class="ison-row">
         <button id="ison-toggle-btn" class="ison-btn">Off</button>
@@ -152,6 +152,27 @@
       <div id="metronome-pips" class="metronome-pips" aria-hidden="true"></div>
       <label for="metronome-volume-slider">Volume</label>
       <input type="range" id="metronome-volume-slider" min="0" max="1" step="0.01" value="0.5">
+    </div>
+
+    <div class="control-group mobile-scale mobile-more hind-only" id="tanpura-controls">
+      <h2>Tanpura</h2>
+      <div class="metronome-row">
+        <button id="tanpura-toggle-btn" class="ison-btn" type="button">Off</button>
+        <label class="metronome-field">
+          <span>String 1</span>
+          <select id="tanpura-string-select" title="First-string tuning relative to Sa: Pa (fifth), Ma (fourth), or Ni (seventh) for Pa-less ragas">
+            <option value="Pa" selected>Pa</option>
+            <option value="Ma">Ma</option>
+            <option value="Ni">Ni</option>
+          </select>
+        </label>
+        <label class="metronome-field">
+          <span>Tempo</span>
+          <input type="number" id="tanpura-ppm-input" min="20" max="200" step="1" value="66" title="Plucks per minute">
+        </label>
+      </div>
+      <label for="tanpura-volume-slider">Volume</label>
+      <input type="range" id="tanpura-volume-slider" min="0" max="1" step="0.01" value="0.5">
     </div>
 
     <div class="control-group mobile-more" id="mic-controls">
@@ -418,6 +439,6 @@
   </div>
 </dialog>
 
-<script type="module" src="app.js?v=raga-3"></script>
+<script type="module" src="app.js?v=raga-4"></script>
 </body>
 </html>
