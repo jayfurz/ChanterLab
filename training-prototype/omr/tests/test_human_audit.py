@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 
 import pytest
+import fitz
 
 from conftest import OMR_DIR
 
@@ -104,6 +106,27 @@ def test_font_name_classification_is_coarse_and_nonidentifying(names, expected):
     assert ha.classify_font_names(names) == expected
 
 
+def test_font_index_is_bound_to_release_source_hash(tmp_path):
+    release = _release(tmp_path, count=1)
+    source = tmp_path / "source"
+    pdf = source / "pdfs" / "ingest" / "piece-00.pdf"
+    pdf.parent.mkdir(parents=True)
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 72), "rights-safe generated fixture")
+    doc.save(pdf)
+    doc.close()
+    state_path = release / "out" / "ingest" / "ingest_state.json"
+    state = json.loads(state_path.read_text())
+    state["piece-00"].update(pdf="pdfs/ingest/piece-00.pdf",
+                             source_pdf_sha256=hashlib.sha256(pdf.read_bytes()).hexdigest())
+    state_path.write_text(json.dumps(state))
+    assert ha.build_font_index(release, source) == {"piece-00": "unknown"}
+    state["piece-00"]["source_pdf_sha256"] = "0" * 64
+    state_path.write_text(json.dumps(state))
+    with pytest.raises(ha.AuditError, match="hash mismatch"):
+        ha.build_font_index(release, source)
+
+
 def _completed(plan):
     results = ha.results_template(plan)
     for i, row in enumerate(results["observations"]):
@@ -156,6 +179,10 @@ def test_review_clusters_are_ordered_by_projected_impact(tmp_path):
     assert clusters == sorted(clusters,
                               key=lambda row: (-row["priority_score"], row["signature"]))
     assert all(cluster["piece_ids"] == sorted(cluster["piece_ids"])
+               for cluster in clusters)
+    assert [cluster["campaign_id"] for cluster in clusters] == [
+        f"parser-campaign-{i:03d}" for i in range(1, len(clusters) + 1)]
+    assert all(cluster["projected_catalog_impact"] >= cluster["piece_count"]
                for cluster in clusters)
 
 

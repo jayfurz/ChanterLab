@@ -40,6 +40,14 @@ def _hash(seed: str, *parts: object) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def _sha256_file(path: Path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _release_paths(release: Path):
     ingest = release / "out" / "ingest"
     if not ingest.is_dir() and (release / "manifest.json").exists():
@@ -117,6 +125,9 @@ def build_font_index(release: Path, source_omr_dir: Path):
         path = source_omr_dir / relative
         if not path.exists():
             raise AuditError(f"{piece_id}: source PDF unavailable for font indexing")
+        expected_hash = record.get("source_pdf_sha256")
+        if not expected_hash or _sha256_file(path) != expected_hash:
+            raise AuditError(f"{piece_id}: source PDF hash mismatch for font indexing")
         with fitz.open(path) as doc:
             names = {font[3] for page in doc for font in page.get_fonts(full=True)}
         index[piece_id] = classify_font_names(names)
@@ -335,22 +346,28 @@ def summarize(plan, results):
 
 
 def cluster_review(rows):
-    clusters = defaultdict(list)
+    population = defaultdict(list)
+    review = defaultdict(list)
     for row in rows:
-        if row["strata"]["status"] != "review":
-            continue
         active = tuple(sorted(code for code, count in row["warning_counts"].items() if count))
         signature = "+".join(active) if active else "low-confidence-without-warning"
-        clusters[signature].append(row)
+        population[signature].append(row)
+        if row["strata"]["status"] == "review":
+            review[signature].append(row)
     out = []
-    for signature, members in clusters.items():
+    for signature, members in review.items():
         events = sum(sum(row["warning_counts"].values()) for row in members)
+        projected = population[signature]
         out.append({"signature": signature, "piece_count": len(members),
                     "warning_events": events,
-                    "projected_catalog_impact": len(members),
+                    "projected_catalog_impact": len(projected),
+                    "projected_accepted_impact": sum(
+                        row["strata"]["status"] == "accepted" for row in projected),
                     "piece_ids": sorted(row["piece_id"] for row in members),
-                    "priority_score": len(members) * 1000 + events})
+                    "priority_score": len(members) * 1000 + len(projected) * 10 + events})
     out.sort(key=lambda row: (-row["priority_score"], row["signature"]))
+    for index, row in enumerate(out, 1):
+        row["campaign_id"] = f"parser-campaign-{index:03d}"
     return out
 
 

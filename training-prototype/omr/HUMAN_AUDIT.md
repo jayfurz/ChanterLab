@@ -78,7 +78,8 @@ rates. It contains no source material.
 ```
 
 Review items are grouped by stable warning-code signature. Ordering uses
-affected piece count first, then warning-event volume. This is a campaign
-backlog heuristic, not evidence that every piece in a cluster has the same
-semantic defect; a reviewer must link confirmed observations before a parser
-campaign is approved.
+review piece count first, then projected accepted-plus-review impact for the
+same signature, then warning-event volume. Stable ordered campaign IDs make the
+output an executable parser backlog. This is a prioritization heuristic, not
+evidence that every piece in a cluster has the same semantic defect; a reviewer
+must link confirmed observations before a parser campaign is approved.
