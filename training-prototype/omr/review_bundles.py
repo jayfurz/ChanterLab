@@ -66,8 +66,11 @@ from collections import defaultdict
 import fitz  # PyMuPDF -- the same PDF library vector_extract.py uses
 
 # Reuse the EXACT layer-3 tokenizers (READ-ONLY import) so the stream this tool
-# renders is identical to the one the report clustered on.
-from lyric_qa import _l3_norm, _l3_is_content, _l3_voice_measure_streams
+# renders is identical to the one the report clustered on. Since issue #89 the
+# streams are verse-split (measure, text, syllabic) triples and the report's
+# missing_passage is a WORD n-gram matched on a letters-only blob, so the
+# anchoring below works on letters-only _l3_blobstream views of the streams.
+from lyric_qa import _l3_blobstream, _l3_voice_measure_streams, _l3_wordkey
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_REPORT = os.path.join(HERE, "out", "lyric_qa_report.json")
@@ -186,8 +189,9 @@ def section_ranges(pid):
 
 # --------------------------------------------------------------- stream slicing
 def rep_voice_slice(pid, lo=1, hi=10 ** 9):
-    """(voice_label, [(measure, token)...]) for the LONGEST voice whose tokens
-    fall in [lo, hi) -- the same 'rep = longest voice' choice layer 3 makes."""
+    """(voice_label, [(measure, token, syllabic)...]) for the LONGEST
+    (voice, verse) stream whose tokens fall in [lo, hi) -- the same
+    'rep = longest stream' choice layer 3 makes."""
     xp = xml_path(pid)
     if not os.path.exists(xp):
         return None, []
@@ -197,7 +201,7 @@ def rep_voice_slice(pid, lo=1, hi=10 ** 9):
         return None, []
     best_label, best = None, []
     for label, seq in vms.items():
-        sl = [(mn, t) for (mn, t) in seq if lo <= mn < hi]
+        sl = [(mn, t, syl) for (mn, t, syl) in seq if lo <= mn < hi]
         if len(sl) > len(best):
             best_label, best = label, sl
     return best_label, best
@@ -208,37 +212,64 @@ def locate_gap_measures(flagged_rep, haver_pid, missing_passage, sec_lo, sec_hi)
     """Estimate the measure range of the gap in the FLAGGED setting.
 
     The gap has no tokens in the flagged piece (that is what makes it missing),
-    so we anchor on the tokens the flagged piece DOES share with the family on
-    either side. We find the missing 4-gram in the HAVER's rep stream, read the
-    content words just before/after it, then find the last such 'pre' word and
-    the first such 'post' word in the flagged rep stream -> the gap sits between
-    their measures. Best-effort: returns (lo, hi) or None."""
+    so we anchor on the text the flagged piece DOES share with the family on
+    either side. We find the missing WORD n-gram in the HAVER's re-joined word
+    stream, read the content words just before/after it, then locate the last
+    such 'pre' word and the first such 'post' word in the flagged setting's
+    letters-only blob (so a differently syllabified flagged stream still
+    anchors) -> the gap sits between their measures. Best-effort: returns
+    (lo, hi) or None."""
     _, haver_rep = rep_voice_slice(haver_pid, sec_lo, sec_hi)
     if not haver_rep:
         return None
-    hnorm = [_l3_norm(t) for (_, t) in haver_rep]
-    mp = missing_passage.split()
-    if not mp:
+    hblob, _htoks = _l3_blobstream(haver_rep)
+    cat = "".join(w for w in (_l3_wordkey(x)
+                              for x in missing_passage.split()) if w)
+    if not cat:
         return None
-    hi_idx = None
-    for i in range(len(hnorm) - len(mp) + 1):
-        if hnorm[i:i + len(mp)] == mp:
-            hi_idx = i
+    p = hblob.find(cat)
+    if p == -1:
+        return None
+    pre_str = hblob[max(0, p - 30):p]
+    post_str = hblob[p + len(cat):p + len(cat) + 30]
+    blob, toks = _l3_blobstream(flagged_rep)
+    if not toks:
+        return None
+
+    def measure_at(q):
+        j = 0
+        while j + 1 < len(toks) and toks[j + 1][2] <= q:
+            j += 1
+        return toks[j][1]
+
+    # A few characters at the anchor boundary may themselves be part of the
+    # dropped text (or contaminated), so allow trimming up to 6 chars off the
+    # gap-facing end of each anchor before demanding an 8+ char match.
+    pre_end = None                       # end of the longest pre-anchor match
+    for trim in range(0, 7):
+        seg = pre_str[:len(pre_str) - trim]
+        for L in range(len(seg), 7, -1):
+            q = blob.rfind(seg[-L:])
+            if q != -1:
+                pre_end = q + L
+                break
+        if pre_end is not None:
             break
-    if hi_idx is None:
+    if pre_end is None:
         return None
-    pre = [w for w in hnorm[max(0, hi_idx - 8):hi_idx]
-           if _l3_is_content(w) and len(w) >= 3]
-    post = [w for w in hnorm[hi_idx + len(mp):hi_idx + len(mp) + 8]
-            if _l3_is_content(w) and len(w) >= 3]
-    fnorm = [(mn, _l3_norm(t)) for (mn, t) in flagged_rep]
-    pre_m = max((mn for (mn, w) in fnorm if w in pre), default=None)
-    if pre_m is None:
+    post_start = None
+    for trim in range(0, 7):
+        seg = post_str[trim:]
+        for L in range(len(seg), 7, -1):
+            q = blob.find(seg[:L], pre_end)
+            if q != -1:
+                post_start = q
+                break
+        if post_start is not None:
+            break
+    if post_start is None:
         return None
-    post_m = next((mn for (mn, w) in fnorm if w in post and mn > pre_m), None)
-    if post_m is None:
-        return None
-    return (pre_m, post_m)
+    return (measure_at(max(0, pre_end - 1)), measure_at(post_start))
 
 
 # --------------------------------------------------------------- PDF rendering
@@ -278,7 +309,7 @@ def stream_html(rep_label, rep_stream, target_lo, target_hi):
     if not rep_stream:
         return "<p class='muted'>(no extracted lyric stream for this section)</p>"
     by_m = defaultdict(list)
-    for mn, t in rep_stream:
+    for mn, t, _syl in rep_stream:
         by_m[mn].append(t)
     cells = []
     for mn in sorted(by_m):

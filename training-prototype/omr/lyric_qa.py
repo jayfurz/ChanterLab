@@ -59,11 +59,19 @@ THREE LAYERS
      (c) runs CONSENSUS CHECKS per family (>=3 settings): alien DEBRIS tokens (a
          contamination-shaped token carried by a MINORITY of the family), alien
          VOCABULARY (a distinctive word present in one setting but no sibling),
-         and MISSING-TEXT (a stream far shorter than the family median, or missing
-         a family-shared n-gram block -- the dropped-line signal nothing else can
-         see). Transliteration and words shared across the type's other families
-         are recognized as legit; consensus flags are arbitrated exactly as layer
-         2 arbitrated heuristics -> contamination | legit-variant | uncertain.
+         and MISSING-TEXT (a family-shared INTERIOR passage this setting lacks
+         -- the dropped-line signal nothing else can see). The missing-text
+         check (issue #89, after the #86 PDF review found 29/30 top flags were
+         QA artifacts) n-grams the RE-JOINED WORD stream, decides passage
+         membership on a letters-only blob (syllabification / case / fi-fl
+         ligature invariant), never counts a passage carried by a sibling
+         section-slice of the same book, and only lets a missing passage
+         count as gap EVIDENCE when its content words are absent from the
+         local gap window too -- word-order, one-word-insertion/substitution
+         and elision variants are suppressed. Transliteration and words shared
+         across the type's other families are recognized as legit; consensus
+         flags are arbitrated exactly as layer 2 arbitrated heuristics ->
+         contamination | legit-variant | uncertain.
    Layer 3 re-discovers layer-1/2 contamination *independently* where the type has
    a family (validation), and finds NEW contamination (a leaked style/editorial
    word or a colon-less clergy cue that layer-2's narrow vocab missed) and NEW
@@ -390,16 +398,135 @@ def semantic_verdict(category, tokens, has_italic_direction_phrase):
 
 _L3_PUNCT = " .,;:!?\"'()[]{}-_–—‘’“”·"
 
+# Typographic ligatures leak from born-digital PDFs into lyric tokens
+# ('sacriﬁce' -> syllable token 'ﬁce') and break family n-gram matching
+# against siblings that engrave the plain digraph (issue #89 refinement 1).
+_L3_LIGATURES = str.maketrans({
+    "ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl",
+    "ﬅ": "ft", "ﬆ": "st"})
+
 
 def _l3_norm(t: str) -> str:
-    """Common-denominator token for family clustering / vocabulary voting: strip
-    surrounding punctuation and lowercase. (Deliberately DESTROYS the debris shape
-    -- '[At'->'at', 'Deacon:'->'deacon' -- so debris is detected on RAW tokens.)"""
-    return t.strip(_L3_PUNCT).lower().replace("’", "'")
+    """Common-denominator token for family clustering / vocabulary voting:
+    expand ligatures, strip surrounding punctuation and lowercase.
+    (Deliberately DESTROYS the debris shape -- '[At'->'at', 'Deacon:'->'deacon'
+    -- so debris is detected on RAW tokens.)"""
+    return t.translate(_L3_LIGATURES).strip(_L3_PUNCT).lower().replace("’", "'")
 
 
 def _l3_is_content(n: str) -> bool:
     return bool(n) and not n.isdigit()
+
+
+# ---------------------------------------------------------- word/blob streams
+# Issue #89: the missing-text (interior-gap) consensus check used to n-gram the
+# raw SYLLABLE token stream, so a mere syllabification difference between two
+# settings of the same text ('spir it' vs 'spi rit', 'cher-u-bim' vs
+# 'che-ru-bim') read as a "missing" passage. The #86 PDF review found 29 of the
+# top 30 flags were artifacts of exactly this class (plus section slicing and
+# one-word variants). The machinery below makes gram matching robust:
+#   * _l3_words     -- re-join begin/middle/end syllables into whole words for
+#                      readable, comparable n-gram GENERATION;
+#   * _l3_blobstream -- a letters-only concatenation of the stream, because
+#                      membership must be syllabification-INVARIANT even when
+#                      an edition engraves detached syllables with syllabic
+#                      'single' markers (e.g. Anaphora-3rd-Mode-FJ-WNBN, the
+#                      one confirmed real drop): a gram is "present" iff its
+#                      concatenated letters appear in the blob, however the
+#                      setting happened to split them into tokens.
+
+_L3_NGRAM_K = 4
+# words too grammatical to carry gap evidence on their own (len<3 tokens are
+# already excluded by the len>=3 content-word rule below)
+_L3_GAP_STOPWORDS = {"the", "and"}
+_L3_WORDCHARS = re.compile(r"[^a-z0-9]+")
+
+
+def _l3_wordkey(t: str) -> str:
+    """Letters-only lowercase form of one token ('GOT-' -> 'got',
+    \"receiv'd\" -> 'receivd', 'sacriﬁce' -> 'sacrifice')."""
+    return _L3_WORDCHARS.sub("", _l3_norm(t))
+
+
+def _l3_words(stream):
+    """[(word, measure)] from a [(measure, text, syllabic), ...] stream.
+    Joins coherent begin/middle*/end syllabic runs into whole words; an
+    incoherent marker sequence (interleave damage, missing markers) flushes
+    conservatively so no token is ever dropped. Non-letter tokens ('...',
+    stray punctuation, page digits) contribute nothing."""
+    out = []
+    buf, buf_m = [], None
+
+    def flush():
+        if buf:
+            w = "".join(buf)
+            if _l3_is_content(w):
+                out.append((w, buf_m))
+            del buf[:]
+
+    for mn, txt, syl in stream:
+        n = _l3_wordkey(txt)
+        if not n:
+            continue  # '...' continuation / punct: not a word boundary
+        if syl == "begin":
+            flush()
+            buf.append(n)
+            buf_m = mn
+        elif syl == "middle":
+            if buf:
+                buf.append(n)
+            else:
+                out.append((n, mn))       # incoherent: keep as its own word
+        elif syl == "end":
+            if buf:
+                buf.append(n)
+                flush()
+            else:
+                out.append((n, mn))       # incoherent: keep as its own word
+        else:                             # 'single' / marker absent
+            flush()
+            out.append((n, mn))
+    flush()
+    return out
+
+
+def _l3_blobstream(stream):
+    """(blob, toks) for a [(measure, text, syllabic), ...] stream, where blob
+    is the letters-only lowercase concatenation of every token and toks is
+    [(raw_text, measure, blob_start)] for the tokens that contributed."""
+    parts, toks = [], []
+    pos = 0
+    for mn, t, _syl in stream:
+        n = _l3_wordkey(t)
+        if not n or n.isdigit():
+            continue
+        toks.append((t, mn, pos))
+        parts.append(n)
+        pos += len(n)
+    return "".join(parts), toks
+
+
+def _l3_word_in(blob: str, w: str) -> bool:
+    """Is word w present in the letters-only blob? Exact substring, plus a
+    one-deletion tolerance for elision/spelling variants ('received' matches a
+    blob carrying \"receiv'd\", 'heavenly' matches \"heav'nly\") on words long
+    enough that a single dropped letter cannot make a spurious match."""
+    if w in blob:
+        return True
+    if len(w) >= 5:
+        for i in range(len(w)):
+            if w[:i] + w[i + 1:] in blob:
+                return True
+    return False
+
+
+def _l3_find_all(blob: str, s: str):
+    out = []
+    i = blob.find(s)
+    while i != -1:
+        out.append(i)
+        i = blob.find(s, i + 1)
+    return out
 
 
 # --- hymn-type assignment -------------------------------------------------
@@ -509,7 +636,14 @@ def _l3_type_from_manifest_field(entry):
 
 
 def _l3_voice_measure_streams(xml_path):
-    """{voice: [(measure_number, token), ...]} for measure-range section slicing."""
+    """{f"{part}:{label}:v{verse}": [(measure, token, syllabic), ...]} for
+    measure-range section slicing. VERSE-SPLIT (issue #89 refinement 4): the
+    old version concatenated every <lyric> regardless of its number attribute,
+    so multi-verse / multilingual stacked settings produced an interleaved
+    stream ('It is meet to is wor meet to ship') whose n-grams matched nothing
+    -- the root of the 'garbled rep-voice' false positives. Each (part, verse)
+    is now its own stream, and the syllabic marker rides along for word
+    re-joining."""
     root = ET.parse(xml_path).getroot()
     names = {}
     for sp in root.iter("score-part"):
@@ -517,7 +651,7 @@ def _l3_voice_measure_streams(xml_path):
     out = {}
     for part in root.findall("part"):
         pid = part.get("id")
-        seq = []
+        byverse = defaultdict(list)
         cur = 0
         for mm in part.findall("measure"):
             try:
@@ -528,8 +662,11 @@ def _l3_voice_measure_streams(xml_path):
                 for ly in note.findall("lyric"):
                     txt = ly.findtext("text")
                     if txt is not None:
-                        seq.append((cur, txt))
-        out[f"{pid}:{names.get(pid) or pid}"] = seq
+                        byverse[ly.get("number", "1")].append(
+                            (cur, txt, ly.findtext("syllabic")))
+        label = names.get(pid) or pid
+        for num in sorted(byverse):
+            out[f"{pid}:{label}:v{num}"] = byverse[num]
     return out
 
 
@@ -544,24 +681,56 @@ def _l3_load_sections(pid):
         return []
 
 
-def _l3_make_setting(pid, title, section, ty, kind, voice_slices):
-    """A consensus unit. rep = longest single voice (for length / n-grams);
-    allnorm / allraw = union over ALL voices (contamination can sit in one voice
-    only, so debris + vocabulary are scanned across every part)."""
-    rep = max(voice_slices, key=len) if voice_slices else []
+def _l3_make_setting(pid, title, section, ty, kind, verse_slices,
+                     part_slices=None, piece_blobs=None):
+    """A consensus unit.
+
+    verse_slices: one stream per (voice, verse) -- the CLEAN streams the
+    missing-text machinery n-grams (rep = the longest one). part_slices: one
+    stream per voice with its verses concatenated -- family clustering keys
+    (``normset``, and the tiny-stream gate) stay on the per-VOICE token set
+    exactly as before the issue #89 verse split, because a normset is a SET
+    (order-insensitive) and re-keying it on a single verse would reshuffle
+    families and lose unrelated debris/vocabulary findings. allnorm / allraw =
+    union over ALL voices (contamination can sit in one voice only, so debris
+    + vocabulary are scanned across every part). piece_blobs (section-sliced
+    books only) carries the WHOLE piece's letters-only streams so a passage
+    living in a sibling slice is never reported missing from this one."""
+    if part_slices is None:
+        part_slices = verse_slices
+    rep = max(verse_slices, key=len) if verse_slices else []
     allraw, allnorm = [], set()
-    for vs in voice_slices:
-        allraw.extend(vs)
-        for t in vs:
+    for vs in part_slices:
+        for _mn, t, _syl in vs:
+            allraw.append(t)
             n = _l3_norm(t)
             if _l3_is_content(n):
                 allnorm.add(n)
-    repnorm = [n for n in (_l3_norm(t) for t in rep) if _l3_is_content(n)]
+    part_rep = max(part_slices, key=len) if part_slices else []
+    repnorm = [n for n in (_l3_norm(t) for _mn, t, _syl in part_rep)
+               if _l3_is_content(n)]
     if len(repnorm) < 4:
         return None
+    blob, toks = _l3_blobstream(rep)
+    # every verse stream's blob, not just the rep's: a setting that engraves
+    # the text's two halves as verse 1 / verse 2 under the same notes (common
+    # for cherubic hymns) HAS the second half -- in another stream.
+    all_blobs = [b for b in (_l3_blobstream(vs)[0] for vs in verse_slices) if b]
     return {"pid": pid, "title": title, "section": section, "type": ty,
             "kind": kind, "rep": rep, "allraw": allraw, "repnorm": repnorm,
-            "normset": set(repnorm), "allnorm": allnorm}
+            "normset": set(repnorm), "allnorm": allnorm,
+            "repwords": [w for w, _ in _l3_words(rep)],
+            "blob": blob, "toks": toks, "all_blobs": all_blobs,
+            "piece_blobs": piece_blobs}
+
+
+def _l3_part_streams(vms):
+    """Concatenate a part's verse streams back into one stream per part (for
+    the family-clustering token sets -- see _l3_make_setting)."""
+    parts = defaultdict(list)
+    for key, seq in vms.items():
+        parts[key.rsplit(":v", 1)[0]].extend(seq)
+    return list(parts.values())
 
 
 def _l3_build_settings(manifest):
@@ -593,13 +762,22 @@ def _l3_build_settings(manifest):
                     ty, kind = f"section|{key}", "section"
             mapped.append((s.get("measure", 1), st, ty, kind))
         if sum(1 for m in mapped if m[2]) >= 2:  # complete-liturgy: slice sections
+            # the WHOLE piece's letters-only streams: a passage that a slice
+            # "misses" but a sibling slice (or a span across the slice
+            # boundary) carries is present in the BOOK -- not a drop.
+            piece_blobs = [b for b in
+                           (_l3_blobstream(seq)[0] for seq in vms.values()) if b]
+            part_streams = _l3_part_streams(vms)
             for j, (meas, st, ty, kind) in enumerate(mapped):
                 if not ty:
                     continue
                 hi = mapped[j + 1][0] if j + 1 < len(mapped) else 10 ** 9
-                vslices = [[t for (mn, t) in seq if meas <= mn < hi]
-                           for seq in vms.values()]
-                setting = _l3_make_setting(pid, title, st, ty, kind, vslices)
+                vslices = [[(mn, t, syl) for (mn, t, syl) in seq
+                            if meas <= mn < hi] for seq in vms.values()]
+                pslices = [[(mn, t, syl) for (mn, t, syl) in seq
+                            if meas <= mn < hi] for seq in part_streams]
+                setting = _l3_make_setting(pid, title, st, ty, kind, vslices,
+                                           pslices, piece_blobs)
                 if setting:
                     settings.append(setting)
                     sec_derived += 1
@@ -615,8 +793,9 @@ def _l3_build_settings(manifest):
                 ty, kind = _l3_hymn_type(title, litdate, sub, book, feast_id)
             if ty is None:
                 continue
-            vslices = [[t for (_, t) in seq] for seq in vms.values()]
-            setting = _l3_make_setting(pid, title, None, ty, kind, vslices)
+            setting = _l3_make_setting(pid, title, None, ty, kind,
+                                       list(vms.values()),
+                                       _l3_part_streams(vms))
             if setting:
                 settings.append(setting)
     return settings, sec_derived
@@ -733,8 +912,22 @@ def _l3_arbitrate_alien(word, in_other_family):
     return None
 
 
+def _l3_blob_ctx(setting, cat, w=16):
+    """~w raw tokens of `setting` around the first blob occurrence of the
+    letters-only passage `cat` (for the reviewer's context display)."""
+    toks = setting["toks"]
+    p = setting["blob"].find(cat)
+    j = 0
+    if p != -1:
+        while j + 1 < len(toks) and toks[j + 1][2] <= p:
+            j += 1
+        j = max(0, j - 2)
+    return " ".join(t for t, _mn, _st in toks[j:j + w])
+
+
 def _l3_consensus(settings):
-    """Run the consensus checks. Returns (findings_by_pid, cluster_stats)."""
+    """Run the consensus checks. Returns (findings_by_pid, cluster_stats,
+    bytype, missing_filter_stats)."""
     bytype = defaultdict(list)
     for s in settings:
         bytype[s["type"]].append(s)
@@ -755,6 +948,7 @@ def _l3_consensus(settings):
 
     findings = defaultdict(list)
     fam_sizes = Counter()
+    mstats = Counter()
     for t, fam, tag in all_families:
         fam_sizes[tag] += 1
         if tag != "consensus":
@@ -765,35 +959,63 @@ def _l3_consensus(settings):
         for md in mem_debris:
             for wk in {d[1] for d in md}:
                 carry[wk] += 1
-        # shared long passages: 4-grams present in >=70% of the family, with their
-        # median position (fraction of stream length) across the settings that have
-        # them -- so a MISSING passage can be classed as an interior gap vs a
-        # truncation.
-        K = 4
-        ngm = defaultdict(set)
-        ngm_pos = defaultdict(list)
+        # shared long passages, present in >=70% of the family, with their
+        # median position (fraction of stream length) across the settings that
+        # have them -- so a MISSING passage can be classed as an interior gap
+        # vs a truncation. Issue #89 rework: grams are GENERATED from each
+        # member's re-joined WORD stream (readable, syllabification-free), but
+        # MEMBERSHIP is decided on the letters-only blob, so any
+        # syllabification/casing/ligature spelling of the same letters counts
+        # as having the passage. The length/content eligibility guards keep
+        # stopword-runs and too-short concatenations from matching spuriously.
+        K = _L3_NGRAM_K
+        gram_cat = {}                     # gram -> concatenated letters
+        for s in fam:
+            wl = s["repwords"]
+            for i in range(len(wl) - K + 1):
+                g = tuple(wl[i:i + K])
+                if g in gram_cat:
+                    continue
+                cat = "".join(g)
+                if len(cat) < 10:
+                    continue
+                if sum(1 for w in g if len(w) >= 3
+                       and w not in _L3_GAP_STOPWORDS) < 2:
+                    continue
+                gram_cat[g] = cat
+        ngm = defaultdict(set)            # gram -> member idxs that HAVE it
+        ngm_pos = defaultdict(list)       # gram -> blob-position fractions
         for idx, s in enumerate(fam):
-            nl = s["repnorm"]
-            L = max(1, len(nl))
-            seen_g = set()
-            for i in range(len(nl) - K + 1):
-                g = tuple(nl[i:i + K])
-                ngm[g].add(idx)
-                if g not in seen_g:
-                    seen_g.add(g)
-                    ngm_pos[g].append(i / L)
+            blob = s["blob"]
+            L = max(1, len(blob))
+            for g, cat in gram_cat.items():
+                p = blob.find(cat)
+                if p != -1:
+                    ngm[g].add(idx)
+                    ngm_pos[g].append(p / L)
+                    continue
+                # not in the rep stream, but carried by another voice/verse
+                # stream (e.g. second-half-as-verse-2 engraving) -- the
+                # setting HAS the passage; position from that stream.
+                for b in s["all_blobs"]:
+                    q = b.find(cat)
+                    if q != -1:
+                        ngm[g].add(idx)
+                        ngm_pos[g].append(q / max(1, len(b)))
+                        break
         need = max(2, int(0.7 * fs + 0.5))
         shared = {g: ms for g, ms in ngm.items() if len(ms) >= need}
         block_order = {}
         if shared:
             order_sorted = sorted(
-                shared, key=lambda g: sorted(ngm_pos[g])[len(ngm_pos[g]) // 2])
+                shared,
+                key=lambda g: (sorted(ngm_pos[g])[len(ngm_pos[g]) // 2], g))
             block_order = {g: i for i, g in enumerate(order_sorted)}
         for idx, s in enumerate(fam):
             sib_union = set().union(*[fam[j]["allnorm"]
                                       for j in range(fs) if j != idx])
-            siblings = [" ".join(fam[j]["rep"][:7]) for j in range(fs)
-                        if j != idx][:3]
+            siblings = [" ".join(tt for _mn, tt, _sy in fam[j]["rep"][:7])
+                        for j in range(fs) if j != idx][:3]
             base = {"type": t, "section": s["section"], "family_size": fs}
             # (a) alien DEBRIS carried by a minority of the family
             # (one finding per distinct debris wordkey; keep first raw surface)
@@ -830,25 +1052,121 @@ def _l3_consensus(settings):
             # AFTER the gap) is what separates a genuine dropped line from a
             # legitimate truncation / sub-part (e.g. the anaphora opening dialogue
             # is a prefix of the full anaphora, not a piece with a dropped line).
-            if shared and len(s["repnorm"]) >= 12:
-                present = [block_order[g] for g in shared if idx in shared[g]]
-                missing = [g for g in shared if idx not in shared[g]]
+            # Issue #89 refinements on top of the interior test:
+            #   * a passage carried by a SIBLING SLICE of the same book (or
+            #     spanning a slice boundary) is present in the piece -- skip;
+            #   * a missing gram only carries gap EVIDENCE when its content
+            #     words are absent from the local gap window too -- a
+            #     word-order / one-word-insertion / substitution / elision
+            #     variant has the words right there and is suppressed;
+            #   * flag on >=2 evidencing grams, or one whose content words
+            #     (>=3 of them) are ALL locally absent (a single short dropped
+            #     response line, the #88 short-system class).
+            if shared and len(s["repwords"]) >= 8:
+                blob = s["blob"]
+                # anchors must sit in the REP stream (windows are rep-blob
+                # coordinates); a passage carried only by another verse stream
+                # is "present" for missing-ness but cannot anchor a window.
+                present = {}
+                for g in shared:
+                    if idx in shared[g]:
+                        ps = _l3_find_all(blob, gram_cat[g])
+                        if ps:
+                            present[g] = ps
+                pblobs = s.get("piece_blobs")
+                missing = []
+                for g in shared:
+                    if idx in shared[g]:
+                        continue
+                    if pblobs and any(gram_cat[g] in b for b in pblobs):
+                        mstats["sibling_slice_present"] += 1
+                        continue
+                    missing.append(g)
                 if present and missing:
-                    lo, hi = min(present), max(present)
+                    orders = [block_order[g] for g in present]
+                    lo, hi = min(orders), max(orders)
                     interior = sorted((block_order[g], g) for g in missing
                                       if lo < block_order[g] < hi)
-                    if len(interior) >= 2:  # a real interior gap, not a tail cut
-                        g0 = interior[0][1]
+                    pres_sorted = sorted((block_order[g], g) for g in present)
+                    real = []
+                    for o, g in interior:
+                        # gap window: from the nearest present passage BEFORE
+                        # the gap (canonical family order) to the nearest one
+                        # AFTER it, INCLUDING the anchor text itself -- a
+                        # variant gram usually shares words with its
+                        # neighboring anchors ('holy mighty holy immor...'
+                        # against a 'holy and immortal' insertion edition).
+                        prev_g = max((po, pg) for po, pg in pres_sorted
+                                     if po < o)[1]
+                        next_g = min((po, pg) for po, pg in pres_sorted
+                                     if po > o)[1]
+                        w_lo = min(present[prev_g])
+                        w_hi = max(p + len(gram_cat[next_g])
+                                   for p in present[next_g])
+                        if w_hi < w_lo:
+                            w_lo, w_hi = w_hi, w_lo   # order-drift safety
+                        window = blob[max(0, w_lo - 12):w_hi + 12]
+                        content = list(dict.fromkeys(
+                            w for w in g if len(w) >= 3
+                            and w not in _L3_GAP_STOPWORDS))
+                        # a content word only counts as gap evidence when it
+                        # is absent from the local window AND from the whole
+                        # piece (every voice/verse stream, and every sibling
+                        # slice of a sliced book): issue #89 -- 'requires the
+                        # span's CONTENT WORDS absent, not just the 4-gram'.
+                        # This is what suppresses reordered translations,
+                        # verse-interleaved responsory engravings, and
+                        # phrase-adjacency differences; a real drop's words
+                        # never reached the MusicXML at all.
+                        everywhere = s["all_blobs"] + (pblobs or [])
+                        absent = [w for w in content
+                                  if not _l3_word_in(window, w)
+                                  and not any(_l3_word_in(b, w)
+                                              for b in everywhere)]
+                        if len(absent) >= 2:
+                            real.append((o, g, content, absent))
+                        else:
+                            mstats["local_variant_suppressed"] += 1
+                    strong = [r for r in real if len(r[3]) == len(r[2]) >= 3]
+                    # DIFFERENT-TEXT GUARD: a genuine dropped line is a
+                    # CONTIGUOUS run (or two) of missing passages; a setting
+                    # whose evidencing gaps are SCATTERED across a large share
+                    # of the family's canonical text is a different
+                    # translation / different canonical text that the type key
+                    # + Jaccard clustering failed to separate (the fam=3
+                    # ode/katavasia families), not a piece with dropped lines.
+                    runs, prev_o = 0, None
+                    for o, _g, _c, _a in real:
+                        if prev_o is None or o - prev_o > 2:
+                            runs += 1
+                        prev_o = o
+                    if runs >= 3 and (len(real) > max(5, 0.5 * len(present))
+                                      or len(real) >= 12):
+                        mstats["family_mismatch_suppressed"] += 1
+                    elif len(real) >= 2 or strong:
+                        g0 = (strong[0] if strong and len(real) < 2
+                              else real[0])[1]
                         haver = fam[min(shared[g0])]
+                        mstats["flagged_settings"] += 1
+                        mstats["evidencing_grams"] += len(real)
                         findings[s["pid"]].append({**base, "kind": "missing_block",
                             "verdict": "uncertain",
-                            "reason": f"{len(interior)} passage(s) shared by >=70% of "
+                            "reason": f"{len(real)} passage(s) shared by >=70% of "
                                       f"the {fs} settings sit BETWEEN passages this "
-                                      f"setting does have -- an interior gap, i.e. a "
-                                      f"probable dropped line (needs a PDF check)",
+                                      f"setting does have, with their content words "
+                                      f"absent from the gap region -- an interior "
+                                      f"gap, i.e. a probable dropped line (needs a "
+                                      f"PDF check)",
                             "missing_passage": " ".join(g0),
-                            "context": " ".join(haver["rep"][:16]),
+                            "missing_words": sorted(
+                                {w for _o, _g, _c, ab in real for w in ab}),
+                            "evidence_grams": len(real),
+                            "present_grams": len(present),
+                            "gap_runs": runs,
+                            "context": _l3_blob_ctx(haver, gram_cat[g0]),
                             "siblings": [haver["pid"]]})
+                    elif interior:
+                        mstats["settings_fully_suppressed"] += 1
     cluster_stats = {
         "settings": len(settings),
         "types": len(bytype),
@@ -858,7 +1176,7 @@ def _l3_consensus(settings):
         "families_singleton": fam_sizes["no_family_consensus"],
         "types_too_small": fam_sizes["small_type"],
     }
-    return findings, cluster_stats, bytype
+    return findings, cluster_stats, bytype, dict(mstats)
 
 
 def attach_layer3(report, manifest_path):
@@ -868,7 +1186,7 @@ def attach_layer3(report, manifest_path):
         manifest = json.load(f)
     titles = {e["id"]: e.get("title", "") for e in manifest}
     settings, sec_derived = _l3_build_settings(manifest)
-    findings, cluster_stats, bytype = _l3_consensus(settings)
+    findings, cluster_stats, bytype, missing_filter = _l3_consensus(settings)
     cluster_stats["settings_section_derived"] = sec_derived
 
     pieces = report["pieces"]
@@ -915,8 +1233,11 @@ def attach_layer3(report, manifest_path):
     report["layer3"] = {
         "method": "type-cluster -> Jaccard translation-families (thr=0.5) -> "
                   "consensus (alien-debris / alien-vocab / missing-text) -> "
-                  "semantic arbitration",
+                  "semantic arbitration; missing-text via word-joined n-grams "
+                  "with letters-only blob membership + local content-word gap "
+                  "test (issue #89)",
         "clusters": cluster_stats,
+        "missing_block_filter": missing_filter,
         "verdicts": dict(verdicts),
         "kinds": dict(kinds),
         "validation": {
@@ -1067,6 +1388,7 @@ def main():
               f"{c['families_size2']} size-2, {c['families_singleton']} singleton "
               f"(no-family-consensus)")
         print(f"consensus verdicts: {l3['verdicts']}   kinds: {l3['kinds']}")
+        print(f"missing-block filter (issue #89): {l3['missing_block_filter']}")
         print(f"validation: layer-1/2 contamination pieces {v['layer12_contamination_pieces']}; "
               f"of those in a consensus family {v['layer12_contam_in_a_consensus_family']}; "
               f"RE-FLAGGED by consensus {v['reflagged_of_family_having']} "
