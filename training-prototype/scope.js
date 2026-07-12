@@ -332,7 +332,11 @@ window.TrainingScope = (() => {
       const h = Math.max(6, Math.min(14, rowH * 0.8));
       const w = Math.max(4, x1 - x0 - 2);
       const yMid = yOf(n.midi);
-      g.fillStyle = active ? GOLD_BRIGHT : GOLD;
+      // Optional per-note verdict tint (issue #60 phase 2, scope half): a lane
+      // note may carry a `tint` color set by js/scope-verdicts.js while the
+      // report's coloring overlay is on. Presentation-only — absent (the
+      // default), the bar is plain GOLD exactly as before.
+      g.fillStyle = active ? GOLD_BRIGHT : (n.tint || GOLD);
       if (active) { g.shadowColor = GOLD; g.shadowBlur = 12; }
       roundRect(g, x0, yMid - h / 2, w, h, 3);
       g.fill();
@@ -635,6 +639,12 @@ window.TrainingScope = (() => {
     requestAnimationFrame(draw);
   }
 
+  // Read access to the live lane note objects (issue #60 phase 2): lets the
+  // scope-verdicts UI module write/remove per-note `tint` fields without
+  // duplicating lane geometry. Rebuilding the lane (setLane) naturally drops
+  // any tints — exactly the clear-on-rebuild lifecycle the overlay wants.
+  function getLane() { return lane; }
+
   function setLane(selectedNotes, otherNotes, windowSec) {
     lane = selectedNotes || [];
     others = otherNotes || [];
@@ -740,7 +750,7 @@ window.TrainingScope = (() => {
   }
 
   return {
-    attach, setLane, setTimeSource, setPitchSink, micStart, micStop,
+    attach, setLane, getLane, setTimeSource, setPitchSink, micStart, micStop,
     setMicProcessing, getMicSettings,
     // Input-latency (L_in) back-date for the trace + scoring stamp.
     setInputLatency, getInputLatency,

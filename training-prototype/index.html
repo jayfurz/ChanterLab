@@ -63,17 +63,19 @@
      neighborhood. Dismissed by the X (sticks until the next Play) or by a fresh
      Play. Calm Surface (#73/§4) relocated it here — adjacent to #transport —
      and fixes it just above the controls that react to it (see .score-report in
-     style.css). The richer per-note-coloring layer of #60 is phase 2. -->
+     style.css). -->
 <div id="scoreReport" class="score-report" hidden aria-live="polite">
   <div class="score-report-head">
     <span id="scoreReportTotals" class="score-report-totals"></span>
     <button id="scoreReportClose" class="score-report-close" aria-label="Dismiss report" title="Dismiss">✕</button>
   </div>
-  <!-- Per-note score coloring (issue #79): tint this lap's scored noteheads by
-       verdict on the notation itself. Per-report (off by default); the legend
+  <!-- Per-note result coloring (#60): tint this lap's scored notes by verdict
+       on the notation (noteheads, issue #79) AND the singscope lane bars
+       (js/scope-verdicts.js). Per-report (off by default); the legend
        (populated from loader's VERDICT_TINTS) appears while it's on. -->
   <div class="score-report-color">
-    <button id="scoreColorToggle" class="score-color-toggle" type="button" aria-pressed="false" hidden>🎨 Show on score</button>
+    <button id="scoreColorToggle" class="score-color-toggle" type="button" aria-pressed="false" hidden
+            title="Tint this lap's scored notes by result — on the notation and the scope lane">🎨 Show on score</button>
     <span id="scoreColorKey" class="score-color-key" hidden></span>
   </div>
   <div id="scoreReportSpots" class="score-report-spots"></div>
