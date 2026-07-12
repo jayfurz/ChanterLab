@@ -665,10 +665,13 @@ v1 §9 put eleven decisions to the owner; shipping wave B confirmed them. Ledger
 
 **Open decisions for the owner (v2):**
 
-* **D1 — Desktop report deferral (Phase 1-1).** Recommended: card waits for Stop;
-  status line carries per-lap totals live. Alternative (rejected: permanent
-  ~220 px dead rail space): always-reserved card slot. Veto before Phase 1 lands.
-* **D2 — Phase 2 worst spots: final lap (default) or best lap?**
+* **D1 — Desktop report deferral (Phase 1-1). DECIDED 2026-07-11:** owner
+  deferred to the recommendation — the card waits for Stop; the status line
+  carries per-lap totals live. Alternative (rejected: permanent ~220 px dead
+  rail space): always-reserved card slot.
+* **D2 — Phase 2 worst spots. DECIDED 2026-07-11:** owner deferred to the
+  recommendation — final lap's worst spots, with the best-lap score shown
+  alongside.
 * **D3 — Calibrate wizard row**: Phase 1 hides it (honoring the existing `hidden`
   intent). When the wizard's speaker-echo redesign happens, its row returns to
   Sound below the timing sliders — no spec change needed.
