@@ -33,6 +33,7 @@ import {
   currentSections, activeSectionIdx, xmlScannedSections, jumpToSection, initSections,
 } from './sections.js';
 import { activeVerse, setVerse, buildScopeLane, updateVoiceChip } from './voices.js';
+import { initScopeVerdicts, syncScopeVerdicts, scopeVerdictsInfo } from './scope-verdicts.js';
 import {
   libProto, libItems, libFlat, libOffsets, libOpen, libFacetDefs, libCollapsed,
   loadLibraryManifest, openLibrary, closeLibrary, toggleGroup, renderWindow, initLibrary,
@@ -60,6 +61,7 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     el.bpm.addEventListener('input', () => {
       el.bpmOut.textContent = el.bpm.value;
       buildScopeLane();
+      syncScopeVerdicts();   // same window, rebuilt lane — restore verdict tints (issue #60)
       if (playState === 'playing') { stop(); startPlayback(); }
       else if (playState === 'paused') stop();
     });
@@ -81,6 +83,9 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // ensures the window, so this is only to preview the range before Play.
     const onLoopChange = () => {
       buildScopeLane();
+      // Lane rebuilt: re-sync verdict tints (issue #60). Unchanged range gets
+      // its tints back; a different range fails the count guard → plain gold.
+      syncScopeVerdicts();
       // Preview-render the loop range only while stopped (a re-render hides the
       // follow cursor); startPlayback re-ensures the window before it schedules.
       if (!windowed || playState !== 'stopped') return;
@@ -795,6 +800,8 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     if (isIOS()) logAudioEvent('audiosession-set', setAudioSessionType('playback', 'boot'));
     initLibrary();
     initSections();
+    initScopeVerdicts();  // scope-lane verdict tints (issue #60 phase 2) — rides
+                          // the 'chanterlab:scorecoloring' event; no DOM of its own.
     initRecording();    // in-app practice recording (issue #67) — wires the ⏺ toggle,
                         // the Voice/Music balance slider, and the master-rebuild re-tap
                         // hook; builds NO audio graph until the first Record.
@@ -991,6 +998,10 @@ let loopRenderTimer = 0;   // debounce windowed re-render on loop-input edits
     // toggleScoreColoring(): drive the report's "Show on score" chip
     // programmatically; returns the resulting scoreColoring() snapshot.
     toggleScoreColoring: () => { toggleScoreColoring(); return scoreColoringInfo(); },
+    // scopeVerdicts(): the scope-lane half of the overlay (issue #60 phase 2) —
+    // { on, applied, painted, targets, tints } where tints[] is each lane
+    // note's current color (null = plain gold).
+    scopeVerdicts: () => scopeVerdictsInfo(),
     // renderCount(): monotonically-increasing renderNow() count — lets a test
     // assert exactly one render happened across a toggle.
     renderCount: () => renderCount,
