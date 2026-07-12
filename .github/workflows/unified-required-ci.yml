@@ -81,10 +81,10 @@ jobs:
         working-directory: training-prototype/omr
         # Public/fresh-checkout run: the corpus PDFs (training-prototype/omr/pdfs/)
         # are gitignored copyrighted material and are never present here, so
-        # every PDF-gated case in test_regression.py + the 4 Bortniansky cases
-        # in test_fixes.py SKIPS via conftest.skip_if_pdf_missing — by design,
-        # not a bug (see tests/README.md). The PDF-independent unit tests
-        # (chord-dots / syllabified-lyric logic) always run for real.
+        # every PDF-gated extraction and private-source hash check SKIPS by
+        # design, not as a substitute for verification (see tests/README.md).
+        # The constructed semantic and generated-refusal PDF fixtures run for
+        # real on every public checkout.
         run: |
           set -o pipefail
           python -m pytest tests/ -v 2>&1 | tee /tmp/omr-pytest.log
@@ -97,11 +97,10 @@ jobs:
             echo
             echo "\`${summary:-no summary line found — see job log}\`"
             echo
-            echo "Corpus-dependent cases (test_regression.py's 10 pieces + 2 determinism"
-            echo "+ 2 whole-measure-rest spot checks, and test_fixes.py's 4 Bortniansky"
-            echo "cases) always skip on a public runner — the source PDFs are gitignored"
+            echo "Corpus-dependent extraction cases and the registry's 11 source-hash checks"
+            echo "always skip on a public runner — the source PDFs are gitignored"
             echo "copyrighted material, never present here. **This is NOT corpus verified"
-            echo "— it only proves the PDF-independent unit tests.** See the"
+            echo "— it proves the rights-safe semantic and generated-PDF tests.** See the"
             echo "\`omr-private-corpus\` job for the private-corpus status."
           } >> "$GITHUB_STEP_SUMMARY"
 

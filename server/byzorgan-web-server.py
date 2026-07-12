@@ -44,6 +44,18 @@ Drop-in replacement for `python3 -m http.server 8765 --directory
      X-Forwarded-Host at all. Host (stripped of any :port) is therefore the
      routing key.
 
+  4. Legacy scales mount (SCALES-01, docs/plans/80-scales-and-raga/): on the
+     same brand hosts, /scales and /scales/* map to the legacy Byzantine app
+     as if the legacy webroot were mounted at /scales/ — GET /scales/app.js
+     on chanterlab.com serves web/app.js. Implemented in translate_path()
+     with the same never-mutate-self.path discipline as point 3, so the
+     stdlib trailing-slash redirect for GET /scales emits Location: /scales/
+     without leaking anything internal. Every other host is untouched:
+     /scales resolves as an ordinary (nonexistent) file there and 404s.
+     /scales/training/* is left alone on purpose — it resolves through the
+     web/training symlink like it always has on legacy hosts, and the OMR
+     allowlist below still applies because it checks the resolved path.
+
   The /training/omr allowlist policy (point 2) is evaluated against the
   logical path AFTER the root-host rewrite (point 3), i.e. on the same
   resolved filesystem path that will actually be opened — so
@@ -118,7 +130,7 @@ class HardenedHandler(http.server.SimpleHTTPRequestHandler):
         path = self.path.split("?", 1)[0].lower()
         if any(path.startswith(p) for p in self._LONG_CACHE_PREFIXES):
             self.send_header("Cache-Control", "public, max-age=86400")
-        elif path.endswith(self._NO_CACHE_EXTS) or path.rstrip("/") in ("", "/training"):
+        elif path.endswith(self._NO_CACHE_EXTS) or path.rstrip("/") in ("", "/training", "/scales"):
             self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
@@ -145,7 +157,13 @@ class HardenedHandler(http.server.SimpleHTTPRequestHandler):
         # URL and can't leak the internal /training prefix back out.
         if self._root_host():
             raw = path.split("?", 1)[0].split("#", 1)[0]
-            if raw != "/training" and not raw.startswith("/training/"):
+            if raw == "/scales" or raw.startswith("/scales/"):
+                # Legacy scales mount (docstring point 4): strip the prefix
+                # and skip the /training rewrite so /scales/* resolves under
+                # the legacy webroot exactly as "/" does on non-brand hosts.
+                stripped = path[len("/scales"):]
+                path = stripped if stripped.startswith("/") else "/" + stripped
+            elif raw != "/training" and not raw.startswith("/training/"):
                 path = "/training" + path
         return super().translate_path(path)
 
@@ -216,7 +234,8 @@ def main() -> int:
     httpd = http.server.ThreadingHTTPServer((BIND, PORT), handler)
     sys.stderr.write(
         "byzorgan-web-server: serving %s on %s:%d "
-        "(no autoindex; /training/omr allowlisted; chanterlab.com/www root-mounted)\n"
+        "(no autoindex; /training/omr allowlisted; chanterlab.com/www "
+        "root-mounted, legacy scales at /scales/)\n"
         % (WEBROOT, BIND, PORT)
     )
     try:

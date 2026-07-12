@@ -1,6 +1,6 @@
 # TRUST-02: Multidimensional Confidence Signals
 
-Status: ready; `TRUST-01` schema v1 approved 2026-07-11. Priority: P0/P1.
+Status: complete 2026-07-11; implemented by `fd8ff5d`. Priority: P0/P1.
 
 Dependencies: ledger schema. Blocks: trust UI, review prioritization, uploads.
 
@@ -33,3 +33,30 @@ duplicates, page-selection confidence, and override status.
 Signals are deterministic, versioned, explainable, and independently testable;
 no score changes status merely because fields were added; policy changes produce
 an explicit candidate diff; unexplained distribution shifts block completion.
+
+## Implementation Record
+
+The parser report now carries the versioned `omr-confidence-vector-v1` contract
+with 12 independently named signals and stable warning codes. Each signal keeps
+raw evidence separate from policy. The existing `integrity_pct` field and the
+`legacy-measure-integrity-v1` acceptance policy remain unchanged; adopting a
+new acceptance policy or changing the approved quality-ledger schema reference
+requires a separate reviewed decision.
+
+Focused and private-corpus verification passed 184 tests with no failures or
+skips. A clean full extraction produced the same 3,358 accepted, 125 review,
+300 no-music, and 10 type-3 outcomes as the sealed production release. Its
+manifest and all 3,793 state records were object-identical, all 3,358 served
+MusicXML files were byte-identical, and every sealed legacy report field was
+identical after excluding only the additive confidence fields and counters.
+
+The corpus comparison also established the first signal baseline. Measure
+consistency had a median of 1.0 and mean of 0.990002; glyph coverage had a
+median of 1.0 and mean of 0.997133; lyric attachment had a median of 1.0 and
+mean of 0.994696. Page-selection coverage had a median of 1.0 and mean of
+0.778185, reflecting deliberate page selection rather than transcription
+quality. Nonzero evidence appeared in 50 divisi reports, 333 pitch/accidental
+reports, and 1,604 dropped/duplicate-event reports. These are descriptive
+baselines, not acceptance thresholds.
+
+The verified candidate was audit-only and was neither sealed nor promoted.

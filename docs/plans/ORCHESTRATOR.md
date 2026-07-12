@@ -3,7 +3,11 @@
 Status: active. BASE-00 through CAT-03 completed 2026-07-10; `TRUST-01` schema
 v1 was owner-approved and implemented 2026-07-11. Its first ledger-bearing
 catalog release, `rel-20260711T155237Z-a3fdb875e54f`, was then promoted after
-separate owner production approval.
+separate owner production approval. `TRUST-02` confidence instrumentation was
+then completed and corpus-verified without a catalog promotion. `TRUST-03`
+golden fixtures subsequently made the public/private evidence boundary
+machine-verifiable. `TRUST-04` audit tooling and a release-bound private sample
+are staged, but no human accuracy result has been claimed.
 
 Objective: execute `docs/APP-ROADMAP-2026.md` as independently reviewable
 workstreams while keeping the live practice app and catalog safe.
@@ -32,6 +36,9 @@ BASE-02 -> PRACTICE/AUDIO lanes
 CAT-02 + TRUST-01 -> production/PWA lanes
 TRUST + LOOP + RIGHTS -> uploads/director expansion
 stable practice shell -> one-app convergence
+
+SCALES-01 -> RAGA-01 -> RAGA-02 [owner-approved 2026-07-11; independent lane
+  on legacy web/ + server routing files only — see 80-scales-and-raga/]
 ```
 
 ## Global Waves
@@ -50,9 +57,10 @@ only with disjoint files.
 
 ### Wave 2: Establish Content Trust
 
-Atomic releases, the quality-ledger implementation, and the first
-ledger-bearing promotion are complete. Confidence instrumentation and
-human-audit tooling may proceed under the approved ledger vocabulary.
+Atomic releases, the quality-ledger implementation, the first ledger-bearing
+promotion, confidence instrumentation, and golden fixtures are complete.
+Human-audit tooling is implemented under the approved ledger vocabulary; its
+staged source comparisons still require human reviewers.
 
 ### Wave 3: Close The User Feedback Loop
 

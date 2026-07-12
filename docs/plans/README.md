@@ -28,6 +28,7 @@ continue appending execution work to them.
 | [`50-production-platform`](50-production-platform/ORCHESTRATOR.md) | Architecture, dependencies, security, accessibility, PWA, observability | CI and catalog versioning stable |
 | [`60-one-app`](60-one-app/ORCHESTRATOR.md) | Common timed-score contract and Byzantine/Western convergence | Practice shell stable |
 | [`70-expansion`](70-expansion/ORCHESTRATOR.md) | Uploads, accounts, directors, raster OMR, multipart research | Rights and product gates approved |
+| [`80-scales-and-raga`](80-scales-and-raga/ORCHESTRATOR.md) | Legacy scales app exposure, raga presets, sargam labels, tanpura drone | Owner approved 2026-07-11 |
 
 ## Status Values
 

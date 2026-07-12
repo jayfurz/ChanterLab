@@ -39,6 +39,25 @@ regression test **skips** with a message naming the missing file; it never
 fails or errors. Expect all-skip in CI, all-pass (or a real failure) on a
 machine with the library checked out.
 
+## Golden Fixture Registry
+
+`golden_fixtures.json` is the machine-readable feature matrix. Every fixture
+has a stable ID, a reason for existing, and explicit engraving/failure
+features. Public cases identify the exact semantic test that exercises them.
+Private cases contain only a corpus-relative basename and source sha256; they
+never contain the PDF, extracted MusicXML, or an absolute local path.
+
+The registry test fails when a required feature is uncovered, when a private
+piece drifts away from `expectations.json`, or when an available private PDF
+does not match its recorded source hash. All high-risk features feasible with
+constructed models run publicly. Mid-piece layout switching remains explicitly
+private-only because validating the glyph-to-system decision requires a real
+engraved input; three independent private pieces cover it.
+
+The public suite also creates blank and prose-only PDFs in `tmp_path` and
+requires the pipeline to refuse them with no emitted score or report. No
+generated binary is committed.
+
 ## What's covered
 
 `test_regression.py` re-extracts each corpus piece with the current engine
@@ -72,7 +91,7 @@ Two extra checks:
 
 ## The corpus
 
-10 pieces in `expectations.json["pieces"]`, picked to cover the failure
+11 pieces in `expectations.json["pieces"]`, picked to cover the failure
 modes recent fixes touched:
 
 | id | piece | why it's here |
@@ -87,6 +106,7 @@ modes recent fixes touched:
 | `finley_little_litany_legacy_maestro` | 03f_little_litany-finley.pdf | true legacy TrueType `Maestro` font (Sonata map), substituted for the Joseph 01-08 set (see below) |
 | `receive_ye_tikey_zes` | receive_ye-tikey_zes.pdf | genuine agreeing 4/4 whole rests (no resize needed — the third variant alongside shrink/grow) |
 | `finley_entrance_hymn_multiverse` | 07f_entrance_hymn-finley.pdf | multi-verse standalone piece, exercises the verse-toggle data path |
+| `bortniansky_cherubic_7` | 13c_cherubic_hymn-bortniansky-7.pdf | chord-dot normalization, upper-voice divisi, and above-staff lyrics |
 
 **Substitution note:** the issue brief suggested "one of the Joseph 01-08
 set that's stable" as a legacy-Maestro example. As of this suite's
@@ -141,9 +161,28 @@ parametrized case, e.g.:
 UPDATE_EXPECTATIONS=1 .venv/bin/python -m pytest tests/ -k trisagion_satb
 ```
 
+`--bless` changes only the private byte/stat expectations. It cannot update or
+bypass `test_golden_fixtures.py` or the dedicated semantic assertions in
+`test_regression.py` and `test_fixes.py`. A re-bless is incomplete until those
+assertions pass and the reviewed change explains the semantic difference.
+
+## Turning A Defect Into A Fixture
+
+1. Record the source basename and sha256 locally; never add the protected PDF.
+2. Reduce the defect to the smallest rights-safe constructed-model assertion
+   possible. Add a generated PDF only when the PDF boundary itself matters.
+3. Add the real piece to `golden_fixtures.json` and `expectations.json` when it
+   supplies layout/font evidence that cannot be represented honestly in a
+   synthetic model. State exactly why the piece exists and tag its features.
+4. Make the semantic assertion fail on the old parser and pass on the fix.
+5. Run both modes: the public-style checkout must pass with exact declared
+   skips, and the private checkout must validate every source hash and test.
+6. Review semantic output first. Re-bless a byte hash only after the behavior
+   change is understood and documented.
+
 ## Runtime
 
-The full 10-piece corpus extracts in ~3 seconds (each piece is
+The full 11-piece corpus extracts in a few seconds (each piece is
 0.1-6s of `pipeline.py` CPU time); the whole suite including pytest
 startup and the two doubled-up determinism extractions runs in a few
 seconds, comfortably under the ~2 minute budget.

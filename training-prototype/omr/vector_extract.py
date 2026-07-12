@@ -43,6 +43,8 @@ from typing import Optional
 
 import fitz  # PyMuPDF
 
+import confidence_signals
+
 # ---------------------------------------------------------------- SMuFL tables
 
 NOTEHEADS = {
@@ -304,17 +306,22 @@ class System:
 class Report:
     def __init__(self):
         self.warnings = []
+        self.warning_counts = defaultdict(int)
         self.info = []
         self.stats = defaultdict(int)
 
-    def warn(self, msg):
+    def warn(self, code, msg):
+        if code not in confidence_signals.WARNING_CODES:
+            raise ValueError(f"unsupported confidence warning code: {code}")
         self.warnings.append(msg)
+        self.warning_counts[code] += 1
 
     def note(self, msg):
         self.info.append(msg)
 
     def as_dict(self):
         return {"stats": dict(self.stats), "warnings": self.warnings,
+                "warning_counts": dict(sorted(self.warning_counts.items())),
                 "info": self.info}
 
 
@@ -598,7 +605,8 @@ def _group_systems(staves, music_glyphs, vlines, page_no, report):
         grouped = {id(s) for sy in systems for s in sy.staves}
         left = [s for s in ss if id(s) not in grouped]
         if left:
-            report.warn(f"p{page_no}: {len(left)} staves outside any bracket "
+            report.warn("staff.unbracketed_group",
+                        f"p{page_no}: {len(left)} staves outside any bracket "
                         f"— grouped as their own system")
             systems.append(System(staves=left, page=page_no))
     else:
@@ -713,7 +721,8 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                 s.clef_x = g.x
     for s in all_staves:
         if s.clef is None:
-            report.warn(f"p{page_no}: staff at y~{s.top:.0f} has no clef — "
+            report.warn("staff.missing_clef",
+                        f"p{page_no}: staff at y~{s.top:.0f} has no clef — "
                         f"assuming treble")
             s.clef, s.clef_x = "treble", s.x0
 
@@ -727,13 +736,15 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                 continue
             s = _assign_staff(g, all_staves)
             if s is None:
-                report.warn(f"p{page_no}: notehead at ({g.x:.0f},{g.y:.0f}) "
+                report.warn("event.notehead_dropped",
+                            f"p{page_no}: notehead at ({g.x:.0f},{g.y:.0f}) "
                             f"not near any staff — dropped")
                 continue
             h = Head(g=g, kind=kind, beats=beats, staff=s)
             h.step, err = s.step_of(g.y)
             if err > 0.3:
-                report.warn(f"p{page_no}: notehead at ({g.x:.0f},{g.y:.0f}) "
+                report.warn("pitch.off_grid_notehead",
+                            f"p{page_no}: notehead at ({g.x:.0f},{g.y:.0f}) "
                             f"off-grid by {err:.2f} half-spaces")
             heads.append(h)
 
@@ -767,7 +778,8 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
         sharps = sum(1 for g in accs if ACCIDENTALS[g.cp] == 1)
         flats = sum(1 for g in accs if ACCIDENTALS[g.cp] == -1)
         if sharps and flats:
-            report.warn(f"p{page_no}: staff y~{s.top:.0f}: mixed key-sig "
+            report.warn("pitch.mixed_key_signature",
+                        f"p{page_no}: staff y~{s.top:.0f}: mixed key-sig "
                         f"accidentals ({sharps}#, {flats}b)")
         s.key_fifths = sharps if sharps else -flats
         keysig_glyphs.update(id(g) for g in accs)
@@ -933,7 +945,8 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
             merged.append(x)
         sy.bar_xs = merged
         if not merged:
-            report.warn(f"p{page_no}: system at y~{top:.0f} has no barlines "
+            report.warn("staff.no_barlines",
+                        f"p{page_no}: system at y~{top:.0f} has no barlines "
                         f"— whole system treated as one measure")
             sy.bar_xs = [sy.staves[0].x1 + 1]
 
@@ -994,7 +1007,8 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
             if best is not None and bd < 6:
                 best.flag = (n, direction)
             else:
-                report.warn(f"p{page_no}: flag at ({g.x:.0f},{g.y:.0f}) "
+                report.warn("rhythm.unmatched_flag",
+                            f"p{page_no}: flag at ({g.x:.0f},{g.y:.0f}) "
                             f"matched no stem")
 
     # ---- accidentals -> heads (excluding key signatures)
@@ -1010,7 +1024,8 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                 h = min(cands, key=lambda h: h.g.x0 - g.x1)
                 h.acc = ACCIDENTALS[g.cp]
             else:
-                report.warn(f"p{page_no}: accidental at ({g.x:.0f},{g.y:.0f}) "
+                report.warn("pitch.unmatched_accidental",
+                            f"p{page_no}: accidental at ({g.x:.0f},{g.y:.0f}) "
                             f"matched no notehead")
 
     # ---- augmentation dots -> heads
@@ -1057,7 +1072,8 @@ def extract_page(page, page_no, report, measure_offset, tempo_state):
                 if near_bar or before_first_note:
                     report.stats["repeat_sign_dots_ignored"] += 1
                     continue
-                report.warn(f"p{page_no}: augmentation dot at "
+                report.warn("rhythm.unmatched_augmentation_dot",
+                            f"p{page_no}: augmentation dot at "
                             f"({g.x:.0f},{g.y:.0f}) matched no notehead")
 
     # ---- tempo (metronome marks: met-note glyph + '= NN' text, all of them)
@@ -1104,9 +1120,11 @@ def _system_layout(sy, report, page_no):
     if n == 2:
         return "2staff"
     if n == 1:
-        report.warn(f"p{page_no}: single-staff system — treated as Soprano")
+        report.warn("staff.single_staff_soprano",
+                    f"p{page_no}: single-staff system — treated as Soprano")
         return "1staff"
-    report.warn(f"p{page_no}: unexpected {n}-staff system — mapping "
+    report.warn("staff.unexpected_count",
+                f"p{page_no}: unexpected {n}-staff system — mapping "
                 f"staves to S/A/T/B in order")
     return "4staff"
 
@@ -1226,7 +1244,8 @@ def _build_system_events(sy, all_heads, all_stems, music, report, page_no):
     grouped = []
     for h in loose:
         if h.kind != "whole":
-            report.warn(f"p{page_no}: {h.kind} notehead without stem at "
+            report.warn("event.stemless_notehead_kept",
+                        f"p{page_no}: {h.kind} notehead without stem at "
                         f"({h.g.x:.0f},{h.g.y:.0f}) — kept as-is")
         placed = False
         for grp in grouped:
@@ -1393,16 +1412,19 @@ def _reconcile_shared(sy, pending_by_staff, report, page_no):
             _, sa, sb = best
             for sol, (up, down, staff) in ((sa, pairs[0]), (sb, pairs[1])):
                 if sol["unbal"]:
-                    report.warn(f"p{page_no}: measure {mi + 1} of system at "
+                    report.warn("voice.shared_balance_failed",
+                                f"p{page_no}: measure {mi + 1} of system at "
                                 f"y~{staff.top:.0f}: could not balance "
                                 f"{up}/{down} ({sol['cumU']} vs {sol['cumD']})")
                 _commit_solution(sy, sol, up, down, report)
             if abs(sa["M"] - sb["M"]) > 1e-6:
-                report.warn(f"p{page_no}: measure {mi + 1}: staves disagree on "
+                report.warn("measure.staff_length_disagreement",
+                            f"p{page_no}: measure {mi + 1}: staves disagree on "
                             f"length ({sa['M']} vs {sb['M']} beats)")
         except IndexError:
             report.stats["shared_measures_degraded"] += 1
-            report.warn(f"p{page_no}: measure {mi + 1} of system at "
+            report.warn("voice.reconciliation_degraded",
+                        f"p{page_no}: measure {mi + 1} of system at "
                         f"y~{sy.staves[0].top:.0f}: reconciliation failed "
                         f"(ragged staff ranges) — routing ambiguous events to "
                         f"primary voice")
@@ -1730,7 +1752,8 @@ def _merge_divisi(sy, report, page_no):
             best = None
             n = len(notes)
             if n > 17:
-                report.warn(f"p{page_no}: {v} staff measure at "
+                report.warn("divisi.subset_search_failed",
+                            f"p{page_no}: {v} staff measure at "
                             f"x[{lo:.0f},{hi:.0f}): {n} events too many for "
                             f"divisi subset search — left as-is")
                 continue
@@ -1752,7 +1775,8 @@ def _merge_divisi(sy, report, page_no):
                 if best is None or penal < best[0]:
                     best = (penal, chosen)
             if best is None:
-                report.warn(f"p{page_no}: {v} staff measure at "
+                report.warn("divisi.subset_search_failed",
+                            f"p{page_no}: {v} staff measure at "
                             f"x[{lo:.0f},{hi:.0f}) sums {total} vs consensus "
                             f"{m_hint} and no subset fits — left as-is")
                 continue
@@ -1764,7 +1788,8 @@ def _merge_divisi(sy, report, page_no):
                 names = " ".join(
                     f"{LETTERS[max(h.step for h in e.heads) % 7]}"
                     f"{max(h.step for h in e.heads) // 7}" for e in drop)
-                report.warn(f"p{page_no}: {v} staff divisi in measure at "
+                report.warn("divisi.secondary_stream_dropped",
+                            f"p{page_no}: {v} staff divisi in measure at "
                             f"x[{lo:.0f},{hi:.0f}): dropped secondary "
                             f"stream [{names}] (correction-UI material)")
 
@@ -1868,7 +1893,7 @@ def _is_role_label_line(toks):
     return False
 
 
-def _drop_non_lyric_lines(band):
+def _drop_non_lyric_lines(band, report=None):
     """Cluster band tokens into text lines by baseline y and return them ordered
     top->bottom (each line a list of tokens) after removing non-sung text.
     _attach_lyrics treats each returned line as a separate verse.
@@ -1914,10 +1939,16 @@ def _drop_non_lyric_lines(band):
         if span_brackets:
             if bracket_depth > 0 or opens or closes:
                 bracket_depth = max(0, bracket_depth + opens - closes)
+                if report is not None:
+                    report.stats["lyric_lines_filtered_bracketed"] += 1
                 continue                         # inside a bracketed rubric block
         elif opens or closes:
+            if report is not None:
+                report.stats["lyric_lines_filtered_bracketed"] += 1
             continue                             # stray bracketed rubric line
         if any(_lyric_kill_token(t["text"]) for t in toks):
+            if report is not None:
+                report.stats["lyric_lines_filtered_kill_token"] += 1
             continue
         # A footnote-reference asterisk condemns the line ONLY when it is prose,
         # not sung text (issue #82). Editorial/navigation footnotes ('* Omit this
@@ -1932,14 +1963,20 @@ def _drop_non_lyric_lines(band):
         if any("*" in t["text"] for t in toks):
             n_dash = sum(1 for t in toks if _is_dash(t["text"]))
             if n_dash < 2:
+                if report is not None:
+                    report.stats["lyric_lines_filtered_footnote"] += 1
                 continue
         if _is_role_label_line(toks):
+            if report is not None:
+                report.stats["lyric_lines_filtered_role_label"] += 1
             continue                             # speaker-label rubric baseline
         toks = [_strip_ref_marker(t) for t in toks]
         toks = [t for t in toks
                 if _is_dash(t["text"]) or any(c.isalpha() for c in t["text"])]
         words = [t for t in toks if not _is_dash(t["text"])]
         if not words:
+            if report is not None:
+                report.stats["lyric_lines_filtered_nonlexical"] += 1
             continue
         # A full-sentence performance rubric that leaked into the band as its own
         # line ('Omit this note when singing this verse.' — 10A/10B, issue #82):
@@ -1948,6 +1985,8 @@ def _drop_non_lyric_lines(band):
         # multi-word lyric lines are never touched.
         if (len(words) >= 3 and not any(_is_dash(t["text"]) for t in toks)
                 and _lyric_compact(words[0]["text"]) in _PERF_RUBRIC_LEAD):
+            if report is not None:
+                report.stats["lyric_lines_filtered_rubric"] += 1
             continue
         if len(words) <= 5:
             expr = content = 0
@@ -1959,6 +1998,8 @@ def _drop_non_lyric_lines(band):
                 elif c not in _EXPR_CONNECTIVE:
                     content += 1
             if expr >= 1 and content == 0:
+                if report is not None:
+                    report.stats["lyric_lines_filtered_direction"] += 1
                 continue          # a pure musical-direction / navigation line
         kept.append(toks)
     return kept
@@ -2005,7 +2046,7 @@ def _attach_lyrics(sy, tokens, report, page_no, next_system_top=None,
                 if band_top < t["y"] < band_bot
                 and staff.x0 - 2 <= t["cx"] <= staff.x1 + 2
                 and t["size"] > 6]
-        lines = _drop_non_lyric_lines(band)
+        lines = _drop_non_lyric_lines(band, report)
         if not lines:
             continue
         # events that can carry a lyric: notes on this staff
@@ -2029,8 +2070,11 @@ def _attach_lyrics(sy, tokens, report, page_no, next_system_top=None,
             if v1_size is None:
                 v1_size = med
             elif med > 1.6 * v1_size:
+                report.stats["lyric_lines_filtered_oversized"] += 1
                 continue          # oversized => a title, not an alternate verse
             verse_k += 1
+            if len(voices) > 1:
+                report.stats["lyric_lines_shared_across_voices"] += 1
             _attach_verse_line(line, verse_k, staff, voices, carriers, report)
 
 
@@ -2064,7 +2108,7 @@ def _attach_above_staff_line(sy, tokens, prev_system_bot, report):
             if above_top < t["y"] < above_bot
             and staff.x0 - 2 <= t["cx"] <= staff.x1 + 2
             and t["size"] > 6]
-    lines = _drop_non_lyric_lines(band)
+    lines = _drop_non_lyric_lines(band, report)
     if not lines:
         return
     # the line closest to the staff (largest y) is this system's upper voice;
@@ -2449,6 +2493,7 @@ def build_score(pdf_path, pages=None, report=None):
         report.note(f"whole-measure-rest normalization: {wm_no_ref} flagged "
                     f"measure(s) had no reference voice — left at default")
     report.stats["whole_measure_rests_resized"] = wm_resized
+    report.stats["whole_measure_rests_without_reference"] = wm_no_ref
 
     # measure-integrity check
     #
@@ -2492,7 +2537,8 @@ def build_score(pdf_path, pages=None, report=None):
                 len(nonzero) == len(expected):
             consistent += 1
         else:
-            report.warn(f"measure {i + 1}: voice beat sums disagree: {sums}")
+            report.warn("measure.voice_beat_disagreement",
+                        f"measure {i + 1}: voice beat sums disagree: {sums}")
     report.stats["measures_with_consistent_beat_sums"] = consistent
     # how many measures are scored as multi-voice (downstream gate can tell a
     # clean monophonic extraction from a collapsed/penalized polyphonic one).
@@ -3156,7 +3202,8 @@ def _emit_event(w, e, memory, key_fifths, beam_xml="", voice_num=None):
 
 # ------------------------------------------------------------------------ main
 
-def run(pdf_path, out_path=None, report_path=None, pages=None, quiet=False):
+def run(pdf_path, out_path=None, report_path=None, pages=None, quiet=False,
+        confidence_context=None):
     report = Report()
     result = build_score(pdf_path, pages=pages, report=report)
     xml = emit_musicxml(result)
@@ -3165,7 +3212,8 @@ def run(pdf_path, out_path=None, report_path=None, pages=None, quiet=False):
     unmapped = report.stats.get("unmapped_music_glyphs", 0)
     denom = report.stats.get("music_glyphs_total", 0) + unmapped
     if unmapped and denom and unmapped > 0.02 * denom:
-        report.warn(f"legacy-font coverage: {unmapped} unmapped music glyphs "
+        report.warn("glyph.unmapped_coverage",
+                    f"legacy-font coverage: {unmapped} unmapped music glyphs "
                     f"= {100 * unmapped / denom:.1f}% of {denom} total — the "
                     f"Sonata glyph map may be incomplete for this piece")
     if out_path:
@@ -3187,6 +3235,7 @@ def run(pdf_path, out_path=None, report_path=None, pages=None, quiet=False):
          for v in result["voices"] for m in result["score"][v]
          for e in m for ly in e.lyric),
         default=0)
+    rep["confidence"] = confidence_signals.build(rep, confidence_context)
     if report_path:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(rep, f, indent=2)

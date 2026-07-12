@@ -38,6 +38,7 @@ from collections import defaultdict
 
 import fitz
 
+import confidence_signals
 import vector_extract
 
 # --- music-font families -----------------------------------------------------
@@ -253,6 +254,7 @@ def main():
                                   "found. This pipeline does not do raster OMR; "
                                   "see the roadmap for the (unsolved) scan path.")
         print(f"[pipeline] selected pages: {','.join(map(str, pages))}")
+        selection_mode = "auto"
     else:
         pages = [int(p) for p in args.pages.split(",")]
         chosen = [p for p in infos if p["page"] in pages]
@@ -260,9 +262,21 @@ def main():
             _refuse(args.pdf, f"pages {args.pages} have no Western music-font "
                               f"glyphs — not a born-digital engraving.")
         print(f"[pipeline] pages (explicit): {','.join(map(str, pages))}")
+        selection_mode = "explicit"
 
+    confidence_context = {
+        "page_selection": confidence_signals.page_selection_context(
+            infos, pages, selection_mode,
+        ),
+        "policy": {
+            "reference": "legacy-measure-integrity-v1",
+            "minimum_measure_consistency_ratio": round(args.min_integrity / 100, 6),
+        },
+    }
     result, rep, _xml = vector_extract.run(
-        args.pdf, args.out, report_path, pages)
+        args.pdf, args.out, report_path, pages,
+        confidence_context=confidence_context,
+    )
 
     integrity = rep["stats"].get("measure_integrity_pct") or 0.0
     print(f"\n[pipeline] wrote {args.out}")
