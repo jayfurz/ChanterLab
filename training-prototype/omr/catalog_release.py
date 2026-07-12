@@ -472,6 +472,19 @@ def _make_read_only(root: Path) -> None:
     root.chmod(root.stat().st_mode & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
 
 
+
+def _count_summary(output: str, label_pattern: str) -> int:
+    """Last pytest-summary count for a label, robust to forced-color ANSI.
+
+    pytest colorizes its summary when the caller's environment forces color
+    (FORCE_COLOR & co.), which puts an escape sequence immediately after the
+    label and defeats the boundary match — the 2026-07-12 release verify
+    failed closed on 248 green tests exactly this way.
+    """
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", output)
+    matches = re.findall(rf"(\d+) (?:{label_pattern})(?:[,\s]|$)", plain)
+    return int(matches[-1]) if matches else 0
+
 def verify_candidate(candidate: Path, python: Path, source_omr_dir: Path | None = None) -> dict:
     candidate = candidate.resolve()
     metadata = _load_json(candidate / "build-metadata.json")
@@ -490,8 +503,7 @@ def verify_candidate(candidate: Path, python: Path, source_omr_dir: Path | None 
     sys.stdout.write(output)
 
     def count(label_pattern: str) -> int:
-        matches = re.findall(rf"(\d+) (?:{label_pattern})(?:[,\s]|$)", output)
-        return int(matches[-1]) if matches else 0
+        return _count_summary(output, label_pattern)
 
     result = {
         "format_version": 1,

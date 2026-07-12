@@ -482,3 +482,14 @@ def test_public_smoke_uses_explicit_user_agent(monkeypatch):
     assert len(requests) == 3
     assert all(request.get_header("User-agent") == "ChanterLab-release-smoke/1.0"
                for request, _timeout in requests)
+
+
+def test_verification_count_survives_forced_color_pytest_output():
+    # Regression: FORCE_COLOR in the release operator's shell made pytest emit
+    # "\x1b[1m248 passed\x1b[0m", the boundary match saw passed:0, and a fully
+    # green verification failed closed (2026-07-12 release).
+    colored = "\x1b[32m\x1b[1m248 passed\x1b[0m\x1b[32m in 10.46s\x1b[0m"
+    assert cr._count_summary(colored, "passed") == 248
+    assert cr._count_summary("2 failed, 3 errors in 1.0s", "errors?") == 3
+    assert cr._count_summary("201 passed, 30 skipped in 2.8s", "skipped") == 30
+    assert cr._count_summary("no summary line", "passed") == 0
