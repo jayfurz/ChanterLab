@@ -14,6 +14,8 @@ from pathlib import Path
 
 SCHEMA_VERSION = 1
 CATEGORIES = ("pitch", "rhythm", "voice", "lyric", "divisi", "layout", "metadata")
+DOMAINS = {"semantic": ("pitch", "rhythm", "voice", "lyric", "divisi"),
+           "structural": ("layout", "metadata")}
 GRADES = {"pass", "minor", "major", "unreviewable"}
 SEVERITY = {"pass": 0, "minor": 1, "major": 2, "unreviewable": -1}
 OPAQUE_REF = re.compile(r"^[a-z][a-z0-9_-]{2,63}$")
@@ -87,6 +89,38 @@ def _font_value(piece_id, font_index):
     if value not in {"legacy", "smufl", "mixed", "unknown"}:
         raise AuditError(f"invalid font stratum for {piece_id}: {value}")
     return value
+
+
+def classify_font_names(names):
+    import vector_extract as ve
+    families = {ve._music_font_family(name) for name in names}
+    families.discard(None)
+    if families == {"smufl", "finale"}:
+        return "mixed"
+    if families == {"smufl"}:
+        return "smufl"
+    if families == {"finale"}:
+        return "legacy"
+    return "unknown"
+
+
+def build_font_index(release: Path, source_omr_dir: Path):
+    import fitz
+    state = _load(_release_paths(release) / "ingest_state.json")
+    index = {}
+    for piece_id, record in sorted(state.items()):
+        if record.get("status") not in {"accepted", "review"}:
+            continue
+        relative = record.get("pdf")
+        if not relative or Path(relative).is_absolute() or ".." in Path(relative).parts:
+            raise AuditError(f"{piece_id}: unsafe or missing source PDF reference")
+        path = source_omr_dir / relative
+        if not path.exists():
+            raise AuditError(f"{piece_id}: source PDF unavailable for font indexing")
+        with fitz.open(path) as doc:
+            names = {font[3] for page in doc for font in page.get_fonts(full=True)}
+        index[piece_id] = classify_font_names(names)
+    return index
 
 
 def _row(piece_id, state, report, font_index):
@@ -221,8 +255,12 @@ def summarize(plan, results):
                 for measure in row["measure_numbers"]}
     observations = results.get("observations", [])
     got = {(row.get("piece_id"), row.get("measure")) for row in observations}
-    if got != expected or len(observations) != len(expected):
-        raise AuditError("results must contain exactly one observation per sampled measure")
+    if got != expected:
+        raise AuditError("results need at least one observation per sampled measure")
+    reviewer_keys = [(row.get("piece_id"), row.get("measure"),
+                      row.get("reviewer_ref")) for row in observations]
+    if len(reviewer_keys) != len(set(reviewer_keys)):
+        raise AuditError("a reviewer may submit only once per sampled measure")
     for row in observations:
         if not OPAQUE_REF.fullmatch(str(row.get("reviewer_ref") or "")):
             raise AuditError("reviewer_ref must be an opaque identifier")
@@ -236,17 +274,36 @@ def summarize(plan, results):
         if set(grades) != set(CATEGORIES) or not set(grades.values()) <= GRADES:
             raise AuditError("every rubric category needs a valid grade")
     by_category = {}
+    obs_groups = defaultdict(list)
+    for row in observations:
+        obs_groups[(row["piece_id"], row["measure"])].append(row)
     for category in CATEGORIES:
         values = [row["grades"][category] for row in observations]
         usable = [v for v in values if v != "unreviewable"]
         errors = sum(v in {"minor", "major"} for v in usable)
         major = sum(v == "major" for v in usable)
+        disagreement = sum(
+            len({row["grades"][category] for row in group
+                 if row["grades"][category] != "unreviewable"}) > 1
+            for group in obs_groups.values())
+        multiply_reviewed = sum(len(group) > 1 for group in obs_groups.values())
         by_category[category] = {
             "reviewed": len(usable), "unreviewable": len(values) - len(usable),
             "errors": errors, "major_errors": major,
+            "multiply_reviewed_measures": multiply_reviewed,
+            "disagreement_measures": disagreement,
             "error_rate": round(errors / len(usable), 6) if usable else None,
             "error_rate_95pct_wilson": _wilson(errors, len(usable)),
         }
+    domains = {}
+    for domain, categories in DOMAINS.items():
+        usable = [row["grades"][category] for row in observations
+                  for category in categories
+                  if row["grades"][category] != "unreviewable"]
+        errors = sum(grade in {"minor", "major"} for grade in usable)
+        domains[domain] = {"category_reviews": len(usable), "errors": errors,
+                           "error_rate": round(errors / len(usable), 6) if usable else None,
+                           "error_rate_95pct_wilson": _wilson(errors, len(usable))}
     sample_by_id = {row["piece_id"]: row for row in plan["sample"]}
     strata = {}
     for dimension in next(iter(sample_by_id.values()))["strata"]:
@@ -270,8 +327,9 @@ def summarize(plan, results):
             "reviewed_from": min(row["review_date"] for row in observations),
             "reviewed_through": max(row["review_date"] for row in observations),
             "sampled_pieces": plan["sample_size"],
-            "sampled_measures": len(observations),
-            "categories": by_category, "strata": strata,
+            "sampled_measures": len(expected),
+            "reviewer_observations": len(observations),
+            "domains": domains, "categories": by_category, "strata": strata,
             "limitations": ["Machine-selected sample; human grades are source comparisons.",
                             "Intervals describe this sample and are not calibrated parser confidence."]}
 
@@ -316,6 +374,10 @@ def main(argv=None):
     cluster.add_argument("--release", type=Path, required=True)
     cluster.add_argument("--font-index", type=Path)
     cluster.add_argument("--out", type=Path, required=True)
+    fonts = sub.add_parser("font-index")
+    fonts.add_argument("--release", type=Path, required=True)
+    fonts.add_argument("--source-omr-dir", type=Path, required=True)
+    fonts.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -326,11 +388,13 @@ def main(argv=None):
                 _dump(args.results_template, results_template(value))
         elif args.command == "summarize":
             _dump(args.out, summarize(_load(args.plan), _load(args.results)))
-        else:
+        elif args.command == "cluster":
             rows = load_population(args.release, args.font_index)
             _dump(args.out, {"schema_version": SCHEMA_VERSION,
                              "kind": "chanterlab-review-clusters",
                              "clusters": cluster_review(rows)})
+        else:
+            _dump(args.out, build_font_index(args.release, args.source_omr_dir))
     except AuditError as exc:
         parser.error(str(exc))
 

@@ -36,6 +36,18 @@ override/history. If a private font index is unavailable, `font` is honestly
 `unknown`; an optional JSON map of catalog ID to `legacy`, `smufl`, `mixed`, or
 `unknown` can be supplied with `--font-index`.
 
+Create that private index directly from the source inventory when available:
+
+```sh
+.venv/bin/python human_audit.py font-index \
+  --release /private/audit-ready-release \
+  --source-omr-dir . \
+  --out /private/font-index.json
+```
+
+The index contains only catalog ID and the coarse family class. It does not
+contain source paths, embedded font names, or PDF content.
+
 Three measures per piece are selected by seeded hash. The result template uses
 the seven-category rubric: pitch, rhythm, voice, lyric, divisi, layout, and
 metadata. Each category is graded `pass`, `minor`, `major`, or `unreviewable`.
@@ -49,10 +61,13 @@ metadata. Each category is graded `pass`, `minor`, `major`, or `unreviewable`.
   --out /private/audit-aggregate.json
 ```
 
-Summarization fails unless every sampled measure has exactly one complete,
-release-bound observation with an ISO review date and opaque references. The
+Summarization fails unless every sampled measure has at least one complete,
+release-bound observation with an ISO review date and opaque references.
+Independent reviewers may submit the same measure; duplicate submissions by
+one reviewer are refused and category-level disagreement is reported. The
 aggregate names the release, seed, date range, sample sizes, category error
-rates, Wilson intervals, and stratified rates. It contains no source material.
+rates, separate semantic/structural domains, Wilson intervals, and stratified
+rates. It contains no source material.
 
 ## Review Clusters
 

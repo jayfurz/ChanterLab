@@ -94,6 +94,16 @@ def test_font_index_is_validated_and_applied(tmp_path):
         ha.load_population(release, index)
 
 
+@pytest.mark.parametrize("names, expected", [
+    (["Bravura", "Academico"], "smufl"),
+    (["Maestro", "Times New Roman"], "legacy"),
+    (["Bravura", "Maestro"], "mixed"),
+    (["Times New Roman"], "unknown"),
+])
+def test_font_name_classification_is_coarse_and_nonidentifying(names, expected):
+    assert ha.classify_font_names(names) == expected
+
+
 def _completed(plan):
     results = ha.results_template(plan)
     for i, row in enumerate(results["observations"]):
@@ -112,15 +122,18 @@ def test_summary_reports_category_rates_intervals_and_strata(tmp_path):
     assert summary["release_id"] == "rel-test"
     assert summary["sampled_pieces"] == 4
     assert summary["sampled_measures"] == 8
+    assert summary["reviewer_observations"] == 8
     assert summary["categories"]["pitch"]["errors"] == 1
     assert len(summary["categories"]["pitch"]["error_rate_95pct_wilson"]) == 2
     assert summary["categories"]["lyric"]["errors"] == 1
+    assert summary["domains"]["semantic"]["errors"] == 2
+    assert summary["domains"]["structural"]["errors"] == 0
     assert "status" in summary["strata"]
 
 
 @pytest.mark.parametrize("mutation, message", [
     (lambda results: results.update(release_id="other"), "not bound"),
-    (lambda results: results["observations"].pop(), "exactly one"),
+    (lambda results: results["observations"].pop(), "at least one"),
     (lambda results: results["observations"][0].update(reviewer_ref="Jane@example.com"),
      "opaque identifier"),
     (lambda results: results["observations"][0]["grades"].update(pitch="probably"),
@@ -144,6 +157,20 @@ def test_review_clusters_are_ordered_by_projected_impact(tmp_path):
                               key=lambda row: (-row["priority_score"], row["signature"]))
     assert all(cluster["piece_ids"] == sorted(cluster["piece_ids"])
                for cluster in clusters)
+
+
+def test_summary_records_independent_reviewer_disagreement(tmp_path):
+    plan = ha.create_plan(_release(tmp_path), None, 2, 1, "disagreement", None)
+    results = _completed(plan)
+    second = dict(results["observations"][0])
+    second["reviewer_ref"] = "reviewer_b"
+    second["evidence_ref"] = "evidence_second"
+    second["grades"] = dict(second["grades"], pitch="pass")
+    results["observations"].append(second)
+    summary = ha.summarize(plan, results)
+    assert summary["reviewer_observations"] == 3
+    assert summary["categories"]["pitch"]["multiply_reviewed_measures"] == 1
+    assert summary["categories"]["pitch"]["disagreement_measures"] == 1
 
 
 def test_cli_writes_private_template_without_claiming_results(tmp_path):
