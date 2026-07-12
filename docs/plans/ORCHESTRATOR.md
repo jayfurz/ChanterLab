@@ -4,7 +4,9 @@ Status: active. BASE-00 through CAT-03 completed 2026-07-10; `TRUST-01` schema
 v1 was owner-approved and implemented 2026-07-11. Its first ledger-bearing
 catalog release, `rel-20260711T155237Z-a3fdb875e54f`, was then promoted after
 separate owner production approval. `TRUST-02` confidence instrumentation was
-then completed and corpus-verified without a catalog promotion.
+then completed and corpus-verified without a catalog promotion. `TRUST-03`
+golden fixtures subsequently made the public/private evidence boundary
+machine-verifiable.
 
 Objective: execute `docs/APP-ROADMAP-2026.md` as independently reviewable
 workstreams while keeping the live practice app and catalog safe.
@@ -52,9 +54,8 @@ only with disjoint files.
 ### Wave 2: Establish Content Trust
 
 Atomic releases, the quality-ledger implementation, the first ledger-bearing
-promotion, and confidence instrumentation are complete. Golden fixtures are
-the remaining prerequisite before human-audit tooling proceeds under the
-approved ledger vocabulary.
+promotion, confidence instrumentation, and golden fixtures are complete.
+Human-audit tooling may now proceed under the approved ledger vocabulary.
 
 ### Wave 3: Close The User Feedback Loop
 

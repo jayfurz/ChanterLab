@@ -7,7 +7,9 @@ and promoted in the first ledger-bearing release
 clean `main@9cd53e3`, validated against the private corpus, and live-smoked on
 all production hostnames. `TRUST-02` confidence signals were subsequently
 implemented and corpus-verified without changing catalog status or MusicXML;
-they have not been promoted in a catalog release.
+they have not been promoted in a catalog release. `TRUST-03` then completed
+the rights-safe/private golden-fixture matrix and unblocked the human-audit
+workstream.
 
 Audience: owner, implementation agents, reviewers, and operators.
 
