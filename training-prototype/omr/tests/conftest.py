@@ -79,6 +79,13 @@ def record_bless(piece_id: str, entry: dict) -> None:
 def pytest_sessionfinish(session, exitstatus):
     if not _bless_updates:
         return
+    if exitstatus != 0:
+        # A red bless run must not rewrite expectations.json: the semantic
+        # tests would catch a bad re-bless next run anyway, but flushing here
+        # leaves a confusing half-blessed diff in the working tree.
+        print(f"\n[bless] session failed (exit {exitstatus}); discarding "
+              f"{len(_bless_updates)} staged expectation update(s)")
+        return
     data = load_expectations()
     for piece_id, entry in _bless_updates.items():
         # Preserve hand-written fields (e.g. "notes") that bless doesn't

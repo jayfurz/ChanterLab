@@ -62,7 +62,7 @@ jobs:
         with:
           node-version: 20
       - name: training-prototype scoring unit tests
-        run: node --test training-prototype/tests/scoring.test.mjs
+        run: node --test training-prototype/tests/scoring.test.mjs training-prototype/tests/section_check.test.mjs
 
   omr-rights-safe:
     runs-on: ubuntu-latest

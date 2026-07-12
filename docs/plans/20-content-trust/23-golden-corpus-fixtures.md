@@ -49,7 +49,8 @@ be refused with exit code 3 and no output artifacts. No binary fixture or
 protected derivative is tracked.
 
 Verification on 2026-07-11 passed 200 tests with all private PDFs present and
-passed 170 with exactly 30 declared private-only skips after removing the
+passed 170 (as of closing commit a73b4b9; later unrelated merges grew the
+suite) with exactly 30 declared private-only skips after removing the
 private corpus from the checkout. The documented defect workflow requires a
 semantic regression before re-blessing; `--bless` cannot modify or bypass the
 public semantic tests.
