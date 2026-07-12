@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import hashlib
+from collections import Counter
+import subprocess
 import sys
 from pathlib import Path
 
@@ -66,6 +68,9 @@ def test_plan_is_reproducible_and_release_bound(tmp_path):
     assert first == second
     assert first["release_id"] == "rel-test"
     assert first["population_size"] == 8 and first["sample_size"] == 6
+    assert first["auditable_population_size"] == 8
+    assert first["zero_measure_exclusions"] == 0
+    assert first["status_targets"] == {"accepted": 4, "review": 2}
     assert all(1 <= len(row["measure_numbers"]) <= 3 for row in first["sample"])
     assert set(first["rubric"]) == set(ha.CATEGORIES)
 
@@ -82,6 +87,29 @@ def test_sample_covers_accepted_review_layout_voice_genre_and_confidence(tmp_pat
 def test_plan_refuses_release_without_confidence_vectors(tmp_path):
     with pytest.raises(ha.AuditError, match="confidence vector unavailable"):
         ha.create_plan(_release(tmp_path, confidence=False), None, 2, 1, "seed", None)
+
+
+def test_status_allocation_is_explicit_and_validated(tmp_path):
+    release = _release(tmp_path)
+    plan = ha.create_plan(release, None, 4, 1, "quota", None, review_share=.5)
+    assert plan["status_targets"] == {"accepted": 2, "review": 2}
+    assert Counter(row["strata"]["status"] for row in plan["sample"]) == \
+        Counter({"accepted": 2, "review": 2})
+    with pytest.raises(ha.AuditError, match="review share"):
+        ha.create_plan(release, None, 4, 1, "quota", None, review_share=2)
+
+
+def test_zero_measure_reports_remain_clusterable_but_are_not_sampled(tmp_path):
+    release = _release(tmp_path)
+    report_path = release / "out/ingest/piece-01.report.json"
+    report = json.loads(report_path.read_text())
+    report["stats"]["measures"] = 0
+    report_path.write_text(json.dumps(report))
+    plan = ha.create_plan(release, None, 4, 1, "zero", None, review_share=.5)
+    assert plan["zero_measure_exclusions"] == 1
+    assert "piece-01" not in {row["piece_id"] for row in plan["sample"]}
+    assert any("piece-01" in cluster["piece_ids"]
+               for cluster in ha.cluster_review(ha.load_population(release)))
 
 
 def test_font_index_is_validated_and_applied(tmp_path):
@@ -125,6 +153,23 @@ def test_font_index_is_bound_to_release_source_hash(tmp_path):
     state_path.write_text(json.dumps(state))
     with pytest.raises(ha.AuditError, match="hash mismatch"):
         ha.build_font_index(release, source)
+
+
+def test_prepare_dataset_copies_sealed_reports_and_binds_inventory(tmp_path):
+    release = _release(tmp_path, count=1)
+    sha = subprocess.run(["git", "-C", str(OMR_DIR), "rev-parse", "HEAD"],
+                         capture_output=True, text=True, check=True).stdout.strip()
+    (release / "release-descriptor.json").write_text(json.dumps({
+        "release_id": "rel-test", "code": {"parser_git_sha": sha}}))
+    out = tmp_path / "audit-dataset"
+    metadata = ha.prepare_dataset(release, OMR_DIR, out)
+    assert metadata["release_id"] == "rel-test"
+    assert metadata["sealed_reports_copied"] == 1
+    assert metadata["review_reports_regenerated"] == 0
+    assert metadata["report_count"] == 1
+    assert (out / "out/ingest/piece-00.report.json").exists()
+    with pytest.raises(ha.AuditError, match="already exists"):
+        ha.prepare_dataset(release, OMR_DIR, out)
 
 
 def _completed(plan):

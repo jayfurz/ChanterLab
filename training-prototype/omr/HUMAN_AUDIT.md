@@ -20,11 +20,26 @@ Only the aggregate output may be proposed for publication.
 
 The input release must contain `omr-confidence-vector-v1`. A release without
 those vectors is refused rather than silently classified from legacy integrity.
+Sealed releases intentionally omit unpublished review reports. Prepare a
+private audit dataset to copy sealed accepted reports and regenerate only the
+missing review reports from source PDFs:
+
+```sh
+.venv/bin/python human_audit.py prepare \
+  --release out/release-store/releases/rel-... \
+  --source-omr-dir . \
+  --out /private/audit-dataset
+```
+
+Preparation verifies source hashes and requires the extraction modules to be
+byte-identical to the release's parser commit. It discards regenerated
+MusicXML, records a report-inventory hash, and never modifies the release.
 
 ```sh
 .venv/bin/python human_audit.py plan \
-  --release out/release-store/current \
+  --release /private/audit-dataset \
   --sample-size 48 --measures-per-piece 3 \
+  --review-share 0.25 \
   --seed chanterlab-trust04-v1 \
   --out /private/audit-plan.json \
   --results-template /private/audit-results.json
@@ -35,6 +50,9 @@ layout, voice count, genre, warning profile, confidence bands, and
 override/history. If a private font index is unavailable, `font` is honestly
 `unknown`; an optional JSON map of catalog ID to `legacy`, `smufl`, `mixed`, or
 `unknown` can be supplied with `--font-index`.
+The default sample reserves 25% of pieces for the smaller review population;
+the exact accepted/review targets are recorded in the plan rather than left to
+chance.
 
 Create that private index directly from the source inventory when available:
 
@@ -51,6 +69,8 @@ contain source paths, embedded font names, or PDF content.
 Three measures per piece are selected by seeded hash. The result template uses
 the seven-category rubric: pitch, rhythm, voice, lyric, divisi, layout, and
 metadata. Each category is graded `pass`, `minor`, `major`, or `unreviewable`.
+Zero-measure failures remain in clustering but are explicitly excluded from
+accuracy sampling because there is no transcription measure to compare.
 
 ## Aggregate
 

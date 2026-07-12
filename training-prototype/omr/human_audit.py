@@ -6,7 +6,11 @@ import argparse
 import hashlib
 import json
 import math
+import shutil
 import re
+import subprocess
+import sys
+import tempfile
 from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
@@ -134,6 +138,80 @@ def build_font_index(release: Path, source_omr_dir: Path):
     return index
 
 
+def _assert_parser_checkout(source_omr_dir: Path, parser_sha: str):
+    repo = subprocess.run(["git", "-C", str(source_omr_dir), "rev-parse",
+                           "--show-toplevel"], capture_output=True, text=True,
+                          check=True).stdout.strip()
+    relative_omr = source_omr_dir.resolve().relative_to(Path(repo).resolve())
+    for name in ("pipeline.py", "vector_extract.py", "confidence_signals.py",
+                 "legacy_glyph_map.json"):
+        current = (source_omr_dir / name).read_bytes()
+        committed = subprocess.run(
+            ["git", "-C", repo, "show", f"{parser_sha}:{relative_omr / name}"],
+            capture_output=True, check=True).stdout
+        if current != committed:
+            raise AuditError(f"parser checkout does not match release: {name}")
+
+
+def prepare_dataset(release: Path, source_omr_dir: Path, out: Path):
+    descriptor = _load(release / "release-descriptor.json")
+    release_id = descriptor["release_id"]
+    parser_sha = descriptor["code"]["parser_git_sha"]
+    _assert_parser_checkout(source_omr_dir, parser_sha)
+    source_ingest = _release_paths(release)
+    state = _load(source_ingest / "ingest_state.json")
+    target_ingest = out / "out" / "ingest"
+    if out.exists():
+        raise AuditError("audit dataset output already exists")
+    target_ingest.mkdir(parents=True)
+    shutil.copy2(source_ingest / "ingest_state.json", target_ingest)
+    shutil.copy2(source_ingest / "manifest.json", target_ingest)
+    shutil.copy2(release / "release-descriptor.json", out)
+    extracted = copied = 0
+    try:
+        for piece_id, record in sorted(state.items()):
+            if record.get("status") not in {"accepted", "review"}:
+                continue
+            target_report = target_ingest / f"{piece_id}.report.json"
+            sealed_report = source_ingest / target_report.name
+            if sealed_report.exists():
+                shutil.copy2(sealed_report, target_report)
+                copied += 1
+                continue
+            relative = record.get("pdf")
+            pdf = source_omr_dir / relative if relative else None
+            if not pdf or not pdf.exists() or _sha256_file(pdf) != record.get("source_pdf_sha256"):
+                raise AuditError(f"{piece_id}: review source is missing or hash-mismatched")
+            with tempfile.TemporaryDirectory(prefix="chanterlab-audit-") as temp:
+                xml = Path(temp) / "discard.musicxml"
+                proc = subprocess.run(
+                    [sys.executable, str(source_omr_dir / "pipeline.py"), str(pdf),
+                     "-o", str(xml), "--report", str(target_report)],
+                    cwd=source_omr_dir, capture_output=True, text=True)
+            if proc.returncode not in {0, 2} or not target_report.exists():
+                raise AuditError(f"{piece_id}: review report extraction failed: {proc.stderr[-500:]}")
+            report = _load(target_report)
+            if report.get("confidence", {}).get("reference") != "omr-confidence-vector-v1":
+                raise AuditError(f"{piece_id}: regenerated report lacks confidence vector")
+            extracted += 1
+        report_hashes = {path.name.removesuffix(".report.json"): _sha256_file(path)
+                         for path in sorted(target_ingest.glob("*.report.json"))}
+        metadata = {"schema_version": SCHEMA_VERSION,
+                    "kind": "chanterlab-private-audit-dataset",
+                    "release_id": release_id, "parser_git_sha": parser_sha,
+                    "sealed_reports_copied": copied,
+                    "review_reports_regenerated": extracted,
+                    "report_count": len(report_hashes),
+                    "report_inventory_hash": hashlib.sha256(
+                        json.dumps(report_hashes, sort_keys=True,
+                                   separators=(",", ":")).encode()).hexdigest()}
+        _dump(out / "audit-dataset.json", metadata)
+        return metadata
+    except Exception:
+        shutil.rmtree(out, ignore_errors=True)
+        raise
+
+
 def _row(piece_id, state, report, font_index):
     confidence = report.get("confidence")
     if not confidence or confidence.get("reference") != "omr-confidence-vector-v1":
@@ -200,6 +278,31 @@ def select_sample(rows, sample_size: int, seed: str):
     return selected
 
 
+def select_status_sample(rows, sample_size: int, seed: str, review_share: float):
+    if not 0 <= review_share <= 1:
+        raise AuditError("review share must be between 0 and 1")
+    by_status = {status: [row for row in rows if row["strata"]["status"] == status]
+                 for status in ("accepted", "review")}
+    review_target = min(len(by_status["review"]), round(sample_size * review_share))
+    if review_share and by_status["review"] and review_target == 0:
+        review_target = 1
+    accepted_target = min(len(by_status["accepted"]), sample_size - review_target)
+    shortfall = sample_size - accepted_target - review_target
+    if shortfall:
+        review_target += min(shortfall, len(by_status["review"]) - review_target)
+        shortfall = sample_size - accepted_target - review_target
+    if shortfall:
+        accepted_target += min(shortfall, len(by_status["accepted"]) - accepted_target)
+    if accepted_target + review_target != sample_size:
+        raise AuditError("sample size exceeds accepted and review population")
+    selected = select_sample(by_status["accepted"], accepted_target,
+                             f"{seed}:accepted") if accepted_target else []
+    selected += select_sample(by_status["review"], review_target,
+                              f"{seed}:review") if review_target else []
+    selected.sort(key=lambda row: _hash(seed, row["piece_id"]))
+    return selected, {"accepted": accepted_target, "review": review_target}
+
+
 def _measure_sample(piece_id, count, per_piece, seed):
     if count <= 0:
         return []
@@ -208,23 +311,29 @@ def _measure_sample(piece_id, count, per_piece, seed):
 
 
 def create_plan(release: Path, release_id: str | None, sample_size: int,
-                measures_per_piece: int, seed: str, font_index: Path | None):
+                measures_per_piece: int, seed: str, font_index: Path | None,
+                review_share: float = .25):
     rid = _release_id(release, release_id)
     rows = load_population(release, font_index)
-    selected = select_sample(rows, sample_size, seed)
+    auditable = [row for row in rows if row["measures"] > 0]
+    selected, status_targets = select_status_sample(auditable, sample_size, seed,
+                                                     review_share)
     for row in selected:
         row["measure_numbers"] = _measure_sample(
             row["piece_id"], row.pop("measures"), measures_per_piece, seed)
     strata_counts = {key: dict(sorted(Counter(
-        row["strata"][key] for row in rows).items()))
-        for key in next(iter(rows))["strata"]}
+        row["strata"][key] for row in auditable).items()))
+        for key in next(iter(auditable))["strata"]}
     return {
         "schema_version": SCHEMA_VERSION,
         "kind": "chanterlab-human-audit-plan",
         "release_id": rid,
         "seed": seed,
         "population_size": len(rows),
+        "auditable_population_size": len(auditable),
+        "zero_measure_exclusions": len(rows) - len(auditable),
         "sample_size": len(selected),
+        "status_targets": status_targets,
         "measures_per_piece": measures_per_piece,
         "strata_counts": strata_counts,
         "rubric": {category: {"grades": sorted(GRADES),
@@ -381,6 +490,7 @@ def main(argv=None):
     plan.add_argument("--sample-size", type=int, default=48)
     plan.add_argument("--measures-per-piece", type=int, default=3)
     plan.add_argument("--seed", default="chanterlab-trust04-v1")
+    plan.add_argument("--review-share", type=float, default=.25)
     plan.add_argument("--out", type=Path, required=True)
     plan.add_argument("--results-template", type=Path)
     summary = sub.add_parser("summarize")
@@ -395,11 +505,16 @@ def main(argv=None):
     fonts.add_argument("--release", type=Path, required=True)
     fonts.add_argument("--source-omr-dir", type=Path, required=True)
     fonts.add_argument("--out", type=Path, required=True)
+    prepare = sub.add_parser("prepare")
+    prepare.add_argument("--release", type=Path, required=True)
+    prepare.add_argument("--source-omr-dir", type=Path, required=True)
+    prepare.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
             value = create_plan(args.release, args.release_id, args.sample_size,
-                                args.measures_per_piece, args.seed, args.font_index)
+                                args.measures_per_piece, args.seed, args.font_index,
+                                args.review_share)
             _dump(args.out, value)
             if args.results_template:
                 _dump(args.results_template, results_template(value))
@@ -410,8 +525,10 @@ def main(argv=None):
             _dump(args.out, {"schema_version": SCHEMA_VERSION,
                              "kind": "chanterlab-review-clusters",
                              "clusters": cluster_review(rows)})
-        else:
+        elif args.command == "font-index":
             _dump(args.out, build_font_index(args.release, args.source_omr_dir))
+        else:
+            prepare_dataset(args.release, args.source_omr_dir, args.out)
     except AuditError as exc:
         parser.error(str(exc))
 
