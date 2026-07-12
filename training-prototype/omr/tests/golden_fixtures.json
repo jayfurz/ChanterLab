@@ -4,7 +4,8 @@
     "font_legacy", "font_smufl", "staff_1", "staff_2", "staff_4",
     "shared_voices", "chords", "dots", "rests", "beams", "flags",
     "ties", "accidentals", "divisi", "verses", "lyrics_above",
-    "lyrics_below", "rubrics", "sections", "layout_switches", "refusal"
+    "lyrics_below", "rubrics", "sections", "layout_switches",
+    "short_systems", "refusal"
   ],
   "private_only_features": ["layout_switches"],
   "public": [
@@ -35,6 +36,13 @@
       "test": "test_golden_fixtures.py::test_generated_nonmusic_pdf_is_refused",
       "why": "Creates blank and prose-only PDFs at test time and proves they cannot be accepted as music; no binary fixture is tracked.",
       "features": ["refusal"]
+    },
+    {
+      "id": "short_staff_recovery_unit",
+      "kind": "constructed-model",
+      "test": "test_golden_fixtures.py::test_short_staff_recovery_constructed",
+      "why": "Locks issue #88 short/segmented staff recovery by meaning: the width-filter second pass recovers aligned 5-line groups that carry noteheads (short sung-response systems, segmented lines) and never fabricates a staff from ragged or note-less line stacks; classic full-width detection is untouched.",
+      "features": ["short_systems"]
     }
   ],
   "private": [
@@ -48,6 +56,7 @@
     {"id":"finley_little_litany_legacy_maestro","pdf":"03f_little_litany-finley.pdf","source_sha256":"ddae5f7e06d14260de6d24f4ceca4743319acdc0cb7c56c22642197f4dcc54fd","features":["font_legacy","staff_4"]},
     {"id":"receive_ye_tikey_zes","pdf":"receive_ye-tikey_zes.pdf","source_sha256":"47781bd3d7e276aff905489b79445ea0ccb4e5e25f2447d855295cc8a188a40d","features":["staff_4","rests"]},
     {"id":"finley_entrance_hymn_multiverse","pdf":"07f_entrance_hymn-finley.pdf","source_sha256":"46696882af046a2913e1d1f0c428f7fbeb43d7f2a7cb261b04943f72ce1caf62","features":["staff_4","verses","lyrics_below"]},
-    {"id":"bortniansky_cherubic_7","pdf":"13c_cherubic_hymn-bortniansky-7.pdf","source_sha256":"706ce13cf68e213389ab73e9e86f607f7608b26994929cfc22cad3febb023e1a","features":["staff_2","staff_4","shared_voices","dots","divisi","lyrics_above","layout_switches"]}
+    {"id":"bortniansky_cherubic_7","pdf":"13c_cherubic_hymn-bortniansky-7.pdf","source_sha256":"706ce13cf68e213389ab73e9e86f607f7608b26994929cfc22cad3febb023e1a","features":["staff_2","staff_4","shared_voices","dots","divisi","lyrics_above","layout_switches"]},
+    {"id":"anaphora_3rd_mode_short_systems","pdf":"Anaphora-3rd-Mode-FJ-WNBN.pdf","source_sha256":"bfc2cb88c453e2746d5d2e1c6f2ea28d1119504fcdddb98568ffd5e4c6251fc5","features":["staff_1","lyrics_below","short_systems"]}
   ]
 }

@@ -157,3 +157,63 @@ def test_generated_nonmusic_pdf_is_refused(tmp_path):
         assert "no born-digital Western staff notation found" in proc.stderr
         assert not xml_path.exists()
         assert not report_path.exists()
+
+
+def test_short_staff_recovery_constructed():
+    """Issue #88: 5-line groups the full-width filter rejects are recovered
+    when (and only when) they look like a staff AND carry music. Locks:
+
+      * classic full-width detection is untouched (strictly additive pass);
+      * a narrow aligned 5-line group with a notehead is recovered (the
+        short single-staff sung-response systems, 373 corpus pieces);
+      * a staff whose lines are drawn as two abutting segments is joined
+        and recovered;
+      * ragged-end line stacks (text rules / melisma extenders) and aligned
+        stacks with NO notehead near them never fabricate a staff.
+    """
+    rep = ve.Report()
+    long_h = []
+    for k in range(5):                            # full-width staff (w=500)
+        long_h.append((50.0, 550.0, 100.0 + 5 * k))
+    for k in range(5):                            # short response staff
+        long_h.append((50.0, 250.0, 200.0 + 5 * k))
+    for k in range(5):                            # ragged right ends
+        long_h.append((50.0, 250.0 - 12 * k, 300.0 + 5 * k))
+    for k in range(5):                            # aligned but note-less
+        long_h.append((50.0, 250.0, 400.0 + 5 * k))
+    for k in range(5):                            # two abutting segments
+        long_h.append((50.0, 150.0, 500.0 + 5 * k))
+        long_h.append((152.0, 250.0, 500.0 + 5 * k))
+    music = [_glyph(150, 210), _glyph(150, 310), _glyph(150, 510)]
+
+    staves = ve._find_staves(long_h, 1, rep, music)
+
+    assert sorted(s.top for s in staves) == [100.0, 200.0, 500.0]
+    assert rep.stats["short_staves_recovered"] == 2
+    seg = next(s for s in staves if s.top == 500.0)
+    assert seg.x0 == 50.0 and seg.x1 == 250.0     # segments joined
+    full = next(s for s in staves if s.top == 100.0)
+    assert full.x1 == 550.0                       # classic pass untouched
+
+
+def test_anaphora_short_system_responses_recovered(tmp_path):
+    """Issue #88 exemplar (private, PDF-gated): the sung responses engraved
+    as narrow single-staff systems — 'And with thy spir-it.' (system 4) and
+    'It is meet and right.' (system 6) — must reach the MusicXML. Before the
+    recovery pass every line of those systems failed the width filter and
+    26 noteheads were dropped 'not near any staff'."""
+    pdf = PDF_DIR / "Anaphora-3rd-Mode-FJ-WNBN.pdf"
+    if not pdf.exists():
+        pytest.skip("private golden source unavailable: "
+                    "Anaphora-3rd-Mode-FJ-WNBN.pdf (copyrighted, local-only)")
+    proc, xml_path, report_path = run_pipeline(pdf, tmp_path)
+    assert proc.returncode == 0
+    rep = json.loads(report_path.read_text(encoding="utf-8"))
+    assert rep["stats"].get("short_staves_recovered", 0) >= 4
+    assert not [w for w in rep.get("warnings", [])
+                if "not near any staff" in str(w)]
+    text = " ".join(t.text or "" for t in
+                    ET.parse(xml_path).getroot().iter("text"))
+    joined = " ".join(text.split())
+    assert "And with thy spir it." in joined
+    assert "It is meet and right." in joined

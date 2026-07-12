@@ -485,12 +485,15 @@ def _page_paths(page):
     return long_h, short_h, vlines, quads, curves
 
 
-def _find_staves(long_h, page_no, report):
+def _find_staves(long_h, page_no, report, music=None):
     """Cluster long horizontal lines into 5-line staves.
 
     Robust to non-staff long lines (lyric melisma extenders, text rules):
     only lines close to the page's maximum line width are staff candidates,
-    then a sliding 5-line window requires near-equal gaps.
+    then a sliding 5-line window requires near-equal gaps. Lines the width
+    filter rejects get a second, stricter chance in
+    ``_recover_short_staves`` (issue #88), corroborated by the page's
+    ``music`` glyphs.
     """
     if not long_h:
         return []
@@ -540,7 +543,97 @@ def _find_staves(long_h, page_no, report):
     if skipped:
         report.note(f"p{page_no}: {len(skipped)} long hlines not part of any "
                     f"5-line staff (extenders/rules) — ignored")
+    recovered = _recover_short_staves(long_h, staves, music, page_no, report)
+    if recovered:
+        staves = sorted(staves + recovered, key=lambda s: s.top)
     return staves
+
+
+def _recover_short_staves(long_h, staves, music, page_no, report):
+    """Recover 5-line staves that the width filter above rejected (#88).
+
+    Two measured corpus classes (373 pieces, 7155 noteheads dropped 'not near
+    any staff' on the 2026-07 manifest):
+
+      * SHORT SYSTEMS — a narrow single-staff system engraving a sung
+        response ('And with thy spir-it.') is far below 0.55x the width of
+        the page's full systems, so all five of its lines are filtered out
+        and the whole response is silently deleted (exemplar
+        Anaphora-3rd-Mode-FJ-WNBN, systems 4 and 6);
+      * SEGMENTED LINES — a staff whose lines are drawn as two abutting
+        segments, each individually under the width bar (same exemplar,
+        page 2).
+
+    Recovery merges abutting same-y segments across ALL long lines, drops the
+    lines already consumed by detected staves, and slides the same
+    equal-gap 5-line window with two EXTRA requirements that a stack of text
+    rules or lyric melisma extenders cannot meet:
+
+      * near-aligned LEFT and RIGHT ends (a real staff's five lines share
+        their extent; text rules/extenders are ragged), and
+      * at least one notehead glyph inside the candidate's vertical band (no
+        notes = no music = nothing worth recovering; keeps decorative rule
+        stacks from fabricating an empty staff and perturbing systems).
+
+    Runs strictly ADDITIVELY after the classic pass: pages without rejected
+    short staves are untouched.
+    """
+    merged = {}   # first-seen y -> list of [x0, x1, y_sum, n] segments
+    for x0, x1, y in sorted(long_h, key=lambda r: (r[2], r[0])):
+        key = None
+        for yy in merged:
+            if abs(yy - y) < 1.0:
+                key = yy
+                break
+        if key is None:
+            merged[y] = [[x0, x1, y, 1]]
+            continue
+        segs = merged[key]
+        for e in segs:
+            if x0 <= e[1] + 3.0 and x1 >= e[0] - 3.0:   # overlap / abutting
+                e[0] = min(e[0], x0)
+                e[1] = max(e[1], x1)
+                e[2] += y
+                e[3] += 1
+                break
+        else:
+            segs.append([x0, x1, y, 1])
+    taken = [ly for s in staves for ly in s.lines]
+    items = sorted((yc / n, x0, x1)
+                   for segs in merged.values() for x0, x1, yc, n in segs
+                   if not any(abs(yc / n - ly) < 1.5 for ly in taken))
+    recovered = []
+    i = 0
+    while i + 5 <= len(items):
+        win = items[i:i + 5]
+        gaps = [win[k + 1][0] - win[k][0] for k in range(4)]
+        x0s = [c[1] for c in win]
+        x1s = [c[2] for c in win]
+        ok = (2.0 <= min(gaps) and max(gaps) <= 12.0 and
+              max(gaps) - min(gaps) < 1.0 and
+              max(x0s) - min(x0s) <= 4.0 and
+              max(x1s) - min(x1s) <= 4.0 and
+              min(b - a for a, b in zip(x0s, x1s)) >= 100.0)
+        if ok:
+            top, bot = win[0][0], win[4][0]
+            sp = (bot - top) / 4
+            has_note = any(
+                g.cp in NOTEHEADS and
+                min(x0s) - 2 * sp <= g.x <= max(x1s) + 2 * sp and
+                top - 3 * sp <= g.y <= bot + 3 * sp
+                for g in (music or []))
+            if has_note:
+                recovered.append(Staff(top=top, bot=bot, x0=min(x0s),
+                                       x1=max(x1s), lines=[c[0] for c in win],
+                                       page=page_no))
+                i += 5
+                continue
+        i += 1
+    if recovered:
+        report.stats["short_staves_recovered"] += len(recovered)
+        report.note(f"p{page_no}: recovered {len(recovered)} short/segmented "
+                    f"staff(s) the width filter rejected (issue #88)")
+    return recovered
 
 
 def _connector_groups(ss, vlines):
@@ -692,7 +785,7 @@ def _time_sig_beats(ts_digits):
 def extract_page(page, page_no, report, measure_offset, tempo_state):
     music, tokens = _page_glyphs(page, page_no, report)
     long_h, short_h, vlines, quads, curves = _page_paths(page)
-    staves = _find_staves(long_h, page_no, report)
+    staves = _find_staves(long_h, page_no, report, music)
     if not staves:
         report.note(f"p{page_no}: no staves — skipped (title/blank page)")
         return [], measure_offset
