@@ -1,6 +1,6 @@
 # SCALES-01: Legacy Scales App At /scales/ On Brand Hosts
 
-Status: in-progress (owner approved option A, 2026-07-11). Priority: P2.
+Status: shipped (PR #109, merged 2026-07-11). Priority: P2. Tracking: epic #126.
 
 Dependencies: none — both apps already ship in the production image. Blocks:
 nothing; gives `ONEAPP-02` its preserved legacy route. Parallel-safe: yes

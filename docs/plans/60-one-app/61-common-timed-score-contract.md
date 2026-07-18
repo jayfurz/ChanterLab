@@ -1,6 +1,7 @@
 # ONEAPP-01: Common Timed-Score Contract
 
 Status: blocked on stable practice/scoring contracts. Priority: P2/P3.
+Tracking: issue #127.
 
 Dependencies: practice v2 semantics, immutable score IDs, current chant compiler
 and MusicXML model characterization.

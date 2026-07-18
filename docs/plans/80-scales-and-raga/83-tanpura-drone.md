@@ -1,6 +1,6 @@
 # RAGA-02: Tanpura Drone
 
-Status: in-progress (owner greenlit 2026-07-11). Priority: P2.
+Status: shipped (PR #112, merged 2026-07-11). Priority: P2. Tracking: epic #126.
 
 Dependencies: sequenced after `RAGA-01` (shared `web/app.js`/`web/index.html`
 edits). Blocks: nothing. Parallel-safe: no — sequential within this lane.
