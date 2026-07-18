@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chant OCR · synthetic page generator</title>
+<style>
+  @font-face {
+    font-family: 'Neanes';
+    src: url('../fonts/neanes/Neanes.otf') format('opentype');
+    font-display: block;
+  }
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #1c1f24; color: #e5e7eb; }
+  header { padding: 12px 16px; border-bottom: 1px solid #2c313a; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  main { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; }
+  .panel { background: #232830; border: 1px solid #2c313a; border-radius: 6px; padding: 12px; }
+  .panel h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa3af; }
+  label { display: block; margin: 6px 0; font-size: 12px; color: #cbd2da; }
+  label input[type="number"], label input[type="text"], label select, label textarea {
+    width: 100%; box-sizing: border-box; background: #1a1d22; color: #e5e7eb; border: 1px solid #353b45; border-radius: 4px; padding: 6px 8px; font: inherit;
+  }
+  textarea { font-family: ui-monospace, SFMono-Regular, monospace; height: 100px; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  button { background: #3b82f6; color: white; border: 0; border-radius: 4px; padding: 7px 12px; font: inherit; cursor: pointer; }
+  button[disabled] { background: #4b5360; cursor: not-allowed; }
+  button.secondary { background: #353b45; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .canvas-wrap { background: #f8f9fa; border-radius: 6px; padding: 12px; overflow: auto; max-height: calc(100vh - 96px); }
+  canvas { display: block; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+  #summary { font-size: 12px; color: #9aa3af; margin-top: 6px; }
+  .hint { font-size: 11px; color: #6b7280; margin-top: 4px; }
+  code { background: #1a1d22; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Chant OCR · synthetic page generator</h1>
+  <span class="hint">Phase B · renders chant glyph text to a labelled page for OCR training/eval.</span>
+</header>
+<main>
+  <div class="panel">
+    <h2>Input</h2>
+    <label>
+      Sample
+      <select id="sample"></select>
+    </label>
+    <button id="loadSampleBtn" class="secondary">Load sample text</button>
+
+    <label style="margin-top:12px;">
+      Glyph text (space- or newline-separated names)
+      <textarea id="text" spellcheck="false"></textarea>
+    </label>
+    <p class="hint">Use SBMuFL glyph names like <code>ison</code>, <code>oligon</code>, <code>gorgonAbove</code>, <code>fthoraSoftChromaticDiAbove</code>.</p>
+
+    <h2 style="margin-top:14px;">Layout</h2>
+    <div class="row">
+      <label>Font size <input id="fontSize" type="number" value="48" min="16" max="160"></label>
+      <label>Page width <input id="pageWidth" type="number" value="1024" min="200" max="4096"></label>
+      <label>Margin X <input id="marginX" type="number" value="32" min="0"></label>
+      <label>Margin Y <input id="marginY" type="number" value="32" min="0"></label>
+      <label>Line height <input id="lineHeight" type="number" value="132" min="40"></label>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:18px;">
+        <input id="showBoxes" type="checkbox"> show bboxes
+      </label>
+    </div>
+
+    <div class="actions">
+      <button id="renderBtn">Render</button>
+      <button id="downloadPng" class="secondary" disabled>Download PNG</button>
+      <button id="downloadJson" class="secondary" disabled>Download JSON</button>
+    </div>
+    <div id="summary"></div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+</main>
+<script type="module" src="synth/harness.js"></script>
+</body>
+</html>
