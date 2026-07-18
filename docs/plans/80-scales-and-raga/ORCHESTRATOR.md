@@ -1,7 +1,10 @@
 # Scales App And Raga Practice Orchestrator
 
 Status: active. Owner approved this lane on 2026-07-11 (route option A; RAGA-01
-and RAGA-02 greenlit).
+and RAGA-02 greenlit). SCALES-01/RAGA-01/RAGA-02 shipped 2026-07-11 (PRs #109,
+#110, #112); the field-test checkpoint below is the remaining gate.
+
+Tracking: epic #126.
 
 Roadmap IDs: `SCALES-01`, `RAGA-01` through `RAGA-04`.
 
@@ -23,10 +26,10 @@ path end-to-end.
 
 | Order | Plan | Status |
 |---|---|---|
-| 1 | [`81-scales-route.md`](81-scales-route.md) | in-progress |
-| 2 | [`82-raga-presets-sargam.md`](82-raga-presets-sargam.md) | in-progress |
-| 3 | [`83-tanpura-drone.md`](83-tanpura-drone.md) | in-progress, after 82's wasm surface is settled |
-| 4 | `RAGA-03` sargam/alankar exercises | not started; ready after 82 |
+| 1 | [`81-scales-route.md`](81-scales-route.md) | shipped (PR #109); lane field-test gate open |
+| 2 | [`82-raga-presets-sargam.md`](82-raga-presets-sargam.md) | shipped (PR #110); lane field-test gate open |
+| 3 | [`83-tanpura-drone.md`](83-tanpura-drone.md) | shipped (PR #112); lane field-test gate open |
+| 4 | `RAGA-03` sargam/alankar exercises | ready |
 | R | `RAGA-04` vakra ragas, gamaka, shruti-true tuning | research, deferred |
 
 ## Collision Rules

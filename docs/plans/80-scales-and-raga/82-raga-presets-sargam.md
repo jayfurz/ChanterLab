@@ -1,6 +1,6 @@
 # RAGA-01: Raga Scale Presets And Sargam Labels
 
-Status: in-progress (owner greenlit 2026-07-11). Priority: P2.
+Status: shipped (PR #110, merged 2026-07-11). Priority: P2. Tracking: epic #126.
 
 Dependencies: none hard. If the wasm bindings do not yet export the engine's
 `Genus::Custom { name, intervals, canonical_root }`, a minimal wasm-bindgen

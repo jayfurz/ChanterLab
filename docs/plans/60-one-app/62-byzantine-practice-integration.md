@@ -1,6 +1,6 @@
 # ONEAPP-02: Byzantine Mode In The Shared Practice Shell
 
-Status: blocked on `ONEAPP-01`. Priority: P3.
+Status: blocked on `ONEAPP-01`. Priority: P3. Tracking: issue #128.
 
 Dependencies: common contract and stable production shell.
 
