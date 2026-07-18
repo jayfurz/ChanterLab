@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint web",
-    "test": "node --test web/score/tests/*.test.mjs web/tests/*.test.mjs"
+    "lint": "eslint web contract",
+    "test": "node --test web/score/tests/*.test.mjs web/tests/*.test.mjs contract/tests/*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

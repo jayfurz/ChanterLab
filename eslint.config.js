@@ -52,4 +52,14 @@ export default [
       globals: { ...globals.node },
     },
   },
+
+  // Timed-score contract package: pure data modules, environment-free.
+  {
+    files: ['contract/**/*.js', 'contract/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.node },
+    },
+  },
 ];
