@@ -132,6 +132,18 @@ Design decisions:
 Both adapters are pure and deterministic: same input + same options →
 byte-identical document.
 
+## Consumer bridges
+
+- [`to_scoring.js`](to_scoring.js) — timed-score document →
+  `ChanterScoring.scoreNotes` inputs (`{ targets, opts, partId }`). MIDI
+  pitches pass through natively (bit-identical to today's
+  `buildScoreTargets`); moria pitches become float MIDI from the target's
+  absolute hz, and the tolerance band derives from the Byzantine practice
+  default (4 moria × 1200/72 = 66.7 cents). Both engines fold octaves, so the
+  scoring models transfer. This is the ONEAPP-02 de-risk: the existing scorer
+  scores Byzantine material with no scorer changes. No app code consumes the
+  bridge yet.
+
 ## Verification
 
 `contract/tests/` runs in the `root-js` CI job (`npm test`):
