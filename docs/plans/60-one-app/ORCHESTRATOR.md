@@ -1,7 +1,7 @@
 # One-App Convergence Orchestrator
 
-Status: deferred until the practice shell, content contracts, and production
-baseline are stable.
+Status: active. ONEAPP-01 completed and owner-approved 2026-07-19; ONEAPP-02
+is gated only on practice scoring v1 (#44) stabilizing.
 
 Roadmap IDs: `ONEAPP-01` through `ONEAPP-03`.
 
@@ -12,8 +12,8 @@ experience while preserving notation-specific theory, rendering, and timing.
 
 | Order | Plan | Status |
 |---|---|---|
-| 1 | [`61-common-timed-score-contract.md`](61-common-timed-score-contract.md) | blocked on stable practice/scoring contracts |
-| 2 | [`62-byzantine-practice-integration.md`](62-byzantine-practice-integration.md) | blocked on 61 |
+| 1 | [`61-common-timed-score-contract.md`](61-common-timed-score-contract.md) | complete (owner approved 2026-07-19; PRs #131/#133/#134) |
+| 2 | [`62-byzantine-practice-integration.md`](62-byzantine-practice-integration.md) | ready once scoring v1 (#44) stabilizes |
 | 3 | [`63-wasm-dsp-psola-integration.md`](63-wasm-dsp-psola-integration.md) | evidence-gated, may remain deferred |
 
 ## Hard Constraint

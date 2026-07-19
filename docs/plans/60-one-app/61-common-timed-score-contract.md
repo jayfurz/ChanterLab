@@ -1,10 +1,10 @@
 # ONEAPP-01: Common Timed-Score Contract
 
-Status: in-progress — steps 1–5 (characterization fixtures, contract v1,
-adapters, playback comparison) landed as the `contract/` package; step 6
-(owner/technical approval, then UI migration) stays gated on stable
-practice/scoring contracts. Priority: P2/P3.
-Tracking: issue #127.
+Status: complete — the `contract/` package (v1.0.0 document, validator,
+from_musicxml/from_chant adapters, to_scoring/to_scope consumer bridges)
+landed via PRs #131/#133/#134; owner approved the contract and its five
+recorded judgment calls 2026-07-19. UI migration proceeds under `ONEAPP-02`.
+Tracking: issue #127 (closed).
 
 Dependencies: practice v2 semantics, immutable score IDs, current chant compiler
 and MusicXML model characterization.
