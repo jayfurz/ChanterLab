@@ -143,6 +143,11 @@ byte-identical document.
   scoring models transfer. This is the ONEAPP-02 de-risk: the existing scorer
   scores Byzantine material with no scorer changes. No app code consumes the
   bridge yet.
+- [`to_scope.js`](to_scope.js) — timed-score document →
+  `TrainingScope.setLane` inputs (`{ selected, others, windowSec, partId }`),
+  the exact shape `buildScopeLane` hands the singscope today. Uses the same
+  pitch mapping as the scoring bridge, so the gold lane a singer sees and the
+  band they are scored against stay one system (tested cross-bridge).
 
 ## Verification
 
