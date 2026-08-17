@@ -8,8 +8,8 @@ import json, math
 import numpy as np
 
 GORGON = {0xf053, 0xf048}   # plain + red dotted gorgon (0xf022 = antikenoma: quality only, no time)
-DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf03a: 2.0, 0xf06b: 3.0}   # 0xf03a = apli (two-dot form)
-WEIGHT_OVR = {59: 0.5, 82: 1.0}       # chanter: Savior run half-beats; 'might' Ke = 1 beat (stray apli)
+DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf06b: 3.0}   # 0xf03a reverted: two-dot apli is phrase-final only (chanter); its identity is unresolved
+WEIGHT_OVR = {53: 2.0, 59: 0.5, 82: 1.0}   # chanter: post-tion apostrofos carries apli; Savior halves; 'might' Ke=1
 SUBW_OVR = {(58, 1): 0.5}             # Savior run: second note of the 0xf050 pair is a half too
 YPORRHOE, SYNELAF = 0xf05f, 0xf050
 KENTIMATA_COMPOUNDS = {0xf0d7, 0xf06f, 0xf077, 0xf04f}   # oligon/petasti + kentimata above: 2 notes up
@@ -227,7 +227,8 @@ def dtw_assign(A, table):
                     # duration guard: previous slot must live ~60% of its beats
                     impl = (vn[V[k]][0] - vn[V[kp]][0]) / spb
                     deficit = max(0.0, 0.75*slot_w[span[j-1]] - impl)
-                    c = D[j-1][kp] + base_t + pc + 0.3*(k-kp-1) - 1.4*bb + 2.2*deficit
+                    surplus = max(0.0, impl - 1.8*slot_w[span[j-1]])
+                    c = D[j-1][kp] + base_t + pc + 0.3*(k-kp-1) - 1.4*bb + 2.2*deficit + 0.5*surplus
                     if e is not None and VP[V[k]] is not None and VP[V[kp]] is not None:
                         obs = (VP[V[k]] - VP[V[kp]]) / MPS
                         c += 0.3 * min(abs(obs - e), 3.0)

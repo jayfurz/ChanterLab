@@ -435,7 +435,7 @@
    0
   ]
  ],
- "ison_source": "score red letters (EZ-Special PUA glyphs): (N)=0xf043/63, (Pi)=0xf056/76, (B)=0xf042, (Gamma)=0xf04e/6e, (Delta)=0xf06d/4d, (M)=0xf03f/2f follow-melody; 0xf048 red = dotted gorgon; 0xf022 = ANTIKENOMA (arc under oligon; quality sign, no beat value — appears in gorgon figures, chanter-confirmed: purely orthographic/character (floaty-breathy), zero time effect; the figures are fast because of their real gorgons, whose attachment needed interval-distance matching); 0xf03a = apli (two-dot form); 0xf05b likely omalon (quality)",
+ "ison_source": "score red letters (EZ-Special PUA glyphs): (N)=0xf043/63, (Pi)=0xf056/76, (B)=0xf042, (Gamma)=0xf04e/6e, (Delta)=0xf06d/4d, (M)=0xf03f/2f follow-melody; 0xf048 red = dotted gorgon; 0xf022 = ANTIKENOMA (arc under oligon; quality sign, no beat value — appears in gorgon figures, chanter-confirmed: purely orthographic/character (floaty-breathy), zero time effect; the figures are fast because of their real gorgons, whose attachment needed interval-distance matching); 0xf03a identity UNRESOLVED (not apli — two-dot apli is phrase-final only per chanter; possibly a tie mark); 0xf05b likely omalon (quality)",
  "martyria_checkpoints": [
   [
    11,
