@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Chant Alignment Annotator</title>
 <style>
   :root {
@@ -13,91 +14,138 @@
   html, body { height: 100%; }
   body {
     background: var(--bg); color: var(--fg);
-    font: 13px/1.45 system-ui, sans-serif;
+    font: 16px/1.45 system-ui, sans-serif;
     display: flex; flex-direction: column; overflow: hidden;
+    height: 100dvh;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   #hdr {
-    display: flex; align-items: center; gap: 10px; padding: 6px 12px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 10px;
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
     background: var(--panel); border-bottom: 1px solid var(--edge); flex: 0 0 auto;
   }
-  #hdr h1 { font-size: 14px; font-weight: 600; margin-right: 6px; white-space: nowrap; }
+  #hdr h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
   #hdr .sp { flex: 1; }
   button {
     background: #262c36; color: var(--fg); border: 1px solid var(--edge);
-    border-radius: 4px; padding: 4px 10px; font: inherit; cursor: pointer;
+    border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer;
+    min-height: 40px; touch-action: manipulation;
   }
   button:hover { background: #303845; }
   button.primary { background: #1e4976; border-color: #2a6fb0; }
   button.primary:hover { background: #255a91; }
+  button:disabled { opacity: 0.45; cursor: default; }
   label.chk { color: var(--dim); cursor: pointer; white-space: nowrap; user-select: none; }
-  #time { font-variant-numeric: tabular-nums; color: var(--dim); min-width: 130px; text-align: right; }
+  label.chk input { width: 18px; height: 18px; vertical-align: -3px; }
+  #time { font-variant-numeric: tabular-nums; color: var(--dim); white-space: nowrap; }
   #main { flex: 1 1 auto; display: flex; min-height: 0; }
   #left { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
   #scorewrap {
-    flex: 0 0 auto; overflow-x: auto; overflow-y: hidden;
+    flex: 0 0 auto; overflow-x: auto; overflow-y: hidden; position: relative;
     background: #0e1013; border-bottom: 1px solid var(--edge);
+    touch-action: pan-x;
   }
-  #score { display: block; }
-  #tlwrap { flex: 1 1 auto; position: relative; min-height: 120px; }
-  #tl { display: block; width: 100%; height: 100%; cursor: crosshair; }
+  #score { position: sticky; left: 0; top: 0; display: block; }
+  #scorespacer { height: 1px; }
+  #tlwrap { flex: 1 1 auto; position: relative; min-height: 110px; }
+  #tl { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
   #status {
-    flex: 0 0 auto; display: flex; gap: 16px; padding: 4px 12px;
+    flex: 0 0 auto; display: flex; gap: 14px; padding: 3px 10px;
     background: var(--panel); border-top: 1px solid var(--edge);
-    color: var(--dim); white-space: nowrap; overflow: hidden;
+    color: var(--dim); white-space: nowrap; overflow: hidden; font-size: 13px;
+    align-items: center;
   }
   #status b { color: var(--fg); font-weight: 600; }
-  #help { color: #5a6270; overflow: hidden; text-overflow: ellipsis; }
+  #help { color: #5a6270; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: right; }
+  #transport {
+    flex: 0 0 auto; display: flex; gap: 8px; align-items: stretch;
+    justify-content: center; padding: 8px 10px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    background: #191d24; border-top: 1px solid var(--edge);
+  }
+  #transport button { flex: 1 1 0; max-width: 200px; min-height: 46px; font-size: 15px; padding: 4px 6px; white-space: nowrap; }
+  #transport button.on { background: #1e4976; border-color: #2a6fb0; }
+  #playbtn { flex: 1.4 1 0; font-size: 20px; }
   #detail {
-    flex: 0 0 280px; background: var(--panel); border-left: 1px solid var(--edge);
-    padding: 10px; overflow-y: auto; display: none;
+    flex: 0 0 300px; background: var(--panel); border-left: 1px solid var(--edge);
+    padding: 10px; overflow-y: auto; display: none; font-size: 14px;
+    -webkit-user-select: text; user-select: text;
   }
   #detail.open { display: block; }
-  #detail h2 { font-size: 13px; margin-bottom: 6px; }
-  #detail h2 .cp { color: var(--dim); font-weight: 400; }
-  #crop { display: block; background: #fff; border-radius: 3px; margin-bottom: 8px; width: 100%; }
+  #dethead { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  #dethead h2 { font-size: 15px; flex: 1; }
+  #dethead h2 .cp { color: var(--dim); font-weight: 400; font-size: 13px; }
+  #dethead button { min-height: 36px; padding: 4px 10px; }
+  #crop { display: block; background: #fff; border-radius: 4px; margin-bottom: 8px; width: 100%; }
   #fields { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-  #fields td { padding: 2px 4px; vertical-align: top; border-bottom: 1px solid #232830; }
+  #fields td { padding: 3px 4px; vertical-align: top; border-bottom: 1px solid #232830; }
   #fields td:first-child { color: var(--dim); white-space: nowrap; }
   #slotlist { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
-  #slotlist td { padding: 2px 4px; cursor: pointer; border-bottom: 1px solid #232830; }
+  #slotlist td { padding: 6px 4px; cursor: pointer; border-bottom: 1px solid #232830; }
   #slotlist tr.selrow td { background: #24405e; }
   #slotlist .pin { color: var(--pinc); }
   #slotlist .ed { color: var(--editedc); }
-  #flagbox { border: 1px solid var(--edge); border-radius: 4px; padding: 8px; }
+  #flagbox { border: 1px solid var(--edge); border-radius: 6px; padding: 8px; }
   #flagbox.flagged { border-color: var(--pinc); background: #2a1a1a; }
   #flagnote {
     width: 100%; margin-top: 6px; background: #10131a; color: var(--fg);
-    border: 1px solid var(--edge); border-radius: 3px; padding: 4px; font: inherit;
-    min-height: 48px; resize: vertical;
+    border: 1px solid var(--edge); border-radius: 4px; padding: 6px; font: inherit;
+    min-height: 52px; resize: vertical;
   }
   #loadmsg {
     position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; color: var(--dim); pointer-events: none;
   }
+  /* -------- narrow / mobile: stack, bottom-sheet detail -------- */
+  @media (max-width: 900px) {
+    #hdr h1 { display: none; }
+    #hdr { gap: 6px; padding: 5px 8px; font-size: 14px; }
+    #hdr button { min-height: 36px; padding: 4px 10px; font-size: 14px; }
+    #dur { display: none; }
+    #help { display: none; }
+    #status { font-size: 12px; }
+    #detail.open {
+      position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 30;
+      max-height: 58dvh; border-left: none; border-top: 2px solid var(--edge);
+      border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.5);
+      padding-left: max(12px, env(safe-area-inset-left));
+      padding-right: max(12px, env(safe-area-inset-right));
+    }
+  }
+  @media (min-width: 901px) {
+    #detclose { display: none; }
+  }
 </style>
 </head>
 <body>
 <div id="hdr">
-  <h1>Chant Alignment Annotator</h1>
-  <button id="playbtn" class="primary">Play</button>
+  <h1>Chant Annotator</h1>
   <button id="fitbtn" title="Zoom to full piece (Home)">Fit</button>
   <label class="chk"><input type="checkbox" id="follow" checked> follow</label>
   <span class="sp"></span>
-  <span id="time">0:00.00 / 0:00.00</span>
-  <button id="resetbtn" title="Clear correction + pin on selected marker (R)">Reset marker</button>
-  <button id="clearbtn" title="Discard ALL local edits">Clear all</button>
-  <button id="exportbtn" class="primary" title="Download pins.json + slots_corrected.json + mcr_flags.json">Export</button>
+  <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
+  <button id="resetbtn" title="Clear correction + pin on selected marker (R)">Reset</button>
+  <button id="clearbtn" title="Discard ALL local edits">Clear</button>
 </div>
 <div id="main">
   <div id="left">
-    <div id="scorewrap"><canvas id="score"></canvas></div>
+    <div id="scorewrap"><canvas id="score"></canvas><div id="scorespacer"></div></div>
     <div id="tlwrap">
       <canvas id="tl"></canvas>
       <div id="loadmsg">loading…</div>
     </div>
   </div>
   <div id="detail">
-    <h2>glyph <span id="d_gi"></span> <span class="cp" id="d_cp"></span></h2>
+    <div id="dethead">
+      <h2>glyph <span id="d_gi"></span> <span class="cp" id="d_cp"></span></h2>
+      <button id="detseek" title="Seek audio to this glyph">▶ here</button>
+      <button id="detclose">✕</button>
+    </div>
     <canvas id="crop" width="260" height="120"></canvas>
     <table id="fields"></table>
     <table id="slotlist"></table>
@@ -111,9 +159,16 @@
   <span id="selinfo">no selection</span>
   <span id="counts"></span>
   <span id="savestate"></span>
-  <span class="sp" style="flex:1"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
-    &larr;/&rarr; nudge &plusmn;50ms · L loop slot · P pin · R reset · click glyph inspect · dblclick glyph seek</span>
+    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · long-press marker pin · pinch zoom</span>
+</div>
+<div id="transport">
+  <button id="playbtn" class="primary" title="play/pause (space)">▶</button>
+  <button id="nudgeL" title="nudge selected marker −50 ms (←)">−50ms</button>
+  <button id="nudgeR" title="nudge selected marker +50 ms (→)">+50ms</button>
+  <button id="loopbtn" title="loop selected slot (L)">Loop</button>
+  <button id="pinbtn" title="toggle pin on selected marker (P)">Pin</button>
+  <button id="exportbtn" class="primary" title="download pins.json + slots_corrected.json + mcr_flags.json">Export</button>
 </div>
 <audio id="player" preload="auto"></audio>
 
@@ -121,13 +176,15 @@
 'use strict';
 /* ================= configuration ================= */
 const DATA_DIR   = 'data/';
-const RIB_SCALE  = 0.62;   // score ribbon scale (strip px -> screen px)
+const RIB_SCALE  = 0.62;   // score ribbon scale (strip px -> CSS px)
 const LINE_BAND  = 150;    // strip px cropped around each line center
-const LANE_H     = 34;     // MCR badge lane height (px)
-const NUDGE      = 0.050;  // arrow-key nudge (s)
+const LANE_H     = 34;     // MCR badge lane height (CSS px)
+const NUDGE      = 0.050;  // nudge step (s)
 const MIN_GAP    = 0.02;   // min spacing between neighbouring markers (s)
 const STEP_POS   = [-18,-8,0,12,22,30,42,54,64,72,84]; // scale-degree moria grid
 const MOR_MIN = -30, MOR_MAX = 95;
+const HIT_TOUCH = 26, HIT_MOUSE = 6;   // marker hit radius per pointer type
+const LONGPRESS_MS = 600;
 
 /* ================= state ================= */
 let D = null, MCR = null, img = null;
@@ -138,12 +195,19 @@ let corrected = [], pinned = [], flags = {};   // flags: gi -> note string
 let loop = null;             // {a,b,slot}
 let playingSlot = -1;
 let dirtyTL = true, dirtyScore = true;
-let dragging = null;         // {slot} | {pan:t0AtDown,x0} | {seek:x0}
-let lineW = 0, scoreH = 0, stripBandH = 0;
+let drag = null;             // single-pointer gesture state
+let pinch = null;            // two-pointer gesture state
+const pointers = new Map();  // active pointerId -> {x,y}
+let lpTimer = null, lpState = null;   // long-press timer + snapshot
+                             // (survives the browser's touch pointercancel)
+let mag = null;              // magnifier position {x,y} while touch-dragging
+let lineW = 0, stripBandH = 0, scoreH = 0;
 const audio = document.getElementById('player');
 const scoreCv = document.getElementById('score'), scoreCtx = scoreCv.getContext('2d');
 const tlCv = document.getElementById('tl'), tlCtx = tlCv.getContext('2d');
+const wrap = document.getElementById('scorewrap');
 const $ = id => document.getElementById(id);
+const isNarrow = () => window.matchMedia('(max-width: 900px)').matches;
 
 const NSHORT = { apostrofos:'apo', oligon:'oli', ison:'iso', kentimata:'ken',
   yporrhoe:'ypo', 'ison+kentimata':'i+k', 'kentimata-compound':'kmc' };
@@ -167,7 +231,7 @@ const slotEnd = i => i+1 < nS() ? slotT(i+1) : Math.min(slotT(i)+3, D.meta.durat
 const X = t => (t - view.t0) / (view.t1 - view.t0) * tlCv.clientWidth;
 const T = x => view.t0 + x / tlCv.clientWidth * (view.t1 - view.t0);
 
-/* glyph -> ribbon x range (screen px) */
+/* glyph -> ribbon x range (CSS px, un-scrolled) */
 function glyphRX(g) {
   const n = D.notes[g];
   return [ (n.line*D.meta.strip_w + n.x0) * RIB_SCALE,
@@ -209,13 +273,15 @@ async function boot() {
   pinned = new Array(nS()).fill(false);
   restore(); updateCounts();
   view = { t0: 0, t1: D.meta.duration };
+  $('dur').textContent = ' / ' + fmtT(D.meta.duration);
   audio.src = DATA_DIR + D.meta.audio;
 
   img = new Image();
   img.onload = () => { setupScore(); dirtyScore = true; };
   img.src = DATA_DIR + D.meta.strip;
 
-  sizeTL(); requestAnimationFrame(frame);
+  setupScore();
+  requestAnimationFrame(frame);
   decodePeaks();   // async; UI is usable before it completes
 }
 async function decodePeaks() {
@@ -243,32 +309,46 @@ async function decodePeaks() {
   $('loadmsg').style.display = 'none'; dirtyTL = true;
 }
 
-/* ================= score ribbon ================= */
+/* ================= score ribbon (virtualized, DPR-crisp) ================= */
 function setupScore() {
+  if (!D) return;
   lineW = D.meta.strip_w * RIB_SCALE;
   stripBandH = Math.round(LINE_BAND * RIB_SCALE);
   scoreH = stripBandH + LANE_H;
-  scoreCv.width = Math.ceil(lineW * D.meta.line_centers.length);
-  scoreCv.height = scoreH;
+  const dpr = window.devicePixelRatio || 1;
+  const vw = wrap.clientWidth || document.documentElement.clientWidth;
+  scoreCv.style.width = vw + 'px';
+  scoreCv.style.height = scoreH + 'px';
+  scoreCv.width = Math.round(vw * dpr);
+  scoreCv.height = Math.round(scoreH * dpr);
+  $('scorespacer').style.width = Math.ceil(lineW * D.meta.line_centers.length) + 'px';
+  dirtyScore = true;
 }
 function drawScore() {
-  if (!img || !img.complete || !lineW) return;
-  const ctx = scoreCtx, W = scoreCv.width;
-  ctx.fillStyle = '#0e1013'; ctx.fillRect(0, 0, W, scoreH);
+  if (!D || !lineW) return;
+  const dpr = window.devicePixelRatio || 1;
+  scoreCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const ctx = scoreCtx, vw = scoreCv.width / dpr;
+  const off = wrap.scrollLeft;
+  ctx.fillStyle = '#0e1013'; ctx.fillRect(0, 0, vw, scoreH);
+  if (!img || !img.complete || !img.naturalWidth) return;
   const nL = D.meta.line_centers.length;
-  for (let li = 0; li < nL; li++) {
+  const liFrom = Math.max(0, Math.floor(off / lineW));
+  const liTo = Math.min(nL - 1, Math.floor((off + vw) / lineW));
+  for (let li = liFrom; li <= liTo; li++) {
     const cy = D.meta.line_centers[li];
     const sy = Math.max(0, Math.min(D.meta.strip_h - LINE_BAND, cy - LINE_BAND/2));
     ctx.drawImage(img, 0, sy, D.meta.strip_w, LINE_BAND,
-                  li*lineW, 0, lineW, stripBandH);
+                  li*lineW - off, 0, lineW, stripBandH);
     ctx.strokeStyle = '#3a4250';
-    ctx.beginPath(); ctx.moveTo((li+1)*lineW - 0.5, 0);
-    ctx.lineTo((li+1)*lineW - 0.5, stripBandH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo((li+1)*lineW - off - 0.5, 0);
+    ctx.lineTo((li+1)*lineW - off - 0.5, stripBandH); ctx.stroke();
   }
   // barlines
   ctx.strokeStyle = 'rgba(80,110,160,0.5)';
   for (const b of D.barlines) {
-    const x = (b.line*D.meta.strip_w + b.x) * RIB_SCALE;
+    if (b.line < liFrom || b.line > liTo) continue;
+    const x = (b.line*D.meta.strip_w + b.x) * RIB_SCALE - off;
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, stripBandH); ctx.stroke();
   }
   // glyph highlights on the strip
@@ -277,55 +357,58 @@ function drawScore() {
   for (const [gi, style] of [[playGi, 'rgba(255,213,79,0.35)'], [selGi, null]]) {
     if (gi < 0) continue;
     const n = D.notes[gi], [rx0, rx1] = glyphRX(gi);
+    if (rx1 < off - 20 || rx0 > off + vw + 20) continue;
     const cy = D.meta.line_centers[n.line];
     const ry = (n.y0 - (cy - LINE_BAND/2)) * RIB_SCALE;
     const rh = (n.y1 - n.y0) * RIB_SCALE;
-    if (style) { ctx.fillStyle = style; ctx.fillRect(rx0-2, ry-2, rx1-rx0+4, rh+4); }
+    if (style) { ctx.fillStyle = style; ctx.fillRect(rx0-off-2, ry-2, rx1-rx0+4, rh+4); }
     else { ctx.strokeStyle = '#4da3ff'; ctx.lineWidth = 2;
-           ctx.strokeRect(rx0-2, ry-2, rx1-rx0+4, rh+4); ctx.lineWidth = 1; }
+           ctx.strokeRect(rx0-off-2, ry-2, rx1-rx0+4, rh+4); ctx.lineWidth = 1; }
   }
-  drawLane(ctx);
+  drawLane(ctx, off, vw);
 }
-function drawLane(ctx) {
+function drawLane(ctx, off, vw) {
   const y0 = stripBandH;
-  ctx.fillStyle = '#181c22'; ctx.fillRect(0, y0, scoreCv.width, LANE_H);
+  ctx.fillStyle = '#181c22'; ctx.fillRect(0, y0, vw, LANE_H);
   ctx.textBaseline = 'top';
   for (const r of MCR) {
     const [rx0, rx1] = glyphRX(r.gi);
-    const w = rx1 - rx0;
+    if (rx1 < off || rx0 > off + vw) continue;
+    const x = rx0 - off, w = rx1 - rx0;
     const isPlay = playingSlot >= 0 && D.slots.gi[playingSlot] === r.gi;
     const isSel = sel >= 0 && D.slots.gi[sel] === r.gi;
-    if (isPlay) { ctx.fillStyle = 'rgba(255,213,79,0.25)'; ctx.fillRect(rx0, y0, w, LANE_H); }
-    else if (isSel) { ctx.fillStyle = 'rgba(77,163,255,0.22)'; ctx.fillRect(rx0, y0, w, LANE_H); }
+    if (isPlay) { ctx.fillStyle = 'rgba(255,213,79,0.25)'; ctx.fillRect(x, y0, w, LANE_H); }
+    else if (isSel) { ctx.fillStyle = 'rgba(77,163,255,0.22)'; ctx.fillRect(x, y0, w, LANE_H); }
     if (flags[r.gi] !== undefined) {
       ctx.strokeStyle = '#ff5252';
-      ctx.strokeRect(rx0+0.5, y0+0.5, w-1, LANE_H-1);
+      ctx.strokeRect(x+0.5, y0+0.5, w-1, LANE_H-1);
     }
     ctx.save();
-    ctx.beginPath(); ctx.rect(rx0, y0, w-1, LANE_H); ctx.clip();
+    ctx.beginPath(); ctx.rect(x, y0, w-1, LANE_H); ctx.clip();
     ctx.font = '9px system-ui';
     ctx.fillStyle = r.name.startsWith('0x') ? '#c98a5e' : '#9fb4cc';
-    ctx.fillText(NSHORT[r.name] || r.name.slice(2), rx0+1, y0+2);
+    ctx.fillText(NSHORT[r.name] || r.name.slice(2), x+1, y0+2);
     let m2 = beatsStr(r.beats);
     if (r.gorgon) m2 += ' G';
     if (r.duration_mark !== 'none') m2 += ' ' + DSHORT[r.duration_mark];
     for (const q of r.quality_marks) m2 += ' ' + (QSHORT[q] || q);
     if (r.other_marks.length) m2 += ' +' + r.other_marks.length;
     ctx.fillStyle = r.gorgon || r.duration_mark !== 'none' ? '#e0c060' : '#6d7787';
-    ctx.fillText(m2, rx0+1, y0+12);
+    ctx.fillText(m2, x+1, y0+12);
     if (r.word_start) { ctx.fillStyle = '#5a90c0'; ctx.font = '8px system-ui';
-      ctx.fillText(r.word.slice(0, 12), rx0+1, y0+23); }
+      ctx.fillText(r.word.slice(0, 12), x+1, y0+23); }
     ctx.restore();
   }
 }
-function glyphAtScoreXY(x, y) {
-  const li = Math.floor(x / lineW);
-  const lx = (x - li*lineW) / RIB_SCALE;
+function glyphAtScoreXY(x, y) {           // x in canvas CSS px (viewport)
+  const rx = x + wrap.scrollLeft;
+  const li = Math.floor(rx / lineW);
+  const lx = (rx - li*lineW) / RIB_SCALE;
   let best = -1, bd = 1e9;
   for (let g = 0; g < D.notes.length; g++) {
     const n = D.notes[g];
     if (n.line !== li) continue;
-    if (lx >= n.x0 - 4 && lx <= n.x1 + 4) {
+    if (lx >= n.x0 - 6 && lx <= n.x1 + 6) {
       const d = Math.abs((n.x0+n.x1)/2 - lx);
       if (d < bd) { best = g; bd = d; }
     }
@@ -334,10 +417,9 @@ function glyphAtScoreXY(x, y) {
 }
 function scrollGlyphIntoView(gi) {
   const [rx0, rx1] = glyphRX(gi);
-  const wrap = $('scorewrap');
-  const target = (rx0 + rx1)/2 - wrap.clientWidth/2;
-  wrap.scrollLeft = Math.max(0, target);
+  wrap.scrollLeft = Math.max(0, (rx0 + rx1)/2 - wrap.clientWidth/2);
 }
+wrap.addEventListener('scroll', () => { dirtyScore = true; });
 
 /* ================= timeline ================= */
 function sizeTL() {
@@ -348,11 +430,25 @@ function sizeTL() {
   }
   tlCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
+function drawWaveSlice(ctx, x0, x1, tOf, mid, amp) {  // shared by main view + magnifier
+  ctx.fillStyle = '#3f6ea0';
+  for (let x = x0; x < x1; x++) {
+    const b0 = Math.max(0, Math.floor(tOf(x)/peaks.spb));
+    const b1 = Math.min(peaks.n-1, Math.floor(tOf(x+1)/peaks.spb));
+    if (b0 > b1 || b0 >= peaks.n) continue;
+    let lo = 1e9, hi = -1e9;
+    for (let b = b0; b <= b1; b++) {
+      if (peaks.min[b] < lo) lo = peaks.min[b];
+      if (peaks.max[b] > hi) hi = peaks.max[b];
+    }
+    ctx.fillRect(x, mid - hi*amp, 1, Math.max(1, (hi-lo)*amp));
+  }
+}
 function drawTL() {
   sizeTL();
   const ctx = tlCtx, W = tlCv.clientWidth, H = tlCv.clientHeight;
   const laneH = 18;
-  const wfTop = laneH, wfH = Math.max(60, Math.round((H - laneH) * 0.52));
+  const wfTop = laneH, wfH = Math.max(50, Math.round((H - laneH) * 0.55));
   const pTop = wfTop + wfH, pH = H - pTop;
   ctx.fillStyle = '#14171c'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#10131a'; ctx.fillRect(0, 0, W, laneH);
@@ -361,8 +457,8 @@ function drawTL() {
   // time grid
   const span = view.t1 - view.t0;
   const steps = [0.1,0.25,0.5,1,2,5,10,20,30,60,120];
-  const step = steps.find(s => span / s < 14) || 120;
-  ctx.font = '10px system-ui'; ctx.textBaseline = 'bottom';
+  const step = steps.find(s => span / s < W / 90) || 120;   // ~90px per label
+  ctx.font = '11px system-ui'; ctx.textBaseline = 'bottom';
   for (let t = Math.ceil(view.t0/step)*step; t <= view.t1; t += step) {
     const x = X(t);
     ctx.strokeStyle = 'rgba(255,255,255,0.06)';
@@ -377,21 +473,7 @@ function drawTL() {
     ctx.fillRect(X(slotT(sel)), laneH, X(slotEnd(sel))-X(slotT(sel)), H-laneH); }
 
   // waveform
-  if (peaks) {
-    ctx.fillStyle = '#3f6ea0';
-    const mid = wfTop + wfH/2, amp = wfH/2 - 2;
-    for (let x = 0; x < W; x++) {
-      const b0 = Math.max(0, Math.floor(T(x)/peaks.spb));
-      const b1 = Math.min(peaks.n-1, Math.floor(T(x+1)/peaks.spb));
-      if (b0 > b1 || b0 >= peaks.n) continue;
-      let lo = 1e9, hi = -1e9;
-      for (let b = b0; b <= b1; b++) {
-        if (peaks.min[b] < lo) lo = peaks.min[b];
-        if (peaks.max[b] > hi) hi = peaks.max[b];
-      }
-      ctx.fillRect(x, mid - hi*amp, 1, Math.max(1, (hi-lo)*amp));
-    }
-  }
+  if (peaks) drawWaveSlice(ctx, 0, W, x => T(x), wfTop + wfH/2, wfH/2 - 2);
 
   // pitch band: degree grid + ison + moria curve
   const mY = m => pTop + pH - (m - MOR_MIN)/(MOR_MAX - MOR_MIN)*pH;
@@ -426,7 +508,7 @@ function drawTL() {
   }
 
   // slot markers
-  ctx.textBaseline = 'top'; ctx.font = '10px system-ui';
+  ctx.textBaseline = 'top'; ctx.font = '11px system-ui';
   let lastLabelX = -1e9;
   for (let i = 0; i < nS(); i++) {
     const t = slotT(i);
@@ -437,14 +519,14 @@ function drawTL() {
       : isPin ? '#ff5252' : isEd ? '#e0a030' : 'rgba(94,143,201,0.75)';
     ctx.lineWidth = i === sel ? 2 : 1;
     const yTop = D.slots.sub[i] > 0 ? laneH + 6 : 2;
-    ctx.beginPath(); ctx.moveTo(x+0.5, yTop); ctx.lineTo(x+0.5, H-12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+0.5, yTop); ctx.lineTo(x+0.5, H-14); ctx.stroke();
     ctx.lineWidth = 1;
     if (isPin) {  // pin flag triangle
       ctx.fillStyle = '#ff5252';
       ctx.beginPath(); ctx.moveTo(x, yTop); ctx.lineTo(x+7, yTop+4); ctx.lineTo(x, yTop+8);
       ctx.closePath(); ctx.fill();
     }
-    if (x - lastLabelX > 26 && D.slots.sub[i] === 0) {
+    if (x - lastLabelX > 30 && D.slots.sub[i] === 0) {
       const lab = D.slots.gi[i] + (D.slots.label[i] ? ' ' + D.slots.label[i] : '');
       ctx.fillStyle = i === sel ? '#fff' : isPin ? '#ff8a80' : isEd ? '#e0c060' : '#7d8a9c';
       ctx.fillText(lab, x+3, 3);
@@ -458,24 +540,61 @@ function drawTL() {
     ctx.strokeStyle = '#ffd54f'; ctx.beginPath();
     ctx.moveTo(X(pt), 0); ctx.lineTo(X(pt), H); ctx.stroke();
   }
+
+  // magnifier bubble while touch-dragging a marker (finger hides the line)
+  if (mag && drag && drag.slot != null && peaks) {
+    const mt = slotT(drag.slot);
+    const MW = Math.min(220, W - 20), MH = 96, HALF = 0.5;  // ±0.5 s window
+    let bx = Math.max(10, Math.min(W - MW - 10, mag.x - MW/2));
+    let by = mag.y - MH - 46; if (by < laneH + 4) by = Math.min(H - MH - 8, mag.y + 40);
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,13,18,0.95)'; ctx.strokeStyle = '#4da3ff';
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(bx, by, MW, MH, 10) : ctx.rect(bx, by, MW, MH);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(bx, by, MW, MH, 10) : ctx.rect(bx, by, MW, MH);
+    ctx.clip();
+    const tOf = px => mt - HALF + (px - bx)/MW * 2*HALF;
+    drawWaveSlice(ctx, Math.round(bx), Math.round(bx+MW), tOf, by + MH*0.55, MH*0.34);
+    // neighbour markers inside the magnifier
+    for (let i = 0; i < nS(); i++) {
+      const t = slotT(i);
+      if (t < mt - HALF || t > mt + HALF) continue;
+      const x = bx + (t - (mt - HALF))/(2*HALF)*MW;
+      ctx.strokeStyle = i === drag.slot ? '#ffffff' : 'rgba(94,143,201,0.6)';
+      ctx.lineWidth = i === drag.slot ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(x, by+18); ctx.lineTo(x, by+MH-4); ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#fff'; ctx.font = '13px system-ui'; ctx.textBaseline = 'top';
+    ctx.fillText(fmtT(mt), bx + 8, by + 4);
+    ctx.restore();
+  }
 }
 
 /* ================= detail panel ================= */
 function openDetail(gi) {
   const r = MCR[gi], p = $('detail');
   p.classList.add('open');
+  if (isNarrow()) p.style.bottom = $('transport').offsetHeight + 'px';
+  else p.style.bottom = '';
   $('d_gi').textContent = '#' + gi;
   $('d_cp').textContent = r.cp + ' ' + r.name;
-  // crop
+  // crop (DPR-crisp)
   if (img && img.complete) {
     const n = D.notes[gi], cy = D.meta.line_centers[n.line];
     const sx = Math.max(0, n.x0 - 30), sw = Math.min(D.meta.strip_w - sx, n.x1 - n.x0 + 60);
     const sy = Math.max(0, cy - LINE_BAND/2), sh = LINE_BAND;
-    const cv = $('crop'), scale = cv.width / sw;
-    cv.height = Math.round(sh * scale);
+    const cv = $('crop'), dpr = window.devicePixelRatio || 1;
+    const cssW = cv.clientWidth || 260, cssH = Math.round(sh * cssW / sw);
+    cv.style.height = cssH + 'px';
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    const scale = cssW / sw;
     const c = cv.getContext('2d');
-    c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
-    c.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.fillStyle = '#fff'; c.fillRect(0, 0, cssW, cssH);
+    c.drawImage(img, sx, sy, sw, sh, 0, 0, cssW, cssH);
     c.strokeStyle = 'rgba(255,80,80,0.8)';
     c.strokeRect((n.x0-sx)*scale, (n.y0-sy)*scale, (n.x1-n.x0)*scale, (n.y1-n.y0)*scale);
   }
@@ -503,6 +622,11 @@ function openDetail(gi) {
        <td class="pin">${pinned[i] ? '⚑' : ''}</td></tr>`).join('');
   for (const tr of $('slotlist').querySelectorAll('tr[data-slot]'))
     tr.onclick = () => { selectSlot(+tr.dataset.slot, false); };
+  $('detseek').onclick = () => {
+    audio.currentTime = slotT(r.slot_ids[0]); dirtyTL = true;
+    const spanV = view.t1 - view.t0, t = slotT(r.slot_ids[0]);
+    if (t < view.t0 || t > view.t1) setView(t - spanV/2, t + spanV/2);
+  };
   const flagged = flags[gi] !== undefined;
   $('flagbox').className = flagged ? 'flagged' : '';
   $('flagbtn').textContent = flagged ? 'Unflag MCR error' : 'Flag MCR error';
@@ -518,9 +642,13 @@ function openDetail(gi) {
 }
 function selectSlot(i, scroll = true) {
   sel = i; dirtyTL = dirtyScore = true;
+  updateTransport();
   if (i >= 0) {
     const gi = D.slots.gi[i];
-    openDetail(gi);
+    // On narrow screens the detail sheet covers the timeline, so marker
+    // selection only refreshes it if it is already open; tapping a glyph
+    // (score band) opens it explicitly.
+    if (!isNarrow() || $('detail').classList.contains('open')) openDetail(gi);
     if (scroll) scrollGlyphIntoView(gi);
     $('selinfo').innerHTML = `slot <b>${gi}.${D.slots.sub[i]}</b> ` +
       `${MCR[gi].name} “${MCR[gi].word}” ` +
@@ -537,6 +665,31 @@ function setSlotTime(i, t) {
   const hi = i+1 < nS() ? slotT(i+1) - MIN_GAP : D.meta.duration;
   corrected[i] = Math.round(Math.min(hi, Math.max(lo, t)) * 1000) / 1000;
   dirtyTL = true;
+}
+function nudgeSel(dir) {
+  if (sel < 0) { audio.currentTime = Math.max(0, audio.currentTime + dir*2); dirtyTL = true; return; }
+  setSlotTime(sel, slotT(sel) + dir*NUDGE);
+  pinned[sel] = true; save(); selectSlot(sel, false);
+}
+function togglePinSel() {
+  if (sel < 0) return;
+  pinned[sel] = !pinned[sel]; save(); selectSlot(sel, false);
+}
+function toggleLoopSel() {
+  if (loop) loop = null;
+  else if (sel >= 0) {
+    loop = { a: slotT(sel), b: slotEnd(sel), slot: sel };
+    audio.currentTime = loop.a;
+    if (audio.paused) audio.play();
+  }
+  updateTransport(); dirtyTL = true;
+}
+function updateTransport() {
+  $('loopbtn').classList.toggle('on', !!loop);
+  $('pinbtn').classList.toggle('on', sel >= 0 && pinned[sel]);
+  const has = sel >= 0;
+  $('nudgeL').disabled = $('nudgeR').disabled = false;   // fall back to seek when no sel
+  $('pinbtn').disabled = $('loopbtn').disabled = !has && !loop;
 }
 
 /* ================= export ================= */
@@ -570,9 +723,9 @@ function doExport() {
     (subPins.length ? ` (${subPins.length} sub-note pins in slots_corrected.json only)` : '');
 }
 
-/* ================= interaction ================= */
-function markerNear(x) {
-  let best = -1, bd = 6;
+/* ================= timeline pointer interaction ================= */
+function markerNear(x, r) {
+  let best = -1, bd = r;
   for (let i = 0; i < nS(); i++) {
     const t = slotT(i);
     if (t < view.t0 || t > view.t1) continue;
@@ -581,48 +734,116 @@ function markerNear(x) {
   }
   return best;
 }
-tlCv.addEventListener('mousedown', e => {
-  const x = e.offsetX;
-  const m = markerNear(x);
-  if (m >= 0) { dragging = { slot: m, moved: false }; selectSlot(m, true); }
-  else dragging = { x0: x, t0: view.t0, t1: view.t1, moved: false };
-});
-window.addEventListener('mousemove', e => {
-  if (!dragging) return;
-  const rect = tlCv.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  if (dragging.slot != null) {
-    dragging.moved = true;
-    setSlotTime(dragging.slot, T(x));
-    selectSlot(dragging.slot, false);
-  } else {
-    const dx = x - dragging.x0;
-    if (Math.abs(dx) > 4) dragging.moved = true;
-    if (dragging.moved) {
-      const dt = -dx / tlCv.clientWidth * (dragging.t1 - dragging.t0);
-      setView(dragging.t0 + dt, dragging.t1 + dt);
-    }
-  }
-});
-window.addEventListener('mouseup', e => {
-  if (!dragging) return;
-  if (dragging.slot != null) {
-    if (dragging.moved) {          // a drag is a correction -> hard pin
-      pinned[dragging.slot] = true;
-      save(); selectSlot(dragging.slot, false);
-    }
-  } else if (!dragging.moved) {
-    const rect = tlCv.getBoundingClientRect();
-    audio.currentTime = Math.max(0, Math.min(D.meta.duration, T(e.clientX - rect.left)));
-    dirtyTL = true;
-  }
-  dragging = null;
-});
 function setView(a, b) {
   const span = Math.max(0.2, Math.min(D.meta.duration, b - a));
   a = Math.max(0, Math.min(D.meta.duration - span, a));
   view = { t0: a, t1: a + span }; dirtyTL = true;
 }
+function clearLP() { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } lpState = null; }
+function startLP(slot) {
+  clearLP();
+  lpState = { slot, moved: false };
+  lpTimer = setTimeout(() => {
+    lpTimer = null;
+    // Chrome may fire pointercancel on touch long-press before this timer;
+    // lpState survives that, so the pin toggle still lands.
+    if (lpState && !lpState.moved) {
+      if (drag && drag.slot === lpState.slot) { drag.consumed = true; mag = null; }
+      if (sel !== lpState.slot) selectSlot(lpState.slot, false);
+      togglePinSel();
+      if (navigator.vibrate) navigator.vibrate(30);
+      dirtyTL = true;
+    }
+    lpState = null;
+  }, LONGPRESS_MS);
+}
+function tlPos(e) {
+  const r = tlCv.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+tlCv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  tlCv.setPointerCapture(e.pointerId);
+  const p = tlPos(e);
+  pointers.set(e.pointerId, p);
+  if (pointers.size === 2) {              // begin pinch/two-finger pan
+    clearLP(); drag = null; mag = null;
+    const ids = [...pointers.keys()];
+    pinch = { ids, anchors: ids.map(id => ({ t: T(pointers.get(id).x) })) };
+    return;
+  }
+  const hit = markerNear(p.x, e.pointerType === 'touch' ? HIT_TOUCH : HIT_MOUSE);
+  if (hit >= 0) {
+    drag = { slot: hit, moved: false, consumed: false, ptype: e.pointerType };
+    selectSlot(hit, true);
+    if (e.pointerType === 'touch') startLP(hit);  // long-press = toggle pin
+  } else {
+    drag = { x0: p.x, v0: view.t0, v1: view.t1, moved: false, consumed: false };
+  }
+});
+tlCv.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  const p = tlPos(e);
+  pointers.set(e.pointerId, p);
+  if (pinch) {
+    const pts = pinch.ids.map(id => pointers.get(id)).filter(Boolean);
+    if (pts.length === 2) {
+      const [a1, a2] = pinch.anchors;
+      const W = tlCv.clientWidth, dx = pts[1].x - pts[0].x;
+      if (Math.abs(dx) < 12 || Math.abs(a2.t - a1.t) < 1e-6) {
+        const dt = a1.t - T(pts[0].x);    // parallel fingers: pan
+        setView(view.t0 + dt, view.t1 + dt);
+      } else {
+        const span = (a2.t - a1.t) * W / dx;
+        if (span > 0.05 && span < D.meta.duration * 2)
+          setView(a1.t - pts[0].x/W*span, a1.t - pts[0].x/W*span + span);
+      }
+    }
+    return;
+  }
+  if (!drag || drag.consumed) return;
+  if (drag.slot != null) {
+    if (!drag.moved && Math.abs(p.x - X(slotT(drag.slot))) < 3) return;
+    drag.moved = true;
+    if (lpState) lpState.moved = true;
+    clearLP();
+    setSlotTime(drag.slot, T(p.x));
+    if (drag.ptype === 'touch') mag = { x: p.x, y: p.y };
+    selectSlot(drag.slot, false);
+  } else {
+    const dx = p.x - drag.x0;
+    if (Math.abs(dx) > 6) drag.moved = true;
+    if (drag.moved) {
+      const dt = -dx / tlCv.clientWidth * (drag.v1 - drag.v0);
+      setView(drag.v0 + dt, drag.v1 + dt);
+    }
+  }
+});
+function tlPointerEnd(e) {
+  if (!pointers.has(e.pointerId)) return;
+  const p = tlPos(e);
+  pointers.delete(e.pointerId);
+  // a real pointerup ends any pending long-press (it was just a tap);
+  // a pointercancel from the browser's own long-press detection must NOT —
+  // the finger is still down and the timer should complete the pin toggle.
+  if (e.type !== 'pointercancel') clearLP();
+  if (pinch) { if (pointers.size < 2) pinch = null; mag = null; drag = null; return; }
+  if (!drag) return;
+  const d = drag; drag = null; mag = null; dirtyTL = true;
+  if (d.consumed) return;                  // long-press already handled
+  if (d.slot != null) {
+    if (d.moved && e.type !== 'pointercancel') {   // a drag is a correction -> hard pin
+      pinned[d.slot] = true;
+      save(); selectSlot(d.slot, false);
+    }
+  } else if (!d.moved && e.type !== 'pointercancel') {
+    audio.currentTime = Math.max(0, Math.min(D.meta.duration, T(p.x)));
+    dirtyTL = true;
+  }
+}
+tlCv.addEventListener('pointerup', tlPointerEnd);
+tlCv.addEventListener('pointercancel', tlPointerEnd);
+tlCv.addEventListener('contextmenu', e => e.preventDefault());
 tlCv.addEventListener('wheel', e => {
   e.preventDefault();
   if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
@@ -635,11 +856,13 @@ tlCv.addEventListener('wheel', e => {
   }
 }, { passive: false });
 
+/* ================= score band interaction ================= */
 scoreCv.addEventListener('click', e => {
   const g = glyphAtScoreXY(e.offsetX, e.offsetY);
   if (g >= 0) {
     const i = MCR[g].slot_ids[0];
     selectSlot(i, false);
+    openDetail(g);              // glyph tap always opens the detail panel/sheet
     const t = slotT(i);
     if (t < view.t0 || t > view.t1) {        // center timeline on it
       const span = view.t1 - view.t0;
@@ -652,34 +875,17 @@ scoreCv.addEventListener('dblclick', e => {
   if (g >= 0) { audio.currentTime = slotT(MCR[g].slot_ids[0]); dirtyTL = true; }
 });
 
-function togglePlay() {
-  if (audio.paused) audio.play(); else audio.pause();
-  $('playbtn').textContent = audio.paused ? 'Play' : 'Pause';
-}
+/* ================= transport + keys ================= */
+function togglePlay() { if (audio.paused) audio.play(); else audio.pause(); }
 window.addEventListener('keydown', e => {
   const tag = e.target.tagName;
   if (tag === 'TEXTAREA' || tag === 'INPUT') return;
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-    e.preventDefault();
-    const d = (e.key === 'ArrowLeft' ? -1 : 1) * NUDGE;
-    if (sel >= 0) {
-      setSlotTime(sel, slotT(sel) + d);
-      pinned[sel] = true; save(); selectSlot(sel, false);
-    } else { audio.currentTime = Math.max(0, audio.currentTime + d*40); dirtyTL = true; }
+    e.preventDefault(); nudgeSel(e.key === 'ArrowLeft' ? -1 : 1);
   }
-  else if (e.key === 'l' || e.key === 'L') {
-    if (loop) { loop = null; }
-    else if (sel >= 0) {
-      loop = { a: slotT(sel), b: slotEnd(sel), slot: sel };
-      audio.currentTime = loop.a;
-      if (audio.paused) togglePlay();
-    }
-    dirtyTL = true;
-  }
-  else if (e.key === 'p' || e.key === 'P') {
-    if (sel >= 0) { pinned[sel] = !pinned[sel]; save(); selectSlot(sel, false); }
-  }
+  else if (e.key === 'l' || e.key === 'L') toggleLoopSel();
+  else if (e.key === 'p' || e.key === 'P') togglePinSel();
   else if (e.key === 'r' || e.key === 'R') {
     if (sel >= 0) { corrected[sel] = null; pinned[sel] = false; save(); selectSlot(sel, false); }
   }
@@ -690,6 +896,11 @@ window.addEventListener('keydown', e => {
 $('playbtn').onclick = togglePlay;
 $('fitbtn').onclick = () => setView(0, D.meta.duration);
 $('exportbtn').onclick = doExport;
+$('nudgeL').onclick = () => nudgeSel(-1);
+$('nudgeR').onclick = () => nudgeSel(1);
+$('loopbtn').onclick = toggleLoopSel;
+$('pinbtn').onclick = togglePinSel;
+$('detclose').onclick = () => selectSlot(-1);
 $('resetbtn').onclick = () => {
   if (sel >= 0) { corrected[sel] = null; pinned[sel] = false; save(); selectSlot(sel, false); } };
 $('clearbtn').onclick = () => {
@@ -698,16 +909,17 @@ $('clearbtn').onclick = () => {
   pinned = new Array(nS()).fill(false);
   flags = {}; save(); selectSlot(-1); dirtyTL = dirtyScore = true;
 };
-audio.addEventListener('play', () => { $('playbtn').textContent = 'Pause'; });
-audio.addEventListener('pause', () => { $('playbtn').textContent = 'Play'; });
-window.addEventListener('resize', () => { dirtyTL = true; });
+audio.addEventListener('play', () => { $('playbtn').textContent = '⏸'; });
+audio.addEventListener('pause', () => { $('playbtn').textContent = '▶'; });
+window.addEventListener('resize', () => { setupScore(); dirtyTL = true;
+  if ($('detail').classList.contains('open') && sel >= 0) openDetail(D.slots.gi[sel]); });
 
 /* ================= main loop ================= */
 function frame() {
   requestAnimationFrame(frame);
   if (!D) return;
   const t = audio.currentTime;
-  $('time').textContent = fmtT(t) + ' / ' + fmtT(D.meta.duration);
+  $('cur').textContent = fmtT(t);
   if (loop && t >= loop.b - 0.01) audio.currentTime = loop.a;
   const ps = slotAt(t);
   if (ps !== playingSlot) {
@@ -722,7 +934,7 @@ function frame() {
       setView(t - span*0.1, t - span*0.1 + span);
     }
   }
-  if (dirtyTL) { drawTL(); dirtyTL = false; }
+  if (dirtyTL || mag) { drawTL(); dirtyTL = false; }
   if (dirtyScore) { drawScore(); dirtyScore = false; }
 }
 boot();

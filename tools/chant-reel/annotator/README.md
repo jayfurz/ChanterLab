@@ -51,6 +51,14 @@ and warns on mismatch.
 
 ## Controls
 
+The app is responsive: on narrow screens the lanes stack full-width, the detail
+panel becomes a bottom sheet (opened by tapping a glyph), and a fixed bottom
+transport bar (play, ±50 ms nudge, loop, pin, export) replaces the keyboard.
+Canvases render at devicePixelRatio and the score ribbon is virtualized, so
+phones stay crisp and fast.
+
+Desktop (keyboard + mouse):
+
 | action | effect |
 |---|---|
 | `space` | play / pause |
@@ -62,6 +70,18 @@ and warns on mismatch.
 | `P` | toggle pin on selected marker |
 | `R` / Reset marker | drop correction + pin on selected marker |
 | `Esc` | deselect · `Home`/Fit: zoom to piece · `F`/checkbox: follow playback |
+
+Touch:
+
+| gesture | effect |
+|---|---|
+| tap waveform | seek |
+| tap marker | select (26 px hit zone) |
+| drag marker | retime + auto-pin; a magnifier bubble shows the exact position under your finger |
+| long-press marker | toggle pin |
+| pinch | zoom the timeline; move both fingers together to pan |
+| one-finger drag on empty waveform | pan |
+| tap glyph in the score band | open the detail bottom sheet (▶ here seeks to it) |
 
 All edits autosave to `localStorage` (keyed by `--piece-id`) and survive
 reloads. **Clear all** discards them.
@@ -90,4 +110,8 @@ The **Export** button downloads three files:
 - Dragging keeps markers monotone (clamped between neighbours); to move a
   marker past its neighbour, move the neighbour first.
 - The page must be served over HTTP (fetch + WebAudio do not work from
-  `file://`). Waveform appears a few seconds after load (48 MB WAV decode).
+  `file://`). The waveform appears a few seconds after load (audio decode).
+- On phones, selecting a marker never opens the detail sheet (it would cover
+  the timeline mid-edit); tap the glyph in the score band to inspect it.
+- Press-and-hold on a marker toggles its pin; to drag a marker, start moving
+  within ~0.6 s of touching it.
