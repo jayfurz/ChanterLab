@@ -312,7 +312,7 @@
    258
   ]
  ],
- "caveats": "EZ glyph names partially inferred (0xf050 naming uncertain: sung 0,+1); anchors near Resurrection use singer-provided ground truth (rec=54.0, tion=58.0); 62% of slots claim a detected onset, rest interpolated.",
+ "caveats": "EZ glyph names partially inferred (0xf050 naming uncertain: sung 0,+1); anchors near Resurrection use singer-provided ground truth (rec=54.0, tion=58.0); 62% of slots claim a detected onset, rest interpolated. User ground-truth pins: rec=54.0, tion=58.0, that=253.0.",
  "tuning_drift": {
   "segment_s": [
    0,
@@ -419,19 +419,19 @@
    42
   ],
   [
-   252.53,
+   249.49,
    30
   ],
   [
-   254.99,
+   250.15,
    42
   ],
   [
-   258.66,
+   253.32,
    12
   ],
   [
-   259.81,
+   254.99,
    0
   ]
  ],
