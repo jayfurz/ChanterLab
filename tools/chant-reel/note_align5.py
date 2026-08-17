@@ -22,6 +22,15 @@ wt = json.load(open('word_times.json'))
 vn = json.load(open('voice_notes3.json'))
 bars_j = json.load(open('barlines.json'))
 mor = np.load('moria_track.npy')
+EXPECTED = json.load(open('expected_degrees.json'))    # absolute degree per slot (martyria-closed)
+STEP_POS = [-18,-8,0,12,22,30,42,54,64,72,84]
+STEP_DEG = [-2,-1,0,1,2,3,4,5,6,7,8]
+def sung_degree(m, t):
+    if m is None: return None
+    if t < 19.8: m -= 3.5
+    elif t < 21.8: m -= 3.5*(21.8-t)/2.0
+    k = min(range(len(STEP_POS)), key=lambda i: abs(STEP_POS[i]-m))
+    return STEP_DEG[k]
 # soft breath evidence: onset time -> strength from gap duration (never a hard pin)
 BREATH = {round(v[0],2): min(1.0, 2.5*v[3]) for v in vn if v[3] >= 0.12 and v[0] > 3}
 def breath_bonus(t):
@@ -36,6 +45,7 @@ def note_pitch(t0, t1):
     seg = seg[~np.isnan(seg)]
     return float(np.median(seg)) if len(seg) else None
 VP = [note_pitch(v[0], v[1]) for v in vn]      # per voice-note sung moria
+VDEG = [sung_degree(VP[k], vn[k][0]) for k in range(len(vn))]
 
 # ---- modifiers ----
 gor = [False]*N; dur = [1.0]*N
@@ -155,19 +165,23 @@ def dtw_assign(A, table):
         # D[j][k]: min cost with slot j claiming note k; also D_un[j]: slot j unclaimed
         D = [[BIG]*K for _ in range(J)]
         Bk = [[None]*K for _ in range(J)]
+        edeg0 = EXPECTED[span[0]]
         for k in range(K):
-            D[0][k] = 1.5*abs(vn[V[k]][0] - targ[0]) + 0.3*k
+            pc0 = 1.3*min(abs(VDEG[V[k]] - edeg0), 3) if VDEG[V[k]] is not None else 0.6
+            D[0][k] = 0.35*abs(vn[V[k]][0] - targ[0]) + pc0 + 0.3*k
         for j in range(1, J):
             e = exp_interval(span[j], table)
+            edeg = EXPECTED[span[j]]
             for k in range(K):
-                base_t = 1.5*abs(vn[V[k]][0] - targ[j])
+                base_t = 0.35*abs(vn[V[k]][0] - targ[j])          # time demoted to weak prior
+                pc = 1.3*min(abs(VDEG[V[k]] - edeg), 3) if VDEG[V[k]] is not None else 0.6
                 bb = breath_bonus(vn[V[k]][0]) if span[j] in BOUNDARY else 0.0
                 for kp in range(k):
                     if D[j-1][kp] >= BIG: continue
-                    c = D[j-1][kp] + base_t + 0.3*(k-kp-1) - 1.4*bb
+                    c = D[j-1][kp] + base_t + pc + 0.3*(k-kp-1) - 1.4*bb
                     if e is not None and VP[V[k]] is not None and VP[V[kp]] is not None:
                         obs = (VP[V[k]] - VP[V[kp]]) / MPS
-                        c += 0.4 * min(abs(obs - e), 3.0)
+                        c += 0.3 * min(abs(obs - e), 3.0)
                     if c < D[j][k]: D[j][k] = c; Bk[j][k] = kp
         k_end = int(np.argmin(D[J-1]))
         if D[J-1][k_end] >= BIG:
