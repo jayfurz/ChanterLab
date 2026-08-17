@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chant Alignment Annotator</title>
+<style>
+  :root {
+    --bg: #14171c; --panel: #1c2027; --edge: #2c323c; --fg: #d8dee6;
+    --dim: #8a93a0; --accent: #4da3ff; --machine: #5e8fc9; --editedc: #e0a030;
+    --pinc: #ff5252; --play: #ffd54f; --ok: #6fce8f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 13px/1.45 system-ui, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #hdr {
+    display: flex; align-items: center; gap: 10px; padding: 6px 12px;
+    background: var(--panel); border-bottom: 1px solid var(--edge); flex: 0 0 auto;
+  }
+  #hdr h1 { font-size: 14px; font-weight: 600; margin-right: 6px; white-space: nowrap; }
+  #hdr .sp { flex: 1; }
+  button {
+    background: #262c36; color: var(--fg); border: 1px solid var(--edge);
+    border-radius: 4px; padding: 4px 10px; font: inherit; cursor: pointer;
+  }
+  button:hover { background: #303845; }
+  button.primary { background: #1e4976; border-color: #2a6fb0; }
+  button.primary:hover { background: #255a91; }
+  label.chk { color: var(--dim); cursor: pointer; white-space: nowrap; user-select: none; }
+  #time { font-variant-numeric: tabular-nums; color: var(--dim); min-width: 130px; text-align: right; }
+  #main { flex: 1 1 auto; display: flex; min-height: 0; }
+  #left { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+  #scorewrap {
+    flex: 0 0 auto; overflow-x: auto; overflow-y: hidden;
+    background: #0e1013; border-bottom: 1px solid var(--edge);
+  }
+  #score { display: block; }
+  #tlwrap { flex: 1 1 auto; position: relative; min-height: 120px; }
+  #tl { display: block; width: 100%; height: 100%; cursor: crosshair; }
+  #status {
+    flex: 0 0 auto; display: flex; gap: 16px; padding: 4px 12px;
+    background: var(--panel); border-top: 1px solid var(--edge);
+    color: var(--dim); white-space: nowrap; overflow: hidden;
+  }
+  #status b { color: var(--fg); font-weight: 600; }
+  #help { color: #5a6270; overflow: hidden; text-overflow: ellipsis; }
+  #detail {
+    flex: 0 0 280px; background: var(--panel); border-left: 1px solid var(--edge);
+    padding: 10px; overflow-y: auto; display: none;
+  }
+  #detail.open { display: block; }
+  #detail h2 { font-size: 13px; margin-bottom: 6px; }
+  #detail h2 .cp { color: var(--dim); font-weight: 400; }
+  #crop { display: block; background: #fff; border-radius: 3px; margin-bottom: 8px; width: 100%; }
+  #fields { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  #fields td { padding: 2px 4px; vertical-align: top; border-bottom: 1px solid #232830; }
+  #fields td:first-child { color: var(--dim); white-space: nowrap; }
+  #slotlist { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+  #slotlist td { padding: 2px 4px; cursor: pointer; border-bottom: 1px solid #232830; }
+  #slotlist tr.selrow td { background: #24405e; }
+  #slotlist .pin { color: var(--pinc); }
+  #slotlist .ed { color: var(--editedc); }
+  #flagbox { border: 1px solid var(--edge); border-radius: 4px; padding: 8px; }
+  #flagbox.flagged { border-color: var(--pinc); background: #2a1a1a; }
+  #flagnote {
+    width: 100%; margin-top: 6px; background: #10131a; color: var(--fg);
+    border: 1px solid var(--edge); border-radius: 3px; padding: 4px; font: inherit;
+    min-height: 48px; resize: vertical;
+  }
+  #loadmsg {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; color: var(--dim); pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="hdr">
+  <h1>Chant Alignment Annotator</h1>
+  <button id="playbtn" class="primary">Play</button>
+  <button id="fitbtn" title="Zoom to full piece (Home)">Fit</button>
+  <label class="chk"><input type="checkbox" id="follow" checked> follow</label>
+  <span class="sp"></span>
+  <span id="time">0:00.00 / 0:00.00</span>
+  <button id="resetbtn" title="Clear correction + pin on selected marker (R)">Reset marker</button>
+  <button id="clearbtn" title="Discard ALL local edits">Clear all</button>
+  <button id="exportbtn" class="primary" title="Download pins.json + slots_corrected.json + mcr_flags.json">Export</button>
+</div>
+<div id="main">
+  <div id="left">
+    <div id="scorewrap"><canvas id="score"></canvas></div>
+    <div id="tlwrap">
+      <canvas id="tl"></canvas>
+      <div id="loadmsg">loading…</div>
+    </div>
+  </div>
+  <div id="detail">
+    <h2>glyph <span id="d_gi"></span> <span class="cp" id="d_cp"></span></h2>
+    <canvas id="crop" width="260" height="120"></canvas>
+    <table id="fields"></table>
+    <table id="slotlist"></table>
+    <div id="flagbox">
+      <button id="flagbtn">Flag MCR error</button>
+      <textarea id="flagnote" placeholder="what the machine got wrong (optional)" style="display:none"></textarea>
+    </div>
+  </div>
+</div>
+<div id="status">
+  <span id="selinfo">no selection</span>
+  <span id="counts"></span>
+  <span id="savestate"></span>
+  <span class="sp" style="flex:1"></span>
+  <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
+    &larr;/&rarr; nudge &plusmn;50ms · L loop slot · P pin · R reset · click glyph inspect · dblclick glyph seek</span>
+</div>
+<audio id="player" preload="auto"></audio>
+
+<script>
+'use strict';
+/* ================= configuration ================= */
+const DATA_DIR   = 'data/';
+const RIB_SCALE  = 0.62;   // score ribbon scale (strip px -> screen px)
+const LINE_BAND  = 150;    // strip px cropped around each line center
+const LANE_H     = 34;     // MCR badge lane height (px)
+const NUDGE      = 0.050;  // arrow-key nudge (s)
+const MIN_GAP    = 0.02;   // min spacing between neighbouring markers (s)
+const STEP_POS   = [-18,-8,0,12,22,30,42,54,64,72,84]; // scale-degree moria grid
+const MOR_MIN = -30, MOR_MAX = 95;
+
+/* ================= state ================= */
+let D = null, MCR = null, img = null;
+let peaks = null;            // {min,max,spb,n}
+let view = { t0: 0, t1: 60 };
+let sel = -1;                // selected slot index
+let corrected = [], pinned = [], flags = {};   // flags: gi -> note string
+let loop = null;             // {a,b,slot}
+let playingSlot = -1;
+let dirtyTL = true, dirtyScore = true;
+let dragging = null;         // {slot} | {pan:t0AtDown,x0} | {seek:x0}
+let lineW = 0, scoreH = 0, stripBandH = 0;
+const audio = document.getElementById('player');
+const scoreCv = document.getElementById('score'), scoreCtx = scoreCv.getContext('2d');
+const tlCv = document.getElementById('tl'), tlCtx = tlCv.getContext('2d');
+const $ = id => document.getElementById(id);
+
+const NSHORT = { apostrofos:'apo', oligon:'oli', ison:'iso', kentimata:'ken',
+  yporrhoe:'ypo', 'ison+kentimata':'i+k', 'kentimata-compound':'kmc' };
+const QSHORT = { antikenoma:'ant', omalon:'oma', psifiston:'psi' };
+const DSHORT = { klasma:'K', apli:'A', diple:'D', none:'' };
+
+/* ================= helpers ================= */
+const nS = () => D.slots.t.length;
+const slotT = i => corrected[i] != null ? corrected[i] : D.slots.t[i];
+const fmtT = t => { const m = Math.floor(t/60), s = t-60*m;
+  return m + ':' + (s<10?'0':'') + s.toFixed(2); };
+const fmtBeat = w => ({0.5:'½',1.5:'1½',2.5:'2½'})[w] || (w+'');
+const beatsStr = a => a.map(fmtBeat).join('+');
+function slotAt(t) {           // last slot with slotT <= t
+  let lo = 0, hi = nS()-1, r = -1;
+  while (lo <= hi) { const m = (lo+hi)>>1;
+    if (slotT(m) <= t) { r = m; lo = m+1; } else hi = m-1; }
+  return r;
+}
+const slotEnd = i => i+1 < nS() ? slotT(i+1) : Math.min(slotT(i)+3, D.meta.duration);
+const X = t => (t - view.t0) / (view.t1 - view.t0) * tlCv.clientWidth;
+const T = x => view.t0 + x / tlCv.clientWidth * (view.t1 - view.t0);
+
+/* glyph -> ribbon x range (screen px) */
+function glyphRX(g) {
+  const n = D.notes[g];
+  return [ (n.line*D.meta.strip_w + n.x0) * RIB_SCALE,
+           (n.line*D.meta.strip_w + n.x1) * RIB_SCALE ];
+}
+
+/* ================= persistence ================= */
+let saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    localStorage.setItem('chant-annotator:' + D.meta.piece_id,
+      JSON.stringify({ corrected, pinned, flags }));
+    $('savestate').textContent = 'autosaved ' + new Date().toLocaleTimeString();
+    updateCounts();
+  }, 250);
+}
+function restore() {
+  try {
+    const s = JSON.parse(localStorage.getItem('chant-annotator:' + D.meta.piece_id));
+    if (s && s.corrected && s.corrected.length === nS()) {
+      corrected = s.corrected; pinned = s.pinned; flags = s.flags || {};
+      $('savestate').textContent = 'restored local edits';
+    }
+  } catch (e) { /* fresh start */ }
+}
+function updateCounts() {
+  const ne = corrected.filter(c => c != null).length;
+  const np = pinned.filter(Boolean).length;
+  $('counts').textContent = `${ne} edited · ${np} pinned · ${Object.keys(flags).length} flagged`;
+}
+
+/* ================= loading ================= */
+async function boot() {
+  const [dRes, mRes] = await Promise.all([
+    fetch(DATA_DIR + 'annotator_data.json'), fetch(DATA_DIR + 'mcr_interpretation.json')]);
+  D = await dRes.json(); MCR = await mRes.json();
+  corrected = new Array(nS()).fill(null);
+  pinned = new Array(nS()).fill(false);
+  restore(); updateCounts();
+  view = { t0: 0, t1: D.meta.duration };
+  audio.src = DATA_DIR + D.meta.audio;
+
+  img = new Image();
+  img.onload = () => { setupScore(); dirtyScore = true; };
+  img.src = DATA_DIR + D.meta.strip;
+
+  sizeTL(); requestAnimationFrame(frame);
+  decodePeaks();   // async; UI is usable before it completes
+}
+async function decodePeaks() {
+  $('loadmsg').textContent = 'decoding audio…';
+  try {
+    const ab = await (await fetch(DATA_DIR + D.meta.audio)).arrayBuffer();
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = await ac.decodeAudioData(ab);
+    const ch0 = buf.getChannelData(0);
+    const ch1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : ch0;
+    const BLK = 512, n = Math.ceil(buf.length / BLK);
+    const mn = new Float32Array(n), mx = new Float32Array(n);
+    for (let b = 0; b < n; b++) {
+      let lo = 1e9, hi = -1e9;
+      const e = Math.min(buf.length, (b+1)*BLK);
+      for (let i = b*BLK; i < e; i++) {
+        const v = (ch0[i] + ch1[i]) * 0.5;
+        if (v < lo) lo = v; if (v > hi) hi = v;
+      }
+      mn[b] = lo; mx[b] = hi;
+    }
+    peaks = { min: mn, max: mx, spb: BLK / buf.sampleRate, n };
+    ac.close();
+  } catch (e) { console.error('peak decode failed', e); }
+  $('loadmsg').style.display = 'none'; dirtyTL = true;
+}
+
+/* ================= score ribbon ================= */
+function setupScore() {
+  lineW = D.meta.strip_w * RIB_SCALE;
+  stripBandH = Math.round(LINE_BAND * RIB_SCALE);
+  scoreH = stripBandH + LANE_H;
+  scoreCv.width = Math.ceil(lineW * D.meta.line_centers.length);
+  scoreCv.height = scoreH;
+}
+function drawScore() {
+  if (!img || !img.complete || !lineW) return;
+  const ctx = scoreCtx, W = scoreCv.width;
+  ctx.fillStyle = '#0e1013'; ctx.fillRect(0, 0, W, scoreH);
+  const nL = D.meta.line_centers.length;
+  for (let li = 0; li < nL; li++) {
+    const cy = D.meta.line_centers[li];
+    const sy = Math.max(0, Math.min(D.meta.strip_h - LINE_BAND, cy - LINE_BAND/2));
+    ctx.drawImage(img, 0, sy, D.meta.strip_w, LINE_BAND,
+                  li*lineW, 0, lineW, stripBandH);
+    ctx.strokeStyle = '#3a4250';
+    ctx.beginPath(); ctx.moveTo((li+1)*lineW - 0.5, 0);
+    ctx.lineTo((li+1)*lineW - 0.5, stripBandH); ctx.stroke();
+  }
+  // barlines
+  ctx.strokeStyle = 'rgba(80,110,160,0.5)';
+  for (const b of D.barlines) {
+    const x = (b.line*D.meta.strip_w + b.x) * RIB_SCALE;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, stripBandH); ctx.stroke();
+  }
+  // glyph highlights on the strip
+  const selGi = sel >= 0 ? D.slots.gi[sel] : -1;
+  const playGi = playingSlot >= 0 ? D.slots.gi[playingSlot] : -1;
+  for (const [gi, style] of [[playGi, 'rgba(255,213,79,0.35)'], [selGi, null]]) {
+    if (gi < 0) continue;
+    const n = D.notes[gi], [rx0, rx1] = glyphRX(gi);
+    const cy = D.meta.line_centers[n.line];
+    const ry = (n.y0 - (cy - LINE_BAND/2)) * RIB_SCALE;
+    const rh = (n.y1 - n.y0) * RIB_SCALE;
+    if (style) { ctx.fillStyle = style; ctx.fillRect(rx0-2, ry-2, rx1-rx0+4, rh+4); }
+    else { ctx.strokeStyle = '#4da3ff'; ctx.lineWidth = 2;
+           ctx.strokeRect(rx0-2, ry-2, rx1-rx0+4, rh+4); ctx.lineWidth = 1; }
+  }
+  drawLane(ctx);
+}
+function drawLane(ctx) {
+  const y0 = stripBandH;
+  ctx.fillStyle = '#181c22'; ctx.fillRect(0, y0, scoreCv.width, LANE_H);
+  ctx.textBaseline = 'top';
+  for (const r of MCR) {
+    const [rx0, rx1] = glyphRX(r.gi);
+    const w = rx1 - rx0;
+    const isPlay = playingSlot >= 0 && D.slots.gi[playingSlot] === r.gi;
+    const isSel = sel >= 0 && D.slots.gi[sel] === r.gi;
+    if (isPlay) { ctx.fillStyle = 'rgba(255,213,79,0.25)'; ctx.fillRect(rx0, y0, w, LANE_H); }
+    else if (isSel) { ctx.fillStyle = 'rgba(77,163,255,0.22)'; ctx.fillRect(rx0, y0, w, LANE_H); }
+    if (flags[r.gi] !== undefined) {
+      ctx.strokeStyle = '#ff5252';
+      ctx.strokeRect(rx0+0.5, y0+0.5, w-1, LANE_H-1);
+    }
+    ctx.save();
+    ctx.beginPath(); ctx.rect(rx0, y0, w-1, LANE_H); ctx.clip();
+    ctx.font = '9px system-ui';
+    ctx.fillStyle = r.name.startsWith('0x') ? '#c98a5e' : '#9fb4cc';
+    ctx.fillText(NSHORT[r.name] || r.name.slice(2), rx0+1, y0+2);
+    let m2 = beatsStr(r.beats);
+    if (r.gorgon) m2 += ' G';
+    if (r.duration_mark !== 'none') m2 += ' ' + DSHORT[r.duration_mark];
+    for (const q of r.quality_marks) m2 += ' ' + (QSHORT[q] || q);
+    if (r.other_marks.length) m2 += ' +' + r.other_marks.length;
+    ctx.fillStyle = r.gorgon || r.duration_mark !== 'none' ? '#e0c060' : '#6d7787';
+    ctx.fillText(m2, rx0+1, y0+12);
+    if (r.word_start) { ctx.fillStyle = '#5a90c0'; ctx.font = '8px system-ui';
+      ctx.fillText(r.word.slice(0, 12), rx0+1, y0+23); }
+    ctx.restore();
+  }
+}
+function glyphAtScoreXY(x, y) {
+  const li = Math.floor(x / lineW);
+  const lx = (x - li*lineW) / RIB_SCALE;
+  let best = -1, bd = 1e9;
+  for (let g = 0; g < D.notes.length; g++) {
+    const n = D.notes[g];
+    if (n.line !== li) continue;
+    if (lx >= n.x0 - 4 && lx <= n.x1 + 4) {
+      const d = Math.abs((n.x0+n.x1)/2 - lx);
+      if (d < bd) { best = g; bd = d; }
+    }
+  }
+  return best;
+}
+function scrollGlyphIntoView(gi) {
+  const [rx0, rx1] = glyphRX(gi);
+  const wrap = $('scorewrap');
+  const target = (rx0 + rx1)/2 - wrap.clientWidth/2;
+  wrap.scrollLeft = Math.max(0, target);
+}
+
+/* ================= timeline ================= */
+function sizeTL() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = tlCv.clientWidth, h = tlCv.clientHeight;
+  if (tlCv.width !== Math.round(w*dpr) || tlCv.height !== Math.round(h*dpr)) {
+    tlCv.width = Math.round(w*dpr); tlCv.height = Math.round(h*dpr);
+  }
+  tlCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function drawTL() {
+  sizeTL();
+  const ctx = tlCtx, W = tlCv.clientWidth, H = tlCv.clientHeight;
+  const laneH = 18;
+  const wfTop = laneH, wfH = Math.max(60, Math.round((H - laneH) * 0.52));
+  const pTop = wfTop + wfH, pH = H - pTop;
+  ctx.fillStyle = '#14171c'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#10131a'; ctx.fillRect(0, 0, W, laneH);
+  ctx.fillStyle = '#171b22'; ctx.fillRect(0, pTop, W, pH);
+
+  // time grid
+  const span = view.t1 - view.t0;
+  const steps = [0.1,0.25,0.5,1,2,5,10,20,30,60,120];
+  const step = steps.find(s => span / s < 14) || 120;
+  ctx.font = '10px system-ui'; ctx.textBaseline = 'bottom';
+  for (let t = Math.ceil(view.t0/step)*step; t <= view.t1; t += step) {
+    const x = X(t);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.moveTo(x, laneH); ctx.lineTo(x, H); ctx.stroke();
+    ctx.fillStyle = '#586170'; ctx.fillText(fmtT(t), x+3, H-2);
+  }
+
+  // loop + selection tint
+  if (loop) { ctx.fillStyle = 'rgba(111,206,143,0.10)';
+    ctx.fillRect(X(loop.a), laneH, X(loop.b)-X(loop.a), H-laneH); }
+  if (sel >= 0) { ctx.fillStyle = 'rgba(77,163,255,0.10)';
+    ctx.fillRect(X(slotT(sel)), laneH, X(slotEnd(sel))-X(slotT(sel)), H-laneH); }
+
+  // waveform
+  if (peaks) {
+    ctx.fillStyle = '#3f6ea0';
+    const mid = wfTop + wfH/2, amp = wfH/2 - 2;
+    for (let x = 0; x < W; x++) {
+      const b0 = Math.max(0, Math.floor(T(x)/peaks.spb));
+      const b1 = Math.min(peaks.n-1, Math.floor(T(x+1)/peaks.spb));
+      if (b0 > b1 || b0 >= peaks.n) continue;
+      let lo = 1e9, hi = -1e9;
+      for (let b = b0; b <= b1; b++) {
+        if (peaks.min[b] < lo) lo = peaks.min[b];
+        if (peaks.max[b] > hi) hi = peaks.max[b];
+      }
+      ctx.fillRect(x, mid - hi*amp, 1, Math.max(1, (hi-lo)*amp));
+    }
+  }
+
+  // pitch band: degree grid + ison + moria curve
+  const mY = m => pTop + pH - (m - MOR_MIN)/(MOR_MAX - MOR_MIN)*pH;
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  for (const m of STEP_POS) { ctx.beginPath();
+    ctx.moveTo(0, mY(m)); ctx.lineTo(W, mY(m)); ctx.stroke(); }
+  if (D.ison && D.ison.length) {
+    ctx.strokeStyle = 'rgba(224,160,48,0.8)'; ctx.setLineDash([4,3]);
+    for (let i = 0; i < D.ison.length; i++) {
+      const [t, lv] = D.ison[i];
+      const te = i+1 < D.ison.length ? D.ison[i+1][0] : D.meta.duration;
+      if (te < view.t0 || t > view.t1 || typeof lv !== 'number') continue;
+      ctx.beginPath(); ctx.moveTo(X(Math.max(t, view.t0)), mY(lv));
+      ctx.lineTo(X(Math.min(te, view.t1)), mY(lv)); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  if (D.pitch) {
+    ctx.strokeStyle = '#6fce8f'; ctx.beginPath();
+    const dt = D.pitch.dt, arr = D.pitch.moria;
+    let i0 = Math.max(0, Math.floor(view.t0/dt)), i1 = Math.min(arr.length-1, Math.ceil(view.t1/dt));
+    const stride = Math.max(1, Math.floor((i1-i0) / (2*W)));
+    let pen = false;
+    for (let i = i0; i <= i1; i += stride) {
+      const v = arr[i];
+      if (v == null || v < MOR_MIN || v > MOR_MAX) { pen = false; continue; }
+      const x = X(i*dt), y = mY(v);
+      if (pen) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      pen = true;
+    }
+    ctx.stroke();
+  }
+
+  // slot markers
+  ctx.textBaseline = 'top'; ctx.font = '10px system-ui';
+  let lastLabelX = -1e9;
+  for (let i = 0; i < nS(); i++) {
+    const t = slotT(i);
+    if (t < view.t0 - 0.01 || t > view.t1 + 0.01) continue;
+    const x = X(t);
+    const isPin = pinned[i], isEd = corrected[i] != null;
+    ctx.strokeStyle = i === sel ? '#ffffff'
+      : isPin ? '#ff5252' : isEd ? '#e0a030' : 'rgba(94,143,201,0.75)';
+    ctx.lineWidth = i === sel ? 2 : 1;
+    const yTop = D.slots.sub[i] > 0 ? laneH + 6 : 2;
+    ctx.beginPath(); ctx.moveTo(x+0.5, yTop); ctx.lineTo(x+0.5, H-12); ctx.stroke();
+    ctx.lineWidth = 1;
+    if (isPin) {  // pin flag triangle
+      ctx.fillStyle = '#ff5252';
+      ctx.beginPath(); ctx.moveTo(x, yTop); ctx.lineTo(x+7, yTop+4); ctx.lineTo(x, yTop+8);
+      ctx.closePath(); ctx.fill();
+    }
+    if (x - lastLabelX > 26 && D.slots.sub[i] === 0) {
+      const lab = D.slots.gi[i] + (D.slots.label[i] ? ' ' + D.slots.label[i] : '');
+      ctx.fillStyle = i === sel ? '#fff' : isPin ? '#ff8a80' : isEd ? '#e0c060' : '#7d8a9c';
+      ctx.fillText(lab, x+3, 3);
+      lastLabelX = x;
+    }
+  }
+
+  // playhead
+  const pt = audio.currentTime;
+  if (pt >= view.t0 && pt <= view.t1) {
+    ctx.strokeStyle = '#ffd54f'; ctx.beginPath();
+    ctx.moveTo(X(pt), 0); ctx.lineTo(X(pt), H); ctx.stroke();
+  }
+}
+
+/* ================= detail panel ================= */
+function openDetail(gi) {
+  const r = MCR[gi], p = $('detail');
+  p.classList.add('open');
+  $('d_gi').textContent = '#' + gi;
+  $('d_cp').textContent = r.cp + ' ' + r.name;
+  // crop
+  if (img && img.complete) {
+    const n = D.notes[gi], cy = D.meta.line_centers[n.line];
+    const sx = Math.max(0, n.x0 - 30), sw = Math.min(D.meta.strip_w - sx, n.x1 - n.x0 + 60);
+    const sy = Math.max(0, cy - LINE_BAND/2), sh = LINE_BAND;
+    const cv = $('crop'), scale = cv.width / sw;
+    cv.height = Math.round(sh * scale);
+    const c = cv.getContext('2d');
+    c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
+    c.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    c.strokeStyle = 'rgba(255,80,80,0.8)';
+    c.strokeRect((n.x0-sx)*scale, (n.y0-sy)*scale, (n.x1-n.x0)*scale, (n.y1-n.y0)*scale);
+  }
+  const rows = [
+    ['word', r.word + (r.word_start ? ' (starts here)' : '')],
+    ['sub-notes', r.sub_notes],
+    ['beats', beatsStr(r.beats)],
+    ['gorgon', r.gorgon ? 'YES' : 'no'],
+    ['duration', r.duration_mark],
+    ['quality', r.quality_marks.join(', ') || '—'],
+    ['other marks', r.other_marks.join(', ') || '—'],
+    ['expected deg', r.expected_degrees ? r.expected_degrees.join(' → ') : '?'],
+    ['ison at start', r.ison_at_start == null ? '?' : r.ison_at_start],
+  ];
+  $('fields').innerHTML = rows.map(([k, v]) =>
+    `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  $('slotlist').innerHTML =
+    '<tr><td style="color:var(--dim)">slot</td><td style="color:var(--dim)">machine</td>' +
+    '<td style="color:var(--dim)">now</td><td></td></tr>' +
+    r.slot_ids.map(i =>
+      `<tr data-slot="${i}" class="${i === sel ? 'selrow' : ''}">
+       <td>${D.slots.gi[i]}.${D.slots.sub[i]}</td>
+       <td>${fmtT(D.slots.t[i])}</td>
+       <td class="${corrected[i] != null ? 'ed' : ''}">${fmtT(slotT(i))}</td>
+       <td class="pin">${pinned[i] ? '⚑' : ''}</td></tr>`).join('');
+  for (const tr of $('slotlist').querySelectorAll('tr[data-slot]'))
+    tr.onclick = () => { selectSlot(+tr.dataset.slot, false); };
+  const flagged = flags[gi] !== undefined;
+  $('flagbox').className = flagged ? 'flagged' : '';
+  $('flagbtn').textContent = flagged ? 'Unflag MCR error' : 'Flag MCR error';
+  const note = $('flagnote');
+  note.style.display = flagged ? 'block' : 'none';
+  note.value = flagged ? flags[gi] : '';
+  $('flagbtn').onclick = () => {
+    if (flags[gi] !== undefined) delete flags[gi];
+    else flags[gi] = note.value || '';
+    save(); openDetail(gi); dirtyScore = true;
+  };
+  note.oninput = () => { flags[gi] = note.value; save(); };
+}
+function selectSlot(i, scroll = true) {
+  sel = i; dirtyTL = dirtyScore = true;
+  if (i >= 0) {
+    const gi = D.slots.gi[i];
+    openDetail(gi);
+    if (scroll) scrollGlyphIntoView(gi);
+    $('selinfo').innerHTML = `slot <b>${gi}.${D.slots.sub[i]}</b> ` +
+      `${MCR[gi].name} “${MCR[gi].word}” ` +
+      `t=<b>${fmtT(slotT(i))}</b>` +
+      (corrected[i] != null ? ` (machine ${fmtT(D.slots.t[i])})` : '') +
+      (pinned[i] ? ' ⚑ pinned' : '');
+  } else {
+    $('selinfo').textContent = 'no selection';
+    $('detail').classList.remove('open');
+  }
+}
+function setSlotTime(i, t) {
+  const lo = i > 0 ? slotT(i-1) + MIN_GAP : 0;
+  const hi = i+1 < nS() ? slotT(i+1) - MIN_GAP : D.meta.duration;
+  corrected[i] = Math.round(Math.min(hi, Math.max(lo, t)) * 1000) / 1000;
+  dirtyTL = true;
+}
+
+/* ================= export ================= */
+function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function doExport() {
+  const pins = [], subPins = [];
+  for (let i = 0; i < nS(); i++) {
+    if (!pinned[i]) continue;
+    if (D.slots.sub[i] === 0) pins.push([D.slots.gi[i], Math.round(slotT(i)*1000)/1000]);
+    else subPins.push(i);
+  }
+  pins.sort((a, b) => a[1] - b[1]);
+  download('pins.json', JSON.stringify(pins));
+  download('slots_corrected.json', JSON.stringify({
+    piece_id: D.meta.piece_id,
+    t: Array.from({length: nS()}, (_, i) => Math.round(slotT(i)*1000)/1000),
+    gi: D.slots.gi, sub: D.slots.sub,
+    machine_t: D.slots.t,
+    edited: corrected.map(c => c != null),
+    pinned: pinned.slice(),
+  }));
+  const fl = Object.keys(flags).map(gi => ({ gi: +gi, note: flags[gi] }))
+    .sort((a, b) => a.gi - b.gi);
+  download('mcr_flags.json', JSON.stringify(fl, null, 1));
+  $('savestate').textContent = `exported ${pins.length} pins, ${fl.length} flags` +
+    (subPins.length ? ` (${subPins.length} sub-note pins in slots_corrected.json only)` : '');
+}
+
+/* ================= interaction ================= */
+function markerNear(x) {
+  let best = -1, bd = 6;
+  for (let i = 0; i < nS(); i++) {
+    const t = slotT(i);
+    if (t < view.t0 || t > view.t1) continue;
+    const d = Math.abs(X(t) - x);
+    if (d < bd) { best = i; bd = d; }
+  }
+  return best;
+}
+tlCv.addEventListener('mousedown', e => {
+  const x = e.offsetX;
+  const m = markerNear(x);
+  if (m >= 0) { dragging = { slot: m, moved: false }; selectSlot(m, true); }
+  else dragging = { x0: x, t0: view.t0, t1: view.t1, moved: false };
+});
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const rect = tlCv.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  if (dragging.slot != null) {
+    dragging.moved = true;
+    setSlotTime(dragging.slot, T(x));
+    selectSlot(dragging.slot, false);
+  } else {
+    const dx = x - dragging.x0;
+    if (Math.abs(dx) > 4) dragging.moved = true;
+    if (dragging.moved) {
+      const dt = -dx / tlCv.clientWidth * (dragging.t1 - dragging.t0);
+      setView(dragging.t0 + dt, dragging.t1 + dt);
+    }
+  }
+});
+window.addEventListener('mouseup', e => {
+  if (!dragging) return;
+  if (dragging.slot != null) {
+    if (dragging.moved) {          // a drag is a correction -> hard pin
+      pinned[dragging.slot] = true;
+      save(); selectSlot(dragging.slot, false);
+    }
+  } else if (!dragging.moved) {
+    const rect = tlCv.getBoundingClientRect();
+    audio.currentTime = Math.max(0, Math.min(D.meta.duration, T(e.clientX - rect.left)));
+    dirtyTL = true;
+  }
+  dragging = null;
+});
+function setView(a, b) {
+  const span = Math.max(0.2, Math.min(D.meta.duration, b - a));
+  a = Math.max(0, Math.min(D.meta.duration - span, a));
+  view = { t0: a, t1: a + span }; dirtyTL = true;
+}
+tlCv.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    const dt = (e.deltaX || e.deltaY) / tlCv.clientWidth * (view.t1 - view.t0);
+    setView(view.t0 + dt, view.t1 + dt);
+  } else {
+    const f = Math.pow(1.25, e.deltaY / 100);
+    const tc = T(e.offsetX), span = (view.t1 - view.t0) * f;
+    setView(tc - (tc - view.t0) * f, tc - (tc - view.t0) * f + span);
+  }
+}, { passive: false });
+
+scoreCv.addEventListener('click', e => {
+  const g = glyphAtScoreXY(e.offsetX, e.offsetY);
+  if (g >= 0) {
+    const i = MCR[g].slot_ids[0];
+    selectSlot(i, false);
+    const t = slotT(i);
+    if (t < view.t0 || t > view.t1) {        // center timeline on it
+      const span = view.t1 - view.t0;
+      setView(t - span/2, t + span/2);
+    }
+  }
+});
+scoreCv.addEventListener('dblclick', e => {
+  const g = glyphAtScoreXY(e.offsetX, e.offsetY);
+  if (g >= 0) { audio.currentTime = slotT(MCR[g].slot_ids[0]); dirtyTL = true; }
+});
+
+function togglePlay() {
+  if (audio.paused) audio.play(); else audio.pause();
+  $('playbtn').textContent = audio.paused ? 'Play' : 'Pause';
+}
+window.addEventListener('keydown', e => {
+  const tag = e.target.tagName;
+  if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    const d = (e.key === 'ArrowLeft' ? -1 : 1) * NUDGE;
+    if (sel >= 0) {
+      setSlotTime(sel, slotT(sel) + d);
+      pinned[sel] = true; save(); selectSlot(sel, false);
+    } else { audio.currentTime = Math.max(0, audio.currentTime + d*40); dirtyTL = true; }
+  }
+  else if (e.key === 'l' || e.key === 'L') {
+    if (loop) { loop = null; }
+    else if (sel >= 0) {
+      loop = { a: slotT(sel), b: slotEnd(sel), slot: sel };
+      audio.currentTime = loop.a;
+      if (audio.paused) togglePlay();
+    }
+    dirtyTL = true;
+  }
+  else if (e.key === 'p' || e.key === 'P') {
+    if (sel >= 0) { pinned[sel] = !pinned[sel]; save(); selectSlot(sel, false); }
+  }
+  else if (e.key === 'r' || e.key === 'R') {
+    if (sel >= 0) { corrected[sel] = null; pinned[sel] = false; save(); selectSlot(sel, false); }
+  }
+  else if (e.key === 'Escape') selectSlot(-1);
+  else if (e.key === 'Home') setView(0, D.meta.duration);
+  else if (e.key === 'f' || e.key === 'F') $('follow').checked = !$('follow').checked;
+});
+$('playbtn').onclick = togglePlay;
+$('fitbtn').onclick = () => setView(0, D.meta.duration);
+$('exportbtn').onclick = doExport;
+$('resetbtn').onclick = () => {
+  if (sel >= 0) { corrected[sel] = null; pinned[sel] = false; save(); selectSlot(sel, false); } };
+$('clearbtn').onclick = () => {
+  if (!confirm('Discard ALL local corrections, pins and flags?')) return;
+  corrected = new Array(nS()).fill(null);
+  pinned = new Array(nS()).fill(false);
+  flags = {}; save(); selectSlot(-1); dirtyTL = dirtyScore = true;
+};
+audio.addEventListener('play', () => { $('playbtn').textContent = 'Pause'; });
+audio.addEventListener('pause', () => { $('playbtn').textContent = 'Play'; });
+window.addEventListener('resize', () => { dirtyTL = true; });
+
+/* ================= main loop ================= */
+function frame() {
+  requestAnimationFrame(frame);
+  if (!D) return;
+  const t = audio.currentTime;
+  $('time').textContent = fmtT(t) + ' / ' + fmtT(D.meta.duration);
+  if (loop && t >= loop.b - 0.01) audio.currentTime = loop.a;
+  const ps = slotAt(t);
+  if (ps !== playingSlot) {
+    playingSlot = ps; dirtyScore = true; dirtyTL = true;
+    if (!audio.paused && $('follow').checked && ps >= 0)
+      scrollGlyphIntoView(D.slots.gi[ps]);
+  }
+  if (!audio.paused) {
+    dirtyTL = true;
+    if ($('follow').checked && (t > view.t1 || t < view.t0)) {
+      const span = view.t1 - view.t0;
+      setView(t - span*0.1, t - span*0.1 + span);
+    }
+  }
+  if (dirtyTL) { drawTL(); dirtyTL = false; }
+  if (dirtyScore) { drawScore(); dirtyScore = false; }
+}
+boot();
+</script>
+</body>
+</html>
