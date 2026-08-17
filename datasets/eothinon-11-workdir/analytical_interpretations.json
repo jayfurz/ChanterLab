@@ -1,0 +1,65 @@
+{
+ "tempo_notation": "tempo martyria = time mark with the chiasma letter beneath: argon variant = slow (argo); gorgon variant = a tempo (back to argosyntoma, the normal tempo class of this hymn)",
+ "peter": {
+  "span": [
+   137.7,
+   140.04
+  ],
+  "context": "after gi 143 kentimata-compound; lands on printed apostrofos gi 144 at Ke-sharp (58 moria, arsis)",
+  "notes": [
+   [
+    "Ζω",
+    0.5,
+    "chanter wrote 'zo 1.2' — reading as 1/2, confirm"
+   ],
+   [
+    "Πα'",
+    0.5
+   ],
+   [
+    "Νη'",
+    1.0
+   ]
+  ],
+  "spelling": "oligon | oligonKentimaBelow+gorgon+antikenoma | apostrofos  (printed apostrofos would take a petasti beneath in proper re-notation — noted, not drawn)"
+ },
+ "wolves": {
+  "span": [
+   247.3,
+   250.6
+  ],
+  "tempo": "argo begins at the FIRST wolves glyph (gi 249), not at the melisma; a-tempo point TBD",
+  "notes": [
+   [
+    "Κε",
+    0.25
+   ],
+   [
+    "Νη'",
+    0.25
+   ],
+   [
+    "Ζω",
+    0.5
+   ],
+   [
+    "Κε",
+    1.5
+   ],
+   [
+    "Δι",
+    0.25
+   ],
+   [
+    "Γα",
+    0.25
+   ],
+   [
+    "Δι",
+    2.0
+   ]
+  ],
+  "context": "continues through the printed final apostrofos; Δι ¼ Γα ¼ Δι 1½ close the phrase",
+  "spelling": "oligon | oligonKentimaBelow+digorgonDottedRight+antikenoma | apostrofos | apostrofos (1 + dotted-left digorgon 1/2 = 1.5) | yporroi+digorgonDottedLeftBelow | oligon+klasma"
+ }
+}

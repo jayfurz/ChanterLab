@@ -8,3 +8,9 @@ __pycache__/
 .claude
 .claude.scratch/
 .scratch/
+
+# large media in datasets stay out of git (regenerable / kept on disk)
+datasets/**/*.wav
+datasets/**/*.m4a
+datasets/**/*.mp4
+*.bak*
