@@ -15,7 +15,12 @@ per-note score following, a live parallagi ladder, and a score-aligned dataset
    lyric word times; melisma-late words corrected downstream.
 4. `note_align5.py` — beat-weighted slots (gorgon steals 0.5 from previous;
    klasma/apli=2, dipli=3; yporrhoe & kentimata compounds = 2 sub-notes) +
-   manual/breath pins + pitch-aware DTW with EM interval learning.
+   pitch-aware DTW with EM interval learning. Evidence hierarchy: MANUAL
+   (chanter's ear) is the ONLY hard tier; breaths are SOFT bonuses weighted by
+   gap duration (they rescue melisma-late ASR anchors via widened search reach,
+   and bias boundary-slot claims in the DTW) — never hard pins (issue #136).
+   Verified: the soft model reproduces all chanter-validated timings on the
+   Eothinon XI recording without any breath pins.
    Emits slots.json, ornaments.json (sung-but-unwritten quick notes),
    learned_intervals.json, and rewrites timing.json (captions/lines from slot times).
 5. ladder track (see session scratchpad / dataset meta) — per-frame parallagi

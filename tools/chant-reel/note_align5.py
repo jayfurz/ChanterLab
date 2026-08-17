@@ -7,13 +7,12 @@
 import json, math
 import numpy as np
 
-GORGON = {0xf053}
+GORGON = {0xf053, 0xf048}   # plain + red dotted gorgon
 DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf022: 3.0, 0xf06b: 3.0}
 YPORRHOE, SYNELAF = 0xf05f, 0xf050
 KENTIMATA_COMPOUNDS = {0xf0d7, 0xf06f, 0xf077, 0xf04f}   # oligon/petasti + kentimata above: 2 notes up
-MANUAL = [(49, 54.0), (52, 58.0)]
-BREATH_PINS = [(164, 167.22), (215, 212.55), (222, 220.97)]
-DROP = {21,22,23,24,25, 92,93,94,95}
+MANUAL = [(49, 54.0), (52, 58.0), (249, 253.0)]   # user-ear ground truth: the ONLY hard tier
+DROP = {21,22,23,24,25, 92,93,94,95, 99,100}
 MPS = 10.3   # avg moria per diatonic step
 
 sn = json.load(open('score_notes.json'))
@@ -21,7 +20,14 @@ notes, anchors_raw = sn['notes'], sn['anchors']
 mods = json.load(open('modifiers.json'))
 wt = json.load(open('word_times.json'))
 vn = json.load(open('voice_notes3.json'))
+bars_j = json.load(open('barlines.json'))
 mor = np.load('moria_track.npy')
+# soft breath evidence: onset time -> strength from gap duration (never a hard pin)
+BREATH = {round(v[0],2): min(1.0, 2.5*v[3]) for v in vn if v[3] >= 0.12 and v[0] > 3}
+def breath_bonus(t):
+    for bt, s in BREATH.items():
+        if abs(t - bt) < 0.06: return s
+    return 0.0
 N = len(notes)
 END_T = max(v[1] for v in vn)
 
@@ -105,10 +111,12 @@ def refine(A, PIN, T0, passes=3):
                 TL, TR = (h-tp)/bl, (tn-h)/br
                 if TL <= 0.05 or TR <= 0.05: return 99
                 return abs(math.log(TL/T0)) + abs(math.log(TR/T0)) + 0.12*abs(h-t)
-            best, bc = t, cost(t)
+            best, bc = t, cost(t) - breath_bonus(t)
             for h in onsets:
-                if not (tp + 0.15 < h < tn - 0.15) or abs(h-t) > 1.3: continue
-                c = cost(h)
+                if not (tp + 0.15 < h < tn - 0.15): continue
+                reach = 3.5 if breath_bonus(h) > 0.3 else 1.3   # breaths can rescue far-off anchors
+                if abs(h-t) > reach: continue
+                c = cost(h) - breath_bonus(h)
                 if c < bc - 1e-6: best, bc = h, c
             if best != t: A[i][0] = best; changed += 1
         if not changed: break
@@ -141,9 +149,10 @@ def dtw_assign(A, table):
             e = exp_interval(span[j], table)
             for k in range(K):
                 base_t = 1.5*abs(vn[V[k]][0] - targ[j])
+                bb = breath_bonus(vn[V[k]][0]) if span[j] in BOUNDARY else 0.0
                 for kp in range(k):
                     if D[j-1][kp] >= BIG: continue
-                    c = D[j-1][kp] + base_t + 0.3*(k-kp-1)
+                    c = D[j-1][kp] + base_t + 0.3*(k-kp-1) - 1.4*bb
                     if e is not None and VP[V[k]] is not None and VP[V[kp]] is not None:
                         obs = (VP[V[k]] - VP[V[kp]]) / MPS
                         c += 0.4 * min(abs(obs - e), 3.0)
@@ -180,7 +189,9 @@ def learn(t_slot, claim):
         if len(v) >= 2: table[k] = round(float(np.median(v)))
     return table
 
-pins = [(first_slot[g], t) for g, t in MANUAL] + [(first_slot[g], t) for g, t in BREATH_PINS]
+# boundary slots: first slot after each barline (candidate breath sites, soft)
+BOUNDARY = {first_slot[b['next_glyph']] for b in bars_j if b['next_glyph'] is not None}
+pins = [(first_slot[g], t) for g, t in MANUAL]
 A, PIN = build_anchors(pins, DROP)
 T0 = (A[-1][0] - A[0][0]) / TOTB
 A = refine(A, PIN, T0)
