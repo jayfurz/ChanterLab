@@ -25,3 +25,17 @@ Eothinon XI alignment. Supersedes the v1 (note_align5) approach.
    local tempo context) -> alignment + accidental labels, trained on the
    accumulating datasets/mcr corpus. The classical v2 aligner is the
    label-bootstrapper and the baseline.
+
+## Syllable-acoustic anchors (chanter addition, 2026-08-17)
+Replace ASR word timestamps ("a low-fidelity meterstick for a millimeter job")
+with direct acoustic syllable detection, exploiting chant's structure:
+- **Plosive onsets**: broadband transients / closure-burst patterns — near-free.
+- **Vowel-shape changes**: formant (F1/F2) trajectory shifts. In chant a melisma
+  holds ONE vowel, so a vowel-quality change IS a syllable boundary; within-
+  melisma formants are stable. A formant-stability tracker therefore yields
+  syllable onsets at ~10ms precision.
+- The score supplies the syllable SEQUENCE (no recognition needed): match
+  detected onsets to known syllables in order = dense, unbiased anchors,
+  one per syllable instead of one per ASR word with melisma-late bias.
+- These densified anchors feed the same span-alignment interface; ASR remains
+  only as a cross-check. Also first-class NN input features later.
