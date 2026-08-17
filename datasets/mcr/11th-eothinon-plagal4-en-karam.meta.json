@@ -16,7 +16,7 @@
    258.7
   ]
  ],
- "attraction_rule": "diatonic only: ~58 moria = Ζω♭ when phrase completes descent to Δι thesis; Κε↑ (raised) mid-arsis. Never in soft chromatic. Vou raised (~26.5 moria, Βου↑) when attracted toward Γα/Δι in ascent. Octave-glitch folding + ison-drone bleed suppression applied (recording contains the app ison on Νη).",
+ "attraction_rule": "diatonic only: ~58 moria = Ζω♭ when phrase completes descent to Δι thesis; Κε↑ (raised) mid-arsis. Never in soft chromatic. Vou raised (~26.5 moria, Βου↑) when attracted toward Γα/Δι in ascent. Octave-glitch folding + ison-drone bleed suppression applied (recording contains the app ison on Νη). Ga raised (~35.5, Γα↑) toward Δι thesis. Κε↑ vs Ζω♭ decided by first-crossing (descend ≤Δι+5 => Ζω♭; rise ≥Ζω-2 => Κε↑). Ison-level-aware drone suppression + label hysteresis 100ms.",
  "timing_method": "whisper word anchors + manual/breath pins + beat-weighted pitch-aware DTW (EM x2), interval MAE 1.01 steps",
  "learned_ez_intervals": {
   "0xf021.0": -1,
@@ -320,5 +320,120 @@
   ],
   "root_offset_moria": 3.5,
   "note": "singer opened ~3.5 moria sharp (apichima through \"Spirit.\"), settled by the line-2 \"to\"; fitted by grid-residual scan; sung_moria values in that span are drift-corrected"
- }
+ },
+ "ison_events": [
+  [
+   7.42,
+   0
+  ],
+  [
+   51.72,
+   42
+  ],
+  [
+   65.9,
+   0
+  ],
+  [
+   80.16,
+   "M"
+  ],
+  [
+   86.1,
+   42
+  ],
+  [
+   93.71,
+   0
+  ],
+  [
+   103.42,
+   12
+  ],
+  [
+   109.8,
+   0
+  ],
+  [
+   120.02,
+   12
+  ],
+  [
+   122.4,
+   0
+  ],
+  [
+   128.95,
+   "M"
+  ],
+  [
+   129.96,
+   42
+  ],
+  [
+   144.85,
+   12
+  ],
+  [
+   146.34,
+   0
+  ],
+  [
+   172.98,
+   42
+  ],
+  [
+   183.09,
+   30
+  ],
+  [
+   186.37,
+   0
+  ],
+  [
+   191.38,
+   12
+  ],
+  [
+   198.17,
+   0
+  ],
+  [
+   202.8,
+   "M"
+  ],
+  [
+   206.87,
+   22
+  ],
+  [
+   210.84,
+   "M"
+  ],
+  [
+   211.98,
+   30
+  ],
+  [
+   214.66,
+   42
+  ],
+  [
+   252.53,
+   30
+  ],
+  [
+   254.99,
+   42
+  ],
+  [
+   258.66,
+   12
+  ],
+  [
+   259.81,
+   0
+  ]
+ ],
+ "ison_source": "score red letters (EZ-Special PUA glyphs): (N)=0xf043/63, (Pi)=0xf056/76, (B)=0xf042, (Gamma)=0xf04e/6e, (Delta)=0xf06d/4d, (M)=0xf03f/2f follow-melody; 0xf048 red = dotted gorgon (rhythm, added to gorgon set)"
 }
