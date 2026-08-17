@@ -105,8 +105,14 @@ for j, g in enumerate(notes):
     if g['cp'] == YPORRHOE or g['cp'] in KENTIMATA_COMPOUNDS:
         pieces = [w*0.5, w*0.5]
     elif g['cp'] == SYNELAF:
-        pieces = [0.5, w]
-        if slot_w: slot_w[-1] = max(0.25, slot_w[-1] - 0.5)
+        # syndesmos elaphron = two apostrophoi; the gorgon-on-first is usually
+        # WRITTEN in the score (handled by normal gorgon attachment below) —
+        # only bake it in when no explicit gorgon is attached to this glyph
+        if gor[j]:
+            pieces = [1.0, w]
+        else:
+            pieces = [0.5, w]
+            if slot_w: slot_w[-1] = max(0.25, slot_w[-1] - 0.5)
     else:
         pieces = [w]
     if gor[j]:
