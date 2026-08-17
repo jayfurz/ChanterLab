@@ -16,7 +16,7 @@
    258.7
   ]
  ],
- "attraction_rule": "diatonic only: ~58 moria = Ζω♭ when phrase completes descent to Δι thesis; Κε↑ (raised) mid-arsis. Never in soft chromatic.",
+ "attraction_rule": "diatonic only: ~58 moria = Ζω♭ when phrase completes descent to Δι thesis; Κε↑ (raised) mid-arsis. Never in soft chromatic. Vou raised (~26.5 moria, Βου↑) when attracted toward Γα/Δι in ascent. Octave-glitch folding + ison-drone bleed suppression applied (recording contains the app ison on Νη).",
  "timing_method": "whisper word anchors + manual/breath pins + beat-weighted pitch-aware DTW (EM x2), interval MAE 1.01 steps",
  "learned_ez_intervals": {
   "0xf021.0": -1,
