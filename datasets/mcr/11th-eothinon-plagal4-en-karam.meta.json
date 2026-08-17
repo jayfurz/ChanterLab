@@ -503,5 +503,7 @@
   ]
  ],
  "martyria_source": "inline red EZ-Psaltica stacks: (m,<,C)=Di diatonic, (m,<,?)=Di soft-chromatic, (c,C)=Ni; degree certified at the cadence glyph before the mark",
- "alignment": "pitch-first DTW: expected absolute degrees from learned-interval integration closed at martyria checkpoints (traverse closure); time demoted to weak prior; 76% of claimed notes within 1 step of expectation"
+ "alignment": "pitch-first DTW: expected absolute degrees from learned-interval integration closed at martyria checkpoints (traverse closure); time demoted to weak prior; 76% of claimed notes within 1 step of expectation",
+ "intonation_trajectory": "per-second root offset (moria) fitted on stable degrees (Ni/Pa/Di) only, so attractions stay out of the correction; stored per record as intonation_offset_moria. Opening settles from +2.5 to ~0 by ~40s.",
+ "chant_aware_labels": "ladder labels consult expected_degree within a 4.5-moria ambiguity band (sharp attracted Vou labels Vou-raised instead of flipping to Ga); dot position always shows true pitch"
 }
