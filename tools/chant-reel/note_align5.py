@@ -7,11 +7,14 @@
 import json, math
 import numpy as np
 
-GORGON = {0xf053, 0xf048}   # plain + red dotted gorgon
-DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf022: 3.0, 0xf06b: 3.0}
+GORGON = {0xf053, 0xf048, 0xf022}   # plain + red dotted gorgon + 0xf022 (digorgon-class quick mark, per chanter: half-beats, NOT dipli)
+DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf06b: 3.0}
+WEIGHT_OVR = {59: 0.5, 82: 1.0}       # chanter: Savior run half-beats; 'might' Ke = 1 beat (stray apli)
+SUBW_OVR = {(58, 1): 0.5}             # Savior run: second note of the 0xf050 pair is a half too
 YPORRHOE, SYNELAF = 0xf05f, 0xf050
 KENTIMATA_COMPOUNDS = {0xf0d7, 0xf06f, 0xf077, 0xf04f}   # oligon/petasti + kentimata above: 2 notes up
-MANUAL = [(49, 54.0), (52, 58.0), (118, 119.0), (157, 157.0), (218, 220.97), (249, 253.0)]   # user-ear ground truth: the ONLY hard tier ('Wherefore' at 1:59)
+MANUAL = [(49, 54.0), (52, 58.0), (56, 61.0), (62, 65.0), (76, 76.0), (77, 77.5),
+          (118, 119.0), (150, 154.0), (157, 157.0), (218, 220.97), (249, 253.0)]   # user-ear ground truth: the ONLY hard tier ('Wherefore' at 1:59)
 DROP = {21,22,23,24,25, 92,93,94,95, 99,100, 70,71,72,73}   # + scrambled 'feed My, feed My sheep' ASR cluster
 MPS = 10.3   # avg moria per diatonic step
 
@@ -109,6 +112,7 @@ for j, g in enumerate(notes):
         pieces[0] = 0.5
         if slot_w: slot_w[-1] = max(0.25, slot_w[-1] - 0.5)
     for si, p in enumerate(pieces):
+        p = SUBW_OVR.get((j, si), WEIGHT_OVR.get(j, p) if len(pieces) == 1 else p)
         slot_gi.append(j); slot_w.append(p); slot_sub.append(si)
 S = len(slot_gi)
 first_slot = {}
