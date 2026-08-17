@@ -8,7 +8,7 @@ import json, math
 import numpy as np
 
 GORGON = {0xf053, 0xf048}   # plain + red dotted gorgon (0xf022 = antikenoma: quality only, no time)
-DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf06b: 3.0}
+DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf03a: 2.0, 0xf06b: 3.0}   # 0xf03a = apli (two-dot form)
 WEIGHT_OVR = {59: 0.5, 82: 1.0}       # chanter: Savior run half-beats; 'might' Ke = 1 beat (stray apli)
 SUBW_OVR = {(58, 1): 0.5}             # Savior run: second note of the 0xf050 pair is a half too
 YPORRHOE, SYNELAF = 0xf05f, 0xf050

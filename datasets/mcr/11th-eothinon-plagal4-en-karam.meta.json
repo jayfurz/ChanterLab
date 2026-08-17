@@ -43,7 +43,7 @@
   "0xf077",
   "0xf04f (kentimata-over-body: two ascending)",
   "0xf05f (yporrhoe: two descending)",
-  "0xf050 (SYNDESMOS ELAPHRON: two apostrophoi; gorgon-on-first usually written explicitly — baked-in halving only when absent, to avoid double-steal)"
+  "0xf050 (TABLE COMPOUND: silent oligon as orthographic table carrying ison+kentimata+gorgon; sung notes 0,+1 — matches learned intervals; earlier syndesmos-elaphron label wrong)"
  ],
  "ornaments_unclaimed_quick_notes": [
   [
@@ -435,7 +435,7 @@
    0
   ]
  ],
- "ison_source": "score red letters (EZ-Special PUA glyphs): (N)=0xf043/63, (Pi)=0xf056/76, (B)=0xf042, (Gamma)=0xf04e/6e, (Delta)=0xf06d/4d, (M)=0xf03f/2f follow-melody; 0xf048 red = dotted gorgon; 0xf022 = ANTIKENOMA (arc under oligon; quality sign, no beat value — appears in gorgon figures, chanter-confirmed: purely orthographic/character (floaty-breathy), zero time effect; the figures are fast because of their real gorgons, whose attachment needed interval-distance matching)",
+ "ison_source": "score red letters (EZ-Special PUA glyphs): (N)=0xf043/63, (Pi)=0xf056/76, (B)=0xf042, (Gamma)=0xf04e/6e, (Delta)=0xf06d/4d, (M)=0xf03f/2f follow-melody; 0xf048 red = dotted gorgon; 0xf022 = ANTIKENOMA (arc under oligon; quality sign, no beat value — appears in gorgon figures, chanter-confirmed: purely orthographic/character (floaty-breathy), zero time effect; the figures are fast because of their real gorgons, whose attachment needed interval-distance matching); 0xf03a = apli (two-dot form); 0xf05b likely omalon (quality)",
  "martyria_checkpoints": [
   [
    11,
