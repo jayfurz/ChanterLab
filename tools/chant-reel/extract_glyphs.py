@@ -7,7 +7,7 @@ sys.path.append('/mnt/data/code/byzorgan-web/training-prototype/omr/.venv/lib/py
 import fitz
 from collections import Counter
 
-PDF = "/mnt/data/code/byzorgan-web/11th eothinon.pdf.pdf"
+PDF = str(__import__("pathlib").Path(__file__).resolve().parent.parent.parent / "docs/references/11th-eothinon-karam.pdf")
 SCALE = 300/72          # pt -> page pixel at 300dpi
 X0, PAD = 290, 14       # crop params used for line strips
 S = 940/1915            # line strip resize factor
@@ -20,7 +20,7 @@ SYSTEMS = {
 
 NEUME_FONTS = ('EZ-Psaltica', 'EZ-Special', 'EZ-Oxeia')
 LYRIC_FONT = 'EZOmega'
-EXCLUDE_CP = {0xf02b, 0xf029, 0xf05c, 0xf07c, 0xf07e}   # stavros, bareia, barlines
+EXCLUDE_CP = {0xf02b, 0xf05c, 0xf07c, 0xf07e}   # stavros, barlines (0xf029 is a stacked yporrhoe = 2 sung notes, NOT bareia)
 
 # strip line tops from actual line images
 tops, heights = [], []

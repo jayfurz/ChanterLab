@@ -8,13 +8,16 @@ import json, math
 import numpy as np
 
 GORGON = {0xf053, 0xf073, 0xf048}   # gorgon (S+s case pair) + red dotted; 0xf022 antikenoma, 0xf05b omalon: quality only
+DIGORGON = {0xf044}  # divides 3 notes (prev, carrier, next) into 1 beat, 1/3 each
+GORGON_INTERNAL = {0xf055}  # gorgon drawn INSIDE the glyph (over its kentimata): both subs 0.5, NO steal from prev
 DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf06b: 3.0}   # 0xf03a reverted: two-dot apli is phrase-final only (chanter); its identity is unresolved
-WEIGHT_OVR = {53: 2.0, 59: 0.5, 82: 1.0}   # chanter: post-tion apostrofos carries apli; Savior halves; 'might' Ke=1
-SUBW_OVR = {(58, 1): 0.5}             # Savior run: second note of the 0xf050 pair is a half too
-YPORRHOE, SYNELAF = 0xf05f, 0xf050
-KENTIMATA_COMPOUNDS = {0xf0d7, 0xf06f, 0xf077, 0xf04f}   # oligon/petasti + kentimata above: 2 notes up
-MANUAL = [(49, 54.0), (52, 58.0), (56, 61.0), (62, 65.0), (76, 76.0), (77, 77.5),
-          (118, 119.0), (150, 154.0), (157, 157.0), (218, 220.97), (249, 253.0)]   # user-ear ground truth: the ONLY hard tier ('Wherefore' at 1:59)
+WEIGHT_OVR = {54: 2.0, 60: 0.5, 84: 1.0}   # chanter: post-tion apostrofos carries apli; Savior halves; 'might' Ke=1
+SUBW_OVR = {(59, 1): 0.5}             # Savior run: second note of the 0xf050 pair is a half too
+YPORRHOE = {0xf05f, 0xf029}           # classic + stacked/narrow variant: 2 descending notes
+SYNELAF = 0xf050
+KENTIMATA_COMPOUNDS = {0xf0d7, 0xf06f, 0xf04f, 0xf055, 0xf059, 0xf075}  # two sung notes; 0xf077 = ONE note (petasti+oligon)   # oligon/petasti + kentimata above: 2 notes up
+MANUAL = [(50, 54.0), (53, 58.0), (57, 61.0), (64, 65.0), (78, 76.0), (79, 77.5),
+          (122, 119.0), (155, 154.0), (162, 157.0), (224, 220.97), (258, 253.0)]   # user-ear ground truth: the ONLY hard tier ('Wherefore' at 1:59)
 DROP = {21,22,23,24,25, 92,93,94,95, 99,100, 70,71,72,73}   # + scrambled 'feed My, feed My sheep' ASR cluster
 MPS = 10.3   # avg moria per diatonic step
 
@@ -85,24 +88,33 @@ VP = [note_pitch(v[0], v[1]) for v in vn]      # per voice-note sung moria
 VDEG = [sung_degree(VP[k], vn[k][0]) for k in range(len(vn))]
 
 # ---- modifiers ----
-gor = [False]*N; dur = [1.0]*N
-for m in mods:
-    if m['cp'] in GORGON or m['cp'] in DURATION_CP:
-        best, bd = None, 30
-        for j, g in enumerate(notes):
-            if g['line'] != m['line']: continue
-            # interval distance: a mark's origin may sit at either edge of its glyph
-            d = max(g['x0'] - m['x'], m['x'] - g['x1'], 0)
-            if d < bd: best, bd = j, d
+# Per-piece attachment overrides (modifier index -> glyph index): the 9 red
+# gorgons of the stacked yporrhoe (0xf029) have origins ~24px right of the
+# glyph — past its x1, at/inside the NEXT glyph — force their attachment.
+ATTACH_OVR = {22: 24, 70: 61, 108: 92, 145: 118, 181: 149, 223: 184,
+              289: 227, 293: 231, 333: 259, 341: 266}
+gor = [False]*N; digor = [False]*N; dur = [1.0]*N
+for mi, m in enumerate(mods):
+    if m['cp'] in GORGON or m['cp'] in DIGORGON or m['cp'] in DURATION_CP:
+        if mi in ATTACH_OVR:
+            best = ATTACH_OVR[mi]
+        else:
+            best, bd = None, 30
+            for j, g in enumerate(notes):
+                if g['line'] != m['line']: continue
+                # interval distance: a mark's origin may sit at either edge of its glyph
+                d = max(g['x0'] - m['x'], m['x'] - g['x1'], 0)
+                if d < bd: best, bd = j, d
         if best is not None:
             if m['cp'] in GORGON: gor[best] = True
+            elif m['cp'] in DIGORGON: digor[best] = True
             else: dur[best] = max(dur[best], DURATION_CP[m['cp']])
 
 # ---- slots with sub-note expansion ----
 slot_gi, slot_w, slot_sub = [], [], []
 for j, g in enumerate(notes):
     w = dur[j]
-    if g['cp'] == YPORRHOE or g['cp'] in KENTIMATA_COMPOUNDS:
+    if g['cp'] in YPORRHOE or g['cp'] in KENTIMATA_COMPOUNDS:
         pieces = [w*0.5, w*0.5]
     elif g['cp'] == SYNELAF:
         # syndesmos elaphron = two apostrophoi; the gorgon-on-first is usually
@@ -115,9 +127,13 @@ for j, g in enumerate(notes):
             if slot_w: slot_w[-1] = max(0.5, slot_w[-1] - 0.5)
     else:
         pieces = [w]
-    if gor[j]:
+    if gor[j] and g['cp'] not in GORGON_INTERNAL:
         pieces[0] = 0.5
         if slot_w: slot_w[-1] = max(0.5, slot_w[-1] - 0.5)
+    if digor[j]:                     # digorgon: prev + carrier + next share 1 beat
+        pieces[0] = 1.0/3
+        if len(pieces) >= 2: pieces[1] = 1.0/3
+        if slot_w: slot_w[-1] = max(1.0/3, slot_w[-1] - 2.0/3)
     for si, p in enumerate(pieces):
         p = SUBW_OVR.get((j, si), WEIGHT_OVR.get(j, p) if len(pieces) == 1 else p)
         slot_gi.append(j); slot_w.append(p); slot_sub.append(si)
