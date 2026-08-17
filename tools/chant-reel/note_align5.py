@@ -7,7 +7,7 @@
 import json, math
 import numpy as np
 
-GORGON = {0xf053, 0xf048, 0xf022}   # plain + red dotted gorgon + 0xf022 (digorgon-class quick mark, per chanter: half-beats, NOT dipli)
+GORGON = {0xf053, 0xf048}   # plain + red dotted gorgon (0xf022 = antikenoma: quality only, no time)
 DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf06b: 3.0}
 WEIGHT_OVR = {59: 0.5, 82: 1.0}       # chanter: Savior run half-beats; 'might' Ke = 1 beat (stray apli)
 SUBW_OVR = {(58, 1): 0.5}             # Savior run: second note of the 0xf050 pair is a half too
@@ -91,7 +91,8 @@ for m in mods:
         best, bd = None, 30
         for j, g in enumerate(notes):
             if g['line'] != m['line']: continue
-            d = abs(g['x1'] - m['x'])
+            # interval distance: a mark's origin may sit at either edge of its glyph
+            d = max(g['x0'] - m['x'], m['x'] - g['x1'], 0)
             if d < bd: best, bd = j, d
         if best is not None:
             if m['cp'] in GORGON: gor[best] = True
