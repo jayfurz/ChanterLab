@@ -7,7 +7,7 @@
 import json, math
 import numpy as np
 
-GORGON = {0xf053, 0xf048}   # plain + red dotted gorgon (0xf022 = antikenoma: quality only, no time)
+GORGON = {0xf053, 0xf073, 0xf048}   # gorgon (S+s case pair) + red dotted; 0xf022 antikenoma, 0xf05b omalon: quality only
 DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf06b: 3.0}   # 0xf03a reverted: two-dot apli is phrase-final only (chanter); its identity is unresolved
 WEIGHT_OVR = {53: 2.0, 59: 0.5, 82: 1.0}   # chanter: post-tion apostrofos carries apli; Savior halves; 'might' Ke=1
 SUBW_OVR = {(58, 1): 0.5}             # Savior run: second note of the 0xf050 pair is a half too
@@ -112,12 +112,12 @@ for j, g in enumerate(notes):
             pieces = [1.0, w]
         else:
             pieces = [0.5, w]
-            if slot_w: slot_w[-1] = max(0.25, slot_w[-1] - 0.5)
+            if slot_w: slot_w[-1] = max(0.5, slot_w[-1] - 0.5)
     else:
         pieces = [w]
     if gor[j]:
         pieces[0] = 0.5
-        if slot_w: slot_w[-1] = max(0.25, slot_w[-1] - 0.5)
+        if slot_w: slot_w[-1] = max(0.5, slot_w[-1] - 0.5)
     for si, p in enumerate(pieces):
         p = SUBW_OVR.get((j, si), WEIGHT_OVR.get(j, p) if len(pieces) == 1 else p)
         slot_gi.append(j); slot_w.append(p); slot_sub.append(si)
