@@ -11,8 +11,8 @@ GORGON = {0xf053, 0xf048}   # plain + red dotted gorgon
 DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf022: 3.0, 0xf06b: 3.0}
 YPORRHOE, SYNELAF = 0xf05f, 0xf050
 KENTIMATA_COMPOUNDS = {0xf0d7, 0xf06f, 0xf077, 0xf04f}   # oligon/petasti + kentimata above: 2 notes up
-MANUAL = [(49, 54.0), (52, 58.0), (249, 253.0)]   # user-ear ground truth: the ONLY hard tier
-DROP = {21,22,23,24,25, 92,93,94,95, 99,100}
+MANUAL = [(49, 54.0), (52, 58.0), (118, 119.0), (157, 157.0), (249, 253.0)]   # user-ear ground truth: the ONLY hard tier ('Wherefore' at 1:59)
+DROP = {21,22,23,24,25, 92,93,94,95, 99,100, 70,71,72,73}   # + scrambled 'feed My, feed My sheep' ASR cluster
 MPS = 10.3   # avg moria per diatonic step
 
 sn = json.load(open('score_notes.json'))
@@ -98,7 +98,17 @@ def build_anchors(pins, drop_wi=()):
     A.append([min(END_T, 271.5), S, '<end>']); PIN.append(True)
     return A, PIN
 
-def refine(A, PIN, T0, passes=3):
+def jump_bonus(slot_idx, h, table):
+    e = exp_interval(slot_idx, table)
+    if e is None or abs(e) < 2: return 0.0
+    k = next((i for i, v in enumerate(vn) if abs(v[0] - h) < 0.06), None)
+    if k is None or k == 0: return 0.0
+    p1, p0 = VP[k], VP[k-1]
+    if p1 is None or p0 is None: return 0.0
+    obs = (p1 - p0) / MPS
+    return 0.8 if abs(obs - e) <= 0.7 else 0.0
+
+def refine(A, PIN, T0, table=None, passes=3):
     for _ in range(passes):
         changed = 0
         for i in range(1, len(A)-1):
@@ -111,12 +121,14 @@ def refine(A, PIN, T0, passes=3):
                 TL, TR = (h-tp)/bl, (tn-h)/br
                 if TL <= 0.05 or TR <= 0.05: return 99
                 return abs(math.log(TL/T0)) + abs(math.log(TR/T0)) + 0.12*abs(h-t)
-            best, bc = t, cost(t) - breath_bonus(t)
+            jb0 = jump_bonus(s, t, table) if table else 0.0
+            best, bc = t, cost(t) - breath_bonus(t) - jb0
             for h in onsets:
                 if not (tp + 0.15 < h < tn - 0.15): continue
-                reach = 3.5 if breath_bonus(h) > 0.3 else 1.3   # breaths can rescue far-off anchors
+                jb = jump_bonus(s, h, table) if table else 0.0
+                reach = 3.5 if (breath_bonus(h) > 0.3 or jb > 0) else 1.3
                 if abs(h-t) > reach: continue
-                c = cost(h) - breath_bonus(h)
+                c = cost(h) - breath_bonus(h) - jb
                 if c < bc - 1e-6: best, bc = h, c
             if best != t: A[i][0] = best; changed += 1
         if not changed: break
@@ -200,6 +212,8 @@ table = {}
 for it in range(3):
     t_slot, claim = dtw_assign(A, table)
     table = learn(t_slot, claim)
+    if it == 0:
+        A = refine(A, PIN, T0, table=table)   # second refine pass with pitch evidence
     # agreement metric
     errs = []
     for j in range(1, S):
