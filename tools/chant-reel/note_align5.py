@@ -11,7 +11,7 @@ GORGON = {0xf053, 0xf048}   # plain + red dotted gorgon
 DURATION_CP = {0xf061: 2.0, 0xf041: 2.0, 0xf027: 2.0, 0xf022: 3.0, 0xf06b: 3.0}
 YPORRHOE, SYNELAF = 0xf05f, 0xf050
 KENTIMATA_COMPOUNDS = {0xf0d7, 0xf06f, 0xf077, 0xf04f}   # oligon/petasti + kentimata above: 2 notes up
-MANUAL = [(49, 54.0), (52, 58.0), (118, 119.0), (157, 157.0), (249, 253.0)]   # user-ear ground truth: the ONLY hard tier ('Wherefore' at 1:59)
+MANUAL = [(49, 54.0), (52, 58.0), (118, 119.0), (157, 157.0), (218, 220.97), (249, 253.0)]   # user-ear ground truth: the ONLY hard tier ('Wherefore' at 1:59)
 DROP = {21,22,23,24,25, 92,93,94,95, 99,100, 70,71,72,73}   # + scrambled 'feed My, feed My sheep' ASR cluster
 MPS = 10.3   # avg moria per diatonic step
 
@@ -20,6 +20,40 @@ notes, anchors_raw = sn['notes'], sn['anchors']
 mods = json.load(open('modifiers.json'))
 wt = json.load(open('word_times.json'))
 vn = json.load(open('voice_notes3.json'))
+# clean the note stream for alignment: phantom fragments and ison-bleed notes
+# (a jump to the current ison level for <0.5s) merge into their predecessor
+_ison_ev = json.load(open('ison_timeline.json'))
+def _ison_at(t):
+    lv = _ison_ev[0][1]
+    for et, el in _ison_ev:
+        if et <= t + 0.5: lv = el
+        else: break
+    return lv
+import numpy as _np
+_mor0 = _np.load('moria_track.npy')
+_rms0 = _np.load('rms_track.npy')
+def _level(v):
+    seg = _rms0[int(v[0]*100):max(int(v[0]*100)+2, int(v[1]*100))]
+    return float(_np.mean(seg)) if len(seg) else 0.0
+def _pitch(v):
+    seg = _mor0[int((v[0]+0.03)*100):max(int((v[0]+0.03)*100)+2, int((v[1]-0.02)*100))]
+    seg = seg[~_np.isnan(seg)]
+    return float(_np.median(seg)) if len(seg) else None
+_clean = []
+for v in vn:
+    dur = v[1] - v[0]
+    p = _pitch(v)
+    prevp = _pitch(_clean[-1]) if _clean else None
+    lv = _ison_at(v[0])
+    quiet = _clean and _level(v) < 0.45 * max(_level(_clean[-1]), 1e-6)
+    bleed = (quiet and lv != 'M' and p is not None and abs(p - lv) < 4.5
+             and prevp is not None and abs(p - prevp) > 15 and dur < 0.5)
+    if _clean and (dur < 0.16 or bleed):
+        _clean[-1][1] = v[1]          # absorb into predecessor
+    else:
+        _clean.append(list(v))
+print(f"note stream cleaned: {len(vn)} -> {len(_clean)}")
+vn = _clean
 bars_j = json.load(open('barlines.json'))
 mor = np.load('moria_track.npy')
 EXPECTED = json.load(open('expected_degrees.json'))    # absolute degree per slot (martyria-closed)
@@ -157,6 +191,7 @@ def dtw_assign(A, table):
         V = [k for k, v in enumerate(vn) if ta - 0.03 <= v[0] < tb - 0.03]
         B = beats(sa, sb); cum = 0.0; targ = []
         for s in span: targ.append(ta + (cum/B)*(tb-ta)); cum += slot_w[s]
+        spb = (tb - ta) / B                      # local seconds per beat
         J, K = len(span), len(V)
         if K == 0:
             for s, tg in zip(span, targ): t_slot[s] = tg
@@ -168,17 +203,20 @@ def dtw_assign(A, table):
         edeg0 = EXPECTED[span[0]]
         for k in range(K):
             pc0 = 1.3*min(abs(VDEG[V[k]] - edeg0), 3) if VDEG[V[k]] is not None else 0.6
-            D[0][k] = 0.35*abs(vn[V[k]][0] - targ[0]) + pc0 + 0.3*k
+            D[0][k] = 0.65*abs(vn[V[k]][0] - targ[0]) + pc0 + 0.3*k
         for j in range(1, J):
             e = exp_interval(span[j], table)
             edeg = EXPECTED[span[j]]
             for k in range(K):
-                base_t = 0.35*abs(vn[V[k]][0] - targ[j])          # time demoted to weak prior
+                base_t = 0.65*abs(vn[V[k]][0] - targ[j])          # time demoted to weak prior
                 pc = 1.3*min(abs(VDEG[V[k]] - edeg), 3) if VDEG[V[k]] is not None else 0.6
                 bb = breath_bonus(vn[V[k]][0]) if span[j] in BOUNDARY else 0.0
                 for kp in range(k):
                     if D[j-1][kp] >= BIG: continue
-                    c = D[j-1][kp] + base_t + pc + 0.3*(k-kp-1) - 1.4*bb
+                    # duration guard: previous slot must live ~60% of its beats
+                    impl = (vn[V[k]][0] - vn[V[kp]][0]) / spb
+                    deficit = max(0.0, 0.75*slot_w[span[j-1]] - impl)
+                    c = D[j-1][kp] + base_t + pc + 0.3*(k-kp-1) - 1.4*bb + 2.2*deficit
                     if e is not None and VP[V[k]] is not None and VP[V[kp]] is not None:
                         obs = (VP[V[k]] - VP[V[kp]]) / MPS
                         c += 0.3 * min(abs(obs - e), 3.0)
