@@ -1,0 +1,324 @@
+{
+ "piece": "Eleventh Matinal Doxastikon (Eothinon XI)",
+ "mode": "plagal-fourth (Nη), agia theseis",
+ "notation": "EZ font family (Karam 2024, HTM translation)",
+ "singer": "jayfurz",
+ "recorded": "2026-08-16",
+ "ni_hz": 144.0,
+ "moria_per_step_avg": 10.3,
+ "soft_chromatic_spans_s": [
+  [
+   202.5,
+   216.9
+  ],
+  [
+   238.1,
+   258.7
+  ]
+ ],
+ "attraction_rule": "diatonic only: ~58 moria = Ζω♭ when phrase completes descent to Δι thesis; Κε↑ (raised) mid-arsis. Never in soft chromatic.",
+ "timing_method": "whisper word anchors + manual/breath pins + beat-weighted pitch-aware DTW (EM x2), interval MAE 1.01 steps",
+ "learned_ez_intervals": {
+  "0xf021.0": -1,
+  "0xf030.0": 0,
+  "0xf031.0": 1,
+  "0xf040.0": -1,
+  "0xf04f.0": 0,
+  "0xf04f.1": 1,
+  "0xf050.0": 0,
+  "0xf050.1": 1,
+  "0xf055.0": -2,
+  "0xf05f.0": -1,
+  "0xf05f.1": -1,
+  "0xf060.0": 0,
+  "0xf06f.0": -1,
+  "0xf06f.1": 1,
+  "0xf077.1": 0,
+  "0xf0d7.0": 1,
+  "0xf0d7.1": 1
+ },
+ "compound_two_note_glyphs": [
+  "0xf0d7",
+  "0xf06f",
+  "0xf077",
+  "0xf04f (kentimata-over-body: two ascending)",
+  "0xf05f (yporrhoe: two descending)",
+  "0xf050"
+ ],
+ "ornaments_unclaimed_quick_notes": [
+  [
+   8.97,
+   9.21,
+   2
+  ],
+  [
+   17.49,
+   17.79,
+   10
+  ],
+  [
+   19.89,
+   20.23,
+   12
+  ],
+  [
+   22.7,
+   23.1,
+   15
+  ],
+  [
+   29.92,
+   30.25,
+   23
+  ],
+  [
+   30.25,
+   30.94,
+   24
+  ],
+  [
+   34.41,
+   34.7,
+   27
+  ],
+  [
+   57.77,
+   57.97,
+   51
+  ],
+  [
+   59.89,
+   60.3,
+   56
+  ],
+  [
+   60.3,
+   60.7,
+   57
+  ],
+  [
+   60.7,
+   61.02,
+   58
+  ],
+  [
+   62.11,
+   63.57,
+   60
+  ],
+  [
+   67.42,
+   67.61,
+   64
+  ],
+  [
+   74.33,
+   74.7,
+   75
+  ],
+  [
+   76.06,
+   76.24,
+   76
+  ],
+  [
+   78.94,
+   79.23,
+   79
+  ],
+  [
+   90.07,
+   90.86,
+   91
+  ],
+  [
+   101.71,
+   102.08,
+   101
+  ],
+  [
+   102.93,
+   103.42,
+   101
+  ],
+  [
+   105.17,
+   105.38,
+   103
+  ],
+  [
+   110.22,
+   110.39,
+   110
+  ],
+  [
+   115.68,
+   116.07,
+   116
+  ],
+  [
+   120.02,
+   120.67,
+   118
+  ],
+  [
+   123.9,
+   124.06,
+   123
+  ],
+  [
+   125.84,
+   126.07,
+   126
+  ],
+  [
+   128.51,
+   128.94,
+   128
+  ],
+  [
+   134.68,
+   135.13,
+   135
+  ],
+  [
+   138.3,
+   138.81,
+   139
+  ],
+  [
+   148.26,
+   148.56,
+   147
+  ],
+  [
+   150.6,
+   151.07,
+   150
+  ],
+  [
+   151.07,
+   151.46,
+   152
+  ],
+  [
+   153.2,
+   153.65,
+   156
+  ],
+  [
+   156.48,
+   157.33,
+   161
+  ],
+  [
+   158.92,
+   159.9,
+   162
+  ],
+  [
+   168.07,
+   168.52,
+   166
+  ],
+  [
+   170.17,
+   170.53,
+   171
+  ],
+  [
+   180.66,
+   181.03,
+   184
+  ],
+  [
+   186.22,
+   186.37,
+   188
+  ],
+  [
+   186.99,
+   187.25,
+   189
+  ],
+  [
+   189.14,
+   189.45,
+   190
+  ],
+  [
+   225.53,
+   226.09,
+   224
+  ],
+  [
+   226.68,
+   226.9,
+   226
+  ],
+  [
+   234.52,
+   235.99,
+   234
+  ],
+  [
+   236.39,
+   236.89,
+   235
+  ],
+  [
+   243.5,
+   243.71,
+   241
+  ],
+  [
+   247.72,
+   248.22,
+   243
+  ],
+  [
+   253.32,
+   253.68,
+   247
+  ],
+  [
+   258.05,
+   258.66,
+   248
+  ],
+  [
+   259.7,
+   260.15,
+   250
+  ],
+  [
+   260.15,
+   260.56,
+   252
+  ],
+  [
+   260.56,
+   260.91,
+   256
+  ],
+  [
+   265.77,
+   266.43,
+   258
+  ],
+  [
+   267.45,
+   267.62,
+   258
+  ]
+ ],
+ "caveats": "EZ glyph names partially inferred (0xf050 naming uncertain: sung 0,+1); anchors near Resurrection use singer-provided ground truth (rec=54.0, tion=58.0); 62% of slots claim a detected onset, rest interpolated.",
+ "tuning_drift": {
+  "segment_s": [
+   0,
+   21.77
+  ],
+  "root_offset_moria": 3.5,
+  "note": "singer opened ~3.5 moria sharp (apichima through \"Spirit.\"), settled by the line-2 \"to\"; fitted by grid-residual scan; sung_moria values in that span are drift-corrected"
+ }
+}
