@@ -37,6 +37,10 @@ OPTIONAL_KEYS = {"pitch_ghosts": [], "analytical_notes": []}   # defaults for ol
 
 class Handler(SimpleHTTPRequestHandler):
     exports_dir: Path = HERE / "exports"
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map,
+                      ".txt": "text/plain; charset=utf-8",
+                      ".html": "text/html; charset=utf-8",
+                      ".json": "application/json; charset=utf-8"}
 
     def do_POST(self):
         if self.path.rstrip("/") != "/api/export":
