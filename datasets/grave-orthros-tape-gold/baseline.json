@@ -1,0 +1,26 @@
+{
+ "revision": 1,
+ "name": "grave-orthros-tape-gold",
+ "what": "Whole-tape hymn boundaries for Grave mode Orthros, cut by ear by the chanter.",
+ "tape": "/mnt/data/chant-corpus/raw/vasilikos/Mode Grave/Mode Grave Anastasimatarion 2 Orthros.m4a",
+ "spans": 47,
+ "parallagi": 23,
+ "melos": 23,
+ "covered_min": 61.6,
+ "structure": "Every melos hymn is immediately preceded by its own parallagi. Verified: 23 parallagi / 23 melos, strict alternation, no orphan of either kind. This is a hard structural prior for the corpus, not a coincidence of this tape.",
+ "caveats": [
+  "The doxology melos (last span) is cut off after \"εκπισαμεν επι σε\" -- it did not fit on the 60-minute tape. Its parallagi IS complete, so the pair is usable for parallagi-side work but the melos must not be treated as a whole hymn.",
+  "One hymn near the middle was interrupted by the tape flip and then restarted. Only the complete replay from the second 30-minute half is marked; the truncated first attempt is deliberately outside every span.",
+  "A stretch where Vasilikos is talking about a hymn is deliberately outside every span. Material not covered by a span is excluded on purpose, never by oversight.",
+  "The first span (61.26-107.08) has no lane set and is not part of any parallagi/melos pair; it needs a label before this tape is fully closed."
+ ],
+ "measured_against_pipeline": {
+  "note": "The pipeline cuts in hymns.json for this tape, scored by IoU against the 23 gold melos spans.",
+  "iou_ge_0.90": 4,
+  "iou_0.50_0.90": 10,
+  "iou_lt_0.50": 11,
+  "n": 25,
+  "median_iou": 0.56,
+  "failure_mode": "over-splitting: t21/t22/t23 are all one gold melos span, as are t54/t55/t57 and t05/t06 and t33/t34"
+ }
+}
