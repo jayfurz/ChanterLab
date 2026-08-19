@@ -109,48 +109,64 @@ def sim(a, b):
     return cov * min(1.0, (len(a) / max(len(b), 1)) ** 0.25)
 
 
-def align(scores, cands, gap_c=0.35):
+def align(scores, cands, gap_c=0.35, max_run=8):
     """Monotonic alignment of the hymn sequence to the GLT sequence.
 
-    The chanter's point, and the thing the first version got wrong: the hymns
-    are ALREADY IN ORDER, in the book and in GLT alike — Lord I Have Cried, the
-    verses, the stichera, Glory/Both Now, the doxastikon and theotokion, the
-    aposticha, the apolytikion, then Orthros. So this is a sequence alignment,
-    not 173 independent nearest-neighbour lookups. Matching independently let 17
-    different hymns claim one GLT text and let matches run out of order; a
-    monotonic path forbids both, and each match constrains its neighbours.
+    Two structures, both from the chanter:
 
-    Same shape as hymn_align.dtw: skips allowed on both sides (GLT holds hymns
-    the recording never covers, and the recording holds hymns GLT does not).
-    Returns [(score_index, glt_index or None, similarity)].
+    ORDER — "the hymns are already in order ... lord i have cried then the
+    verses then the stichera then the glory both now doxastikon theotokia ...
+    the order is the same". So this is a sequence alignment, not independent
+    nearest-neighbour lookups; a monotonic path stops one text being claimed by
+    seventeen hymns and stops matches running out of order.
+
+    MANY-TO-ONE — "we can over split and then combine in another pass". The
+    red-font reader deliberately over-splits GLT (median entry 148 chars against
+    a recorded hymn of 170-400), so one hymn routinely spans a RUN of consecutive
+    GLT entries: a Στίχ. plus its sticheron, a Δόξα plus the theotokion that
+    follows, the whole Κύριε ἐκέκραξα block of psalm verses. Matching one hymn to
+    exactly one entry pinned similarity at 0.3-0.4 for purely structural reasons.
+
+    Skips are allowed on both sides: GLT holds hymns this tape never recorded,
+    and the tape holds hymns GLT does not.
+    Returns [(score_index, (glt_start, glt_end) or None, similarity)].
     """
     n, m = len(scores), len(cands)
     if not n or not m:
         return []
+    # prefix-concatenated GLT text so a run's text is cheap to build
+    pref = ['']
+    for g in cands:
+        pref.append(pref[-1] + g['collapsed'])
     NEG = -1e9
     D = [[NEG] * (m + 1) for _ in range(n + 1)]
     P = [[None] * (m + 1) for _ in range(n + 1)]
     D[0][0] = 0.0
-    for j in range(1, m + 1):          # skipping GLT hymns is free
+    for j in range(1, m + 1):
         D[0][j] = 0.0
-        P[0][j] = (0, j - 1, 'g')
+        P[0][j] = (0, j - 1, None)
     for i in range(1, n + 1):
-        D[i][0] = D[i - 1][0] - gap_c
-        P[i][0] = (i - 1, 0, 'c')
         for j in range(1, m + 1):
-            best_v, best_p = D[i - 1][j] - gap_c, (i - 1, j, 'c')
+            best_v, best_p = D[i - 1][j] - gap_c, (i - 1, j, None)
             if D[i][j - 1] > best_v:
-                best_v, best_p = D[i][j - 1], (i, j - 1, 'g')
-            v = D[i - 1][j - 1] + sim(scores[i - 1], cands[j - 1]['collapsed'])
-            if v > best_v:
-                best_v, best_p = v, (i - 1, j - 1, 'm')
+                best_v, best_p = D[i][j - 1], (i, j - 1, None)
+            for r in range(1, min(max_run, j) + 1):
+                prev = D[i - 1][j - r]
+                if prev <= NEG / 2:
+                    continue
+                run = pref[j][len(pref[j - r]):]
+                v = prev + sim(scores[i - 1], run)
+                if v > best_v:
+                    best_v, best_p = v, (i - 1, j - r, (j - r, j))
             D[i][j], P[i][j] = best_v, best_p
-    i, j, out = n, m, []
+    jend = max(range(m + 1), key=lambda j: D[n][j])
+    i, j, out = n, jend, []
     while i > 0 or j > 0:
-        pi, pj, kind = P[i][j]
-        if kind == 'm':
-            out.append((pi, pj, sim(scores[pi], cands[pj]['collapsed'])))
-        elif kind == 'c':
+        pi, pj, span = P[i][j]
+        if span:
+            run = pref[span[1]][len(pref[span[0]]):]
+            out.append((pi, span, sim(scores[pi], run)))
+        elif pi != i:
             out.append((pi, None, 0.0))
         i, j = pi, pj
     out.reverse()
@@ -195,24 +211,27 @@ def main():
             if k not in keep:
                 print(f'  {h["name"][:24]:24s} NO LYRICS')
         path = align([texts[k] for k in keep], cands)
-        for si, gj, sc in path:
+        for si, span, sc in path:
             h = hl[keep[si]]
-            if gj is None:
+            if span is None:
                 print(f'  --  {h["name"][:22]:22s} unaligned')
                 rows.append({'workdir': name, 'hymn': h['name'], 'coverage': 0.0,
                              'glt_page': None, 'glt_service': None,
                              'glt_heading': None, 'glt_text': '',
                              'score_chars': len(texts[keep[si]])})
                 continue
-            g = cands[gj]
+            run = cands[span[0]:span[1]]
+            g = run[0]
+            text = ' '.join(x['text'] for x in run)
             flag = 'ok ' if sc >= a.min else 'LOW'
             rows.append({'workdir': name, 'hymn': h['name'], 'coverage': round(sc, 3),
                          'glt_page': g['page'], 'glt_service': g['service'],
-                         'glt_heading': g['heading'], 'glt_text': g['text'],
+                         'glt_heading': g['heading'], 'glt_text': text,
+                         'glt_n_entries': len(run),
                          'score_chars': len(texts[keep[si]]),
-                         'glt_chars': len(g['collapsed'])})
-            print(f'  {flag} {h["name"][:22]:22s} sim {sc:.2f}  '
-                  f'{g["service"][:14]:14s} {g["text"][:50]}')
+                         'glt_chars': sum(len(x['collapsed']) for x in run)})
+            print(f'  {flag} {h["name"][:22]:22s} sim {sc:.2f} x{len(run)} '
+                  f'{g["service"][:12]:12s} {text[:48]}')
     json.dump(rows, open(a.out, 'w'), ensure_ascii=False, indent=1)
     good = sum(1 for r in rows if r['coverage'] >= a.min)
     print(f'\n{good}/{len(rows)} matched at >= {a.min} coverage -> {a.out}')
