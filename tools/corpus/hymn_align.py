@@ -1129,8 +1129,19 @@ def cmd_melos(wd, hymns, name):
     os.makedirs(mdir, exist_ok=True)
     wav = os.path.join(mdir, 'audio.wav')
     if not os.path.exists(os.path.join(mdir, 'voice_notes.json')):
+        # NEVER let ffmpeg write through audio.wav. It may be a SYMLINK to the
+        # corpus source (restore_melos_audio.py makes it one to avoid a second
+        # copy of 1.1 GB), and 'ffmpeg -y -i SRC ... audio.wav' then reads and
+        # writes the same file: on 2026-08-19 that truncated
+        # pieces/.../004_melos_fixed.wav from 53.4 s to 4.8 s. It was rebuilt
+        # from the tape via texts/recut_grave-orthros.json, which records the
+        # span it was cut from at corr 1.0 — but nothing should depend on such a
+        # record existing. Render to a scratch file and move it into place, which
+        # REPLACES the symlink and leaves its target untouched.
+        tmp = wav + '.tmp.wav'
         subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', h['melos_audio'],
-                        '-ac', '1', '-ar', '44100', wav], check=True)
+                        '-ac', '1', '-ar', '44100', tmp], check=True)
+        os.replace(tmp, wav)
         subprocess.run([sys.executable, os.path.join(os.path.dirname(
             os.path.abspath(__file__)), '..', 'mcr', 'segment_tracks.py'),
             wav, mdir], check=True)

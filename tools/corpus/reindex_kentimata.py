@@ -38,6 +38,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import shutil
 import sys
 
@@ -405,6 +406,66 @@ def verify():
     return 1 if bad else 0
 
 
+# ---- d) workdirs/*/unitdeg_*.json + iv_ovr_*.json -------------------------
+def do_unit_maps(write, report):
+    """The aligner's own unit-indexed side files.
+
+    unitdeg_<hymn>.json are the parallagi-derived degree anchors the melos
+    aligner starts from, and iv_ovr_<hymn>.json are the chanter's interval
+    overrides for neumes the Ioannou font prints shape-identically. Both are
+    plain {unit index: value} maps over load_units_h(row), the same space as the
+    gold pins — so a re-segmentation moves them exactly as it moves everything
+    else, and 2989 of the 15620 unitdeg entries had fallen outside their stream
+    altogether. Left alone they would feed the aligner anchors pointing at the
+    wrong glyphs, which is worse than feeding it none.
+
+    A key whose slot no longer emits a unit takes the next surviving one, as a
+    range start does: these mark a note, not a boundary.
+    """
+    for wd in sorted(glob.glob(os.path.join(WORKDIRS, '*'))):
+        hp = os.path.join(wd, 'hymns.json')
+        if not os.path.isfile(hp):
+            continue
+        # A unitdeg key is relative to the TRIMMED stream, so it has to be
+        # lifted to absolute, mapped, and lowered again — and the two offsets
+        # are NOT the same number. Lift by the ORIGINAL g0, because the fig
+        # table is keyed by pre-split absolute indices; lower by the MIGRATED
+        # g0, because that is where the trimmed stream now starts. Using the
+        # original for both put every t01_ anchor 3 units early, which did not
+        # look wrong — it made the DTW infeasible and the aligner returned no
+        # path at all.
+        hymns_old = {h['name']: h for h in source(hp)}
+        hymns_new = {h['name']: h for h in json.load(open(hp))}
+        hymns = hymns_old
+        for path in sorted(glob.glob(os.path.join(wd, 'unitdeg_*.json'))
+                           + glob.glob(os.path.join(wd, 'iv_ovr_*.json'))):
+            b = os.path.basename(path)
+            if '.orig' in b:
+                continue          # a hand-kept snapshot, not live input
+            m = re.match(r'(?:unitdeg|iv_ovr)_(?:chanter_)?(.+)\.json$', b)
+            if not m or m.group(1) not in hymns:
+                continue
+            row = hymns[m.group(1)]
+            try:
+                _, first, last = stream(row['p0'], row['l0'], row['p1'], row['l1'])
+            except Exception:
+                continue
+            g0 = int(row.get('g0') or 0)                       # pre-split
+            g0_new = int(hymns_new.get(m.group(1), {}).get('g0') or 0)
+            src = source(path)
+            t = Tally()
+            out = {}
+            for k, v in src.items():
+                nk = t.map(int(k) + g0, first, last)
+                if nk is not None:
+                    out[str(nk - g0_new)] = v
+            if t.moved or t.miss:
+                print(f"  {os.path.relpath(path, WORKDIRS)}: {len(src)} entries — {t.line()}")
+            backup(path, write)
+            save(path, out, write)
+            report.append(t)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--write', action='store_true')
@@ -422,6 +483,8 @@ def main():
     do_hymns(write, report)
     print("\n[c] gold datasets")
     do_gold(write, report)
+    print("\n[d] aligner unit maps (unitdeg / iv_ovr)")
+    do_unit_maps(write, report)
     moved = sum(t.moved for t in report)
     same = sum(t.same for t in report)
     miss = sum(t.miss for t in report)

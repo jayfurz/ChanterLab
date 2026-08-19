@@ -8,11 +8,19 @@ byte-identical COPY of the hymns.json row's melos_audio, ~20 MB a piece, and
 every one of those 132 source files is still on disk. They were almost certainly
 deleted to reclaim the 1.1 GB.
 
-So it is restored as a SYMLINK, not a copy — prep_hymn_annotator already
-symlinks the same file onward into the annotator's data dir, and nothing writes
-to it. 15 of the sources are .mp3 rather than .wav; those are transcoded once,
-because audio_duration() reads the header with the wave module and the browser
-is handed the file directly.
+Restored as a COPY. A symlink was tried first and was a mistake: hymn_align's
+melos pass runs `ffmpeg -y -i <melos_audio> ... audio.wav`, which through a
+symlink reads and writes the SAME FILE and truncated
+pieces/.../004_melos_fixed.wav from 53.4 s to 4.8 s. That one was rebuildable
+from the tape only because texts/recut_grave-orthros.json happened to record the
+span it came from at corr 1.0. These recordings are irreplaceable and several
+tools in this directory write to audio.wav, so the safe move is 1.1 GB of disk
+rather than an audit of every writer forever. (hymn_align now also renders to a
+scratch file and moves it into place, so a stray symlink cannot do this again.)
+
+15 of the sources are .mp3 rather than .wav; those are transcoded, because
+audio_duration() reads the header with the wave module and the browser is handed
+the file directly.
 
 Usage:
   restore_melos_audio.py            # report only
@@ -22,6 +30,7 @@ import argparse
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 import wave
@@ -71,7 +80,9 @@ def main():
             continue
         if is_wav(src):
             if a.write:
-                os.symlink(os.path.abspath(src), dst)
+                tmp = dst + '.tmp'
+                shutil.copyfile(src, tmp)
+                os.replace(tmp, dst)
             linked += 1
         else:
             if a.write:
@@ -86,7 +97,7 @@ def main():
                     continue
                 os.replace(tmp, dst)
             converted += 1
-    verb = 'linked' if a.write else 'would link'
+    verb = 'copied' if a.write else 'would copy'
     print(f'\n  {verb}: {linked}   transcoded from mp3: {converted}   '
           f'no source: {missing}   failed: {failed}')
     if not a.write:
