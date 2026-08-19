@@ -44,9 +44,20 @@ STATUS 2026-08-18: NOT YET TRUSTWORTHY. Read before using the output.
        path. This needs the same: pin the few high-confidence matches (t41 0.92,
        t44 0.82, t48 0.85) and align between them.
 
-  Until both are done, treat glt_hymn_match.json as a CANDIDATE list, not as
-  hymn identification, and do not feed it to SYL-01. The canonical text itself
-  (glt_oktoechos.json, 603 accented hymns) is sound and independently useful.
+  v3 fixed cause (1): the parse now reads the red-font markup, so rubrics are no
+  longer glued to the sung text, and the Horologion ordinary was added so the
+  psalm verses exist at all. The canonical text (glt_oktoechos.json, 826 hymns)
+  is now sound and independently useful.
+
+  Cause (2) remains, and a THIRD is now the dominant one: GLT is deliberately
+  over-split relative to a recorded hymn — median entry 148 chars against a hymn
+  of 170-400 — but align() still assigns one hymn to exactly ONE entry. A hymn
+  must be allowed to absorb a RUN of consecutive GLT entries, the same many-to-
+  one shape boundary_fit.py already uses for drop-cap segments. Until that lands,
+  similarities sit at 0.3-0.4 for structural reasons and mean nothing.
+
+  Treat glt_hymn_match.json as a CANDIDATE list, not as hymn identification, and
+  do not feed it to SYL-01.
 """
 import argparse
 import difflib
@@ -165,9 +176,14 @@ def main():
         name = os.path.basename(wd.rstrip('/'))
         mode = WD_MODE.get(name)
         svc = services_for(name)
+        # the ORDINARY is available to every mode: the psalm verses, Lord I Have
+        # Cried, God Is The Lord and the rest are identical in all eight modes
+        # (chanter), so they are never mode-discriminative but they ARE sung and
+        # they DO occupy segments in the book.
         cands = [g for g in glt
-                 if (a.all_modes or not mode or g['mode'] == mode)
-                 and g['service'] in svc]
+                 if (g['mode'] == 'ordinary'
+                     or ((a.all_modes or not mode or g['mode'] == mode)
+                         and g['service'] in svc))]
         if not cands:
             cands = [g for g in glt if not mode or g['mode'] == mode] or glt
         print(f'\n=== {name}  ({len(cands)} candidate GLT hymns)')
