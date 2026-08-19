@@ -37,6 +37,17 @@ WD_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 MAX_BODY = 8 * 1024 * 1024
 MIME = {'.m4a': 'audio/mp4', '.mp3': 'audio/mpeg', '.wav': 'audio/wav'}
 PEAKS = f'{TEXTS}/peaks'
+SCORES = '/mnt/data/chant-corpus/scores'
+RENDERS = f'{SCORES}/page_renders'
+GLYPHS = f'{SCORES}/glyphs'
+THUMBS = f'{TEXTS}/page_thumbs'
+OFFSETS = f'{SCORES}/page_offsets.json'
+# The page renders are exactly 6x the PDF points the glyph boxes are given in.
+# Solved rather than assumed: at 6.000 the mean ink inside a glyph box is 0.373
+# against 0.100 at the A4 guess, and 53% of all page ink lands inside a box
+# (the rest is lyric text, which is stored separately).
+PT2PX = 6.0
+THUMB_W = 1100
 PPS = 20                # peak buckets per second -> 50 ms resolution
 PEAK_SR = 8000          # decode rate for the envelope; plenty for amplitude
 
@@ -117,6 +128,7 @@ def tapes():
                           't1': s['t1'] if s else None,
                           'label': (s or {}).get('label'),
                           'lane': (s or {}).get('lane'),
+                          't_in': (s or {}).get('t_in'),
                           'page': h.get('p0'), 'line': h.get('l0')})
         # spans the chanter added with "+ span" have no hymns.json row, so
         # carry them back in after their base, or they vanish on reload
@@ -126,6 +138,7 @@ def tapes():
                 continue
             row = {'name': n, 'cur': None, 't0': c.get('t0'), 't1': c.get('t1'),
                    'label': c.get('label'), 'lane': c.get('lane'),
+                   't_in': c.get('t_in'),
                    'extra': True, 'page': None, 'line': None}
             base = n.split('#')[0]
             at = next((i for i, h in enumerate(hymns)
@@ -134,6 +147,62 @@ def tapes():
         out[wd] = {'tape': tape, 'basename': os.path.basename(tape),
                    'hymns': hymns}
     return out
+
+
+def page_thumb(pno):
+    """Downscaled page, cached. The masters are 3498x4943 and 104 MB for the
+    book; a phone needs neither."""
+    os.makedirs(THUMBS, exist_ok=True)
+    out = f'{THUMBS}/page{pno}.jpg'
+    src = f'{RENDERS}/page{pno}.png'
+    if not os.path.exists(src):
+        return None
+    if not os.path.exists(out) or os.path.getmtime(out) < os.path.getmtime(src):
+        from PIL import Image
+        im = Image.open(src).convert('RGB')
+        im.thumbnail((THUMB_W, THUMB_W * 4), Image.LANCZOS)
+        im.save(out, 'JPEG', quality=82, optimize=True)
+    return out
+
+
+def score_pages(wd):
+    OFF = json.load(open(OFFSETS)) if os.path.exists(OFFSETS) else {}
+    hj = f'{WORKDIRS}/{wd}/hymns.json'
+    if not os.path.exists(hj):
+        return None
+    hy = json.load(open(hj))
+    p0 = min(h['p0'] for h in hy)
+    p1 = max(h['p1'] for h in hy)
+    pages = []
+    for pno in range(p0, p1 + 1):
+        gf = f'{GLYPHS}/page{pno}.json'
+        if not os.path.exists(gf) or not os.path.exists(f'{RENDERS}/page{pno}.png'):
+            continue
+        d = json.load(open(gf))
+        off = OFF.get(str(pno), {})
+        gl = sorted(d.get('glyphs', []),
+                    key=lambda g: (g.get('line', 0), g['x0']))
+        pages.append({
+            'page': pno, 'lines': d.get('n_lines', 0), 'scale': PT2PX,
+            # per page: the book has mixed page sizes and the glyph boxes were
+            # extracted against the smaller crop, so the taller pages need a
+            # vertical shift. Solved by page_offsets.py, never assumed.
+            'w': off.get('w', 0), 'h': off.get('h', 0),
+            'dx': off.get('dx', 0), 'dy': off.get('dy', 0),
+            'ink': off.get('ink'), 'aligned': off.get('ok', True),
+            # index within the page, in reading order -- this is the g0/g1
+            # coordinate hymns.json already understands
+            'glyphs': [{'i': i, 'l': g.get('line', 0), 'r': g.get('red', 0),
+                        'x0': round(g['x0'], 1), 'y0': round(g['y0'], 1),
+                        'x1': round(g['x1'], 1), 'y1': round(g['y1'], 1)}
+                       for i, g in enumerate(gl)],
+        })
+    sf = f'{TEXTS}/scorecuts_{wd}.json'
+    saved = json.load(open(sf))['cuts'] if os.path.exists(sf) else []
+    return {'workdir': wd, 'pages': pages, 'thumb_w': THUMB_W,
+            'hymns': [{'name': h['name'], 'p0': h['p0'], 'l0': h['l0'],
+                       'p1': h['p1'], 'l1': h['l1']} for h in hy],
+            'saved': saved}
 
 
 class H(BaseHTTPRequestHandler):
@@ -174,6 +243,33 @@ class H(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', 'application/octet-stream')
             self.send_header('X-Peaks-Per-Second', str(PPS))
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if p in ('/score', '/score.html'):
+            f = os.path.join(HERE, 'score.html')
+            return self._send(200, open(f, 'rb').read(),
+                              'text/html; charset=utf-8')
+        if p.startswith('/api/score/'):
+            wd = unquote(p[11:])
+            if not WD_RE.match(wd):
+                return self._send(400, '{"error":"bad workdir"}')
+            d = score_pages(wd)
+            if d is None:
+                return self._send(404, '{"error":"unknown workdir"}')
+            return self._send(200, json.dumps(d, ensure_ascii=False))
+        if p.startswith('/page/'):
+            m = re.match(r'^(\d{1,4})\.jpg$', p[6:])
+            if not m:
+                return self._send(400, '{"error":"bad page"}')
+            f = page_thumb(int(m.group(1)))
+            if not f:
+                return self._send(404, '{"error":"no render"}')
+            body = open(f, 'rb').read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/jpeg')
+            self.send_header('Cache-Control', 'public, max-age=86400')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -240,8 +336,46 @@ class H(BaseHTTPRequestHandler):
                     return
                 left -= len(chunk)
 
+    def save_scorecuts(self):
+        try:
+            n = int(self.headers.get('Content-Length', 0))
+            if not 0 < n <= MAX_BODY:
+                raise ValueError('bad length')
+            body = json.loads(self.rfile.read(n))
+            wd = body.get('workdir', '')
+            if not WD_RE.match(wd):
+                raise ValueError('bad workdir')
+            cuts = []
+            for c in body.get('cuts', []):
+                if c.get('p0') is None or c.get('p1') is None:
+                    continue
+                a = (int(c['p0']), int(c['l0']), int(c['g0']))
+                b = (int(c['p1']), int(c['l1']), int(c['g1']))
+                if b < a:
+                    raise ValueError(f"{c.get('hymn')}: end precedes start")
+                cuts.append({'hymn': str(c['hymn']),
+                             'p0': a[0], 'l0': a[1], 'g0': a[2],
+                             'p1': b[0], 'l1': b[1], 'g1': b[2],
+                             'label': (str(c['label'])[:300]
+                                       if c.get('label') else None)})
+        except Exception as e:
+            return self._send(400, json.dumps({'error': str(e)}))
+        out = f'{TEXTS}/scorecuts_{wd}.json'
+        payload = {'workdir': wd, 'saved': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                   'cuts': cuts}
+        hd = f'{TEXTS}/cuts_history'
+        os.makedirs(hd, exist_ok=True)
+        json.dump(payload, open(
+            f'{hd}/scorecuts_{wd}_{time.strftime("%Y%m%d-%H%M%S")}.json', 'w'),
+            indent=1, ensure_ascii=False)
+        json.dump(payload, open(out, 'w'), indent=1, ensure_ascii=False)
+        self._send(200, json.dumps({'ok': True, 'n': len(cuts), 'path': out}))
+
     def do_POST(self):
-        if self.path.split('?')[0] != '/api/cuts':
+        path = self.path.split('?')[0]
+        if path == '/api/scorecuts':
+            return self.save_scorecuts()
+        if path != '/api/cuts':
             return self._send(404, '{"error":"not found"}')
         try:
             n = int(self.headers.get('Content-Length', 0))
@@ -266,8 +400,22 @@ class H(BaseHTTPRequestHandler):
                 lab = c.get('label')
                 if lab is not None:
                     lab = str(lab)[:300]
+                # Apichima: some sections open with Vasilikos holding a note
+                # on "νε" before the hymn proper. The score has no neumes for
+                # it, so an aligner handed that audio will smear the first
+                # notes across it. Marked as an interior point, not a second
+                # span, because it belongs to the hymn's recording.
+                ti = c.get('t_in')
+                if ti is not None:
+                    ti = float(ti)
+                    if not (t0 - 0.001 <= ti <= t1 + 0.001):
+                        raise ValueError(
+                            f"{c.get('hymn')}: apichima end {ti:.2f} is outside "
+                            f"the span {t0:.2f}-{t1:.2f}")
+                    ti = round(ti, 3)
                 cuts.append({'hymn': str(c['hymn']),
                              't0': round(t0, 3), 't1': round(t1, 3),
+                             't_in': ti,
                              'label': lab or None, 'lane': lane})
         except Exception as e:
             return self._send(400, json.dumps({'error': str(e)}))

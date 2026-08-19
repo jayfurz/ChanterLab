@@ -95,6 +95,7 @@ kbd{background:#2a241f;border:1px solid var(--line);border-radius:4px;
   <div class="row" style="margin-top:6px">
     <button id="setS" style="border-color:var(--green)">Start &#9679;</button>
     <button id="setE" style="border-color:var(--red)">End &#9679;</button>
+    <button id="setI" title="apichima ends">νε&#9679;</button>
     <button id="prev">&#8593;</button>
     <button id="next">&#8595;</button>
   </div>
@@ -288,6 +289,13 @@ function draw() {
       cx.fillStyle = on ? 'rgba(216,162,74,.20)' : 'rgba(110,164,95,.10)';
       cx.fillRect(x(h.t0), 0, Math.max(x(h.t1) - x(h.t0), 1), H);
     }
+    if (h.t_in != null) {
+      const px = x(h.t_in);
+      cx.fillStyle = on ? 'rgba(216,162,74,.9)' : 'rgba(216,162,74,.35)';
+      for (let y = 0; y < H; y += 10 * devicePixelRatio)
+        cx.fillRect(px - devicePixelRatio, y, 2 * devicePixelRatio,
+                    5 * devicePixelRatio);   // dashed: interior, not a bound
+    }
     [['t0', '#6ea45f'], ['t1', '#c65b4e']].forEach(([k, col]) => {
       if (h[k] == null) return;
       const px = x(h[k]);
@@ -442,6 +450,15 @@ $('#back').onclick = () => A.currentTime = Math.max(0, A.currentTime - 5);
 $('#fwd').onclick = () => A.currentTime = Math.min(A.duration || 1e9, A.currentTime + 5);
 $('#setS').onclick = () => { hymns[sel].t0 = +A.currentTime.toFixed(3); render(); draw(); autosave(); };
 $('#setE').onclick = () => { hymns[sel].t1 = +A.currentTime.toFixed(3); render(); draw(); autosave(); };
+// Where the held νε ends and the hymn proper starts.
+$('#setI').onclick = () => {
+  const h = hymns[sel], t = +A.currentTime.toFixed(3);
+  if (h.t0 != null && t < h.t0) return msg('that is before the span start');
+  if (h.t1 != null && t > h.t1) return msg('that is after the span end');
+  h.t_in = (h.t_in === t ? null : t);
+  msg(h.t_in == null ? 'apichima mark cleared' : 'apichima ends ' + fmt(t));
+  render(); draw(); autosave();
+};
 $('#prev').onclick = () => { sel = Math.max(0, sel - 1); render(); draw(); };
 $('#next').onclick = () => { sel = Math.min(hymns.length - 1, sel + 1); render(); draw(); };
 $('#playSel').onclick = () => {
@@ -463,6 +480,7 @@ function autosave() { clearTimeout(pend); pend = setTimeout(() => save(true), 12
 async function save(quiet) {
   const cuts = hymns.filter(h => h.t0 != null && h.t1 != null)
                     .map(h => ({ hymn: h.name, t0: h.t0, t1: h.t1,
+                                 t_in: h.t_in ?? null,
                                  label: h.label || null, lane: h.lane || null }));
   const bad = hymns.find(h => h.t0 != null && h.t1 != null && h.t1 <= h.t0);
   if (bad) return msg('✗ ' + bad.name + ': end is not after start');

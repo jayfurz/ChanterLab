@@ -81,6 +81,14 @@ def main():
                          'use-once pass fills this in automatically')
     ap.add_argument('--max-seg-run', type=int, default=2,
                     help='most consecutive tape segments one hymn may span')
+    ap.add_argument('--spans',
+                    help='JSON of chanter-cut spans to use INSTEAD of silence '
+                         'segmentation. Only lane=="melos" spans are scored: '
+                         'parallagi is sung degrees, not text, so including it '
+                         'gave CTC no correct answer and it settled on generic '
+                         'psalm verse. Excluding it by POSITION is what the '
+                         'pairing prior buys us — see docs/plans/'
+                         'PARALLAGI-PAIRING.md.')
     a = ap.parse_args()
 
     name = os.path.basename(a.workdir.rstrip('/'))
@@ -89,12 +97,23 @@ def main():
         raise SystemExit(f'need {rf} for the tape path')
     loc = json.load(open(rf))
     tape = loc[0]['tape']
-    allsegs = json.load(open(SEGS))
-    if tape not in allsegs:
-        raise SystemExit(f'no segments for {tape}; run tape_segments.py')
-    segs = allsegs[tape]
+    if a.spans:
+        sp = json.load(open(a.spans))
+        sp = sp['spans'] if isinstance(sp, dict) else sp
+        mel = sorted((x for x in sp if x.get('lane') == 'melos'),
+                     key=lambda x: x['t0'])
+        segs = [[x['t0'], x['t1']] for x in mel]
+        print(f'{name}: {len(segs)} chanter-cut MELOS spans '
+              f'of {len(sp)} spans total')
+        allsegs = None
+    else:
+        allsegs = json.load(open(SEGS))
+    if allsegs is not None:
+        if tape not in allsegs:
+            raise SystemExit(f'no segments for {tape}; run tape_segments.py')
+        segs = allsegs[tape]
     hy = json.load(open(os.path.join(a.workdir, 'hymns.json')))
-    print(f'{name}: {len(segs)} tape segments, {len(hy)} hymns')
+    print(f'{name}: {len(segs)} segments, {len(hy)} hymns')
 
     dev = a.device if (a.device == 'cpu' or torch.cuda.is_available()) else 'cpu'
     proc = Wav2Vec2Processor.from_pretrained(MODEL)
