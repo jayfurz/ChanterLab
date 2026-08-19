@@ -21,6 +21,12 @@ re-cut per hymn in an earlier session, so a hymn's notated length and its
 recorded length must agree under ONE tempo for the tape. beats come from
 beats_seq (the chanter-corrected duration model), seconds from the melos audio.
 
+Not every tape carries every hymn — chanter: "not all the tapes are the same in
+that not all of them have every hymn, some might not have all the verses". So
+the DP must be free to leave book segments unassigned, and must never assume the
+recording and the book are the same length. That is what the gap transition is
+for; without it the first drift snowballs.
+
 Writes proposals; never edits hymns.json, because re-cutting re-indexes pins.
 
 Usage:  boundary_fit.py --workdir DIR [--max-seg 6]
