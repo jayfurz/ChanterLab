@@ -84,6 +84,7 @@ def _dtw(a, b):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--workdir', default='grave-orthros')
+    ap.add_argument('--legend', help='interval legend; default is the LEARNED one. Pass scores/legend_canon.json for the chanter atlas.')
     ap.add_argument('--genus', default='diatonic', choices=list(GENERA))
     ap.add_argument('--limit-sec', type=float, default=60.0)
     ap.add_argument('--identity-check', action='store_true',
@@ -93,7 +94,8 @@ def main():
     a = ap.parse_args()
 
     wd = a.workdir
-    legend = json.load(open(f'/mnt/data/chant-corpus/workdirs/{wd}/legend_global.json'))
+    legend = json.load(open(a.legend)) if a.legend else json.load(
+        open(f'/mnt/data/chant-corpus/workdirs/{wd}/legend_global.json'))
     cuts = json.load(open(f'{TEXTS}/cuts_{wd}.json'))['cuts']
     score = {c['hymn']: c for c in
              json.load(open(f'{TEXTS}/scorecuts_{wd}.json'))['cuts']}

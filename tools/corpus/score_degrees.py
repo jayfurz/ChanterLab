@@ -39,6 +39,31 @@ TEXTS = '/mnt/data/chant-corpus/texts'
 DEG = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω']
 
 
+def leading_anchor(p0, g0):
+    """The degree stated by the martyria that OPENS a range.
+
+    load_units attaches a martyria to the unit BEFORE it, because at a cadence
+    the martyria names the note just sung. At the start of a hymn that puts the
+    opening martyria one unit outside the range -- so a range beginning on a
+    drop cap never saw the martyria that names its first note, and every stream
+    started from whatever anchor it met later.
+
+    Chanter: "grave mode starts with the ga martyria so it should start on ga as
+    the beginning pitch". On gold t03's parallagi the range starts at unit 67
+    and unit 66 carries mart_deg=3, which is Ga.
+    """
+    if g0 <= 0:
+        return None
+    try:
+        us, _ = load_units(p0, 0, p0, 10 ** 6)
+    except Exception:
+        return None
+    for i in range(g0 - 1, max(g0 - 4, -1), -1):
+        if i < len(us) and us[i].get('mart_deg') is not None:
+            return us[i]['mart_deg']
+    return None
+
+
 def units_for(p0, l0, g0, p1, l1, g1):
     """Units inside a picked score range, in reading order."""
     out = []
@@ -64,18 +89,34 @@ def degree_stream(units, legend, start=None):
     """
     keys = legend['keys']
     deg = start
+    # A martyria printed before a hymn is right-aligned to the END of the
+    # previous hymn's last line, but it announces the NEW hymn's opening pitch
+    # rather than closing the old one. Chanter: "grave mode starts with the ga
+    # martyria so it should start on ga as the beginning pitch"; "the opening
+    # one is right aligned to the end of the last hymn". So the first unit
+    # TAKES that degree instead of moving from it.
+    opening = start is not None
     out = []
     for u in units:
         if u.get('rest'):
             continue
-        if deg is None and u.get('mart_deg') is not None:
-            deg = u['mart_deg']
-        iv = keys.get(u.get('key'), keys.get(f"{u.get('base')}|"))
-        if deg is not None and iv is not None:
-            deg += iv
-        out.append(deg)
+        # A martyria states the degree OF THE NOTE IT ACCOMPANIES, so that note
+        # takes the anchor value directly. An interval moves from the previous
+        # note to this one, so it must be applied BEFORE emitting -- but only
+        # when this note is not itself anchored. Applying it to the anchored
+        # note too displaced the whole stream by one degree, which showed up as
+        # a best-rotation of -1 against the sung parallagi (cosine 0.889
+        # rotated against 0.742 unrotated on gold t03's pair).
         if u.get('mart_deg') is not None:
-            deg = u['mart_deg']            # martyria re-anchors
+            deg = u['mart_deg']
+        elif opening:
+            pass                       # first note of the hymn: it IS the anchor
+        elif deg is not None:
+            iv = keys.get(u.get('key'), keys.get(f"{u.get('base')}|"))
+            if iv is not None:
+                deg += iv
+        opening = False
+        out.append(deg)
     return [d for d in out if d is not None]
 
 
@@ -86,6 +127,7 @@ def as_text(degs):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--workdir', default='grave-orthros')
+    ap.add_argument('--legend', help='interval legend; default is the LEARNED one. Pass scores/legend_canon.json for the chanter atlas.')
     ap.add_argument('--show')
     ap.add_argument('--evaluate', action='store_true')
     ap.add_argument('--limit', type=int, default=0,
@@ -93,7 +135,8 @@ def main():
     a = ap.parse_args()
 
     wd = a.workdir
-    legend = json.load(open(f'/mnt/data/chant-corpus/workdirs/{wd}/legend_global.json'))
+    legend = json.load(open(a.legend)) if a.legend else json.load(
+        open(f'/mnt/data/chant-corpus/workdirs/{wd}/legend_global.json'))
     spans = {c['hymn']: c for c in
              json.load(open(f'{TEXTS}/cuts_{wd}.json'))['cuts']}
     score = {c['hymn']: c for c in
@@ -103,7 +146,7 @@ def main():
         sc = score[h]
         us = units_for(sc['p0'], sc['l0'], sc['g0'],
                        sc['p1'], sc['l1'], sc['g1'])
-        d = degree_stream(us, legend)
+        d = degree_stream(us, legend, start=leading_anchor(sc['p0'], sc['g0']))
         return (d[:a.limit] if a.limit else d), len(us)
 
     if a.show:
