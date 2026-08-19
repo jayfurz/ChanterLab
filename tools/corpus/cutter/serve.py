@@ -234,6 +234,59 @@ def beats(u):
         return 1.0
 
 
+DEG_NAMES = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω']
+
+
+def degrees_for(wd, hymn):
+    """The degree each unit of a hymn's score range should be sung on.
+
+    Shown over the neumes so the chanter can read the stream against the page
+    and flag what is wrong. This is the pipeline's own output, not ground
+    truth: the legend and the martyria anchoring have both been wrong before,
+    which is exactly why it needs his eye.
+    """
+    sf = f'{TEXTS}/scorecuts_{wd}.json'
+    if not os.path.exists(sf):
+        return {'units': [], 'error': 'no score ranges for this tape'}
+    sc = {c['hymn']: c for c in json.load(open(sf))['cuts']}
+    if hymn not in sc:
+        return {'units': [], 'error': 'no score range for this span'}
+    c = sc[hymn]
+    from score_degrees import units_for, degree_stream, leading_anchor
+    canon = f'{SCORES}/legend_canon.json'
+    legend = ({'keys': json.load(open(canon))['keys']} if os.path.exists(canon)
+              else json.load(open(f'{WORKDIRS}/{wd}/legend_global.json')))
+    anchor = leading_anchor(c['p0'], c['g0'])
+    us = units_for(c['p0'], c['l0'], c['g0'], c['p1'], c['l1'], c['g1'])
+    degs = degree_stream(us, legend, start=anchor)
+    # degree_stream drops rests and unanchored units, so walk the same way to
+    # keep the labels attached to the right units
+    out, k = [], 0
+    page, idx = c['p0'], c['g0']
+    for u in us:
+        if u.get('rest'):
+            out.append(None)
+        else:
+            out.append(degs[k] if k < len(degs) else None)
+            k += 1
+    labels = []
+    p, i = c['p0'], c['g0']
+    for j, u in enumerate(us):
+        labels.append({'page': u['pl'][0], 'line': u['pl'][1],
+                       'x0': round(u['x0'], 1),
+                       'd': (out[j] % 7) if out[j] is not None else None,
+                       'n': (DEG_NAMES[out[j] % 7] if out[j] is not None
+                             else ''),
+                       'mart': u.get('mart_deg')})
+    flags = []
+    ff = f'{TEXTS}/degree_flags_{wd}.json'
+    if os.path.exists(ff):
+        flags = [x for x in json.load(open(ff))['flags'] if x['hymn'] == hymn]
+    return {'hymn': hymn, 'anchor': anchor,
+            'anchor_name': DEG_NAMES[anchor % 7] if anchor is not None else None,
+            'units': labels, 'flags': flags}
+
+
 def score_pages(wd):
     OFF = json.load(open(OFFSETS)) if os.path.exists(OFFSETS) else {}
     # Drop caps. Measured on the gold tape, 26 of 26 score-range starts land
@@ -341,6 +394,15 @@ class H(BaseHTTPRequestHandler):
                               'text/html; charset=utf-8')
         if p == '/api/tapes':
             return self._send(200, json.dumps(tapes(), ensure_ascii=False))
+        if p.startswith('/api/degrees/'):
+            parts = unquote(p[13:]).split('/', 1)
+            if len(parts) != 2 or not WD_RE.match(parts[0]):
+                return self._send(400, '{"error":"bad request"}')
+            try:
+                return self._send(200, json.dumps(
+                    degrees_for(parts[0], parts[1]), ensure_ascii=False))
+            except Exception as e:
+                return self._send(500, json.dumps({'error': str(e)}))
         if p.startswith('/api/peaks/'):
             wd = unquote(p[11:])
             if not WD_RE.match(wd):
@@ -449,6 +511,30 @@ class H(BaseHTTPRequestHandler):
                     return
                 left -= len(chunk)
 
+    def degree_flag(self):
+        """Record that a printed degree looks wrong on a particular unit."""
+        try:
+            n = int(self.headers.get('Content-Length', 0))
+            b = json.loads(self.rfile.read(n))
+            wd = b.get('workdir', '')
+            if not WD_RE.match(wd):
+                raise ValueError('bad workdir')
+            row = {'hymn': str(b['hymn']), 'page': int(b['page']),
+                   'line': int(b['line']), 'x0': float(b['x0']),
+                   'shown': b.get('shown'), 'note': str(b.get('note', ''))[:300]}
+        except Exception as e:
+            return self._send(400, json.dumps({'error': str(e)}))
+        f = f'{TEXTS}/degree_flags_{wd}.json'
+        doc = json.load(open(f)) if os.path.exists(f) else {'flags': []}
+        key = (row['hymn'], row['page'], row['line'], row['x0'])
+        doc['flags'] = [x for x in doc['flags']
+                        if (x['hymn'], x['page'], x['line'], x['x0']) != key]
+        if not b.get('clear'):
+            doc['flags'].append(row)
+        doc['saved'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+        json.dump(doc, open(f, 'w'), indent=1, ensure_ascii=False)
+        self._send(200, json.dumps({'ok': True, 'n': len(doc['flags'])}))
+
     def patch_span(self):
         """Update one field of one audio span, in place.
 
@@ -540,6 +626,8 @@ class H(BaseHTTPRequestHandler):
             return self.save_scorecuts()
         if path == '/api/span':
             return self.patch_span()
+        if path == '/api/degree-flag':
+            return self.degree_flag()
         if path != '/api/cuts':
             return self._send(404, '{"error":"not found"}')
         try:

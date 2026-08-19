@@ -59,6 +59,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
     <button id="mode0" class="on">tap = START</button>
     <button id="mode1">tap = END</button>
     <button id="snap" class="on">snap ⇥</button>
+    <button id="flagm">flag</button>
   </div>
   <div id="wf"><canvas></canvas></div>
   <div class="row">
@@ -107,6 +108,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
 <script>
 const $ = s => document.querySelector(s);
 let D = null, wd = null, rows = [], sel = 0, mode = 0;
+let DEG = null, flagMode = false;
 const A = $('#a');
 let PK = null, PPS = 20, rate = 1, stopAt = null;
 
@@ -309,7 +311,7 @@ async function load(k) {
   sel = 0;
   A.src = '/tape/' + encodeURIComponent(k); A.load(); applyRate();
   loadPeaks(k);
-  drawPages(); render();
+  drawPages(); render(); loadDegrees();
   const n = rows.filter(r => r.t0 != null).length;
   msg(`${D.pages.length} pages · ${D.pages.reduce((a, p) => a + p.glyphs.length, 0)} glyphs · ${n} audio spans`);
 }
@@ -365,6 +367,26 @@ function pick(p, fx, fy, cv) {
     best = nb;
   }
   const r = rows[sel]; if (!r) return;
+  if (flagMode) {
+    const u = DEG && DEG.units.find(q => q.page === p.page && q.line === best.l
+                                    && Math.abs(q.x0 - best.x0) < 1.5);
+    if (!u) return msg('no degree printed on that neume');
+    const key = p.page + ':' + u.line + ':' + Math.round(u.x0);
+    const on = DEG.flagged.has(key);
+    fetch('/api/degree-flag', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workdir: wd, hymn: r.name, page: p.page,
+                             line: u.line, x0: u.x0, shown: u.n,
+                             clear: on }) })
+      .then(res => res.json())
+      .then(j => {
+        if (j.error) return msg('✗ ' + j.error);
+        if (on) DEG.flagged.delete(key); else DEG.flagged.add(key);
+        msg(on ? `unflagged ${u.n}` : `flagged ${u.n} — ${j.n} total`);
+        repaintAll();
+      });
+    return;
+  }
   if (mode === 0) {
     let g = best;
     if (snap && (p.caps || []).length) {
@@ -451,6 +473,30 @@ function fillPick() {
   P.value = String(sel);
 }
 
+async function loadDegrees() {
+  DEG = null;
+  const r = rows[sel];
+  if (!r) { repaintAll(); return; }
+  try {
+    const res = await fetch(`/api/degrees/${encodeURIComponent(wd)}/` +
+                            encodeURIComponent(r.name));
+    const j = await res.json();
+    DEG = j.units && j.units.length ? j : null;
+    if (DEG) {
+      // index by page+line for drawing, and by rounded x for flag lookup
+      DEG.by = {};
+      DEG.units.forEach(u => {
+        (DEG.by[u.page + ':' + u.line] ||= []).push(u);
+      });
+      DEG.flagged = new Set((j.flags || []).map(f =>
+        f.page + ':' + f.line + ':' + Math.round(f.x0)));
+      msg(`parallagi shown — opens on ${j.anchor_name || '?'}` +
+          (j.flags && j.flags.length ? `, ${j.flags.length} flagged` : ''));
+    }
+  } catch (e) { /* degrees are an aid, never block marking */ }
+  repaintAll();
+}
+
 function render() {
   const L = $('#list'); L.innerHTML = '';
   rows.forEach((r, i) => {
@@ -468,7 +514,7 @@ function render() {
       (r.lane ? `<span class="lane-tag">${esc(r.lane)}</span>` : '') +
       `<span class="t">${done ? `p${r.p0}·${r.l0}·${r.g0} → p${r.p1}·${r.l1}·${r.g1}`
         : (r.t0 != null ? `${fmt(r.t1 - r.t0)}` : `hint p${r.hint?.[0]}–${r.hint?.[2]}`)}</span>`;
-    d.onclick = () => { sel = i; setMode(0); render(); repaintAll(); drawWave(); };
+    d.onclick = () => { sel = i; setMode(0); render(); loadDegrees(); drawWave(); };
     L.append(d);
   });
   const r = rows[sel];
@@ -501,7 +547,7 @@ function render() {
 }
 
 $('#pick').onchange = e => {
-  sel = +e.target.value; setMode(0); render(); repaintAll();
+  sel = +e.target.value; setMode(0); render(); loadDegrees();
   // jumping to a new hymn should show its score, not leave you 20 pages away
   $('#goto').click();
 };
@@ -546,6 +592,12 @@ $('#snap').onclick = () => {
   $('#snap').className = snap ? 'on' : '';
   msg(snap ? 'snapping on — starts to drop caps, ends to compounds'
            : 'snapping off — marks land exactly where you tap');
+};
+$('#flagm').onclick = () => {
+  flagMode = !flagMode;
+  $('#flagm').className = flagMode ? 'on' : '';
+  msg(flagMode ? 'flag mode — tap a neume whose degree looks wrong'
+               : 'flag mode off');
 };
 $('#mode0').onclick = () => setMode(0);
 $('#mode1').onclick = () => setMode(1);
