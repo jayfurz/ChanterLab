@@ -74,6 +74,11 @@ def main():
     ap.add_argument('--workdir', required=True)
     ap.add_argument('--device', default='cuda')
     ap.add_argument('--max-run', type=int, default=5)
+    ap.add_argument('--rescore', action='store_true',
+                    help='recompute segment scores instead of using the cache')
+    ap.add_argument('--ban', default='',
+                    help='comma-separated text indices the DP may not use; the '
+                         'use-once pass fills this in automatically')
     ap.add_argument('--max-seg-run', type=int, default=2,
                     help='most consecutive tape segments one hymn may span')
     a = ap.parse_args()
@@ -115,9 +120,18 @@ def main():
         cands.append((grp, w, ids, len(ids) + rep, pos_of[id(grp[0])]))
     print(f'  {len(pool)} entries -> {len(cands)} candidate texts')
 
-    # score every segment (and short runs of segments) against every candidate
-    best_for = {}
-    for i in range(len(segs)):
+    # Score every segment (and short run of segments) against every candidate.
+    # This is the only expensive part and it does not depend on the DP, so it is
+    # CACHED: the assignment can then be re-solved on CPU as many times as the
+    # constraints need, instead of re-running the model for every experiment.
+    cache = f'/mnt/data/chant-corpus/texts/segscores_{name}.json'
+    if os.path.exists(cache) and not a.rescore:
+        best_for = {tuple(int(x) for x in k.split(',')): v
+                    for k, v in json.load(open(cache)).items()}
+        print(f'  loaded cached scores for {len(best_for)} segment runs')
+    else:
+        best_for = {}
+    for i in (range(len(segs)) if not best_for else []):
         for n in range(1, a.max_seg_run + 1):
             if i + n > len(segs):
                 break
@@ -184,12 +198,18 @@ def main():
     for j in range(S + 1):
         D[0][j] = 0.0
         P[0][j] = (0, j - 1, None) if j else None
+    if not os.path.exists(cache) or a.rescore:
+        json.dump({f'{k[0]},{k[1]}': v for k, v in best_for.items()},
+                  open(cache, 'w'), ensure_ascii=False)
+        print(f'  cached scores -> {cache}')
+
     # LAST[i][j] = index in the text pool of the text used most recently on the
     # best path to (i, j). Carrying it makes the texts monotonically ordered,
     # which is the constraint that was missing: the book and the tape run in the
     # same liturgical order, so a text may not be reused and may not go
     # backwards. Without it Κατέλυσας was assigned to two different hymns and
     # the middle of the tape was skipped wholesale.
+    banned = {int(x) for x in a.ban.split(',') if x.strip().isdigit()}
     LAST = [[-1] * (S + 1) for _ in range(H + 1)]
     CH = [[None] * (S + 1) for _ in range(H + 1)]
     for i in range(1, H + 1):
@@ -209,6 +229,8 @@ def main():
                     continue
                 prev_last = LAST[i - 1][j - n]
                 for o in b['opts']:
+                    if o['gi'] in banned:
+                        continue
                     # NOT o['gi'] > prev_last. Text-index monotonicity looks
                     # right — book and tape both run in liturgical order — but
                     # the pool is GLT DOCUMENT order, which interleaves the
