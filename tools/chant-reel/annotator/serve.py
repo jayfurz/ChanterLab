@@ -35,7 +35,71 @@ EXPORT_FILES = {          # payload key -> filename written
 OPTIONAL_KEYS = {"pitch_ghosts": [], "analytical_notes": []}   # defaults for older clients
 
 
+# The boundary cutter runs as its own service on 8790, bound to localhost. It
+# is reachable over tailscale, but the chanter works through
+# annotator.lab.alwaysdobetterllc.com, which the lab proxy forwards to THIS
+# port — so its routes are passed through from here rather than asking him to
+# use a second hostname. "/" stays the pin annotator; nothing is shadowed.
+CUTTER = ('127.0.0.1', 8790)
+CUTTER_PREFIXES = ('/score', '/cut', '/tape/', '/page/', '/api/tapes',
+                   '/api/score/', '/api/peaks/', '/api/degrees/',
+                   '/api/cuts', '/api/scorecuts', '/api/span',
+                   '/api/degree-flag')
+
+
+def _is_cutter(path):
+    p = path.split('?')[0]
+    return any(p == x.rstrip('/') or p.startswith(x) for x in CUTTER_PREFIXES)
+
+
 class Handler(SimpleHTTPRequestHandler):
+    def _proxy(self, method):
+        """Forward one request to the cutter, streaming the body back.
+
+        Range requests must survive intact or seeking inside a two-hour tape
+        breaks, so status and headers are copied rather than regenerated.
+        """
+        import http.client
+        body = b''
+        n = int(self.headers.get('Content-Length', 0) or 0)
+        if n:
+            body = self.rfile.read(n)
+        try:
+            c = http.client.HTTPConnection(*CUTTER, timeout=300)
+            hdrs = {k: v for k, v in self.headers.items()
+                    if k.lower() in ('range', 'content-type', 'accept')}
+            c.request(method, self.path, body=body or None, headers=hdrs)
+            r = c.getresponse()
+        except Exception as e:
+            self.send_error(502, f'cutter unreachable: {e}')
+            return
+        self.send_response(r.status)
+        for k, v in r.getheaders():
+            if k.lower() in ('connection', 'transfer-encoding'):
+                continue
+            self.send_header(k, v)
+        self.end_headers()
+        while True:
+            chunk = r.read(262144)
+            if not chunk:
+                break
+            try:
+                self.wfile.write(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                self.close_connection = True
+                break
+        c.close()
+
+    def do_GET(self):
+        if _is_cutter(self.path):
+            return self._proxy('GET')
+        return super().do_GET()
+
+    def do_HEAD(self):
+        if _is_cutter(self.path):
+            return self._proxy('HEAD')
+        return super().do_HEAD()
+
     exports_dir: Path = HERE / "exports"
     extensions_map = {**SimpleHTTPRequestHandler.extensions_map,
                       ".txt": "text/plain; charset=utf-8",
@@ -43,6 +107,8 @@ class Handler(SimpleHTTPRequestHandler):
                       ".json": "application/json; charset=utf-8"}
 
     def do_POST(self):
+        if _is_cutter(self.path):
+            return self._proxy('POST')
         if self.path.rstrip("/") == "/api/clusters":
             self.handle_clusters()
             return
