@@ -16,6 +16,37 @@ only, runs of one letter collapsed — because the melisma reprints the vowel on
 per note, so 'ωωω' and 'ω' are the same word.
 
 Usage:  glt_match.py [--workdir DIR] [--all-modes] [--min 0.55]
+
+STATUS 2026-08-18: NOT YET TRUSTWORTHY. Read before using the output.
+
+  v1 matched each hymn independently to its best-covering GLT text. That is
+  degenerate — 173 corpus hymns collapsed onto 73 distinct texts, one claimed by
+  17 hymns — and dropcap_check.py caught it: only 38% of hymns had their
+  canonical initial among the drop caps on their own start page.
+
+  v2 (this file) applies the chanter's correction: "the hymns are already in
+  order ... lord i have cried then the verses then the stichera then the glory
+  both now doxastikon theotokia ... then aposticha ... the order is the same".
+  So it is a monotonic sequence alignment, not independent lookups. That
+  structure is right and it does make the assignment one-to-one and ordered.
+
+  But it does NOT yet lock on. On grave-orthros the ordered path puts
+  Κατέλυσας on t01 when the fragments prove it belongs to t03, and most
+  similarities sit at 0.2-0.4. Two known causes, both fixable, neither fixed:
+
+    1. The GLT parse is too noisy to align against. Rubrics are glued to the
+       first line of the hymn ("Ὁ Εἱρμὸς «Νεύσει σοῦ ...", "Στιχ. ..."), 40 of
+       603 entries are still merged appendices, and the orthros section offers
+       41 candidates for 25 recorded hymns.
+    2. The DP is driven by aggregate similarity over a noisy field instead of
+       being anchored. The rest of this project already learned that lesson —
+       hymn_align anchors on parallagi degrees and martyria before trusting the
+       path. This needs the same: pin the few high-confidence matches (t41 0.92,
+       t44 0.82, t48 0.85) and align between them.
+
+  Until both are done, treat glt_hymn_match.json as a CANDIDATE list, not as
+  hymn identification, and do not feed it to SYL-01. The canonical text itself
+  (glt_oktoechos.json, 603 accented hymns) is sound and independently useful.
 """
 import argparse
 import difflib
@@ -34,6 +65,15 @@ WD_MODE = {'mode1': 'mode1', 'mode1-orthros': 'mode1', 'mode2': 'mode2',
            'mode4': 'mode4', 'grave': 'grave', 'grave-orthros': 'grave',
            'pl1-vespers': 'pl1', 'pl1-compunction': 'pl1', 'pl2': 'pl2',
            'pl4': 'pl4', 'pl4-orthros': 'pl4'}
+# a workdir is ONE service, and GLT lists the same hymn separately under small
+# vespers, great vespers and orthros. Filtering by service both sharpens the
+# match and keeps the order constraint meaningful.
+WD_SERVICE = {'orthros': ('orthros',),
+              'vespers': ('small_vespers', 'great_vespers', 'vespers')}
+
+
+def services_for(name):
+    return WD_SERVICE['orthros'] if 'orthros' in name else WD_SERVICE['vespers']
 
 
 def score_text(h):
@@ -43,15 +83,67 @@ def score_text(h):
     return collapse(norm(''.join(w['text'] for w in lyr)))
 
 
-def best(s, cands):
-    """highest matched-character coverage of the SCORE text by a GLT hymn"""
-    out = []
-    for g in cands:
-        sm = difflib.SequenceMatcher(None, s, g['collapsed'], autojunk=False)
-        cov = sum(b.size for b in sm.get_matching_blocks()) / max(len(s), 1)
-        out.append((cov, g))
-    out.sort(key=lambda x: -x[0])
-    return out[:3]
+def sim(a, b):
+    """how much of the SCORE text this GLT hymn accounts for, mildly damped by
+    gross length mismatch.
+
+    Pure coverage-of-score is right in spirit — a recording often covers only
+    part of a hymn, so the score text is a subset and a symmetric ratio punishes
+    that unfairly — but on its own it is degenerate, because a long GLT blob
+    covers almost any Greek text. The damping only bites when the GLT entry is
+    far longer than the score; the ORDER constraint in align() does the real
+    work of stopping one text being claimed by many hymns."""
+    sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
+    cov = sum(bl.size for bl in sm.get_matching_blocks()) / max(len(a), 1)
+    return cov * min(1.0, (len(a) / max(len(b), 1)) ** 0.25)
+
+
+def align(scores, cands, gap_c=0.35):
+    """Monotonic alignment of the hymn sequence to the GLT sequence.
+
+    The chanter's point, and the thing the first version got wrong: the hymns
+    are ALREADY IN ORDER, in the book and in GLT alike — Lord I Have Cried, the
+    verses, the stichera, Glory/Both Now, the doxastikon and theotokion, the
+    aposticha, the apolytikion, then Orthros. So this is a sequence alignment,
+    not 173 independent nearest-neighbour lookups. Matching independently let 17
+    different hymns claim one GLT text and let matches run out of order; a
+    monotonic path forbids both, and each match constrains its neighbours.
+
+    Same shape as hymn_align.dtw: skips allowed on both sides (GLT holds hymns
+    the recording never covers, and the recording holds hymns GLT does not).
+    Returns [(score_index, glt_index or None, similarity)].
+    """
+    n, m = len(scores), len(cands)
+    if not n or not m:
+        return []
+    NEG = -1e9
+    D = [[NEG] * (m + 1) for _ in range(n + 1)]
+    P = [[None] * (m + 1) for _ in range(n + 1)]
+    D[0][0] = 0.0
+    for j in range(1, m + 1):          # skipping GLT hymns is free
+        D[0][j] = 0.0
+        P[0][j] = (0, j - 1, 'g')
+    for i in range(1, n + 1):
+        D[i][0] = D[i - 1][0] - gap_c
+        P[i][0] = (i - 1, 0, 'c')
+        for j in range(1, m + 1):
+            best_v, best_p = D[i - 1][j] - gap_c, (i - 1, j, 'c')
+            if D[i][j - 1] > best_v:
+                best_v, best_p = D[i][j - 1], (i, j - 1, 'g')
+            v = D[i - 1][j - 1] + sim(scores[i - 1], cands[j - 1]['collapsed'])
+            if v > best_v:
+                best_v, best_p = v, (i - 1, j - 1, 'm')
+            D[i][j], P[i][j] = best_v, best_p
+    i, j, out = n, m, []
+    while i > 0 or j > 0:
+        pi, pj, kind = P[i][j]
+        if kind == 'm':
+            out.append((pi, pj, sim(scores[pi], cands[pj]['collapsed'])))
+        elif kind == 'c':
+            out.append((pi, None, 0.0))
+        i, j = pi, pj
+    out.reverse()
+    return out
 
 
 def main():
@@ -72,24 +164,39 @@ def main():
             continue
         name = os.path.basename(wd.rstrip('/'))
         mode = WD_MODE.get(name)
-        cands = glt if (a.all_modes or not mode) else [g for g in glt if g['mode'] == mode]
+        svc = services_for(name)
+        cands = [g for g in glt
+                 if (a.all_modes or not mode or g['mode'] == mode)
+                 and g['service'] in svc]
         if not cands:
-            cands = glt
+            cands = [g for g in glt if not mode or g['mode'] == mode] or glt
         print(f'\n=== {name}  ({len(cands)} candidate GLT hymns)')
-        for h in json.load(open(hy)):
-            s = score_text(h)
-            if len(s) < 12:
-                print(f'  {h["name"][:24]:24s} NO LYRICS'); continue
-            top = best(s, cands)
-            cov, g = top[0]
-            flag = 'ok ' if cov >= a.min else 'LOW'
-            rows.append({'workdir': name, 'hymn': h['name'], 'coverage': round(cov, 3),
+        # both sides in liturgical order: hymns by (page, line), GLT as parsed
+        hl = sorted(json.load(open(hy)), key=lambda h: (h['p0'], h['l0']))
+        texts = [score_text(h) for h in hl]
+        keep = [k for k, t in enumerate(texts) if len(t) >= 12]
+        for k, h in enumerate(hl):
+            if k not in keep:
+                print(f'  {h["name"][:24]:24s} NO LYRICS')
+        path = align([texts[k] for k in keep], cands)
+        for si, gj, sc in path:
+            h = hl[keep[si]]
+            if gj is None:
+                print(f'  --  {h["name"][:22]:22s} unaligned')
+                rows.append({'workdir': name, 'hymn': h['name'], 'coverage': 0.0,
+                             'glt_page': None, 'glt_service': None,
+                             'glt_heading': None, 'glt_text': '',
+                             'score_chars': len(texts[keep[si]])})
+                continue
+            g = cands[gj]
+            flag = 'ok ' if sc >= a.min else 'LOW'
+            rows.append({'workdir': name, 'hymn': h['name'], 'coverage': round(sc, 3),
                          'glt_page': g['page'], 'glt_service': g['service'],
                          'glt_heading': g['heading'], 'glt_text': g['text'],
-                         'score_chars': len(s), 'glt_chars': len(g['collapsed']),
-                         'runner_up': round(top[1][0], 3) if len(top) > 1 else None})
-            print(f'  {flag} {h["name"][:22]:22s} cov {cov:.2f}  '
-                  f'{g["service"][:14]:14s} {g["text"][:52]}')
+                         'score_chars': len(texts[keep[si]]),
+                         'glt_chars': len(g['collapsed'])})
+            print(f'  {flag} {h["name"][:22]:22s} sim {sc:.2f}  '
+                  f'{g["service"][:14]:14s} {g["text"][:50]}')
     json.dump(rows, open(a.out, 'w'), ensure_ascii=False, indent=1)
     good = sum(1 for r in rows if r['coverage'] >= a.min)
     print(f'\n{good}/{len(rows)} matched at >= {a.min} coverage -> {a.out}')
