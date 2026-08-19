@@ -111,3 +111,39 @@ usable as a RATE but not yet as a SEQUENCE. Getting from one to the other is
 the open problem, and it should be measured against the score's own degrees
 rather than against unitdeg, which was itself derived from parallagi
 alignment and would make the test circular.
+
+## Matching score degrees to parallagi audio: tried, and why it failed
+
+The chanter proposed the step that avoids text entirely: "cant you just decode
+each score to get the parallagi streams then check if the candidate hymn
+contains those since it works better if we ask it to align against text we give
+it". Forced alignment against a supplied string IS more reliable than free
+decoding, and a parallagi recording IS the score read out as degree names, so
+the two sides can be compared in one alphabet with no hymn text involved.
+
+Implemented in `score_degrees.py`: units in a picked score range -> intervals
+from the unit-key legend -> absolute degrees anchored by martyria -> the string
+"νη πα βου γα δι ...", force-aligned against each gold parallagi span.
+
+Result: **2 of 23** spans are best-matched by their own score. Median rank of
+the correct answer is about 9 of 21 -- chance.
+
+The reason is measurable, and it is not the matching logic. Across all 23 gold
+parallagi spans the ASR heard 254 degree tokens distributed like this:
+
+    Ni  1%   Pa  4%   Vou 32%   Ga 2%   Di 21%   Ke 39%   Zo 2%
+
+It collapses seven classes into roughly three. The scores it is being matched
+against are spread across all seven and DO differ sharply between hymns, so the
+score side is discriminative and the audio side is not. Median cosine
+similarity between the heard and notated degree histograms is 0.47.
+
+So the model can hear THAT degrees are being sung -- 96% lane detection, which
+only needs a rate -- but not WHICH degree, which is what identification needs.
+Off-the-shelf Greek ASR has no notion of these seven syllables as a closed set
+and maps sustained sung vowels onto whatever its language model finds nearest.
+
+This does not close the approach; it identifies the missing piece. A seven-way
+degree classifier would fix it, and the gold tape now makes one trainable: 23
+parallagi spans whose score-derived degree sequences give weak labels for
+exactly the classes the general model is collapsing.
