@@ -279,17 +279,28 @@ def main():
     ap.add_argument('--refresh', action='store_true')
     a = ap.parse_args()
     all_h = []
+    split_h = []
     for p in PAGES + ORDINARY:
         try:
             h = parse(p, read_runs(fetch(p, a.refresh)))
         except Exception as e:
             print(f'  {p}: FAILED {e}')
             continue
+        split_h += h              # the over-split form, before combining
         h = combine_parts(h)
         all_h += h
         print(f'  {p:20s} {len(h):4d} hymns')
     json.dump(all_h, open(OUT, 'w'), ensure_ascii=False, indent=1)
+    # The over-split form is what forced alignment wants: it scores RUNS of
+    # consecutive entries against the audio, so it needs the pieces, not a
+    # pre-combined guess. Combining is a liturgical judgement; CTC likelihood is
+    # an acoustic measurement, and the measurement should get the raw material.
+    sp = OUT.replace('.json', '_split.json')
+    for g in split_h:
+        g.pop('_w', None)
+    json.dump(split_h, open(sp, 'w'), ensure_ascii=False, indent=1)
     print(f'\n{len(all_h)} hymns -> {OUT}')
+    print(f'{len(split_h)} over-split entries -> {sp}')
 
 
 if __name__ == '__main__':
