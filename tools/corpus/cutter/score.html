@@ -38,6 +38,8 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
   border-top:1px solid var(--line);padding:8px 10px;
   padding-bottom:calc(8px + env(safe-area-inset-bottom));z-index:7}
 #list{max-height:34vh;overflow:auto;padding:0 10px}
+#list[hidden]{display:none}
+#pick{width:100%;margin-bottom:6px}
 .h{display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--line);
   border-radius:9px;margin-bottom:5px;background:var(--panel)}
 .h.sel{border-color:var(--gold);background:#241d14}
@@ -66,10 +68,14 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
 </header>
 <audio id="a" preload="metadata" playsinline webkit-playsinline></audio>
 
-<div id="list"></div>
+<div id="list" hidden></div>
 <main id="pages"></main>
 
 <footer>
+  <!-- The span selector lives in the fixed footer. It used to be a list above
+       the score, which meant choosing a hymn required scrolling 39 pages back
+       to the top. On iOS this opens as a full-screen picker. -->
+  <select id="pick"></select>
   <input id="lab" placeholder="label — e.g. Θεὸς Κύριος (apichima on νε first)"
          autocapitalize="off" autocomplete="off" spellcheck="false">
   <div class="row">
@@ -77,6 +83,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
     <button id="next">&#8595; next</button>
     <button id="goto">show span</button>
     <button id="clr">clear</button>
+    <button id="toggle">list</button>
     <button id="save">Save</button>
   </div>
 </footer>
@@ -331,6 +338,22 @@ function paint(p, cv) {
 }
 function repaintAll() { D.pages.forEach(p => { if (p._cv && p._cv.width) paint(p, p._cv); }); }
 
+function fillPick() {
+  const P = $('#pick'); P.innerHTML = '';
+  rows.forEach((r, i) => {
+    const o = document.createElement('option');
+    o.value = i;
+    const done = r.p0 != null && r.p1 != null;
+    o.textContent = `#${String(i + 1).padStart(2, '0')} ` +
+      `${done ? '\u2713 ' : ''}${r.name}` +
+      `${r.lane ? ' [' + r.lane + ']' : ''}` +
+      `${r.label ? ' — ' + r.label : ''}` +
+      `${r.t0 != null ? '  (' + fmt(r.t1 - r.t0) + ')' : ''}`;
+    P.append(o);
+  });
+  P.value = String(sel);
+}
+
 function render() {
   const L = $('#list'); L.innerHTML = '';
   rows.forEach((r, i) => {
@@ -366,8 +389,19 @@ function render() {
     else if (top + el.offsetHeight > L2.scrollTop + L2.clientHeight)
       L2.scrollTop = top + el.offsetHeight - L2.clientHeight;
   }
+  fillPick();
   drawWave();
 }
+
+$('#pick').onchange = e => {
+  sel = +e.target.value; setMode(0); render(); repaintAll();
+  // jumping to a new hymn should show its score, not leave you 20 pages away
+  $('#goto').click();
+};
+$('#toggle').onclick = () => {
+  const L = $('#list'); L.hidden = !L.hidden;
+  $('#toggle').className = L.hidden ? '' : 'on';
+};
 
 function setMode(m) {
   mode = m;
@@ -381,9 +415,12 @@ $('#next').onclick = () => { sel = Math.min(rows.length - 1, sel + 1); setMode(0
 $('#clr').onclick = () => { const r = rows[sel]; r.p0 = r.l0 = r.g0 = r.p1 = r.l1 = r.g1 = null;
                             setMode(0); render(); repaintAll(); autosave(); };
 $('#goto').onclick = () => {
-  const r = rows[sel]; const pg = r.p0 ?? r.hint?.[0];
-  const el = [...document.querySelectorAll('.pg')][D.pages.findIndex(p => p.page === pg)];
-  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const r = rows[sel]; if (!r) return;
+  const pg = r.p0 ?? r.hint?.[0];
+  const idx = pg == null ? -1 : D.pages.findIndex(p => p.page === pg);
+  if (idx < 0) return msg('no page known for this span yet — scroll to it');
+  document.querySelectorAll('.pg')[idx]
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 $('#lab').addEventListener('input', e => { rows[sel].label = e.target.value; render(); autosave(); });
 
