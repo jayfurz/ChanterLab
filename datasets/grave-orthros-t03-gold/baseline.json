@@ -1,16 +1,10 @@
 {
  "frozen_at": "2026-08-18",
- "revision": 5,
- "revision_note": "r5: audio re-cut at silence-bounded segment edges (RESEP-02). The old cut began 1.5 s before the singing; the new one begins at the segment edge, so every pin is shifted by -1.5 s and the first pin now sits at the 0.2 s lead margin. Pin INDICES are unchanged \u2014 the score slice did not move. Previous pins kept at pins.json.r4-pre-resep.",
+ "revision": 4,
+ "revision_note": "r4: 76 chanter-verified pins against 004_melos_fixed.wav. A revision 5 briefly re-indexed these to a segment-edge re-cut; that re-cut was reverted when name_check.py showed corpus identification is ~20% correct, not the 81% the loss gate implied. Pins are r4 values, unshifted, against the original audio.",
  "piece": "grave-orthros-t03",
  "hymn": "t03_",
  "workdir": "/mnt/data/chant-corpus/workdirs/grave-orthros",
- "audio": {
-  "path": "/mnt/data/chant-corpus/pieces/Mode Grave Anastasimatarion 2 Orthros/004_melos_fixed.recut.wav",
-  "previous": "/mnt/data/chant-corpus/pieces/Mode Grave Anastasimatarion 2 Orthros/004_melos_fixed.wav",
-  "recut_shift_s": 1.5,
-  "source": "segment_edges"
- },
  "score": {
   "pages": [
    520,
