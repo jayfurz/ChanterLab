@@ -1,0 +1,18 @@
+[
+ {
+  "gi": 0,
+  "note": "Should be plus 1\nThe word is \u039a\u03b1 (drop cap \u039a and vowel \u03b1)\n"
+ },
+ {
+  "gi": 1,
+  "note": "\u03a4\u03b5 is the word. Interval is +1 (\u03c0\u03b5\u03c4\u03b1\u03c3\u03c4\u03ae)"
+ },
+ {
+  "gi": 2,
+  "note": "Interval is down one (\u03b1\u03c0\u03cc\u03c3\u03c4\u03c1\u03bf\u03c6\u03bf\u03c2)"
+ },
+ {
+  "gi": 3,
+  "note": "Interval stays the same (\u03b9\u03c3\u03cc\u03bd)"
+ }
+]

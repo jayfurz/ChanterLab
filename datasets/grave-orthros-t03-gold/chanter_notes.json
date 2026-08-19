@@ -1,0 +1,252 @@
+[
+ {
+  "gi": 0,
+  "gi_export_75unit": 0,
+  "note": "Should be plus 1\nThe word is Κα (drop cap Κ and vowel α)\n",
+  "note_empty": false,
+  "machine_key": "6|",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": 1,
+  "pending_transcription": false
+ },
+ {
+  "gi": 1,
+  "gi_export_75unit": 1,
+  "note": "Τε is the word. Interval is +1 (πεταστή)",
+  "note_empty": false,
+  "machine_key": "3|",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": 1,
+  "pending_transcription": false
+ },
+ {
+  "gi": 2,
+  "gi_export_75unit": 2,
+  "note": "Interval is down one (απόστροφος)",
+  "note_empty": false,
+  "machine_key": "4|",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": -1,
+  "pending_transcription": false
+ },
+ {
+  "gi": 3,
+  "gi_export_75unit": 3,
+  "note": "Interval stays the same (ισόν)",
+  "note_empty": false,
+  "machine_key": "5|",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": 0,
+  "pending_transcription": false
+ },
+ {
+  "gi": 6,
+  "gi_export_75unit": 6,
+  "note": "This is two different notes with a ομαλον below it which is ties the two together, but is qualitatively/orthographic only. Technically i think it’s under the second. The first note is the oligon (up one) then the ison (stay the same)",
+  "note_empty": false,
+  "machine_key": "6|36be",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": 1,
+  "pending_transcription": false
+ },
+ {
+  "gi": 7,
+  "gi_export_75unit": null,
+  "note": "Ison of the split oligon+ison figure that used to be one unit. Chanter 2026-08-18: \"it should be split into an oligon and ison (two neumes)\"; omalon underneath and the preceding vareia are qualitative/orthographic, no quantity; there is no apli. Onset pinned at the midpoint of the old units 6 and 7.",
+  "note_empty": false,
+  "machine_key": "5|",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": false
+ },
+ {
+  "gi": 10,
+  "gi_export_75unit": 9,
+  "note": "This is an oligon with psifiston underneath. Psifiston is just orthographic and qualitative. Oligon should be +1",
+  "note_empty": false,
+  "machine_key": "7|6ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": 1,
+  "pending_transcription": false
+ },
+ {
+  "gi": 12,
+  "gi_export_75unit": 11,
+  "note": "This is a αποστροφός with a klasma meaning interval -1 with an extra beat due to the klasma",
+  "note_empty": false,
+  "machine_key": "4|8ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": -1,
+  "pending_transcription": false
+ },
+ {
+  "gi": 13,
+  "gi_export_75unit": 12,
+  "note": "This is an ison with gorgon underneath. Meaning the note is +0 and 1/2 a beat, and it steals a 1/2 beat from the previous note with the klasma which makes the previous note 1-1/2 beats",
+  "note_empty": false,
+  "machine_key": "5|",
+  "machine_beats": 0.5,
+  "chanter_interval_applied": 0,
+  "pending_transcription": false
+ },
+ {
+  "gi": 14,
+  "gi_export_75unit": 13,
+  "note": "This is a petasti compound with a kentima meaning go up three. It also has a klasma below which means it is two beats. The red ajem on top turns the scale into harmonic meaning the zo gets flattened to be only 6 moria from ke and 12 from ni (ie one semitone from ke and two semitones (fullstep ) from ni)",
+  "note_empty": false,
+  "machine_key": "3|16ab+8be",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": 3,
+  "pending_transcription": false
+ },
+ {
+  "gi": 19,
+  "gi_export_75unit": 18,
+  "note": "Ison plus kentimata with klasma below. 2 beats, +0 interval (interval is correct)",
+  "note_empty": false,
+  "machine_key": "3|22ab+8be",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ },
+ {
+  "gi": 22,
+  "gi_export_75unit": 21,
+  "note": "",
+  "note_empty": true,
+  "machine_key": "7|6ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": false
+ },
+ {
+  "gi": 24,
+  "gi_export_75unit": 23,
+  "note": "",
+  "note_empty": true,
+  "machine_key": "4|8ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": false
+ },
+ {
+  "gi": 31,
+  "gi_export_75unit": 30,
+  "note": "",
+  "note_empty": true,
+  "machine_key": "3|8be",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": false
+ },
+ {
+  "gi": 36,
+  "gi_export_75unit": 35,
+  "note": "",
+  "note_empty": true,
+  "machine_key": "6|8ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": false
+ },
+ {
+  "gi": 39,
+  "gi_export_75unit": 38,
+  "note": "",
+  "note_empty": true,
+  "machine_key": "7|16ab+6ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": false
+ },
+ {
+  "gi": 42,
+  "gi_export_75unit": 41,
+  "note": "",
+  "note_empty": true,
+  "machine_key": "7|6ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": false
+ },
+ {
+  "gi": 45,
+  "gi_export_75unit": 44,
+  "note": "Petasti with KLASMA on bottom. Should add an extra beat",
+  "note_empty": false,
+  "machine_key": "3|8be",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ },
+ {
+  "gi": 48,
+  "gi_export_75unit": 47,
+  "note": "Oligon with vareia underneath. Vareia is qualitative. Oligon makes it +1",
+  "note_empty": false,
+  "machine_key": "7|6ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ },
+ {
+  "gi": 50,
+  "gi_export_75unit": 49,
+  "note": "Apostrophos with KLASMA on top. Two beats. The martyria afterwards says ga. Is that degree 3? Just use the solfege syllables. ",
+  "note_empty": false,
+  "machine_key": "4|8ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ },
+ {
+  "gi": 61,
+  "gi_export_75unit": 60,
+  "note": "Oligon with petasti. Hold an extra beat. ",
+  "note_empty": false,
+  "machine_key": "6|8ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ },
+ {
+  "gi": 63,
+  "gi_export_75unit": 62,
+  "note": "Oligon with kentima on top like this is +3. Vareia underneath qualitative/orthographic only. ",
+  "note_empty": false,
+  "machine_key": "7|16ab+6ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ },
+ {
+  "gi": 66,
+  "gi_export_75unit": 65,
+  "note": "Petasti with klasma compound. Should be plus one beat",
+  "note_empty": false,
+  "machine_key": "3|8be",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ },
+ {
+  "gi": 71,
+  "gi_export_75unit": 70,
+  "note": "This is an oligon with psifiston underneath. Should be +1 interval",
+  "note_empty": false,
+  "machine_key": "7|6ab",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ },
+ {
+  "gi": 75,
+  "gi_export_75unit": 74,
+  "note": "This is a oligon with a dipli. (Dipli only Usually at the end of phrases)",
+  "note_empty": false,
+  "machine_key": "6|10be+10be",
+  "machine_beats": 1.0,
+  "chanter_interval_applied": null,
+  "pending_transcription": true
+ }
+]

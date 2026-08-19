@@ -1,0 +1,6592 @@
+[
+ {
+  "gi": 0,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 0,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8",
+   "0xf043"
+  ],
+  "expected_degrees": [
+   0,
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   0,
+   1
+  ],
+  "word": "Glory",
+  "word_start": true
+ },
+ {
+  "gi": 1,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   2
+  ],
+  "word": "Glory",
+  "word_start": false
+ },
+ {
+  "gi": 2,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   3
+  ],
+  "word": "Glory",
+  "word_start": false
+ },
+ {
+  "gi": 3,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   4
+  ],
+  "word": "to",
+  "word_start": true
+ },
+ {
+  "gi": 4,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   5
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 5,
+  "cp": "0xf04f",
+  "name": "kentimata-compound",
+  "line": 0,
+  "sub_notes": 2,
+  "beats": [
+   1.0,
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1,
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   6,
+   7
+  ],
+  "word": "Father,",
+  "word_start": true
+ },
+ {
+  "gi": 6,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   8
+  ],
+  "word": "Father,",
+  "word_start": false
+ },
+ {
+  "gi": 7,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   9
+  ],
+  "word": "and",
+  "word_start": true
+ },
+ {
+  "gi": 8,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   10
+  ],
+  "word": "to",
+  "word_start": true
+ },
+ {
+  "gi": 9,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 0,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   3,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   11,
+   12
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 10,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   13
+  ],
+  "word": "the",
+  "word_start": false
+ },
+ {
+  "gi": 11,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   14
+  ],
+  "word": "Son,",
+  "word_start": true
+ },
+ {
+  "gi": 12,
+  "cp": "0xf059",
+  "name": "elafron+kentimata",
+  "line": 0,
+  "sub_notes": 2,
+  "beats": [
+   1.0,
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf043"
+  ],
+  "expected_degrees": [
+   2,
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   15,
+   16
+  ],
+  "word": "and",
+  "word_start": true
+ },
+ {
+  "gi": 13,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 0,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   17
+  ],
+  "word": "and",
+  "word_start": false
+ },
+ {
+  "gi": 14,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   18
+  ],
+  "word": "and",
+  "word_start": false
+ },
+ {
+  "gi": 15,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   19
+  ],
+  "word": "to",
+  "word_start": true
+ },
+ {
+  "gi": 16,
+  "cp": "0xf06f",
+  "name": "kentimata-compound",
+  "line": 1,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0,
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   20,
+   21
+  ],
+  "word": "to",
+  "word_start": false
+ },
+ {
+  "gi": 17,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   22
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 18,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   23
+  ],
+  "word": "Holy",
+  "word_start": true
+ },
+ {
+  "gi": 19,
+  "cp": "0xf059",
+  "name": "elafron+kentimata",
+  "line": 1,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   -1,
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   24,
+   25
+  ],
+  "word": "Holy",
+  "word_start": false
+ },
+ {
+  "gi": 20,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   26
+  ],
+  "word": "Holy",
+  "word_start": false
+ },
+ {
+  "gi": 21,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   27
+  ],
+  "word": "Holy",
+  "word_start": false
+ },
+ {
+  "gi": 22,
+  "cp": "0xf050",
+  "name": "ison+kentimata",
+  "line": 1,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   1.0
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2,
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   28,
+   29
+  ],
+  "word": "Spirit.",
+  "word_start": true
+ },
+ {
+  "gi": 23,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   30
+  ],
+  "word": "Spirit.",
+  "word_start": false
+ },
+ {
+  "gi": 24,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 1,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0,
+   -1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   31,
+   32
+  ],
+  "word": "Spirit.",
+  "word_start": false
+ },
+ {
+  "gi": 25,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [
+   "antikenoma"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   33
+  ],
+  "word": "Spirit.",
+  "word_start": false
+ },
+ {
+  "gi": 26,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   34
+  ],
+  "word": "Spirit.",
+  "word_start": false
+ },
+ {
+  "gi": 27,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 1,
+  "sub_notes": 1,
+  "beats": [
+   3.0
+  ],
+  "gorgon": false,
+  "duration_mark": "diple",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   35
+  ],
+  "word": "Spirit.",
+  "word_start": false
+ },
+ {
+  "gi": 28,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf043"
+  ],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   36
+  ],
+  "word": "When",
+  "word_start": true
+ },
+ {
+  "gi": 29,
+  "cp": "0xf075",
+  "name": "oligon+ypsili+kentimata",
+  "line": 2,
+  "sub_notes": 2,
+  "beats": [
+   1.0,
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5,
+   6
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   37,
+   38
+  ],
+  "word": "didst",
+  "word_start": true
+ },
+ {
+  "gi": 30,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   39
+  ],
+  "word": "didst",
+  "word_start": false
+ },
+ {
+  "gi": 31,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   40
+  ],
+  "word": "show",
+  "word_start": true
+ },
+ {
+  "gi": 32,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   41
+  ],
+  "word": "show",
+  "word_start": false
+ },
+ {
+  "gi": 33,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 2,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   2,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   42,
+   43
+  ],
+  "word": "Thyself",
+  "word_start": true
+ },
+ {
+  "gi": 34,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   44
+  ],
+  "word": "Thyself",
+  "word_start": false
+ },
+ {
+  "gi": 35,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   45
+  ],
+  "word": "Thyself",
+  "word_start": false
+ },
+ {
+  "gi": 36,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf043",
+   "0xf078"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   46
+  ],
+  "word": "to",
+  "word_start": true
+ },
+ {
+  "gi": 37,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   47
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 38,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   48
+  ],
+  "word": "disciples",
+  "word_start": true
+ },
+ {
+  "gi": 39,
+  "cp": "0xf04f",
+  "name": "kentimata-compound",
+  "line": 2,
+  "sub_notes": 2,
+  "beats": [
+   1.0,
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4,
+   5
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   49,
+   50
+  ],
+  "word": "disciples",
+  "word_start": false
+ },
+ {
+  "gi": 40,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   51
+  ],
+  "word": "disciples",
+  "word_start": false
+ },
+ {
+  "gi": 41,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   52
+  ],
+  "word": "disciples",
+  "word_start": false
+ },
+ {
+  "gi": 42,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 2,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   53
+  ],
+  "word": "disciples",
+  "word_start": false
+ },
+ {
+  "gi": 43,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf062"
+  ],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   54
+  ],
+  "word": "disciples",
+  "word_start": false
+ },
+ {
+  "gi": 44,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf042"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   55
+  ],
+  "word": "after",
+  "word_start": true
+ },
+ {
+  "gi": 45,
+  "cp": "0xf06f",
+  "name": "kentimata-compound",
+  "line": 3,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   56,
+   57
+  ],
+  "word": "after",
+  "word_start": false
+ },
+ {
+  "gi": 46,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   58
+  ],
+  "word": "after",
+  "word_start": false
+ },
+ {
+  "gi": 47,
+  "cp": "0xf071",
+  "name": "0xf071",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   59
+  ],
+  "word": "Resurrection,",
+  "word_start": true
+ },
+ {
+  "gi": 48,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   60
+  ],
+  "word": "Resurrection,",
+  "word_start": false
+ },
+ {
+  "gi": 49,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   61
+  ],
+  "word": "Resurrection,",
+  "word_start": false
+ },
+ {
+  "gi": 50,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   62
+  ],
+  "word": "Resurrection,",
+  "word_start": false
+ },
+ {
+  "gi": 51,
+  "cp": "0xf06f",
+  "name": "kentimata-compound",
+  "line": 3,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4,
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   63,
+   64
+  ],
+  "word": "Resurrection,",
+  "word_start": false
+ },
+ {
+  "gi": 52,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   65
+  ],
+  "word": "Resurrection,",
+  "word_start": false
+ },
+ {
+  "gi": 53,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [
+   "omalon"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   66
+  ],
+  "word": "Resurrection,",
+  "word_start": false
+ },
+ {
+  "gi": 54,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03a",
+   "0xf07d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   67
+  ],
+  "word": "Resurrection,",
+  "word_start": false
+ },
+ {
+  "gi": 55,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   68
+  ],
+  "word": "Resurrection,",
+  "word_start": false
+ },
+ {
+  "gi": 56,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 3,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   69
+  ],
+  "word": "O",
+  "word_start": true
+ },
+ {
+  "gi": 57,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   70
+  ],
+  "word": "O",
+  "word_start": false
+ },
+ {
+  "gi": 58,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   71
+  ],
+  "word": "O",
+  "word_start": false
+ },
+ {
+  "gi": 59,
+  "cp": "0xf050",
+  "name": "ison+kentimata",
+  "line": 4,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5,
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   72,
+   73
+  ],
+  "word": "Savior,",
+  "word_start": true
+ },
+ {
+  "gi": 60,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   74
+  ],
+  "word": "Savior,",
+  "word_start": false
+ },
+ {
+  "gi": 61,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 4,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3,
+   2
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   75,
+   76
+  ],
+  "word": "Savior,",
+  "word_start": false
+ },
+ {
+  "gi": 62,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [
+   "antikenoma"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   77
+  ],
+  "word": "Savior,",
+  "word_start": false
+ },
+ {
+  "gi": 63,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   78
+  ],
+  "word": "Savior,",
+  "word_start": false
+ },
+ {
+  "gi": 64,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   79
+  ],
+  "word": "Savior,",
+  "word_start": false
+ },
+ {
+  "gi": 65,
+  "cp": "0xf040",
+  "name": "0xf040",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf043",
+   "0xf063"
+  ],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   80
+  ],
+  "word": "Thou",
+  "word_start": true
+ },
+ {
+  "gi": 66,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   81
+  ],
+  "word": "Thou",
+  "word_start": false
+ },
+ {
+  "gi": 67,
+  "cp": "0xf071",
+  "name": "0xf071",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf091"
+  ],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   82
+  ],
+  "word": "gavest",
+  "word_start": true
+ },
+ {
+  "gi": 68,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03a",
+   "0xf07d"
+  ],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   83
+  ],
+  "word": "gavest",
+  "word_start": false
+ },
+ {
+  "gi": 69,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   84
+  ],
+  "word": "gavest",
+  "word_start": false
+ },
+ {
+  "gi": 70,
+  "cp": "0xf077",
+  "name": "petasti+oligon",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   85
+  ],
+  "word": "Simon",
+  "word_start": true
+ },
+ {
+  "gi": 71,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   86
+  ],
+  "word": "Simon",
+  "word_start": false
+ },
+ {
+  "gi": 72,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   87
+  ],
+  "word": "Simon",
+  "word_start": false
+ },
+ {
+  "gi": 73,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 4,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf062",
+   "0xf042"
+  ],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   88
+  ],
+  "word": "Simon",
+  "word_start": false
+ },
+ {
+  "gi": 74,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   89
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 75,
+  "cp": "0xf050",
+  "name": "ison+kentimata",
+  "line": 5,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   1.0
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   90,
+   91
+  ],
+  "word": "tending",
+  "word_start": true
+ },
+ {
+  "gi": 76,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   92
+  ],
+  "word": "tending",
+  "word_start": false
+ },
+ {
+  "gi": 77,
+  "cp": "0xf05f",
+  "name": "running-elafron",
+  "line": 5,
+  "sub_notes": 2,
+  "beats": [
+   1.0,
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2,
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   93,
+   94
+  ],
+  "word": "tending",
+  "word_start": false
+ },
+ {
+  "gi": 78,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   95
+  ],
+  "word": "of",
+  "word_start": true
+ },
+ {
+  "gi": 79,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 5,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   3,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   96,
+   97
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 80,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   98
+  ],
+  "word": "the",
+  "word_start": false
+ },
+ {
+  "gi": 81,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   99
+  ],
+  "word": "sheep,",
+  "word_start": true
+ },
+ {
+  "gi": 82,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf043",
+   "0xf03f"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   100
+  ],
+  "word": "that",
+  "word_start": true
+ },
+ {
+  "gi": 83,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   101
+  ],
+  "word": "he",
+  "word_start": true
+ },
+ {
+  "gi": 84,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   102
+  ],
+  "word": "might",
+  "word_start": true
+ },
+ {
+  "gi": 85,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   103
+  ],
+  "word": "might",
+  "word_start": false
+ },
+ {
+  "gi": 86,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   104
+  ],
+  "word": "return",
+  "word_start": true
+ },
+ {
+  "gi": 87,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 5,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   105
+  ],
+  "word": "return",
+  "word_start": false
+ },
+ {
+  "gi": 88,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   106
+  ],
+  "word": "return",
+  "word_start": false
+ },
+ {
+  "gi": 89,
+  "cp": "0xf06f",
+  "name": "kentimata-compound",
+  "line": 6,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf04d"
+  ],
+  "expected_degrees": [
+   2,
+   3
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   107,
+   108
+  ],
+  "word": "return",
+  "word_start": false
+ },
+ {
+  "gi": 90,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 6,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   4,
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   109,
+   110
+  ],
+  "word": "return",
+  "word_start": false
+ },
+ {
+  "gi": 91,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   111
+  ],
+  "word": "Thy",
+  "word_start": true
+ },
+ {
+  "gi": 92,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 6,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3,
+   2
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   112,
+   113
+  ],
+  "word": "Thy",
+  "word_start": false
+ },
+ {
+  "gi": 93,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [
+   "antikenoma"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   114
+  ],
+  "word": "Thy",
+  "word_start": false
+ },
+ {
+  "gi": 94,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   115
+  ],
+  "word": "Thy",
+  "word_start": false
+ },
+ {
+  "gi": 95,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf04a",
+   "0xf033",
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   116
+  ],
+  "word": "love,",
+  "word_start": true
+ },
+ {
+  "gi": 96,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf043",
+   "0xf043",
+   "0xf04a"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   117
+  ],
+  "word": "and",
+  "word_start": true
+ },
+ {
+  "gi": 97,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   118
+  ],
+  "word": "Thou",
+  "word_start": true
+ },
+ {
+  "gi": 98,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   119
+  ],
+  "word": "didst",
+  "word_start": true
+ },
+ {
+  "gi": 99,
+  "cp": "0xf049",
+  "name": "apostrofos+klasma",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf07a"
+  ],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   120
+  ],
+  "word": "ask",
+  "word_start": true
+ },
+ {
+  "gi": 100,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   121
+  ],
+  "word": "him",
+  "word_start": true
+ },
+ {
+  "gi": 101,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 6,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   122
+  ],
+  "word": "to",
+  "word_start": true
+ },
+ {
+  "gi": 102,
+  "cp": "0xf055",
+  "name": "apostrofos+kentimata",
+  "line": 7,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2,
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   123,
+   124
+  ],
+  "word": "have",
+  "word_start": true
+ },
+ {
+  "gi": 103,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   125
+  ],
+  "word": "have",
+  "word_start": false
+ },
+ {
+  "gi": 104,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf062"
+  ],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   126
+  ],
+  "word": "care",
+  "word_start": true
+ },
+ {
+  "gi": 105,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf042",
+   "0xf056"
+  ],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   127
+  ],
+  "word": "for",
+  "word_start": true
+ },
+ {
+  "gi": 106,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   128
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 107,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   129
+  ],
+  "word": "shepherding",
+  "word_start": true
+ },
+ {
+  "gi": 108,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   130
+  ],
+  "word": "shepherding",
+  "word_start": false
+ },
+ {
+  "gi": 109,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   131
+  ],
+  "word": "shepherding",
+  "word_start": false
+ },
+ {
+  "gi": 110,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   -1
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   132
+  ],
+  "word": "shepherding",
+  "word_start": false
+ },
+ {
+  "gi": 111,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   -2
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   133
+  ],
+  "word": "shepherding",
+  "word_start": false
+ },
+ {
+  "gi": 112,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   -1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   134
+  ],
+  "word": "of",
+  "word_start": true
+ },
+ {
+  "gi": 113,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf063"
+  ],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   135
+  ],
+  "word": "of",
+  "word_start": false
+ },
+ {
+  "gi": 114,
+  "cp": "0xf050",
+  "name": "ison+kentimata",
+  "line": 7,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   1.0
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1,
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   136,
+   137
+  ],
+  "word": "of",
+  "word_start": false
+ },
+ {
+  "gi": 115,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   138
+  ],
+  "word": "of",
+  "word_start": false
+ },
+ {
+  "gi": 116,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 7,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   139
+  ],
+  "word": "of",
+  "word_start": false
+ },
+ {
+  "gi": 117,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   140
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 118,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 8,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0,
+   -1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   141,
+   142
+  ],
+  "word": "the",
+  "word_start": false
+ },
+ {
+  "gi": 119,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [
+   "antikenoma"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   143
+  ],
+  "word": "the",
+  "word_start": false
+ },
+ {
+  "gi": 120,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   144
+  ],
+  "word": "the",
+  "word_start": false
+ },
+ {
+  "gi": 121,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf063"
+  ],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   145
+  ],
+  "word": "flock.",
+  "word_start": true
+ },
+ {
+  "gi": 122,
+  "cp": "0xf065",
+  "name": "petasti+kentima",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf043",
+   "0xf056"
+  ],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   146
+  ],
+  "word": "Wherefore,",
+  "word_start": true
+ },
+ {
+  "gi": 123,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   147
+  ],
+  "word": "Wherefore,",
+  "word_start": false
+ },
+ {
+  "gi": 124,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   148
+  ],
+  "word": "Wherefore,",
+  "word_start": false
+ },
+ {
+  "gi": 125,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   149
+  ],
+  "word": "Wherefore,",
+  "word_start": false
+ },
+ {
+  "gi": 126,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf043"
+  ],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   150
+  ],
+  "word": "Thou",
+  "word_start": true
+ },
+ {
+  "gi": 127,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   151
+  ],
+  "word": "didst",
+  "word_start": true
+ },
+ {
+  "gi": 128,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   152
+  ],
+  "word": "say",
+  "word_start": true
+ },
+ {
+  "gi": 129,
+  "cp": "0xf050",
+  "name": "ison+kentimata",
+  "line": 8,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   1.0
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf05d"
+  ],
+  "expected_degrees": [
+   4,
+   5
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   153,
+   154
+  ],
+  "word": "say",
+  "word_start": false
+ },
+ {
+  "gi": 130,
+  "cp": "0xf040",
+  "name": "0xf040",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   155
+  ],
+  "word": "to",
+  "word_start": true
+ },
+ {
+  "gi": 131,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 8,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   156
+  ],
+  "word": "to",
+  "word_start": false
+ },
+ {
+  "gi": 132,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   157
+  ],
+  "word": "him:",
+  "word_start": true
+ },
+ {
+  "gi": 133,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf043",
+   "0xf02f"
+  ],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   158
+  ],
+  "word": "If",
+  "word_start": true
+ },
+ {
+  "gi": 134,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf04d"
+  ],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   159
+  ],
+  "word": "thou",
+  "word_start": true
+ },
+ {
+  "gi": 135,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 9,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   5,
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   160,
+   161
+  ],
+  "word": "lovest",
+  "word_start": true
+ },
+ {
+  "gi": 136,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   162
+  ],
+  "word": "lovest",
+  "word_start": false
+ },
+ {
+  "gi": 137,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   163
+  ],
+  "word": "lovest",
+  "word_start": false
+ },
+ {
+  "gi": 138,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   164
+  ],
+  "word": "lovest",
+  "word_start": false
+ },
+ {
+  "gi": 139,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 9,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   6,
+   8
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   165,
+   166
+  ],
+  "word": "Me,",
+  "word_start": true
+ },
+ {
+  "gi": 140,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   7
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   167
+  ],
+  "word": "Me,",
+  "word_start": false
+ },
+ {
+  "gi": 141,
+  "cp": "0xf055",
+  "name": "apostrofos+kentimata",
+  "line": 9,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   6,
+   7
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   168,
+   169
+  ],
+  "word": "O",
+  "word_start": true
+ },
+ {
+  "gi": 142,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   170
+  ],
+  "word": "O",
+  "word_start": false
+ },
+ {
+  "gi": 143,
+  "cp": "0xf04f",
+  "name": "kentimata-compound",
+  "line": 9,
+  "sub_notes": 2,
+  "beats": [
+   1.0,
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5,
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   171,
+   172
+  ],
+  "word": "Peter,",
+  "word_start": true
+ },
+ {
+  "gi": 144,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   173
+  ],
+  "word": "Peter,",
+  "word_start": false
+ },
+ {
+  "gi": 145,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   174
+  ],
+  "word": "Peter,",
+  "word_start": false
+ },
+ {
+  "gi": 146,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   175
+  ],
+  "word": "Peter,",
+  "word_start": false
+ },
+ {
+  "gi": 147,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 9,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf043"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   176
+  ],
+  "word": "feed",
+  "word_start": true
+ },
+ {
+  "gi": 148,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf056"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   177
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 149,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 10,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3,
+   2
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   178,
+   179
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 150,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   180
+  ],
+  "word": "My",
+  "word_start": true
+ },
+ {
+  "gi": 151,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   181
+  ],
+  "word": "My",
+  "word_start": false
+ },
+ {
+  "gi": 152,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf043"
+  ],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   182
+  ],
+  "word": "My",
+  "word_start": false
+ },
+ {
+  "gi": 153,
+  "cp": "0xf05f",
+  "name": "running-elafron",
+  "line": 10,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2,
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   183,
+   184
+  ],
+  "word": "lambs,",
+  "word_start": true
+ },
+ {
+  "gi": 154,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   185
+  ],
+  "word": "lambs,",
+  "word_start": false
+ },
+ {
+  "gi": 155,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   186
+  ],
+  "word": "feed",
+  "word_start": true
+ },
+ {
+  "gi": 156,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   187
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 157,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 10,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8",
+   "0xf05c"
+  ],
+  "expected_degrees": [
+   3,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   188,
+   189
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 158,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   190
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 159,
+  "cp": "0xf06f",
+  "name": "kentimata-compound",
+  "line": 10,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   191,
+   192
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 160,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [
+   "omalon"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   193
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 161,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   194
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 162,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   195
+  ],
+  "word": "My,",
+  "word_start": true
+ },
+ {
+  "gi": 163,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 10,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   196
+  ],
+  "word": "My,",
+  "word_start": false
+ },
+ {
+  "gi": 164,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 10,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8",
+   "0xf05c"
+  ],
+  "expected_degrees": [
+   3,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   197,
+   198
+  ],
+  "word": "My,",
+  "word_start": false
+ },
+ {
+  "gi": 165,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   199
+  ],
+  "word": "My,",
+  "word_start": false
+ },
+ {
+  "gi": 166,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   200
+  ],
+  "word": "My,",
+  "word_start": false
+ },
+ {
+  "gi": 167,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   201
+  ],
+  "word": "feed",
+  "word_start": true
+ },
+ {
+  "gi": 168,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   202
+  ],
+  "word": "feed",
+  "word_start": false
+ },
+ {
+  "gi": 169,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   203
+  ],
+  "word": "My",
+  "word_start": true
+ },
+ {
+  "gi": 170,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   204
+  ],
+  "word": "My",
+  "word_start": false
+ },
+ {
+  "gi": 171,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   3.0
+  ],
+  "gorgon": false,
+  "duration_mark": "diple",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   205
+  ],
+  "word": "sheep.",
+  "word_start": true
+ },
+ {
+  "gi": 172,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf063",
+   "0xf043"
+  ],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   206
+  ],
+  "word": "And",
+  "word_start": true
+ },
+ {
+  "gi": 173,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   207
+  ],
+  "word": "straightway",
+  "word_start": true
+ },
+ {
+  "gi": 174,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   208
+  ],
+  "word": "straightway",
+  "word_start": false
+ },
+ {
+  "gi": 175,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 11,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   3,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   209,
+   210
+  ],
+  "word": "straightway",
+  "word_start": false
+ },
+ {
+  "gi": 176,
+  "cp": "0xf040",
+  "name": "0xf040",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   211
+  ],
+  "word": "straightway",
+  "word_start": false
+ },
+ {
+  "gi": 177,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 11,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   2,
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   212,
+   213
+  ],
+  "word": "showing",
+  "word_start": true
+ },
+ {
+  "gi": 178,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   214
+  ],
+  "word": "showing",
+  "word_start": false
+ },
+ {
+  "gi": 179,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 11,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   215
+  ],
+  "word": "showing",
+  "word_start": false
+ },
+ {
+  "gi": 180,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   216
+  ],
+  "word": "showing",
+  "word_start": false
+ },
+ {
+  "gi": 181,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf04d"
+  ],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   217
+  ],
+  "word": "his",
+  "word_start": true
+ },
+ {
+  "gi": 182,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   218
+  ],
+  "word": "affectionate",
+  "word_start": true
+ },
+ {
+  "gi": 183,
+  "cp": "0xf065",
+  "name": "petasti+kentima",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf091"
+  ],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   219
+  ],
+  "word": "affectionate",
+  "word_start": false
+ },
+ {
+  "gi": 184,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 12,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2,
+   1
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   220,
+   221
+  ],
+  "word": "affectionate",
+  "word_start": false
+ },
+ {
+  "gi": 185,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 12,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5,
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   222,
+   223
+  ],
+  "word": "affectionate",
+  "word_start": false
+ },
+ {
+  "gi": 186,
+  "cp": "0xf055",
+  "name": "apostrofos+kentimata",
+  "line": 12,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   5,
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   224,
+   225
+  ],
+  "word": "affectionate",
+  "word_start": false
+ },
+ {
+  "gi": 187,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   226
+  ],
+  "word": "affectionate",
+  "word_start": false
+ },
+ {
+  "gi": 188,
+  "cp": "0xf05f",
+  "name": "running-elafron",
+  "line": 12,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4,
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   227,
+   228
+  ],
+  "word": "affectionate",
+  "word_start": false
+ },
+ {
+  "gi": 189,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [
+   "antikenoma"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   229
+  ],
+  "word": "affectionate",
+  "word_start": false
+ },
+ {
+  "gi": 190,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   230
+  ],
+  "word": "affectionate",
+  "word_start": false
+ },
+ {
+  "gi": 191,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   231
+  ],
+  "word": "love,",
+  "word_start": true
+ },
+ {
+  "gi": 192,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf043",
+   "0xf06e"
+  ],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 30,
+  "slot_ids": [
+   232
+  ],
+  "word": "inquired",
+  "word_start": true
+ },
+ {
+  "gi": 193,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 30,
+  "slot_ids": [
+   233
+  ],
+  "word": "inquired",
+  "word_start": false
+ },
+ {
+  "gi": 194,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 30,
+  "slot_ids": [
+   234
+  ],
+  "word": "inquired",
+  "word_start": false
+ },
+ {
+  "gi": 195,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 12,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf063"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   235
+  ],
+  "word": "concern-ing",
+  "word_start": true
+ },
+ {
+  "gi": 196,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   236
+  ],
+  "word": "concern-ing",
+  "word_start": false
+ },
+ {
+  "gi": 197,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   237
+  ],
+  "word": "concern-ing",
+  "word_start": false
+ },
+ {
+  "gi": 198,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   238
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 199,
+  "cp": "0xf04f",
+  "name": "kentimata-compound",
+  "line": 13,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf056"
+  ],
+  "expected_degrees": [
+   3,
+   5
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   239,
+   240
+  ],
+  "word": "other",
+  "word_start": true
+ },
+ {
+  "gi": 200,
+  "cp": "0xf040",
+  "name": "0xf040",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [
+   "antikenoma"
+  ],
+  "other_marks": [
+   "0xf03b"
+  ],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   241
+  ],
+  "word": "other",
+  "word_start": false
+ },
+ {
+  "gi": 201,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   242
+  ],
+  "word": "other",
+  "word_start": false
+ },
+ {
+  "gi": 202,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 13,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   1,
+   3
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   243,
+   244
+  ],
+  "word": "other",
+  "word_start": false
+ },
+ {
+  "gi": 203,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   245
+  ],
+  "word": "other",
+  "word_start": false
+ },
+ {
+  "gi": 204,
+  "cp": "0xf05f",
+  "name": "running-elafron",
+  "line": 13,
+  "sub_notes": 2,
+  "beats": [
+   1.0,
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1,
+   1
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   246,
+   247
+  ],
+  "word": "disciple.",
+  "word_start": true
+ },
+ {
+  "gi": 205,
+  "cp": "0xf04f",
+  "name": "kentimata-compound",
+  "line": 13,
+  "sub_notes": 2,
+  "beats": [
+   1.0,
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf043"
+  ],
+  "expected_degrees": [
+   1,
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   248,
+   249
+  ],
+  "word": "disciple.",
+  "word_start": false
+ },
+ {
+  "gi": 206,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   250
+  ],
+  "word": "disciple.",
+  "word_start": false
+ },
+ {
+  "gi": 207,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   251
+  ],
+  "word": "disciple.",
+  "word_start": false
+ },
+ {
+  "gi": 208,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf063"
+  ],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   252
+  ],
+  "word": "disciple.",
+  "word_start": false
+ },
+ {
+  "gi": 209,
+  "cp": "0xf034",
+  "name": "oligon+ypsili",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf043",
+   "0xf077",
+   "0xf03f"
+  ],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   253
+  ],
+  "word": "By",
+  "word_start": true
+ },
+ {
+  "gi": 210,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   254
+  ],
+  "word": "their",
+  "word_start": true
+ },
+ {
+  "gi": 211,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 13,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   255
+  ],
+  "word": "intercessions,",
+  "word_start": true
+ },
+ {
+  "gi": 212,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 22,
+  "slot_ids": [
+   256
+  ],
+  "word": "intercessions,",
+  "word_start": false
+ },
+ {
+  "gi": 213,
+  "cp": "0xf032",
+  "name": "0xf032",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf042"
+  ],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 22,
+  "slot_ids": [
+   257
+  ],
+  "word": "intercessions,",
+  "word_start": false
+ },
+ {
+  "gi": 214,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 22,
+  "slot_ids": [
+   258
+  ],
+  "word": "intercessions,",
+  "word_start": false
+ },
+ {
+  "gi": 215,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 22,
+  "slot_ids": [
+   259
+  ],
+  "word": "intercessions,",
+  "word_start": false
+ },
+ {
+  "gi": 216,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 22,
+  "slot_ids": [
+   260
+  ],
+  "word": "intercessions,",
+  "word_start": false
+ },
+ {
+  "gi": 217,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1
+  ],
+  "ison_at_start": 22,
+  "slot_ids": [
+   261
+  ],
+  "word": "intercessions,",
+  "word_start": false
+ },
+ {
+  "gi": 218,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03f"
+  ],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   262
+  ],
+  "word": "O",
+  "word_start": true
+ },
+ {
+  "gi": 219,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": "M",
+  "slot_ids": [
+   263
+  ],
+  "word": "Christ,",
+  "word_start": true
+ },
+ {
+  "gi": 220,
+  "cp": "0xf071",
+  "name": "0xf071",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf091",
+   "0xf04e"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 30,
+  "slot_ids": [
+   264
+  ],
+  "word": "Christ,",
+  "word_start": false
+ },
+ {
+  "gi": 221,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 30,
+  "slot_ids": [
+   265
+  ],
+  "word": "Christ,",
+  "word_start": false
+ },
+ {
+  "gi": 222,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 30,
+  "slot_ids": [
+   266
+  ],
+  "word": "Christ,",
+  "word_start": false
+ },
+ {
+  "gi": 223,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf04d",
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   267
+  ],
+  "word": "Christ,",
+  "word_start": false
+ },
+ {
+  "gi": 224,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 14,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf03f",
+   "0xf04a",
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   5,
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   268,
+   269
+  ],
+  "word": "preserve",
+  "word_start": true
+ },
+ {
+  "gi": 225,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   270
+  ],
+  "word": "preserve",
+  "word_start": false
+ },
+ {
+  "gi": 226,
+  "cp": "0xf077",
+  "name": "petasti+oligon",
+  "line": 14,
+  "sub_notes": 1,
+  "beats": [
+   0.333
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   7
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   271
+  ],
+  "word": "preserve",
+  "word_start": false
+ },
+ {
+  "gi": 227,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 14,
+  "sub_notes": 2,
+  "beats": [
+   0.333,
+   0.333
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   6,
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   272,
+   273
+  ],
+  "word": "preserve",
+  "word_start": false,
+  "gorgon_kind": "digorgon"
+ },
+ {
+  "gi": 228,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 14,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8",
+   "0xf05c"
+  ],
+  "expected_degrees": [
+   8,
+   10
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   274,
+   275
+  ],
+  "word": "preserve",
+  "word_start": false
+ },
+ {
+  "gi": 229,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   9
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   276
+  ],
+  "word": "preserve",
+  "word_start": false
+ },
+ {
+  "gi": 230,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "apli",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   9
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   277
+  ],
+  "word": "preserve",
+  "word_start": false
+ },
+ {
+  "gi": 231,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 15,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   8,
+   7
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   278,
+   279
+  ],
+  "word": "preserve",
+  "word_start": false
+ },
+ {
+  "gi": 232,
+  "cp": "0xf06f",
+  "name": "kentimata-compound",
+  "line": 15,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   8,
+   9
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   280,
+   281
+  ],
+  "word": "preserve",
+  "word_start": false
+ },
+ {
+  "gi": 233,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   9
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   282
+  ],
+  "word": "Thy,",
+  "word_start": true
+ },
+ {
+  "gi": 234,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03a",
+   "0xf07d"
+  ],
+  "expected_degrees": [
+   8
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   283
+  ],
+  "word": "Thy,",
+  "word_start": false
+ },
+ {
+  "gi": 235,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   7
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   284
+  ],
+  "word": "Thy,",
+  "word_start": false
+ },
+ {
+  "gi": 236,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   7
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   285
+  ],
+  "word": "Thy,",
+  "word_start": false
+ },
+ {
+  "gi": 237,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   286
+  ],
+  "word": "Thy,",
+  "word_start": false
+ },
+ {
+  "gi": 238,
+  "cp": "0xf0d7",
+  "name": "kentimata-compound",
+  "line": 15,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf0f8"
+  ],
+  "expected_degrees": [
+   7,
+   8
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   287,
+   288
+  ],
+  "word": "preserve",
+  "word_start": true
+ },
+ {
+  "gi": 239,
+  "cp": "0xf055",
+  "name": "apostrofos+kentimata",
+  "line": 15,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   7,
+   8
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   289,
+   290
+  ],
+  "word": "preserve",
+  "word_start": false,
+  "inserted": true
+ },
+ {
+  "gi": 240,
+  "cp": "0xf055",
+  "name": "apostrofos+kentimata",
+  "line": 15,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   7,
+   8
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   291,
+   292
+  ],
+  "word": "preserve",
+  "word_start": false
+ },
+ {
+  "gi": 241,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   7
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   293
+  ],
+  "word": "Thy",
+  "word_start": true
+ },
+ {
+  "gi": 242,
+  "cp": "0xf05f",
+  "name": "running-elafron",
+  "line": 15,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   6,
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   294,
+   295
+  ],
+  "word": "Thy",
+  "word_start": false
+ },
+ {
+  "gi": 243,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [
+   "antikenoma"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   296
+  ],
+  "word": "Thy",
+  "word_start": false
+ },
+ {
+  "gi": 244,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   297
+  ],
+  "word": "flock",
+  "word_start": true
+ },
+ {
+  "gi": 245,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 15,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   298
+  ],
+  "word": "from",
+  "word_start": true
+ },
+ {
+  "gi": 246,
+  "cp": "0xf050",
+  "name": "ison+kentimata",
+  "line": 16,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   1.0
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d",
+   "0xf03c",
+   "0xf043",
+   "0xf040"
+  ],
+  "expected_degrees": [
+   5,
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   299,
+   300
+  ],
+  "word": "from",
+  "word_start": false
+ },
+ {
+  "gi": 247,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   301
+  ],
+  "word": "from",
+  "word_start": false
+ },
+ {
+  "gi": 248,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   302
+  ],
+  "word": "the",
+  "word_start": true
+ },
+ {
+  "gi": 249,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   303
+  ],
+  "word": "wolves",
+  "word_start": true
+ },
+ {
+  "gi": 250,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   304
+  ],
+  "word": "wolves",
+  "word_start": false
+ },
+ {
+  "gi": 251,
+  "cp": "0xf077",
+  "name": "petasti+oligon",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   7
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   305
+  ],
+  "word": "wolves",
+  "word_start": false
+ },
+ {
+  "gi": 252,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   306
+  ],
+  "word": "wolves",
+  "word_start": false
+ },
+ {
+  "gi": 253,
+  "cp": "0xf070",
+  "name": "ison+petasti",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf05c"
+  ],
+  "expected_degrees": [
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   307
+  ],
+  "word": "wolves",
+  "word_start": false
+ },
+ {
+  "gi": 254,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   6
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   308
+  ],
+  "word": "wolves",
+  "word_start": false
+ },
+ {
+  "gi": 255,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   309
+  ],
+  "word": "wolves",
+  "word_start": false
+ },
+ {
+  "gi": 256,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf07b",
+   "0xf04e"
+  ],
+  "expected_degrees": [
+   5
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   310
+  ],
+  "word": "wolves",
+  "word_start": false
+ },
+ {
+  "gi": 257,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   2.0
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf06d",
+   "0xf06d"
+  ],
+  "expected_degrees": [
+   4
+  ],
+  "ison_at_start": 30,
+  "slot_ids": [
+   311
+  ],
+  "word": "that",
+  "word_start": true
+ },
+ {
+  "gi": 258,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf03c",
+   "0xf03f",
+   "0xf04a",
+   "0xf076"
+  ],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 42,
+  "slot_ids": [
+   312
+  ],
+  "word": "that",
+  "word_start": false
+ },
+ {
+  "gi": 259,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 16,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2,
+   1
+  ],
+  "ison_at_start": 12,
+  "slot_ids": [
+   313,
+   314
+  ],
+  "word": "ravage",
+  "word_start": true
+ },
+ {
+  "gi": 260,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   315
+  ],
+  "word": "ravage",
+  "word_start": false
+ },
+ {
+  "gi": 261,
+  "cp": "0xf060",
+  "name": "kentimata",
+  "line": 16,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [
+   "0xf063"
+  ],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   316
+  ],
+  "word": "ravage",
+  "word_start": false
+ },
+ {
+  "gi": 262,
+  "cp": "0xf050",
+  "name": "ison+kentimata",
+  "line": 16,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   1.0
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   4,
+   4
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   317,
+   318
+  ],
+  "word": "ravage",
+  "word_start": false
+ },
+ {
+  "gi": 263,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 17,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   3
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   319
+  ],
+  "word": "ravage",
+  "word_start": false
+ },
+ {
+  "gi": 264,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 17,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   320
+  ],
+  "word": "ravage",
+  "word_start": false
+ },
+ {
+  "gi": 265,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 17,
+  "sub_notes": 1,
+  "beats": [
+   1.5
+  ],
+  "gorgon": false,
+  "duration_mark": "klasma",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   321
+  ],
+  "word": "ravage",
+  "word_start": false
+ },
+ {
+  "gi": 266,
+  "cp": "0xf029",
+  "name": "yporrhoe",
+  "line": 17,
+  "sub_notes": 2,
+  "beats": [
+   0.5,
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   1,
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   322,
+   323
+  ],
+  "word": "ravage",
+  "word_start": false
+ },
+ {
+  "gi": 267,
+  "cp": "0xf031",
+  "name": "oligon",
+  "line": 17,
+  "sub_notes": 1,
+  "beats": [
+   0.5
+  ],
+  "gorgon": true,
+  "duration_mark": "none",
+  "quality_marks": [
+   "antikenoma"
+  ],
+  "other_marks": [],
+  "expected_degrees": [
+   2
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   324
+  ],
+  "word": "ravage",
+  "word_start": false
+ },
+ {
+  "gi": 268,
+  "cp": "0xf021",
+  "name": "apostrofos",
+  "line": 17,
+  "sub_notes": 1,
+  "beats": [
+   1.0
+  ],
+  "gorgon": false,
+  "duration_mark": "none",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   325
+  ],
+  "word": "it.",
+  "word_start": true
+ },
+ {
+  "gi": 269,
+  "cp": "0xf030",
+  "name": "ison",
+  "line": 17,
+  "sub_notes": 1,
+  "beats": [
+   3.0
+  ],
+  "gorgon": false,
+  "duration_mark": "diple",
+  "quality_marks": [],
+  "other_marks": [],
+  "expected_degrees": [
+   0
+  ],
+  "ison_at_start": 0,
+  "slot_ids": [
+   326
+  ],
+  "word": "it.",
+  "word_start": false
+ }
+]

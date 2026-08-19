@@ -8,3 +8,15 @@ __pycache__/
 .claude
 .claude.scratch/
 .scratch/
+
+# large media in datasets stay out of git (regenerable / kept on disk)
+datasets/**/*.wav
+datasets/**/*.m4a
+datasets/**/*.mp4
+*.bak*
+
+# trained model binaries and raw analysis tracks: regenerable, kept on disk
+*.joblib
+*.pt
+datasets/**/*.npy
+datasets/**/*.png

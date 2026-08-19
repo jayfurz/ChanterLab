@@ -1,0 +1,219 @@
+{
+ "step_cents": 144.4000000000001,
+ "keys": {
+  "0|": {
+   "interval": 1,
+   "claimed": 26
+  },
+  "0|0be+1ab": {
+   "interval": 1,
+   "claimed": 1
+  },
+  "0|1ab": {
+   "interval": 1,
+   "claimed": 15
+  },
+  "0|27be+27be": {
+   "interval": 1,
+   "claimed": 2
+  },
+  "11|10be+10be+11be+9be+9be": {
+   "interval": 0,
+   "claimed": 1
+  },
+  "11|10be+4be+9be+9be": {
+   "interval": 0,
+   "claimed": 1
+  },
+  "11|10be+9be": {
+   "interval": 0,
+   "claimed": 2
+  },
+  "18|": {
+   "interval": -1,
+   "claimed": 3
+  },
+  "18|11ab": {
+   "interval": -1,
+   "claimed": 1
+  },
+  "18|11ab+1be": {
+   "interval": -1,
+   "claimed": 1
+  },
+  "18|19ab+1be": {
+   "interval": -1,
+   "claimed": 1
+  },
+  "18|19ab+20ab+4ab": {
+   "interval": -1,
+   "claimed": 1
+  },
+  "18|1be": {
+   "interval": -1,
+   "claimed": 1
+  },
+  "18|1be+20ab": {
+   "interval": -1,
+   "claimed": 1
+  },
+  "18|1be+6be": {
+   "interval": -1,
+   "claimed": 3
+  },
+  "18|1be+8ab": {
+   "interval": -1,
+   "claimed": 3
+  },
+  "18|20ab": {
+   "interval": -1,
+   "claimed": 1
+  },
+  "18|8ab": {
+   "interval": -1,
+   "claimed": 1
+  },
+  "19|": {
+   "interval": 1,
+   "claimed": 2
+  },
+  "24|": {
+   "interval": 1,
+   "claimed": 5
+  },
+  "24|1ab": {
+   "interval": 1,
+   "claimed": 1
+  },
+  "24|32be": {
+   "interval": 1,
+   "claimed": 1
+  },
+  "26|19ab+4ab": {
+   "interval": -2,
+   "claimed": 2
+  },
+  "26|27be+4ab": {
+   "interval": -2,
+   "claimed": 0
+  },
+  "26|27be+4ab+9ab": {
+   "interval": -2,
+   "claimed": 1
+  },
+  "26|27be+8ab": {
+   "interval": -2,
+   "claimed": 1
+  },
+  "26|4ab": {
+   "interval": -2,
+   "claimed": 8
+  },
+  "33|": {
+   "interval": 0,
+   "claimed": 0
+  },
+  "38|1ab": {
+   "interval": 0,
+   "claimed": 1
+  },
+  "39|10be+9be": {
+   "interval": 0,
+   "claimed": 0
+  },
+  "4|": {
+   "interval": 0,
+   "claimed": 11
+  },
+  "4|19ab": {
+   "interval": 0,
+   "claimed": 0
+  },
+  "4|1ab": {
+   "interval": 0,
+   "claimed": 13
+  },
+  "4|1ab+5ab": {
+   "interval": 0,
+   "claimed": 0
+  },
+  "4|1be+5ab": {
+   "interval": 0,
+   "claimed": 0
+  },
+  "4|4be+9ab": {
+   "interval": 0,
+   "claimed": 1
+  },
+  "4|5ab": {
+   "interval": 0,
+   "claimed": 1
+  },
+  "4|9ab": {
+   "interval": 0,
+   "claimed": 9
+  },
+  "4|9be": {
+   "interval": 0,
+   "claimed": 2
+  },
+  "6|19ab+1ab+4ab": {
+   "interval": -2,
+   "claimed": 1
+  },
+  "6|19ab+4ab": {
+   "interval": -2,
+   "claimed": 2
+  },
+  "6|1ab+4ab": {
+   "interval": -2,
+   "claimed": 1
+  },
+  "6|1be+4ab+5ab": {
+   "interval": -2,
+   "claimed": 0
+  },
+  "6|4ab": {
+   "interval": -2,
+   "claimed": 0
+  },
+  "6|4ab+5ab": {
+   "interval": -2,
+   "claimed": 1
+  },
+  "6|4ab+9ab": {
+   "interval": -2,
+   "claimed": 1
+  },
+  "8|": {
+   "interval": 1,
+   "claimed": 58
+  },
+  "8|1ab": {
+   "interval": 1,
+   "claimed": 14
+  },
+  "8|27be": {
+   "interval": 1,
+   "claimed": 1
+  },
+  "8|4be+4be+9be+9be": {
+   "interval": 1,
+   "claimed": 0
+  },
+  "8|4be+9be": {
+   "interval": 1,
+   "claimed": 3
+  },
+  "9|": {
+   "interval": 1,
+   "claimed": 7
+  }
+ },
+ "two_sub": {
+  "21": [
+   -1,
+   -1
+  ]
+ }
+}

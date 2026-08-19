@@ -1,0 +1,83 @@
+{
+ "peter": {
+  "tokens": [
+   {
+    "name": "oligon",
+    "red": false
+   },
+   {
+    "name": "oligonKentimaAbove",
+    "red": false
+   },
+   {
+    "name": "gorgonAbove",
+    "red": true
+   },
+   {
+    "name": "apostrofos",
+    "red": false
+   }
+  ],
+  "flags": [],
+  "span": [
+   137.7,
+   140.04
+  ]
+ },
+ "wolves": {
+  "tokens": [
+   {
+    "name": "argon",
+    "red": true,
+    "sep": true
+   },
+   {
+    "name": "oligon",
+    "red": false
+   },
+   {
+    "name": "oligonKentimaAbove",
+    "red": false
+   },
+   {
+    "name": "digorgonDottedRight",
+    "red": true
+   },
+   {
+    "name": "apostrofos",
+    "red": false
+   },
+   {
+    "name": "apostrofos",
+    "red": false
+   },
+   {
+    "name": "apostrofos",
+    "red": false
+   },
+   {
+    "name": "apostrofos",
+    "red": false
+   },
+   {
+    "name": "digorgonDottedRight",
+    "red": true
+   },
+   {
+    "name": "oligon",
+    "red": false
+   },
+   {
+    "name": "klasmaAbove",
+    "red": false
+   }
+  ],
+  "flags": [
+   "1.5-beat hold spelled as klasma — needs dotted-apli, confirm"
+  ],
+  "span": [
+   247.3,
+   250.6
+  ]
+ }
+}

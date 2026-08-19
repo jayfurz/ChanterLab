@@ -1,0 +1,76 @@
+{
+ "frozen_at": "2026-08-18",
+ "revision": 4,
+ "revision_note": "r4: read the chanter cluster export. RED_TIME emptied \u2014 9 and 22 are always BLACK (110/2155) so never reached the red-only klasma test, and 23 is always RED (759) and is the Ga martyria LETTER, so it was the sole source of a phantom \"red klasma\". Cluster 9 (antikenoma+apli) moved to MARK_ONLY and now contributes its one apli beat. ALSO fixed a long-standing off-by-one: the DTW duration prior compared onset-to-onset time against beats of units j2+1..j instead of j2..j-1 \u2014 invisible while all beats were 1.0/2.0, material once the duration model produced 0.125..4.0. Rests now fold into the PRECEDING note (chanter: \"otherwise the next note will go on for too long instead of being delayed the duration of the rest\").",
+ "piece": "grave-orthros-t03",
+ "hymn": "t03_",
+ "workdir": "/mnt/data/chant-corpus/workdirs/grave-orthros",
+ "audio": {
+  "path": "/mnt/data/chant-corpus/workdirs/grave-orthros/melos_t03_/audio.wav",
+  "sha256_16": "9c82ec0417cbfc7c",
+  "source": "/mnt/data/chant-corpus/pieces/Mode Grave Anastasimatarion 2 Orthros/004_melos_fixed.wav"
+ },
+ "score": {
+  "pages": [
+   520,
+   520
+  ],
+  "lines": [
+   6,
+   11
+  ],
+  "n_units": 76,
+  "genus": "diatonic"
+ },
+ "gold": {
+  "n_pins": 76,
+  "pins_cover_all_units": true,
+  "n_notes": 25,
+  "n_notes_empty": 6,
+  "n_notes_transcribed_to_iv_ovr": 9,
+  "n_notes_pending": 9
+ },
+ "machine": {
+  "n_matched": 52,
+  "coverage_units_pct": 68.4,
+  "movement_agreement": 1.0,
+  "ni_hz": 126.8
+ },
+ "vs_gold": {
+  "n_compared": 52,
+  "median_abs_dt_s": 0.485,
+  "p90_abs_dt_s": 4.68,
+  "within_0.35s": 25,
+  "within_0.15s": 25,
+  "strict_on_pins_assisted": 0.787,
+  "strict_on_pins_unassisted": 0.76,
+  "strict_on_pins_note": "ingest_pins.py builds the expected delta from iv_ovr_<hymn>.json, the chanter's own interval rulings, so the reported 0.787 partly scores his answers as if they were model predictions. Unassisted (legend only) is 0.760, a gap of 2 of 75 pairs today. The gap grows mechanically as corrections are compiled, so the UNASSISTED number is the primary one."
+ },
+ "note": "The segmentation fix alone moved median |dt| 4.10 -> 0.563 s and coverage 58.7 -> 71.1%. A large excursion remains around units 3-19 (up to -5.8 s): the aligner still has no absolute-time anchor and cannot re-sync once it slips.",
+ "history": {
+  "r1_75unit": {
+   "median_abs_dt_s": 4.1,
+   "within_0.35s": 6,
+   "n_compared": 44,
+   "coverage_units_pct": 58.7
+  },
+  "r2_76unit_split": {
+   "median_abs_dt_s": 0.563,
+   "within_0.35s": 16,
+   "n_compared": 54,
+   "coverage_units_pct": 71.1
+  },
+  "r3_timing": {
+   "median_abs_dt_s": 0.514,
+   "within_0.35s": 20,
+   "n_compared": 54,
+   "coverage_units_pct": 71.1
+  }
+ },
+ "timing_model": {
+  "total_beats": 87.0,
+  "gi12_klasma_note": 1.5,
+  "gi13_gorgon_note": 0.5,
+  "chanter_expected": "previous note 1-1/2 beats, gorgon note 1/2 (t03 old gi11/gi12)"
+ }
+}

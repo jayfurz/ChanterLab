@@ -1,0 +1,128 @@
+{
+ "saved_at": "2026-08-18T21:57:59.007Z",
+ "classifications": {
+  "16": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "quantitative marker, NEVER standalone; fairly small. Below or to the RIGHT of an oligon -> compound = +2 jump. On top in the MIDDLE of an oligon or petasti (without ypsili) -> +3 jump. (Chanter corrected their earlier yporrhoe reading 2026-08-18; resolves t03 gi13 3|16ab = petasti+kentima = +3.) combined with a ypseli or more than one kentima with ypseli are combination glyphs that have higher jumps.",
+   "ts": "2026-08-18T21:57:03.671Z"
+  },
+  "20": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "jump down two. The SHAPE is always just elaphron — whether an instance participates in a syneches-elaphron figure is a PER-INSTANCE call from context (on the context sheet only the p115 p426 p573; the other two were plain elaphrons). See figures.syneches_elaphron for the proximity rule and the -2 vs -3 stakes",
+   "ts": "2026-08-18T21:55:49.741Z"
+  }
+ },
+ "presets_from_atlas": {
+  "3": {
+   "name": "petasti",
+   "interval": 1,
+   "note": "looks similar to klasma; petasti is LARGER and stands alone; klasma only ever appears in combination with another glyph above/below",
+   "source": "chanter-atlas"
+  },
+  "4": {
+   "name": "apostrofos",
+   "interval": -1,
+   "note": "",
+   "source": "chanter-atlas"
+  },
+  "5": {
+   "name": "ison",
+   "interval": 0,
+   "note": "",
+   "source": "chanter-atlas"
+  },
+  "6": {
+   "name": "oligon",
+   "interval": 1,
+   "note": "",
+   "source": "chanter-atlas"
+  },
+  "7": {
+   "name": "psifiston",
+   "interval": null,
+   "note": "qualitative; in 7|6ab figures the bar above (cluster 6, oligon) is the melodic note (+1)",
+   "source": "chanter-atlas"
+  },
+  "8": {
+   "name": "klasma",
+   "interval": null,
+   "note": "BLACK duration mark (+1 beat); only in combination above/below a note; appears in keys as 8ab/8be",
+   "source": "chanter-atlas"
+  },
+  "11": {
+   "name": "gorgon",
+   "interval": null,
+   "note": "single-step staircase; digorgon is the two-step staircase. Both neanes matches on the sheet were wrong. RED in print.",
+   "source": "chanter-atlas"
+  },
+  "12": {
+   "name": "vareia",
+   "interval": null,
+   "note": "silent/orthographic alone; vareia + apli/dipli/tripli right next to it = REST compound (chanters sometimes skip rests)",
+   "source": "chanter-atlas"
+  },
+  "13": {
+   "name": "apli",
+   "interval": null,
+   "note": "duration dot; apli repeated adjacent = dipli/tripli (tetrapli existence uncertain); next to a vareia = rest compound",
+   "source": "chanter-atlas"
+  },
+  "14": {
+   "name": "indicator-Pa",
+   "interval": null,
+   "note": "NOT SUNG: solfege/martyria indicator, part of martyria compound",
+   "source": "chanter-atlas"
+  },
+  "15": {
+   "name": "martyria-diatonic-on-Pa (2nd part)",
+   "interval": null,
+   "note": "pairs UNDER the Pa indicator, never alone. Over a melodic glyph it is a FTHORA: that note becomes diatonic Pa regardless of where it lands — ALL fthores work this way (note takes on the new degree quality in the new scale)",
+   "source": "chanter-atlas"
+  },
+  "17": {
+   "name": "kentimata",
+   "interval": 1,
+   "note": "JUST the kentimata (earlier 'oligon+kentimata compound' reading was an artifact of crop padding — the bar under it is a separate glyph). Above an oligon the FIGURE is two notes (+1 +1)",
+   "source": "chanter-atlas"
+  },
+  "18": {
+   "name": "yporrhoe (variant)",
+   "interval": null,
+   "note": "TWO notes -1 -1; sheet-matched to neanes gorgon/digorgon COMPOUND codepoints only because neanes encodes every combination; the book composes yporrhoe + gorgon/digorgon on top as separate glyphs",
+   "source": "chanter-atlas"
+  },
+  "19": {
+   "name": "antikenoma",
+   "interval": null,
+   "note": "orthographic/qualitative only, no quantitative value",
+   "source": "chanter-atlas"
+  },
+  "21": {
+   "name": "oligon (variant)",
+   "interval": 1,
+   "note": "",
+   "source": "chanter-atlas"
+  },
+  "22": {
+   "name": "AMBIGUOUS bar",
+   "interval": null,
+   "note": "chanter: 'an ison as well, duplicate of cluster 6' — but 6=oligon and extraction has 22 in the RED klasma-family set; sheet had no color. RE-REVIEW with color context sheet",
+   "source": "chanter-atlas"
+  },
+  "34": {
+   "name": "indicator-Di",
+   "interval": null,
+   "note": "NOT SUNG: martyria compound part, indicates the note you should be on; a check, no melodic meaning",
+   "source": "chanter-atlas"
+  },
+  "38": {
+   "name": "martyria/fthora hard-chromatic 0th-or-2nd degree",
+   "interval": null,
+   "note": "hard-chromatic equivalent of cluster 15 (usually the 0th degree, e.g. hard-chromatic Pa). Chanter: that system repeats every perfect FIFTH, not octave — REVIEW hymn_align hard_pos which is octave-cyclic",
+   "source": "chanter-atlas"
+  }
+ },
+ "wrong_examples": {}
+}

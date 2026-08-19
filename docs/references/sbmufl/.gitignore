@@ -1,0 +1,6 @@
+.~lock.*
+.mypy_cache/
+private-scripts/
+.DS_Store
+__pycache__/
+*.py[cod]
