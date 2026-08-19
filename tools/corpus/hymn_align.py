@@ -37,6 +37,13 @@ RED_TIME = set()
 # SCALE SIGN (≈Ga context), not the Νη letter; anchoring it to Νη=0 was a -3
 # anchor error at Ga cadences. 26=Ζω kept but UNREVIEWED by the chanter.
 MARTYRIA_DEG = {34: 4, 14: 1, 26: 6, 23: 3, 52: 5, 67: 2}
+# The martyria FAMILY, letters and scale signs together, from the chanter's
+# atlas. Presence only — these are NOT degree anchors, and cluster 24 in
+# particular was wrongly used as one before ("it is the nana scale sign,
+# removed from degree anchors"). A scale sign says which scale, the letter says
+# which degree, so only letters may anchor. But a cadence is marked by the
+# whole compound, so detecting that a martyria is THERE needs the full set.
+MARTYRIA_ANY = set(MARTYRIA_DEG) | {15, 24, 35, 38, 50, 56}
 SILENT_BLACK = {12, 61, 55}      # bareia, stavros, lone slash
 MARK_ONLY = {36, 13, 27, 10, 16, 9}  # dots/kentima slabs: never a base alone
 # cluster 9 (chanter export): "Antikenoma that has a apli right underneath.

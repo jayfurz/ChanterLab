@@ -26,7 +26,7 @@ second like the first is exactly how the earlier automatic passes failed.
     SCORE                                 (26 distinct ranges)
       starts on a drop cap                26/26  100%
       ends on a compound                  21/26   81%
-      martyria as an endcap               16/26   62%  <- detector-bound
+      martyria as an endcap               23/26   88%
 
     STRUCTURE
       melos preceded by its parallagi     23/23  100%
@@ -35,10 +35,17 @@ Counting note: a parallagi and its melos usually share one score range, so the
 47 score ranges collapse to 26 distinct ones. Scoring per span would
 double-count every shared range and flatter the result.
 
-The martyria figure is not a verdict on the rule. `MARTYRIA_DEG` knows only 6
-clusters and recognises 21% of the red glyphs on these pages, so 62% bounds the
-DETECTOR. Fixing martyria recognition is worth doing before this rule is
-judged.
+The martyria figure was 62% and that was the detector, not the rule. It was
+testing `mart_deg`, which records only the six LETTER clusters that can anchor
+a degree. The chanter's atlas labels eleven martyria-family clusters -- letters
+AND scale signs -- and a cadence is marked by the whole compound. Testing for
+presence over the full family (`MARTYRIA_ANY`) gives 23/26. Only two ranges end
+without one.
+
+Note the distinction that keeps this safe: a scale sign says which SCALE, the
+letter says which DEGREE, so only letters may anchor a degree. Cluster 24 was
+wrongly used as an anchor once before and removed. `MARTYRIA_ANY` is for
+presence only and does not touch `MARTYRIA_DEG`.
 
 ## Three hard constraints
 
@@ -90,3 +97,25 @@ conclusions from one.
 - Span #01 has no lane and no partner: the anavathmoi and both prokeimena.
 - Vasilikos speaks inside the anavathmoi parallagi. Skip intervals exist for
   this in the tool; none are recorded on this tape yet.
+
+## Snapping, and what it is worth
+
+Two of these rules are usable as tap aids in the score picker, and their
+strength differs:
+
+    starts -> nearest drop cap    26/26 recall, hard    167/168 recovery
+    ends   -> nearest compound    21/26 recall, soft    123/175 vs 25 unaided
+
+Recovery is measured by replaying every gold boundary tapped 1-5 units off in
+either direction. On a score of ~6,400 units this is the difference between
+marking a boundary and hunting for one.
+
+Two things were tried for ends and rejected:
+
+  - Predicting the end outright as the last compound before the NEXT drop cap:
+    7/26. Drop caps over-generate 4:1 because they also open verses inside a
+    hymn, so the next cap is usually not the next hymn.
+  - Adding martyria positions to the end snap targets: 58%, DOWN from 70%.
+    The rule is a good description of where ends fall and a bad snap target,
+    because more candidates dilute the snap. Descriptive accuracy and snapping
+    utility are not the same property.

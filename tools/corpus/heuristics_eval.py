@@ -23,9 +23,11 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from hymn_align import load_units, DOTS, APLI_COMPOUND, KLASMA, MARTYRIA_DEG
+from hymn_align import (load_units, DOTS, APLI_COMPOUND, KLASMA,
+                        MARTYRIA_DEG, MARTYRIA_ANY)
 
 TEXTS = '/mnt/data/chant-corpus/texts'
+GLYPHS_DIR = '/mnt/data/chant-corpus/scores/glyphs'
 SCORES = '/mnt/data/chant-corpus/scores'
 PPS = 20                       # peak buckets per second
 
@@ -128,9 +130,20 @@ def main():
             else:
                 miss_comp.append((s['hymn'], sc['p1'], sc['l1'], u1.get('base')))
             # endcap: a martyria at or after the final unit on its line
+            # Presence of ANY martyria-family glyph at or after the final unit
+            # on its line. mart_deg only records the six LETTER clusters that
+            # can anchor a degree, which is why this rule read 62% — it was
+            # measuring the degree anchors, not the cadence marks.
+            import json as _json
+            import os as _os
+            gf = _os.path.join(GLYPHS_DIR, f'page{sc["p1"]}.json')
+            raw = _json.load(open(gf))['glyphs'] if _os.path.exists(gf) else []
+            on_line = [q for q in raw if q.get('line') == u1['pl'][1]
+                       and q['x0'] >= u1['x0'] - 2
+                       and q['cluster'] in MARTYRIA_ANY]
             later = [q for q in ue_us if q['pl'] == u1['pl']
                      and q['x0'] >= u1['x0'] - 2]
-            if any(q.get('mart_deg') is not None for q in later) or \
+            if on_line or any(q.get('mart_deg') is not None for q in later) or \
                u1.get('mart_deg') is not None:
                 mart_end += 1
             else:
@@ -139,9 +152,8 @@ def main():
     print(f'  starts on a drop cap       {pct(cap_start, n)}')
     print(f'  ends on a compound         {pct(comp_end, n)}')
     print(f'  martyria as an endcap      {pct(mart_end, n)}')
-    print('    NB: MARTYRIA_DEG recognises only 6 clusters and 21% of red '
-          'glyphs on these pages, so this number bounds the DETECTOR, not the '
-          "chanter's rule.")
+    print('    (martyria PRESENCE over the full family — letters and scale '
+          'signs — not just the six degree-anchor letters)')
     for name, lst in (('no drop cap', miss_cap), ('plain end unit', miss_comp),
                       ('no martyria', miss_mart)):
         if lst:
