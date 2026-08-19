@@ -1,5 +1,5 @@
 {
- "revision": 1,
+ "revision": 2,
  "name": "grave-orthros-tape-gold",
  "what": "Whole-tape hymn boundaries for Grave mode Orthros, cut by ear by the chanter.",
  "tape": "/mnt/data/chant-corpus/raw/vasilikos/Mode Grave/Mode Grave Anastasimatarion 2 Orthros.m4a",
@@ -7,12 +7,13 @@
  "parallagi": 23,
  "melos": 23,
  "covered_min": 61.6,
- "structure": "Every melos hymn is immediately preceded by its own parallagi. Verified: 23 parallagi / 23 melos, strict alternation, no orphan of either kind. This is a hard structural prior for the corpus, not a coincidence of this tape.",
+ "structure": "Every melos span is immediately preceded by its own parallagi. Verified: 23 parallagi / 23 melos, strict alternation, no orphan of either kind. A pair is not necessarily ONE liturgical item: the chanter sings the parallagi straight through all the anavathmoi and both prokeimena as a single span, and the melos of the same material follows as the next span. So the unit of pairing is the rendition, not the hymn, and a pair can cover several items at once.",
  "caveats": [
-  "The doxology melos (last span) is cut off after \"εκπισαμεν επι σε\" -- it did not fit on the 60-minute tape. Its parallagi IS complete, so the pair is usable for parallagi-side work but the melos must not be treated as a whole hymn.",
+  "The doxology melos (last span) is cut off after \"ελπίσαμεν επί σε\" -- it did not fit on the 60-minute tape. Its parallagi IS complete and runs to the end of the doxology, so the two halves of that pair carry DIFFERENT score ranges. Any step that assumes one hymn means one score range will silently truncate the parallagi.",
   "One hymn near the middle was interrupted by the tape flip and then restarted. Only the complete replay from the second 30-minute half is marked; the truncated first attempt is deliberately outside every span.",
-  "A stretch where Vasilikos is talking about a hymn is deliberately outside every span. Material not covered by a span is excluded on purpose, never by oversight.",
-  "The first span (61.26-107.08) has no lane set and is not part of any parallagi/melos pair; it needs a label before this tape is fully closed."
+  "A stretch where Vasilikos talks about a hymn is deliberately outside every span. Material not covered by a span is excluded on purpose, never by oversight.",
+  "Span #01 (61.26-107.08) has no lane and no partner. It is the only such span.",
+  "Inside the anavathmoi parallagi, just before the final prokeimenon, Vasilikos says \"this is the final ending of the prokeimenon\". That speech has no neumes behind it and is recorded as a skip interval on the span rather than by dropping the whole five-minute parallagi."
  ],
  "measured_against_pipeline": {
   "note": "The pipeline cuts in hymns.json for this tape, scored by IoU against the 23 gold melos spans.",
@@ -22,5 +23,6 @@
   "n": 25,
   "median_iou": 0.56,
   "failure_mode": "over-splitting: t21/t22/t23 are all one gold melos span, as are t54/t55/t57 and t05/t06 and t33/t34"
- }
+ },
+ "span_20_note": "Span #20 (1095.31-1386.50, parallagi, 291 s across three score pages) is the anavathmoi and both prokeimena together, NOT \"God is the Lord\" -- the label on it predates the chanter identifying it. Its melos partner is #21."
 }

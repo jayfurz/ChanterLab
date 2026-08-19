@@ -102,6 +102,32 @@ def peaks_for(wd, path):
 EXTRA = f'{TEXTS}/extra_tapes.json'
 
 
+def _clean_skips(raw, row):
+    """Intervals to drop from inside a span.
+
+    Vasilikos sometimes speaks mid-span -- "this is the final ending of the
+    prokeimenon" sits inside the anavathmoi parallagi. That audio has no neumes
+    behind it, so an aligner handed it stretches the surrounding notes over the
+    talking. Excluding a whole span for a few spoken seconds would throw away a
+    five-minute parallagi, so the skip is an interval, not a boundary.
+    """
+    out = []
+    for iv in raw or []:
+        a, b = float(iv[0]), float(iv[1])
+        if b <= a:
+            raise ValueError(f'skip {a:.2f}-{b:.2f} is empty or reversed')
+        if a < row['t0'] - 0.001 or b > row['t1'] + 0.001:
+            raise ValueError(
+                f"skip {a:.2f}-{b:.2f} is outside the span "
+                f"{row['t0']:.2f}-{row['t1']:.2f}")
+        out.append([round(a, 3), round(b, 3)])
+    out.sort()
+    for i in range(1, len(out)):
+        if out[i][0] < out[i - 1][1] - 0.001:
+            raise ValueError(f'skips {out[i-1]} and {out[i]} overlap')
+    return out
+
+
 def _saved_spans(wd):
     f = f'{TEXTS}/cuts_{wd}.json'
     if not os.path.exists(f):
@@ -144,6 +170,7 @@ def tapes():
                           'label': (s or {}).get('label'),
                           'lane': (s or {}).get('lane'),
                           't_in': (s or {}).get('t_in'),
+                          'skips': (s or {}).get('skips') or [],
                           'page': h.get('p0'), 'line': h.get('l0')})
         # spans the chanter added with "+ span" have no hymns.json row, so
         # carry them back in after their base, or they vanish on reload
@@ -153,7 +180,7 @@ def tapes():
                 continue
             row = {'name': n, 'cur': None, 't0': c.get('t0'), 't1': c.get('t1'),
                    'label': c.get('label'), 'lane': c.get('lane'),
-                   't_in': c.get('t_in'),
+                   't_in': c.get('t_in'), 'skips': c.get('skips') or [],
                    'extra': True, 'page': None, 'line': None}
             base = n.split('#')[0]
             at = next((i for i, h in enumerate(hymns)
@@ -172,7 +199,7 @@ def tapes():
             hymns = [{'name': n, 'cur': None, 't0': c.get('t0'),
                       't1': c.get('t1'), 'label': c.get('label'),
                       'lane': c.get('lane'), 't_in': c.get('t_in'),
-                      'extra': True, 'page': None, 'line': None}
+                      'skips': c.get('skips') or [], 'extra': True, 'page': None, 'line': None}
                      for n, c in sorted(saved.items(),
                                         key=lambda kv: kv[1].get('t0', 0))]
             out[wd] = {'tape': tape, 'basename': os.path.basename(tape),
@@ -430,6 +457,8 @@ class H(BaseHTTPRequestHandler):
                 row['t_in'] = ti
             if 'label' in b and b['label'] is not None:
                 row['label'] = str(b['label'])[:300]
+            if 'skips' in b:
+                row['skips'] = _clean_skips(b['skips'], row)
         except Exception as e:
             return self._send(400, json.dumps({'error': str(e)}))
         hd = f'{TEXTS}/cuts_history'
@@ -440,7 +469,8 @@ class H(BaseHTTPRequestHandler):
         doc['saved'] = time.strftime('%Y-%m-%dT%H:%M:%S')
         json.dump(doc, open(f, 'w'), indent=1, ensure_ascii=False)
         self._send(200, json.dumps({'ok': True, 'hymn': hymn,
-                                    't_in': row.get('t_in')}))
+                                    't_in': row.get('t_in'),
+                                    'skips': row.get('skips') or []}))
 
     def save_scorecuts(self):
         try:
@@ -521,9 +551,11 @@ class H(BaseHTTPRequestHandler):
                             f"{c.get('hymn')}: apichima end {ti:.2f} is outside "
                             f"the span {t0:.2f}-{t1:.2f}")
                     ti = round(ti, 3)
+                row = {'t0': round(t0, 3), 't1': round(t1, 3)}
                 cuts.append({'hymn': str(c['hymn']),
-                             't0': round(t0, 3), 't1': round(t1, 3),
+                             't0': row['t0'], 't1': row['t1'],
                              't_in': ti,
+                             'skips': _clean_skips(c.get('skips'), row),
                              'label': lab or None, 'lane': lane})
         except Exception as e:
             return self._send(400, json.dumps({'error': str(e)}))

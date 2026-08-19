@@ -13,6 +13,18 @@ parallagi span, and every parallagi span is immediately followed by a melos
 span. The single exception is the first span of the tape, which carries no
 lane and belongs to no pair.
 
+A pair is not necessarily one liturgical item. Chanter: "he does parallagi all
+the way through for all the anavathmoi through the two prokeimena, then the
+next span is only melos. he does alternate, thats just the way it was done."
+So the unit of pairing is the RENDITION, not the hymn -- one 291 s parallagi
+covering the anavathmoi and both prokeimena, then its melos. Anything that
+assumes a pair maps to a single hymn will mis-slice these.
+
+The two halves of a pair can also carry different score ranges. The doxology
+melos stops at "ελπίσαμεν επί σε" where the tape ran out, while its parallagi
+runs to the end of the doxology, so the parallagi's score range is longer. The
+range belongs to the span, not to the hymn.
+
 ## Why this matters more than any scoring change
 
 Identification has been attacked as a text problem and it does not work — the

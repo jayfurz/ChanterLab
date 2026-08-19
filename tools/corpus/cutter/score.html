@@ -26,11 +26,12 @@ button[disabled]{opacity:.38}
 #wf canvas{position:absolute;inset:0;width:100%;height:100%}
 #tl{font-variant-numeric:tabular-nums;font-size:13px;color:var(--dim)}
 #apx{font-size:12px;color:var(--gold);font-variant-numeric:tabular-nums}
+#skx{font-size:12px;color:var(--red);font-variant-numeric:tabular-nums}
 #clrI{flex:0 0 auto;padding:8px 10px;font-size:13px}
 .rates button{flex:1;min-width:40px;padding:7px 2px;font-size:14px}
 .lane-tag{font-size:11px;color:var(--dim);text-transform:uppercase;
   letter-spacing:.4px;border:1px solid var(--line);border-radius:5px;padding:1px 5px}
-main{padding:6px 0 96px}
+main{padding:6px 0 96px}   /* replaced at runtime by the real footer height */
 .pg{position:relative;margin:0 auto 10px;max-width:1100px}
 .pg img{display:block;width:100%;height:auto;border-radius:6px}
 .pg canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -38,7 +39,8 @@ main{padding:6px 0 96px}
   background:rgba(216,162,74,.85);border-radius:4px;padding:1px 6px}
 footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
   border-top:1px solid var(--line);padding:8px 10px;
-  padding-bottom:calc(8px + env(safe-area-inset-bottom));z-index:7}
+  padding-bottom:calc(8px + env(safe-area-inset-bottom));z-index:7;
+  transition:transform .18s ease}
 #list{max-height:34vh;overflow:auto;padding:0 10px}
 #list[hidden]{display:none}
 #pick{width:100%;margin-bottom:6px}
@@ -70,6 +72,12 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
     <button id="clrI" hidden>clear</button>
     <span id="apx" class="t"></span>
   </div>
+  <div class="row">
+    <button id="skFrom">skip from</button>
+    <button id="skTo" disabled>skip to</button>
+    <button id="skUndo" hidden>undo skip</button>
+    <span id="skx" class="t"></span>
+  </div>
   <div id="msg"></div>
 </header>
 <audio id="a" preload="metadata" playsinline webkit-playsinline></audio>
@@ -90,6 +98,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
     <button id="goto">show span</button>
     <button id="clr">clear</button>
     <button id="toggle">list</button>
+    <button id="hide">hide</button>
     <button id="save">Save</button>
   </div>
 </footer>
@@ -156,6 +165,45 @@ async function setApichima(val) {
   } catch (e) { msg('✗ ' + e.message); }
 }
 $('#setI').onclick = () => setApichima(+A.currentTime.toFixed(3));
+
+// Stretches to drop from inside a span: Vasilikos talking mid-hymn, e.g. "this
+// is the final ending of the prokeimenon" inside the anavathmoi parallagi.
+// There are no neumes behind that audio, so an aligner given it stretches the
+// surrounding notes across the talking.
+let skPend = null;
+async function saveSkips(list) {
+  const r = rows[sel];
+  try {
+    const res = await fetch('/api/span', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workdir: wd, hymn: r.name, skips: list }) });
+    const j = await res.json();
+    if (!res.ok) return msg('✗ ' + (j.error || res.status));
+    r.skips = j.skips || [];
+    msg(`${r.skips.length} skipped stretch${r.skips.length === 1 ? '' : 'es'}`);
+    drawWave(); render();
+  } catch (e) { msg('✗ ' + e.message); }
+}
+$('#skFrom').onclick = () => {
+  const r = rows[sel];
+  if (!r || r.t0 == null) return msg('this row has no audio span');
+  skPend = +A.currentTime.toFixed(3);
+  $('#skTo').disabled = false;
+  msg('skip starts ' + fmt(skPend - r.t0) + ' in — now play to its end and tap "skip to"');
+};
+$('#skTo').onclick = () => {
+  const r = rows[sel];
+  if (skPend == null) return;
+  const b = +A.currentTime.toFixed(3);
+  if (b <= skPend) return msg('the end must come after the start');
+  const list = [...(r.skips || []), [skPend, b]];
+  skPend = null; $('#skTo').disabled = true;
+  saveSkips(list);
+};
+$('#skUndo').onclick = () => {
+  const r = rows[sel];
+  saveSkips((r.skips || []).slice(0, -1));
+};
 $('#clrI').onclick = () => setApichima(null);
 $('#back').onclick = () => A.currentTime = Math.max(0, A.currentTime - 3);
 $('#fwd').onclick = () => A.currentTime = A.currentTime + 3;
@@ -183,6 +231,14 @@ function drawWave() {
       cx.fillRect(px, H / 2 - h, 1, h * 2);
     }
   }
+  (r.skips || []).forEach(([sa, sb]) => {
+    const x0 = (sa - a) / (b - a) * W, x1 = (sb - a) / (b - a) * W;
+    cx.fillStyle = 'rgba(198,91,78,.30)';
+    cx.fillRect(x0, 0, Math.max(x1 - x0, 1), H);
+    cx.fillStyle = 'rgba(198,91,78,.85)';
+    cx.fillRect(x0, 0, 1.5 * devicePixelRatio, H);
+    cx.fillRect(x1 - 1.5 * devicePixelRatio, 0, 1.5 * devicePixelRatio, H);
+  });
   if (r.t_in != null && r.t_in > a && r.t_in < b) {   // apichima: hymn starts after this
     const px = (r.t_in - a) / (b - a) * W;
     cx.fillStyle = 'rgba(216,162,74,.75)';
@@ -407,6 +463,10 @@ function render() {
     ? `apichima ${fmt(rr.t_in - rr.t0)} long — notes start there`
     : (rr && rr.t0 != null ? 'no apichima marked' : '');
   $('#clrI').hidden = !has;
+  const sk = (rr && rr.skips) || [];
+  $('#skx').textContent = sk.length
+    ? sk.map(([a, b]) => fmt(b - a)).join(' + ') + ' skipped' : '';
+  $('#skUndo').hidden = !sk.length;
   drawWave();
 }
 
@@ -418,7 +478,29 @@ $('#pick').onchange = e => {
 $('#toggle').onclick = () => {
   const L = $('#list'); L.hidden = !L.hidden;
   $('#toggle').className = L.hidden ? '' : 'on';
+  padForFooter();
 };
+// Last resort when a neume still sits under the controls: drop the footer out
+// of the way, tap, and it comes back.
+$('#hide').onclick = () => {
+  const f = document.querySelector('footer');
+  const off = f.style.transform !== '';
+  f.style.transform = off ? '' : 'translateY(calc(100% - 34px))';
+  $('#hide').textContent = off ? 'hide' : 'show';
+  padForFooter();
+};
+
+// The footer is fixed and its height changes with the label field and the
+// row list, so a constant bottom padding left the last line of the score
+// underneath it -- unreachable, which is where the doxology's final "σε" sits.
+function padForFooter() {
+  const f = document.querySelector('footer');
+  if (f) document.querySelector('main').style.paddingBottom =
+    (f.offsetHeight + 24) + 'px';
+}
+addEventListener('resize', padForFooter);
+if (window.ResizeObserver)
+  new ResizeObserver(padForFooter).observe(document.querySelector('footer'));
 
 function setMode(m) {
   mode = m;
@@ -466,5 +548,6 @@ addEventListener('keydown', e => {
   else if (e.key === 'ArrowDown') { e.preventDefault(); $('#next').click(); }
 });
 drawRates();
-boot();
+boot().then(padForFooter);
+addEventListener('load', padForFooter);
 </script>
