@@ -27,6 +27,7 @@ import unicodedata
 from html.parser import HTMLParser
 
 BASE = 'https://glt.goarch.org/texts/Och/'
+SITE = 'https://glt.goarch.org/texts/'
 CACHE = '/mnt/data/chant-corpus/texts/glt'
 OUT = '/mnt/data/chant-corpus/texts/glt_oktoechos.json'
 # GLT tone number -> the mode name this corpus uses
@@ -34,6 +35,15 @@ TONE_MODE = {1: 'mode1', 2: 'mode2', 3: 'mode3', 4: 'mode4',
              5: 'pl1', 6: 'pl2', 7: 'grave', 8: 'pl4'}
 PAGES = ([f'Tone{n}Sun.html' for n in range(1, 9)]
          + [f'Eothina{n}.html' for n in range(1, 12)])
+# The ORDINARY. Chanter: the psalm verses "all repeat in every single mode" —
+# Lord I Have Cried, Let My Prayer, God Is The Lord, the 22 short verses up to
+# ἐκ βαθέων ἐκέκραξά σοι and γενηθήτω τὰ ὦτά σου, and the verse before the
+# stichera, ἐξάγαγε ἐκ φυλακῆς τὴν ψυχήν μου. None of them are in the Oktoechos
+# pages, which carry only the mode-proper hymns — they live in the Horologion.
+# Without these, ~22 recorded segments per mode have no canonical text at all,
+# which is why so much of the book had nothing to match against.
+ORDINARY = ['Oro/Esperinos.html', 'Oro/Esperinos%20Sunday.html',
+            'Synek/orthrosegkolpion.html']
 SERVICE = [
     (r'ΜΙΚΡ\w*\s+ΕΣΠΕΡΙΝ', 'small_vespers'),
     (r'ΜΕΓΑΛ\w*\s+ΕΣΠΕΡΙΝ', 'great_vespers'),
@@ -161,7 +171,9 @@ def parse(page, runs):
     m = re.match(r'Tone(\d)Sun', page)
     tone = int(m.group(1)) if m else None
     eoth = re.match(r'Eothina(\d+)', page)
-    hymns, service = [], ('eothinon' if eoth else 'vespers')
+    ordinary = page.startswith(('Oro/', 'Synek/'))
+    hymns, service = [], ('orthros' if 'orthros' in page.lower()
+                          else 'eothinon' if eoth else 'vespers')
     heading, pending, buf = '', [], []
 
     def flush():
@@ -172,7 +184,9 @@ def parse(page, runs):
         if len(n) >= 12:
             hymns.append({
                 'page': page, 'tone': tone,
-                'mode': TONE_MODE.get(tone) if tone else f'eothinon{eoth.group(1)}',
+                'mode': ('ordinary' if ordinary else
+                         TONE_MODE.get(tone) if tone
+                         else f'eothinon{eoth.group(1)}'),
                 'service': service, 'heading': heading,
                 'text': text, 'norm': n, 'collapsed': collapse(n),
             })
@@ -208,10 +222,10 @@ def parse(page, runs):
 
 def fetch(page, refresh=False):
     os.makedirs(CACHE, exist_ok=True)
-    path = os.path.join(CACHE, page)
+    url = (SITE + page) if '/' in page else (BASE + page)
+    path = os.path.join(CACHE, page.replace('/', '_').replace('%20', '_'))
     if refresh or not os.path.exists(path):
-        subprocess.run(['curl', '-sS', '-m', '40', '-o', path, BASE + page],
-                       check=True)
+        subprocess.run(['curl', '-sS', '-m', '40', '-o', path, url], check=True)
     return open(path, encoding='utf-8', errors='replace').read()
 
 
@@ -265,7 +279,7 @@ def main():
     ap.add_argument('--refresh', action='store_true')
     a = ap.parse_args()
     all_h = []
-    for p in PAGES:
+    for p in PAGES + ORDINARY:
         try:
             h = parse(p, read_runs(fetch(p, a.refresh)))
         except Exception as e:
