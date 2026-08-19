@@ -1,0 +1,272 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Hymn boundary cutter</title>
+<style>
+:root{
+  --bg:#12100e; --panel:#1c1916; --line:#2f2a25; --ink:#efe7dc; --dim:#9c9086;
+  --gold:#d8a24a; --red:#c65b4e; --green:#6ea45f;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  padding-bottom:env(safe-area-inset-bottom)}
+header{position:sticky;top:0;z-index:5;background:var(--panel);
+  border-bottom:1px solid var(--line);padding:8px 10px}
+select,button{font:inherit;color:var(--ink);background:#241f1b;
+  border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+select{width:100%;margin-bottom:8px}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:active{transform:translateY(1px)}
+button.on{background:var(--gold);color:#1a1512;border-color:var(--gold);font-weight:600}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.rates button{flex:1;min-width:44px;padding:9px 4px;text-align:center}
+#time{font-variant-numeric:tabular-nums;font-size:20px;font-weight:600;
+  letter-spacing:.5px}
+#wrap{position:relative;height:74px;margin:8px 0;background:#0d0b0a;
+  border:1px solid var(--line);border-radius:9px;overflow:hidden;touch-action:none}
+#wave{position:absolute;inset:0;width:100%;height:100%}
+#play{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);
+  pointer-events:none}
+.mark{position:absolute;top:0;bottom:0;width:2px;pointer-events:none}
+.mark.s{background:var(--green)} .mark.e{background:var(--red)}
+#band{position:absolute;top:0;bottom:0;background:rgba(216,162,74,.16);
+  pointer-events:none}
+main{padding:8px 10px 90px}
+.h{display:flex;gap:8px;align-items:center;padding:9px 10px;
+  border:1px solid var(--line);border-radius:10px;margin-bottom:6px;
+  background:var(--panel)}
+.h.sel{border-color:var(--gold);background:#241d14}
+.h .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.h .t{font-variant-numeric:tabular-nums;font-size:13px;color:var(--dim);
+  white-space:nowrap}
+.h.done .t{color:var(--green)}
+footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
+  border-top:1px solid var(--line);padding:8px 10px;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom));z-index:6}
+footer .row button{flex:1}
+#msg{font-size:13px;color:var(--dim);min-height:18px;padding:2px 0}
+kbd{background:#2a241f;border:1px solid var(--line);border-radius:4px;
+  padding:0 5px;font-size:12px}
+</style>
+
+<header>
+  <select id="wd"></select>
+  <div class="row" style="justify-content:space-between">
+    <span id="time">0:00.00</span>
+    <span id="cur" class="t" style="color:var(--dim);font-size:13px"></span>
+  </div>
+  <div id="wrap">
+    <canvas id="wave"></canvas>
+    <div id="band" hidden></div>
+    <div class="mark s" id="ms" hidden></div>
+    <div class="mark e" id="me" hidden></div>
+    <div id="play"></div>
+  </div>
+  <div class="row rates" id="rates"></div>
+</header>
+
+<main><div id="list"></div></main>
+
+<footer>
+  <div id="msg"></div>
+  <div class="row">
+    <button id="back">&#8630; 5s</button>
+    <button id="pp">Play</button>
+    <button id="fwd">5s &#8631;</button>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <button id="setS" style="border-color:var(--green)">Start &#9679;</button>
+    <button id="setE" style="border-color:var(--red)">End &#9679;</button>
+    <button id="prev">&#8593;</button>
+    <button id="next">&#8595;</button>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <button id="playSel">Play this hymn</button>
+    <button id="save">Save</button>
+  </div>
+</footer>
+
+<audio id="a" preload="metadata"></audio>
+<script>
+const $ = s => document.querySelector(s);
+const A = $('#a');
+let TAPES = {}, wd = null, hymns = [], sel = 0, peaks = null;
+
+const fmt = t => {
+  if (t == null || !isFinite(t)) return '--';
+  const m = Math.floor(t / 60), s = t - m * 60;
+  return m + ':' + (s < 10 ? '0' : '') + s.toFixed(2);
+};
+
+// Playback rate. preservesPitch is the whole point of the speed ladder: at 8x
+// a pitch-shifted tape is unusable for finding a chant boundary by ear.
+const RATES = [0.5, 1, 2, 4, 8];
+let rate = 1;
+function drawRates() {
+  $('#rates').innerHTML = '';
+  RATES.forEach(r => {
+    const b = document.createElement('button');
+    b.textContent = r + 'x';
+    if (r === rate) b.className = 'on';
+    b.onclick = () => { rate = r; applyRate(); drawRates(); };
+    $('#rates').append(b);
+  });
+}
+function applyRate() {
+  A.preservesPitch = A.mozPreservesPitch = A.webkitPreservesPitch = true;
+  try { A.playbackRate = rate; }
+  catch (e) { msg('this browser caps playback at ' + A.playbackRate + 'x'); }
+}
+
+function msg(t) { $('#msg').textContent = t || ''; }
+
+async function boot() {
+  TAPES = await (await fetch('/api/tapes')).json();
+  const sel_ = $('#wd');
+  Object.keys(TAPES).forEach(k => {
+    const o = document.createElement('option');
+    const done = TAPES[k].hymns.filter(h => h.t0 != null).length;
+    o.value = k;
+    o.textContent = `${k} — ${TAPES[k].hymns.length} hymns, ${done} cut`;
+    sel_.append(o);
+  });
+  sel_.onchange = () => load(sel_.value);
+  drawRates();
+  if (Object.keys(TAPES).length) load(Object.keys(TAPES)[0]);
+}
+
+function load(k) {
+  wd = k;
+  hymns = TAPES[k].hymns.map(h => ({ ...h }));
+  sel = 0; peaks = null;
+  A.src = '/tape/' + encodeURIComponent(k);
+  A.load();
+  applyRate();
+  msg(TAPES[k].basename);
+  draw(); render();
+}
+
+function render() {
+  const L = $('#list');
+  L.innerHTML = '';
+  hymns.forEach((h, i) => {
+    const d = document.createElement('div');
+    d.className = 'h' + (i === sel ? ' sel' : '') +
+                  (h.t0 != null && h.t1 != null ? ' done' : '');
+    d.innerHTML = `<span class="n">${h.name}</span><span class="t">${
+      h.t0 == null ? '—' : fmt(h.t0)} → ${h.t1 == null ? '—' : fmt(h.t1)}</span>`;
+    d.onclick = () => { sel = i; render(); draw(); if (h.t0 != null) A.currentTime = h.t0; };
+    L.append(d);
+  });
+  const h = hymns[sel];
+  $('#cur').textContent = h ? `${sel + 1}/${hymns.length}  ${h.name}` : '';
+  document.querySelectorAll('.h')[sel]
+    ?.scrollIntoView({ block: 'nearest' });
+}
+
+// Waveform. Decoding a two-hour tape in the browser is not viable, so the
+// strip is a coarse amplitude sketch built from what has actually buffered;
+// it is an orientation aid, and the ear is the instrument that decides.
+const cv = $('#wave'), cx = cv.getContext('2d');
+function draw() {
+  const w = cv.width = cv.clientWidth * devicePixelRatio;
+  const hgt = cv.height = cv.clientHeight * devicePixelRatio;
+  cx.clearRect(0, 0, w, hgt);
+  const D = A.duration;
+  cx.strokeStyle = '#2a2521'; cx.lineWidth = devicePixelRatio;
+  for (let i = 1; i < 10; i++) {
+    const x = w * i / 10;
+    cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, hgt); cx.stroke();
+  }
+  if (isFinite(D)) {
+    for (let i = 0; i < A.buffered.length; i++) {
+      const a = A.buffered.start(i) / D * w, b = A.buffered.end(i) / D * w;
+      cx.fillStyle = '#221d19'; cx.fillRect(a, hgt * .35, b - a, hgt * .3);
+    }
+  }
+  const h = hymns[sel];
+  const px = t => (isFinite(D) && t != null) ? (t / D * cv.clientWidth) : null;
+  const S = px(h?.t0), E = px(h?.t1);
+  $('#ms').hidden = S == null; if (S != null) $('#ms').style.left = S + 'px';
+  $('#me').hidden = E == null; if (E != null) $('#me').style.left = E + 'px';
+  const band = $('#band');
+  band.hidden = !(S != null && E != null);
+  if (!band.hidden) { band.style.left = S + 'px'; band.style.width = (E - S) + 'px'; }
+}
+addEventListener('resize', draw);
+
+$('#wrap').addEventListener('pointerdown', e => {
+  if (!isFinite(A.duration)) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  A.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * A.duration;
+});
+
+A.addEventListener('timeupdate', () => {
+  $('#time').textContent = fmt(A.currentTime);
+  if (isFinite(A.duration))
+    $('#play').style.left = (A.currentTime / A.duration * 100) + '%';
+});
+A.addEventListener('loadedmetadata', draw);
+A.addEventListener('progress', draw);
+A.addEventListener('ratechange', () => { if (A.playbackRate !== rate) applyRate(); });
+A.addEventListener('play', () => $('#pp').textContent = 'Pause');
+A.addEventListener('pause', () => $('#pp').textContent = 'Play');
+
+$('#pp').onclick = () => A.paused ? A.play() : A.pause();
+$('#back').onclick = () => A.currentTime = Math.max(0, A.currentTime - 5);
+$('#fwd').onclick = () => A.currentTime = Math.min(A.duration || 1e9, A.currentTime + 5);
+$('#setS').onclick = () => { hymns[sel].t0 = +A.currentTime.toFixed(3); render(); draw(); autosave(); };
+$('#setE').onclick = () => { hymns[sel].t1 = +A.currentTime.toFixed(3); render(); draw(); autosave(); };
+$('#prev').onclick = () => { sel = Math.max(0, sel - 1); render(); draw(); };
+$('#next').onclick = () => { sel = Math.min(hymns.length - 1, sel + 1); render(); draw(); };
+$('#playSel').onclick = () => {
+  const h = hymns[sel];
+  if (h.t0 == null) return msg('no start marked yet');
+  A.currentTime = h.t0; A.play();
+  if (h.t1 != null) {
+    const stop = () => {
+      if (A.currentTime >= h.t1) { A.pause(); A.removeEventListener('timeupdate', stop); }
+    };
+    A.addEventListener('timeupdate', stop);
+  }
+};
+
+// Autosave on every mark. The tedious part of this job is doing it twice.
+let pend = null;
+function autosave() { clearTimeout(pend); pend = setTimeout(() => save(true), 1200); }
+
+async function save(quiet) {
+  const cuts = hymns.filter(h => h.t0 != null && h.t1 != null)
+                    .map(h => ({ hymn: h.name, t0: h.t0, t1: h.t1 }));
+  const bad = hymns.find(h => h.t0 != null && h.t1 != null && h.t1 <= h.t0);
+  if (bad) return msg('✗ ' + bad.name + ': end is not after start');
+  try {
+    const r = await fetch('/api/cuts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workdir: wd, cuts })
+    });
+    const j = await r.json();
+    msg(r.ok ? `saved ${j.n}/${hymns.length}` + (quiet ? '' : ' → ' + j.path)
+             : '✗ ' + (j.error || r.status));
+  } catch (e) { msg('✗ ' + e.message); }
+}
+$('#save').onclick = () => save(false);
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT') return;
+  const k = e.key;
+  if (k === ' ') { e.preventDefault(); $('#pp').click(); }
+  else if (k === 'ArrowLeft') $('#back').click();
+  else if (k === 'ArrowRight') $('#fwd').click();
+  else if (k === 'ArrowUp') { e.preventDefault(); $('#prev').click(); }
+  else if (k === 'ArrowDown') { e.preventDefault(); $('#next').click(); }
+  else if (k === 's' || k === '[') $('#setS').click();
+  else if (k === 'e' || k === ']') $('#setE').click();
+  else if (k === 'p') $('#playSel').click();
+  else if (RATES.includes(+k)) { rate = +k; applyRate(); drawRates(); }
+});
+
+boot();
+</script>
