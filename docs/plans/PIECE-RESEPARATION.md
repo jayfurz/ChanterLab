@@ -94,6 +94,46 @@ shifted by its own start delta, recorded per hymn. Gold #2 (`t03`, 76 pins) and
 gold #1 are frozen separately with their own audio checksums and are not
 silently affected, but they must be re-frozen deliberately afterwards.
 
+## 5b. Results, and the one diagnostic that explains what is left
+
+Delivered (2026-08-19):
+
+| | before | after |
+|---|---|---|
+| audio clipped, tracks cut at segment edges | 33 % (RMS) | **8 %** (10/127) |
+| median tail | 0.17 s | **0.48 s** |
+| workdirs at zero clipped | 1 | **6** |
+| identification median | 4.48/tok | **3.85/tok** |
+| identification clearing the 4.5 gate | 52 % | **83 %** (143/173) |
+| score starts on a drop cap | 54 % | **69 %** (120/173) |
+
+What is left is 46 tracks below the confidence gate, concentrated in mode3
+(2/10), pl4 (2/4) and pl4-orthros (11/25). Two causes, and the second is the
+real one:
+
+1. **Editorial prose in the candidate pool.** The Horologion appendices contain
+   rubrics that EXPLAIN the chant rather than being chanted — "Οἱ Καταβασίες
+   εἶναι οἱ Εἱρμοὶ τοῦ πρώτου κανόνος", "Πῶς νὰ εὕρῃς τὰ λόγια τῶν Καταβασιῶν".
+   They are modern Greek, so the function words identify them; `tape_solve.py`
+   now filters them. This was mode3's visible symptom but not its cause —
+   filtering barely moved the numbers.
+
+2. **A FLAT score distribution means the segment is not one hymn.** For mode3's
+   `kyrie-ekekraxa`, all eight cached options sit within 0.09/tok of each other
+   (4.84–4.93) and none is the right text. When no text fits, the segment
+   contains something other than a single hymn — a parallagi and melos merged, or
+   several psalm verses. That is a SEGMENTATION failure surfacing as an
+   identification failure, and the flat distribution is how to detect it
+   automatically.
+
+**RESEP-05 (M), the next step:** use score flatness as a segmentation signal.
+Where a segment's best options are within a small margin of each other, re-cut
+that segment with a lower silence threshold and re-score only it. The tape-level
+threshold (0.8 s) is right on average — it recovers 56 segments against 59 known
+pieces on grave orthros — but it cannot be right for every passage of every
+tape, and flatness says exactly where it is wrong. The score cache makes this
+cheap: only the offending segments need re-scoring.
+
 ## 6. Non-goals
 
 - Further tuning of the RMS cutter. Four variants were measured; refinement
