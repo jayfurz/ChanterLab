@@ -19,27 +19,27 @@ text and its per-token loss.
 
 Usage:  tape_assign.py --workdir DIR [--device cuda]
 
-STATUS 2026-08-19: WORKS, NOT YET CLEAN. First run, grave-orthros:
+STATUS 2026-08-19: WORKS, NOT YET CLEAN. grave-orthros, best of four runs:
 
     25/25 hymns assigned, monotonic across the tape
-    identification median 3.78/tok, 72% at <=4.5   (per-track was 4.48, 52%)
+    identification median 3.78/tok, 72% at <=4.5   (per-file was 4.48, 52%)
     t03 -> 160.2-210.1 s against its known cut of 158.5-211.9 s
     median inter-hymn gap 3.4 s
 
-  So the premise holds: one hymn per silence-bounded segment identifies better
-  than one hymn per pre-cut file, because the segment actually contains one
-  hymn. That is the 52% -> 72% move, and it is the gate on editing boundaries.
+  The premise holds: one hymn per silence-bounded segment identifies better than
+  one hymn per pre-cut file, because the segment actually contains one hymn.
+  52% -> 72% matters because 4.5/tok is the gate on editing a score boundary.
 
-  Not yet clean, and both faults are visible in the first run:
-    * one text assigned twice (Κατέλυσας to both t03 and t05). The DP has no
-      penalty for reusing a text, so a strong match can win twice. It needs a
-      use-once constraint, which is a per-text flag threaded through the DP.
-    * one span of 252.7 s and a 1286 s gap between t41 and t44 — the middle of
-      the tape is mis-assigned, so segments are being skipped wholesale. Likely
-      the same cause: with texts reusable, the path prefers repeating a good
-      match over finding the right one.
+  Remaining fault: Κατέλυσας is still assigned to two hymns (t03 and t05). A
+  use-once constraint is needed and is NOT simply text-order monotonicity —
+  that was tried and is wrong. The candidate pool is GLT DOCUMENT order, which
+  interleaves the Horologion ordinary with the mode-proper hymns and does not
+  follow the recording; imposing it dropped 25/25 to 19/25, shifted every hymn
+  by two, and pushed the tail to 5-6/tok. Segments and hymns share an ordering
+  because both are the recording; GLT entries do not.
 
-  Neither is a flaw in the approach; both are missing constraints in the DP.
+  A real use-once rule needs the used-set in the DP state (or an iterative
+  ban-and-resolve pass), not an ordering proxy.
 """
 import argparse
 import json
@@ -106,12 +106,13 @@ def main():
     pool = [g for g in glt if g['_w'] and (
         g['mode'] == 'ordinary'
         or ((not mode or g['mode'] == mode) and g['service'] in svc))]
+    pos_of = {id(g): k for k, g in enumerate(pool)}
     cands = []
     for grp in runs(pool, a.max_run):
         w = [x for g in grp for x in g['_w']]
         ids = ids_of(w, vocab, sep)
         rep = sum(1 for i in range(1, len(ids)) if ids[i] == ids[i - 1])
-        cands.append((grp, w, ids, len(ids) + rep))
+        cands.append((grp, w, ids, len(ids) + rep, pos_of[id(grp[0])]))
     print(f'  {len(pool)} entries -> {len(cands)} candidate texts')
 
     # score every segment (and short runs of segments) against every candidate
@@ -133,10 +134,10 @@ def main():
             lpt = logp.transpose(0, 1)
             dur = x.size / SR
             Lmax, Lmin = max(64, int(T * 0.45)), max(24, int(1.2 * dur))
-            feas = [(g, w, ids) for g, w, ids, need in cands
+            feas = [(g, w, ids, gi) for g, w, ids, need, gi in cands
                     if need < T and Lmin <= len(ids) <= Lmax]
             feas.sort(key=lambda z: len(z[2]))
-            bst = None
+            top = []
             s0 = 0
             while s0 < len(feas):
                 Lc = len(feas[min(s0 + 31, len(feas) - 1)][2])
@@ -144,7 +145,7 @@ def main():
                 ch = feas[s0:s0 + B]
                 s0 += B
                 flat, lens = [], []
-                for _, _, ids in ch:
+                for _, _, ids, _gi in ch:
                     flat.extend(ids); lens.append(len(ids))
                 with torch.inference_mode(), torch.backends.cudnn.flags(enabled=False):
                     L = torch.nn.functional.ctc_loss(
@@ -153,15 +154,25 @@ def main():
                         torch.full((len(ch),), T, dtype=torch.int32, device=dev),
                         torch.tensor(lens, dtype=torch.int32, device=dev),
                         blank=blank, reduction='none', zero_infinity=True)
-                for (g, w, ids), v in zip(ch, L.tolist()):
+                for (g, w, ids, gi), v in zip(ch, L.tolist()):
                     if v <= 0.0 or v != v:
                         continue
-                    pt = v / len(ids)
-                    if bst is None or pt < bst[0]:
-                        bst = (pt, g, w, ids)
-            if bst:
-                best_for[(i, n)] = {'lpt': bst[0], 'text': ' '.join(x_['text'] for x_ in bst[1]),
-                                    'head': bst[1][0]['heading'], 't0': t0, 't1': t1}
+                    top.append((v / len(ids), gi, g))
+            # keep the best few per segment, not just the best: the DP needs
+            # alternatives to satisfy the text-order constraint below
+            top.sort(key=lambda z: z[0])
+            keep, seen_gi = [], set()
+            for pt, gi, g in top:
+                if gi in seen_gi:
+                    continue
+                seen_gi.add(gi)
+                keep.append({'lpt': pt, 'gi': gi,
+                             'text': ' '.join(x_['text'] for x_ in g),
+                             'head': g[0]['heading']})
+                if len(keep) >= 8:
+                    break
+            if keep:
+                best_for[(i, n)] = {'t0': t0, 't1': t1, 'opts': keep}
         if (i + 1) % 10 == 0:
             print(f'   scored {i+1}/{len(segs)} segments', flush=True)
 
@@ -173,28 +184,60 @@ def main():
     for j in range(S + 1):
         D[0][j] = 0.0
         P[0][j] = (0, j - 1, None) if j else None
+    # LAST[i][j] = index in the text pool of the text used most recently on the
+    # best path to (i, j). Carrying it makes the texts monotonically ordered,
+    # which is the constraint that was missing: the book and the tape run in the
+    # same liturgical order, so a text may not be reused and may not go
+    # backwards. Without it Κατέλυσας was assigned to two different hymns and
+    # the middle of the tape was skipped wholesale.
+    LAST = [[-1] * (S + 1) for _ in range(H + 1)]
+    CH = [[None] * (S + 1) for _ in range(H + 1)]
     for i in range(1, H + 1):
         for j in range(1, S + 1):
-            best_v, best_p = D[i][j - 1], (i, j - 1, None)     # skip a segment
+            best_v, best_p, best_last, best_ch = D[i][j - 1], (i, j - 1, None), \
+                LAST[i][j - 1], None
+            # a hymn may simply not be on this tape (the chanter: "not all the
+            # tapes are the same in that not all of them have every hymn")
+            if D[i - 1][j] - 1.0 > best_v:
+                best_v, best_p = D[i - 1][j] - 1.0, (i - 1, j, None)
+                best_last, best_ch = LAST[i - 1][j], None
             for n in range(1, a.max_seg_run + 1):
                 if j - n < 0:
                     continue
                 b = best_for.get((j - n, n))
                 if not b or D[i - 1][j - n] <= NEG / 2:
                     continue
-                v = D[i - 1][j - n] + max(0.0, 8.0 - b['lpt'])
-                if v > best_v:
-                    best_v, best_p = v, (i - 1, j - n, (j - n, n))
-            D[i][j], P[i][j] = best_v, best_p
-    j = max(range(S + 1), key=lambda x: D[H][x])
+                prev_last = LAST[i - 1][j - n]
+                for o in b['opts']:
+                    # NOT o['gi'] > prev_last. Text-index monotonicity looks
+                    # right — book and tape both run in liturgical order — but
+                    # the pool is GLT DOCUMENT order, which interleaves the
+                    # ordinary with the mode-proper hymns and does NOT follow
+                    # the recording. Imposing it dropped 25/25 assigned to
+                    # 19/25, shifted every hymn by two, and pushed the tail to
+                    # 5-6/tok. Use-once needs a different mechanism than order.
+                    if o['gi'] == prev_last:
+                        continue                  # never the same text twice running
+                    v = D[i - 1][j - n] + max(0.0, 8.0 - o['lpt'])
+                    if v > best_v:
+                        best_v, best_p = v, (i - 1, j - n, (j - n, n))
+                        best_last, best_ch = o['gi'], o
+            D[i][j], P[i][j], LAST[i][j], CH[i][j] = best_v, best_p, best_last, best_ch
+    reach = [x for x in range(S + 1) if D[H][x] > NEG / 2 and P[H][x] is not None]
+    if not reach:
+        raise SystemExit('no monotonic assignment found — loosen --max-seg-run')
+    j = max(reach, key=lambda x: D[H][x])
     i, out = H, []
     while i > 0:
+        if P[i][j] is None:          # unreachable state: stop, do not invent one
+            break
         pi, pj, span = P[i][j]
         if span:
             b = best_for[(span[0], span[1])]
-            out.append({'hymn': hy[i - 1]['name'], 'seg': span, 'lpt': round(b['lpt'], 3),
+            o = CH[i][j] or b['opts'][0]
+            out.append({'hymn': hy[i - 1]['name'], 'seg': span, 'lpt': round(o['lpt'], 3),
                         't0': b['t0'], 't1': b['t1'], 'dur': round(b['t1'] - b['t0'], 1),
-                        'text': b['text'][:70], 'heading': b['head']})
+                        'text': o['text'][:70], 'heading': o['head']})
         i, j = pi, pj
     out.reverse()
     jf = f'/mnt/data/chant-corpus/texts/tapeassign_{name}.json'
