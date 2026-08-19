@@ -24,6 +24,7 @@ import re
 import html
 import subprocess
 import unicodedata
+from html.parser import HTMLParser
 
 BASE = 'https://glt.goarch.org/texts/Och/'
 CACHE = '/mnt/data/chant-corpus/texts/glt'
@@ -78,12 +79,131 @@ def collapse(s):
     return re.sub(r'(.)\1+', r'\1', s)
 
 
-def strip_html(raw):
-    raw = re.sub(r'(?is)<(script|style).*?</\1>', ' ', raw)
-    raw = re.sub(r'(?i)<br\s*/?>|</p>|</div>|</tr>|</h[1-6]>', '\n', raw)
-    raw = re.sub(r'<[^>]+>', ' ', raw)
-    out = [re.sub(r'\s+', ' ', l).strip() for l in html.unescape(raw).split('\n')]
-    return [l for l in out if l]
+class GLTReader(HTMLParser):
+    """Reads GLT markup structurally instead of guessing from plain text.
+
+    The site marks rubrics exactly the way the printed book does — in RED:
+
+        <FONT COLOR="#ff0000">Ὁ Εἱρμὸς</FONT><br/>«Νεύσει σοῦ πρὸς γεώδη, ...
+
+    so "Ὁ Εἱρμὸς", "Στίχ.", "Ἦχος βαρὺς", "ᾨδὴ α'" and the rest are red, and the
+    sung text is plain. The first parser flattened the HTML and tried to spot
+    rubrics with a regex on the resulting text, which glued them onto the first
+    line of the hymn ("Ὁ Εἱρμὸς «Νεύσει σοῦ ...") and polluted every match. The
+    colour is unambiguous and free — use it.
+
+    Blue is the ΤΟ ΑΚΟΥΤΕ audio link; skip it entirely. </p> ends a hymn.
+    """
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.runs = []            # (kind, text): kind in {red, text, break}
+        self._red = 0
+        self._skip = 0
+
+    def _color(self, attrs):
+        for k, v in attrs:
+            if k.lower() == 'color' and v:
+                return v.strip().lower().lstrip('#')
+        return None
+
+    def handle_starttag(self, tag, attrs):
+        t = tag.lower()
+        if t == 'font':
+            c = self._color(attrs)
+            if c and c.startswith('ff0000'):
+                self._red += 1
+                return
+            if c and (c.startswith('0000ff') or c.startswith('00f')):
+                self._skip += 1
+                return
+            self._red += 0
+        elif t == 'a':
+            self._skip += 1
+        elif t in ('br', 'p', 'div', 'tr'):
+            self.runs.append(('break', ''))
+        elif t in ('script', 'style'):
+            self._skip += 1
+
+    def handle_endtag(self, tag):
+        t = tag.lower()
+        if t == 'font':
+            if self._skip:
+                self._skip -= 1
+            elif self._red:
+                self._red -= 1
+        elif t == 'a':
+            self._skip = max(0, self._skip - 1)
+        elif t in ('script', 'style'):
+            self._skip = max(0, self._skip - 1)
+        elif t in ('p', 'div', 'tr'):
+            self.runs.append(('para', ''))
+
+    def handle_data(self, data):
+        d = re.sub(r'\s+', ' ', data)
+        if not d.strip() or self._skip:
+            return
+        self.runs.append(('red' if self._red else 'text', d))
+
+
+def read_runs(raw):
+    r = GLTReader()
+    r.feed(raw)
+    return r.runs
+
+
+def parse(page, runs):
+    """-> [{tone, mode, service, heading, text, norm, collapsed}]
+
+    A hymn is a maximal run of PLAIN text. Red text is a rubric: it closes the
+    hymn in progress and becomes the next one's heading. </p> also closes.
+    """
+    m = re.match(r'Tone(\d)Sun', page)
+    tone = int(m.group(1)) if m else None
+    eoth = re.match(r'Eothina(\d+)', page)
+    hymns, service = [], ('eothinon' if eoth else 'vespers')
+    heading, pending, buf = '', [], []
+
+    def flush():
+        if not buf:
+            return
+        text = ' '.join(' '.join(buf).split())
+        n = norm(text)
+        if len(n) >= 12:
+            hymns.append({
+                'page': page, 'tone': tone,
+                'mode': TONE_MODE.get(tone) if tone else f'eothinon{eoth.group(1)}',
+                'service': service, 'heading': heading,
+                'text': text, 'norm': n, 'collapsed': collapse(n),
+            })
+        buf.clear()
+
+    for kind, txt in runs:
+        if kind in ('break', 'para'):
+            if kind == 'para':
+                flush()
+            continue
+        if kind == 'red':
+            pending.append(txt.strip())
+            flush()
+            continue
+        if pending:
+            heading = ' '.join(' '.join(pending).split())
+            pending = []
+            up = heading.upper()
+            hit = next((sv for pat, sv in SERVICE if re.search(pat, up)), None)
+            if hit:
+                service = hit
+        buf.append(txt.strip())
+    flush()
+    # a service heading can also arrive as an all-caps plain line
+    for h in hymns:
+        up = h['text'].upper()
+        if len(h['text']) < 60:
+            hit = next((sv for pat, sv in SERVICE if re.search(pat, up)), None)
+            if hit:
+                h['service'] = hit
+    return hymns
 
 
 def fetch(page, refresh=False):
@@ -95,57 +215,49 @@ def fetch(page, refresh=False):
     return open(path, encoding='utf-8', errors='replace').read()
 
 
-def parse(page, lines):
-    """-> [{tone, mode, service, heading, text, norm, collapsed}]"""
-    m = re.match(r'Tone(\d)Sun', page)
-    tone = int(m.group(1)) if m else None
-    eoth = re.match(r'Eothina(\d+)', page)
-    hymns, service, heading, buf = [], ('eothinon' if eoth else 'vespers'), '', []
+# --- combine pass -------------------------------------------------------
+# Chanter: "we can over split and then combine in another pass". The red-font
+# reader deliberately splits at every rubric and every </p>, which cuts a hymn
+# into its stanzas; this pass glues them back into hymn-level units.
+#
+# Which rubrics actually START a hymn is a liturgical question, and the chanter
+# gave the rules that matter:
+#   * "the verse preceding the stichera might be treated as a short hymn but it
+#     is actually attached to the following hymn"  -> Στίχ. merges FORWARD
+#   * "the same with the glory and both now followed by the theotokia" -> Δόξα /
+#     Καὶ νῦν head a unit that continues into the theotokion that follows
+HYMN_START = re.compile(
+    "^(Ἦχος|Ήχος|Ὁ Εἱρμ|Ο Ειρμ|ᾨδὴ|Ωδη|Δόξα|Καὶ νῦν|Και νυν|Θεοτοκίον|Θεοτοκια|"
+    "Ἀπολυτίκιον|Απολυτικιον|Κάθισμα|Καθίσματα|Ἐξαποστειλ|Κοντάκιον|Οἶκος|"
+    "Ὑπακοή|Προκείμ|Αἶνοι|Ἀναβαθμ|Μακαρισμ|Εὐλογητ|Στιχηρ|Αὐτόμελ|Άυτόμελ|"
+    "Ἄλλο|Ἕτερο|Ἀπόστιχα|Εἰς τὸν Στίχον)")
+# a psalm verse: never its own hymn, always attached to what follows
+VERSE = re.compile("^(Στίχ|Στιχ|\\(Δίς\\)|Δίς)")
 
-    def flush():
-        if not buf:
-            return
-        for text in INLINE_SPLIT.split(' '.join(buf)):
-            text = text.strip()
-            n = norm(text)
-            if len(n) < 12:              # ignore stray fragments
-                continue
-            hymns.append({
-                'page': page, 'tone': tone,
-                'mode': TONE_MODE.get(tone) if tone else f'eothinon{eoth.group(1)}',
-                'service': service, 'heading': heading,
-                'text': text, 'norm': n, 'collapsed': collapse(n),
-            })
-        buf.clear()
 
-    for l in lines:
-        up = l.upper()
-        hit = next((s for pat, s in SERVICE if re.search(pat, up)), None)
-        if hit and len(l) < 60:
-            flush(); service = hit; heading = ''; continue
-        m = HEADING.match(l)
-        if m:
-            # GLT often runs the rubric and the first line of the hymn together
-            # ("Theotokion tou echou a' Idou peplirotai ..."). Treating that
-            # whole line as text merges several hymns into one entry, which
-            # makes any boundary check meaningless - split the rubric off and
-            # keep the remainder as sung text.
-            flush()
-            if len(l) < 90:
-                heading = l
-            else:
-                cut = RUBRIC_TAIL.match(l)
-                end = cut.end() if cut else m.end()
-                heading = l[:end].strip()
-                rest = l[end:].strip()
-                if rest:
-                    buf.append(rest)
-            continue
-        if l.isupper() and len(l) < 60:
-            flush(); heading = l; continue
-        buf.append(re.sub(r'\s*ΤΟ ΑΚΟΥΤΕ\s*', ' ', l).strip())
-    flush()
-    return hymns
+def combine_parts(hymns):
+    """merge the over-split entries into hymn-level units"""
+    out = []
+    for h in hymns:
+        head = (h.get('heading') or '').strip()
+        new = (not out
+               or out[-1]['page'] != h['page']
+               or out[-1]['service'] != h['service']
+               or (bool(HYMN_START.match(head)) and not VERSE.match(head)))
+        if new:
+            g = dict(h)
+            g['parts'] = [h['text']]
+            g['headings'] = [head] if head else []
+            out.append(g)
+        else:
+            g = out[-1]
+            g['parts'].append(h['text'])
+            if head:
+                g['headings'].append(head)
+            g['text'] = (g['text'] + ' ' + h['text']).strip()
+            g['norm'] = norm(g['text'])
+            g['collapsed'] = collapse(g['norm'])
+    return out
 
 
 def main():
@@ -155,10 +267,11 @@ def main():
     all_h = []
     for p in PAGES:
         try:
-            h = parse(p, strip_html(fetch(p, a.refresh)))
+            h = parse(p, read_runs(fetch(p, a.refresh)))
         except Exception as e:
             print(f'  {p}: FAILED {e}')
             continue
+        h = combine_parts(h)
         all_h += h
         print(f'  {p:20s} {len(h):4d} hymns')
     json.dump(all_h, open(OUT, 'w'), ensure_ascii=False, indent=1)
