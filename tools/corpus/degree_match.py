@@ -46,10 +46,24 @@ def collapse(seq, min_run=3):
     return out
 
 
-def dtw_cost(a, b):
-    """Normalised DTW distance between two degree sequences (circular, mod 7)."""
+def dtw_cost(a, b, rotations=True):
+    """Normalised DTW distance between two degree sequences (circular, mod 7).
+
+    Tried at every rotation of the first sequence, because the absolute base is
+    NOT reliably recoverable: estimating it on successive 20 s windows of the
+    same span gives offsets that swing by 560-710 cents, since a seven-note
+    scale has near-symmetries and the sweep has several near-equal optima. What
+    identifies a hymn is the CONTOUR, and the contour survives a rotation that
+    the absolute labelling does not.
+    """
     if not a or not b:
         return 1e9
+    if rotations:
+        return min(_dtw([(x + r) % 7 for x in a], b) for r in range(7))
+    return _dtw(a, b)
+
+
+def _dtw(a, b):
     n, m = len(a), len(b)
     A = np.array(a)[:, None]
     B = np.array(b)[None, :]

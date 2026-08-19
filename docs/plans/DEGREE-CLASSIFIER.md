@@ -202,3 +202,29 @@ Note the tension with Stage 1 for whoever picks this up: the same pitch track
 that yields a 0.73 histogram cosine yields a sequence at chance. Getting the
 distribution right while getting the order wrong is what a frame-wise quantiser
 with no temporal model does. That is the argument for CTC.
+
+### Base estimation is unstable, and rotation invariance does not rescue it
+
+Estimating the base on successive 20 s windows of the SAME span gives:
+
+    t01_#3   1000, 290    spread 710 cents
+    t01_#5   1130, 570    spread 560 cents
+    t01_#7   10, 705, 15  spread 695 cents
+    t01_#9   300, 300     spread   0 cents
+    t01_#15  310, 295     spread  15 cents
+
+Half the spans are stable to 15 cents and half swing by more than a fifth. A
+seven-note scale has near-symmetries, so the offset sweep has several near-equal
+optima and picks between them arbitrarily.
+
+The obvious remedy -- compare contours rather than absolute degrees, by trying
+all seven rotations and keeping the best -- was implemented and does NOT help:
+still 1/21, median rank 11. So an arbitrary per-span rotation is not what is
+destroying the match, and three different DTW normalisations (n+m, min(n,m),
+rotation-invariant) all leave one candidate absorbing nearly every comparison.
+
+Two conclusions for Stage 2. The recovered sequence is not merely mislabelled
+but genuinely lacks the discriminative structure, consistent with the identity
+check. And a trained model should take tonic-relative pitch as a FEATURE while
+learning the base implicitly, rather than depending on an explicit estimate
+that is demonstrably unstable on half the data.
