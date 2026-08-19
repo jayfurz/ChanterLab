@@ -175,9 +175,19 @@ def main():
             feasible = [(g_, w_, i_) for g_, w_, i_, nd in prepared
                         if i_ and nd < T and Lmin <= len(i_) <= Lmax]
             best = None
-            B = 24
-            for s0 in range(0, len(feasible), B):
+            # Native CTC allocates roughly B x T x 2L floats. T scales with the
+            # track (a 160 s hymn is ~8000 frames) and L with the candidate, so a
+            # FIXED batch size OOMs on the long ones — the first corpus run died
+            # asking for 35.76 GiB. Size each batch from its own longest
+            # candidate against a fixed element budget instead.
+            feasible.sort(key=lambda z: len(z[2]))
+            BUDGET = 2.0e8
+            s0 = 0
+            while s0 < len(feasible):
+                Lc = len(feasible[min(s0 + 31, len(feasible) - 1)][2])
+                B = max(1, min(32, int(BUDGET / max(T * 2 * Lc, 1))))
                 chunk = feasible[s0:s0 + B]
+                s0 += B
                 n = len(chunk)
                 flat, lens = [], []
                 for _, _, i_ in chunk:

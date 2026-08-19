@@ -73,6 +73,12 @@ def main():
                          'to move a boundary. This is what stopped an 8-line '
                          'trim on t48 (5.93/tok).')
     ap.add_argument('--out', default='/mnt/data/chant-corpus/texts/boundary_from_fa.json')
+    ap.add_argument('--apply', action='store_true',
+                    help='write the corrected p0/l0/p1/l1 into hymns.json. '
+                         'Backs up to hymns.json.pre-fa and records the previous '
+                         'slice on each row. Re-slicing re-indexes units, so any '
+                         'pins on a moved hymn must be re-indexed too — the two '
+                         'gold sets are frozen separately and unaffected.')
     a = ap.parse_args()
 
     caps = {(d['page'], d['line']) for d in json.load(open(DROPCAPS))}
@@ -125,6 +131,19 @@ def main():
             if not any(keep):
                 continue
             i0, i1 = keep.index(True), len(keep) - 1 - keep[::-1].index(True)
+            # HARD CONSTRAINT: the drop cap is the chanter's "dead giveaway" for
+            # where a hymn starts, so a correction may never move a start OFF
+            # one. If the trimmed start is not on a drop cap, snap to the
+            # nearest trimmed-away line that is; if none is, keep the original
+            # start. Without this, pl2 t06 trimmed four head lines and landed
+            # between drop caps.
+            if (lines[i0][0], lines[i0][1]) not in caps:
+                snap = [k for k in range(0, i0 + 1)
+                        if (lines[k][0], lines[k][1]) in caps]
+                if snap:
+                    i0 = snap[-1]
+                elif (h['p0'], h['l0']) in caps:
+                    i0 = 0
             p0, l0 = lines[i0][0], lines[i0][1]
             pe, le = lines[i1][0], lines[i1][1]
             cur = [h['p0'], h['l0'], h['p1'], h['l1']]
@@ -148,6 +167,29 @@ def main():
                          'Y' if row['starts_on_dropcap'] else 'n'))
     json.dump(rows, open(a.out, 'w'), indent=1)
     mv = [r for r in rows if r['moved']]
+    if a.apply:
+        import shutil
+        by_wd = {}
+        for r in mv:
+            by_wd.setdefault(r['workdir'], []).append(r)
+        for wdn, items in by_wd.items():
+            hp2 = f'/mnt/data/chant-corpus/workdirs/{wdn}/hymns.json'
+            hys = json.load(open(hp2))
+            idx = {r['hymn']: r for r in items}
+            n = 0
+            for hh in hys:
+                r = idx.get(hh['name'])
+                if not r:
+                    continue
+                hh['slice_pre_fa'] = r['current']
+                hh['p0'], hh['l0'], hh['p1'], hh['l1'] = r['proposed']
+                hh['boundary_source'] = 'forced_align+dropcap'
+                hh.pop('g0', None)
+                hh.pop('g1', None)
+                n += 1
+            shutil.copy(hp2, hp2 + '.pre-fa')
+            json.dump(hys, open(hp2, 'w'), indent=1, ensure_ascii=False)
+            print(f'  applied {n} boundaries to {wdn} (backup hymns.json.pre-fa)')
     dc0 = sum(r['was_on_dropcap'] for r in rows)
     dc1 = sum(r['starts_on_dropcap'] for r in rows)
     print(f'\n{len(rows)} hymns checked, {len(mv)} boundaries move')
