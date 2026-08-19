@@ -377,9 +377,27 @@ function pick(p, fx, fy, cv) {
     }
     r.p0 = p.page; r.l0 = g.l; r.g0 = g.i;
   }
-  else { r.p1 = p.page; r.l1 = best.l; r.g1 = best.i; }
-  msg(`${mode === 0 ? 'start' : 'end'}: p${p.page} line ${best.l + 1} unit ${best.i}` +
-      ` — ${best.k === 'rest' ? 'rest' : 'base ' + best.k}, ${best.b} beat${best.b === 1 ? '' : 's'}`);
+  else {
+    // Ends usually fall on a compound (21 of 26 in the gold tape), so snapping
+    // recovers an imprecise tap 70% of the time against 14% unaided. Unlike
+    // starts this is NOT a hard rule -- five gold ends are plain units -- so it
+    // announces itself and the toggle turns it off.
+    let g = best;
+    if (snap && !best.c) {
+      const near = p.glyphs.filter(q => q.c && q.i >= best.i - 6 && q.i <= best.i + 6);
+      if (near.length) {
+        g = near.reduce((a, b) =>
+          Math.abs(b.i - best.i) < Math.abs(a.i - best.i) ? b : a);
+        if (g.i !== best.i) msg(`snapped to the compound at unit ${g.i}`);
+      }
+    }
+    r.p1 = p.page; r.l1 = g.l; r.g1 = g.i;
+  }
+  const set = mode === 0 ? [r.p0, r.l0, r.g0] : [r.p1, r.l1, r.g1];
+  const u = p.glyphs.find(q => q.i === set[2]) || best;
+  msg(`${mode === 0 ? 'start' : 'end'}: p${set[0]} line ${set[1] + 1} unit ${set[2]}` +
+      ` — ${u.k === 'rest' ? 'rest' : 'base ' + u.k}, ${u.b} beat${u.b === 1 ? '' : 's'}` +
+      (u.c ? ' (compound)' : ''));
   // once a start is set, the next tap is naturally the end
   if (mode === 0 && r.p1 == null) setMode(1);
   render(); repaintAll(); autosave();
@@ -526,8 +544,8 @@ let snap = true;
 $('#snap').onclick = () => {
   snap = !snap;
   $('#snap').className = snap ? 'on' : '';
-  msg(snap ? 'starts snap to the nearest drop cap'
-           : 'snapping off — starts land exactly where you tap');
+  msg(snap ? 'snapping on — starts to drop caps, ends to compounds'
+           : 'snapping off — marks land exactly where you tap');
 };
 $('#mode0').onclick = () => setMode(0);
 $('#mode1').onclick = () => setMode(1);

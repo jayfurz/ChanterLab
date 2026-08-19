@@ -278,7 +278,9 @@ def score_pages(wd):
                'x0': round(u['x0'], 1), 'y0': round(u['y0'], 1),
                'x1': round(u['x1'], 1), 'y1': round(u['y1'], 1),
                'k': ('rest' if u.get('rest') else str(u.get('base'))),
-               'b': round(beats(u), 2)}
+               'b': round(beats(u), 2),
+               # carries apli/dipli/tripli or klasma: hymns tend to end on one
+               'c': 1 if (u.get('apli') or u.get('klasma') or u.get('dots')) else 0}
               for i, u in enumerate(us)]
         caps = []
         for c in sorted(CAPS.get(pno, []), key=lambda c: (c['line'], c['x0'])):
