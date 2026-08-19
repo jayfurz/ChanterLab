@@ -527,6 +527,11 @@ $('#lab').addEventListener('input', e => {
 
 $('#split').onclick = () => {
   const h = hymns[sel];
+  if (!h) {                       // a tape with no hymns.json starts empty
+    hymns.push({ name: 's#1', cur: null, t0: null, t1: null, extra: true });
+    sel = 0; render(); draw();
+    return msg('added s#1 — mark its start and end');
+  }
   const base = h.name.split('#')[0];
   let n = 2;
   while (hymns.some(x => x.name === base + '#' + n)) n++;

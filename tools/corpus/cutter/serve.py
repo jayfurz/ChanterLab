@@ -99,6 +99,19 @@ def peaks_for(wd, path):
     return out
 
 
+EXTRA = f'{TEXTS}/extra_tapes.json'
+
+
+def _saved_spans(wd):
+    f = f'{TEXTS}/cuts_{wd}.json'
+    if not os.path.exists(f):
+        return {}
+    try:
+        return {c['hymn']: c for c in json.load(open(f))['cuts']}
+    except Exception:
+        return {}
+
+
 def tapes():
     out = {}
     for f in sorted(glob.glob(f'{TEXTS}/recut_*.json')):
@@ -148,6 +161,22 @@ def tapes():
             hymns.insert(at + 1, row)
         out[wd] = {'tape': tape, 'basename': os.path.basename(tape),
                    'hymns': hymns}
+    # Tapes with no workdir. The goal is every mode for both services, and two
+    # of those tapes had no hymns.json so the tool could not see them at all.
+    # They start with no rows; spans are added from scratch with "+ span".
+    if os.path.exists(EXTRA):
+        for wd, tape in json.load(open(EXTRA)).items():
+            if wd in out or not os.path.exists(tape):
+                continue
+            saved = _saved_spans(wd)
+            hymns = [{'name': n, 'cur': None, 't0': c.get('t0'),
+                      't1': c.get('t1'), 'label': c.get('label'),
+                      'lane': c.get('lane'), 't_in': c.get('t_in'),
+                      'extra': True, 'page': None, 'line': None}
+                     for n, c in sorted(saved.items(),
+                                        key=lambda kv: kv[1].get('t0', 0))]
+            out[wd] = {'tape': tape, 'basename': os.path.basename(tape),
+                       'hymns': hymns, 'no_workdir': True}
     return out
 
 
