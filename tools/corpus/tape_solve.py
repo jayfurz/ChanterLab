@@ -24,6 +24,20 @@ import json
 import os
 
 
+# Editorial prose in the Horologion appendices — rubrics that EXPLAIN the
+# chant rather than being chanted ("Οἱ Καταβασίες εἶναι οἱ Εἱρμοὶ τοῦ πρώτου
+# κανόνος...", "Πῶς νὰ εὕρῃς τὰ λόγια τῶν Καταβασιῶν..."). It is written in
+# modern Greek, which liturgical text is not, so the function words give it
+# away. This is what the weak workdirs were matching: mode3 had 8 of 10 hymns
+# assigned to prose, pl4-orthros 14 of 25.
+PROSE = ('εἶναι', 'Πῶς νὰ', 'Ἔτσι ', 'δηλαδή', 'παρόλο', 'σελ.', 'ἐκδ.',
+         'βλ. ', 'πρβλ', 'λέγεται', 'ὀνομάζ', 'συνήθως', 'ΜΑΔ', 'Μηναῖον,')
+
+
+def is_prose(t):
+    return any(m in t for m in PROSE)
+
+
 def solve(segs_n, hymns, scores, banned, max_seg_run, skip_pen=1.0):
     """monotonic assignment of hymns to segment runs; returns [(hymn_i, key, opt)]"""
     H, S = len(hymns), segs_n
@@ -46,7 +60,7 @@ def solve(segs_n, hymns, scores, banned, max_seg_run, skip_pen=1.0):
                 if not b:
                     continue
                 for o in b['opts']:
-                    if o['gi'] in banned:
+                    if o['gi'] in banned or is_prose(o['text']):
                         continue
                     v = D[i - 1][j - n] + max(0.0, 8.0 - o['lpt'])
                     if v > best_v:
