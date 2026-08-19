@@ -126,13 +126,33 @@ real one:
    identification failure, and the flat distribution is how to detect it
    automatically.
 
-**RESEP-05 (M), the next step:** use score flatness as a segmentation signal.
-Where a segment's best options are within a small margin of each other, re-cut
-that segment with a lower silence threshold and re-score only it. The tape-level
-threshold (0.8 s) is right on average — it recovers 56 segments against 59 known
-pieces on grave orthros — but it cannot be right for every passage of every
-tape, and flatness says exactly where it is wrong. The score cache makes this
-cheap: only the offending segments need re-scoring.
+**RESEP-05 — TESTED AND REFUTED.** The idea was to use score flatness to find
+mis-cut segments and re-cut them at a lower silence threshold. Both halves fail:
+
+- *Flatness is not discriminative.* 874 of 1289 scored segment runs (68 %) have
+  their top eight options within 0.15/tok. They are all liturgical Greek drawn
+  from one pool, so they are naturally close. The single mode3 example that
+  suggested the diagnostic was not representative — an over-generalisation from
+  one case.
+- *Sub-segmentation does not help.* Re-cutting mode3's 105 s `kyrie-ekekraxa`
+  segment at 0.35 s silence gives three sub-segments scoring 4.46, 5.21 and
+  4.46/tok against 4.84 for the whole. No improvement, and none is the right
+  text. Granularity is not the problem.
+
+**What the remaining gap actually is.** 30 of 173 tracks sit below the 4.5/tok
+gate. Two contributors, measured:
+
+1. **30 hymns (17 %) have `melos_audio` pointing at a `speech` or `other`
+   piece** — spoken announcements, not chant, which no canonical text can match.
+   Concentrated in pl4-orthros (7), grave-orthros (6), mode1 (5), grave (4).
+   This explains only 6 of the 30 weak tracks, though: because tape_assign works
+   on SEGMENTS rather than on the pre-cut file, 24 of them were still given a
+   good segment elsewhere. Their `melos_audio` is nonetheless wrong and should
+   be repaired or the hymn excluded.
+2. The other 24 are unexplained and need per-case inspection rather than another
+   global rule. Three global rules have now been tried and measured: prose
+   filtering (correct, small effect), flatness-guided re-segmentation (refuted),
+   and text-order monotonicity (refuted, actively harmful).
 
 ## 6. Non-goals
 
