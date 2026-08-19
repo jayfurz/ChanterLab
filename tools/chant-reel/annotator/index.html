@@ -103,6 +103,11 @@
     position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; color: var(--dim); pointer-events: none;
   }
+  #piecesel {
+    background: #10131a; color: var(--fg); border: 1px solid var(--edge);
+    border-radius: 4px; padding: 4px 6px; font: inherit; max-width: 300px;
+  }
+  @media (max-width: 900px) { #piecesel { max-width: 46vw; } }
   /* -------- narrow / mobile: stack, bottom-sheet detail -------- */
   @media (max-width: 900px) {
     #hdr h1 { display: none; }
@@ -127,12 +132,14 @@
 <body>
 <div id="hdr">
   <h1>Chant Annotator</h1>
+  <select id="piecesel" style="display:none" title="Switch piece (edits autosave per piece)"></select>
   <button id="fitbtn" title="Zoom to full piece (Home)">Fit</button>
   <label class="chk"><input type="checkbox" id="follow" checked> follow</label>
   <button id="ghostbtn" title="Mark pitch-ghost regions (G): drag on the pitch band to paint one, tap a region to remove it">Ghost</button>
   <button id="melbtn" title="Melisma note pinning (M): drag the teal boundaries inside an analytical span — the underlying melodic pins stay untouched">Mel</button>
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
+  <button id="refitbtn" title="Redistribute all UNPINNED markers by beat weight: between pins piecewise, before the first / after the last pin spread to the audio edges. Pins never move. Pin a few, refit, pin the next few…">Refit</button>
   <button id="resetbtn" title="Clear correction + pin on selected marker (R)">Reset</button>
   <button id="clearbtn" title="Discard ALL local edits">Clear</button>
 </div>
@@ -164,10 +171,11 @@
   <span id="counts"></span>
   <span id="savestate"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
-    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · long-press marker pin · pinch zoom</span>
+    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · long-press marker pin · pinch zoom</span>
 </div>
 <div id="transport">
   <button id="playbtn" class="primary" title="play/pause (space)">▶</button>
+  <button id="speedbtn" title="playback speed, pitch preserved (S)">1×</button>
   <button id="nudgeL" title="nudge selected marker −50 ms (←)">−50ms</button>
   <button id="nudgeR" title="nudge selected marker +50 ms (→)">+50ms</button>
   <button id="loopbtn" title="loop selected slot (L)">Loop</button>
@@ -179,18 +187,35 @@
 <script>
 'use strict';
 /* ================= configuration ================= */
-const DATA_DIR   = 'data/';
+/* multi-piece: ?piece=<id> loads data/<id>/ (prepped by prep_hymn_annotator
+   or prep_annotator --out); no param keeps the legacy single piece in data/ */
+const PIECE = (() => { const p = new URLSearchParams(location.search).get('piece');
+  return p && /^(?!\.+$)[A-Za-z0-9._-]{1,80}$/.test(p) ? p : null; })();
+const DATA_DIR   = PIECE ? 'data/' + PIECE + '/' : 'data/';
 const RIB_BASE   = 0.62;   // score ribbon scale (strip px -> CSS px), desktop
 const RIB_MIN = 0.45, RIB_MAX = 1.15;  // narrow-screen fit-to-height bounds
 let ribScale = RIB_BASE;
-const BAND_UP = 118, BAND_DN = 72;         // asymmetric crop: room for the
-const LINE_BAND = BAND_UP + BAND_DN;       // bracketed analytical annotations
+/* per-piece geometry/grid; meta.band_up/band_dn/step_pos/mor_* override */
+let BAND_UP = 118, BAND_DN = 72;           // asymmetric crop: room for the
+let LINE_BAND = BAND_UP + BAND_DN;         // bracketed analytical annotations
 const bandTop = cy => Math.max(0, cy - BAND_UP);   // clamped per-line crop top
 const LANE_H     = 34;     // MCR badge lane height (CSS px)
 const NUDGE      = 0.050;  // nudge step (s)
 const MIN_GAP    = 0.02;   // min spacing between neighbouring markers (s)
-const STEP_POS   = [-18,-8,0,12,22,30,42,54,64,72,84]; // scale-degree moria grid
-const MOR_MIN = -30, MOR_MAX = 95;
+let STEP_POS   = [-18,-8,0,12,22,30,42,54,64,72,84]; // scale-degree moria grid
+// parallagi syllable per STEP_POS entry (meta.step_name overrides); the
+// default tracks the hardcoded diatonic grid above, degrees -2..8
+let STEP_NAME  = ['Ke,','Zo,','Ni','Pa','Vou','Ga','Di','Ke','Zo',"Ni'","Pa'"];
+let MOR_MIN = -30, MOR_MAX = 95;
+/* absolute scale degree -> parallagi syllable; the chanter reads solfege, not
+   degree integers. ' = octave up, , = octave down (Νη=0 … Ζω=6). */
+const DEG_NAMES = ['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
+function degName(d) {
+  if (d == null || !isFinite(d)) return '?';
+  const oct = Math.floor(d / 7), i = d - oct * 7;
+  return DEG_NAMES[i] + (oct > 0 ? "'".repeat(oct) : ','.repeat(-oct));
+}
+function degLabel(d) { return d == null || !isFinite(d) ? '?' : `${degName(d)} (${d})`; }
 const HIT_TOUCH = 26, HIT_MOUSE = 6;   // marker hit radius per pointer type
 const LONGPRESS_MS = 600;
 
@@ -362,8 +387,31 @@ function restore() {
       ghosts = s.ghosts || [];
       anaT = s.anaT || null;
       $('savestate').textContent = 'restored local edits';
+      return;
     }
-  } catch (e) { /* fresh start */ }
+  } catch (e) { /* fall through to the seed */ }
+  seedFromGold();
+}
+/* No local edits for this slot revision — but the piece may ship curated
+   chanter work (data/<piece>/seed.json, written by prep from the frozen gold).
+   Re-segmenting the score changes data_rev and would otherwise present the
+   chanter a blank piece and lose verified pins. Seeded state is NOT written
+   back until the chanter touches something, so a stale seed cannot masquerade
+   as fresh local work. */
+function seedFromGold() {
+  const sd = D.seed;
+  if (!sd || !Array.isArray(sd.pins) || !sd.pins.length) return;
+  let n = 0;
+  for (const [gi, t] of sd.pins) {
+    const i = D.slots.gi.indexOf(gi);
+    if (i < 0) continue;
+    corrected[i] = t; pinned[i] = true; n++;
+  }
+  for (const f of (sd.flags || [])) {
+    if (typeof f.gi === 'number') flags[f.gi] = f.note || '';
+  }
+  $('savestate').textContent =
+    `seeded ${n} chanter pins from gold (${sd.source || 'frozen'})`;
 }
 function updateCounts() {
   const ne = corrected.filter(c => c != null).length;
@@ -372,11 +420,126 @@ function updateCounts() {
     `${Object.keys(flags).length} flagged · ${ghosts.length} ghost`;
 }
 
+/* Refit: redistribute every UNPINNED marker from the pins, by beat weight.
+   Between consecutive pins times are piecewise-linear in cumulative beats;
+   before the first pin they spread back to the audio start, after the last
+   pin forward to the audio end (the recording starts/ends with the hymn).
+   Pins never move; refit writes plain corrections (amber, not exported as
+   ground truth), so the workflow is: pin a few -> Refit -> the next markers
+   land near the truth -> pin the next few -> Refit ... */
+function refitUnpinned() {
+  const n = nS();
+  // 1. drop drag-clamp debris: a pin sitting < 60 ms after the previous pin
+  //    was stacked there by the monotone clamp while shoving markers, never
+  //    placed by ear — unpin it and clear its time so it refits
+  // 2. a selected marker bounds the trusted range: every pin AFTER the
+  //    selection is dropped and refit too
+  let dropped = 0;
+  const pinIdx = [], pinT = [];      // snapshot BEFORE any drops: nulling a
+  for (let i = 0; i < n; i++)        // dropped pin's time must not change
+    if (pinned[i]) { pinIdx.push(i); pinT.push(slotT(i)); }   // later checks
+  for (let k = 0; k < pinIdx.length; k++) {
+    const i = pinIdx[k];
+    const stacked = k > 0 && pinT[k] - pinT[k - 1] < 0.06;
+    const past = sel >= 0 && i > sel;
+    if (stacked || past) {
+      pinned[i] = false; corrected[i] = null; dropped++;
+    }
+  }
+  const anchors = [];
+  for (let i = 0; i < n; i++) if (pinned[i]) anchors.push(i);
+  if (!anchors.length) {
+    $('savestate').textContent = 'refit needs at least one pin';
+    return;
+  }
+  const w = (D.slots.w && D.slots.w.length === n) ? D.slots.w : new Array(n).fill(1);
+  const cum = new Array(n + 1); cum[0] = 0;
+  for (let i = 0; i < n; i++) cum[i + 1] = cum[i] + (w[i] > 0 ? w[i] : 1);
+  const t = i => slotT(i);
+  // between consecutive pins
+  for (let k = 1; k < anchors.length; k++) {
+    const a = anchors[k - 1], b = anchors[k];
+    const db = cum[b] - cum[a];
+    if (db <= 0 || t(b) <= t(a)) continue;
+    for (let i = a + 1; i < b; i++)
+      corrected[i] = t(a) + (t(b) - t(a)) * (cum[i] - cum[a]) / db;
+  }
+  // head: spread back to the audio start
+  const a0 = anchors[0];
+  if (a0 > 0 && cum[a0] > 0) {
+    const spb = t(a0) / cum[a0];
+    for (let i = 0; i < a0; i++) corrected[i] = Math.max(0, cum[i] * spb);
+  }
+  // tail: spread forward to the audio end
+  const aL = anchors[anchors.length - 1];
+  if (aL < n - 1 && cum[n] > cum[aL]) {
+    const spb = Math.max(0, D.meta.duration - 0.3 - t(aL)) / (cum[n] - cum[aL]);
+    for (let i = aL + 1; i < n; i++)
+      corrected[i] = t(aL) + (cum[i] - cum[aL]) * spb;
+  }
+  for (let i = 1; i < n; i++)          // keep strictly monotone
+    if (!pinned[i] && slotT(i) <= slotT(i - 1))
+      corrected[i] = slotT(i - 1) + 0.01;
+  $('savestate').textContent =
+    `refit ${n - anchors.length} markers from ${anchors.length} pins` +
+    (dropped ? ` (dropped ${dropped} stacked/out-of-range pins)` : '');
+  save(); dirtyTL = true; dirtyScore = true;
+}
+
+/* piece picker: data/index.json is the manifest prep_hymn_annotator maintains.
+   Each option shows the machine's movement agreement + coverage and the local
+   pin count, so the chanter can hunt low-confidence hymns first. */
+async function loadPieceList() {
+  let man;
+  try {
+    const res = await fetch('data/index.json');
+    if (!res.ok) return;
+    man = await res.json();
+  } catch (e) { return; }
+  const ready = (man.pieces || []).filter(p => p.status === 'ready');
+  if (!ready.length) return;
+  const sel = $('piecesel');
+  const opt = (v, label) => { const o = document.createElement('option');
+    o.value = v; o.textContent = label; if (v === (PIECE || '')) o.selected = true;
+    sel.appendChild(o); };
+  if (!PIECE) opt('', '(legacy piece in data/)');
+  for (const p of ready) {
+    let pins = 0;
+    try {
+      const s = JSON.parse(localStorage.getItem('chant-annotator:' + p.id +
+        (p.data_rev ? ':' + p.data_rev : '')));
+      if (s && s.pinned) pins = s.pinned.filter(Boolean).length;
+    } catch (e) { /* none */ }
+    opt(p.id, p.id +
+      (p.movement_agreement != null ? ' · agr ' + p.movement_agreement.toFixed(2) : '') +
+      (p.coverage_pct != null ? ' · cov ' + Math.round(p.coverage_pct) + '%' : '') +
+      (pins ? ' · ✎' + pins : ''));
+  }
+  sel.style.display = '';
+  sel.onchange = () =>
+    { location.search = sel.value ? '?piece=' + encodeURIComponent(sel.value) : ''; };
+}
+
 /* ================= loading ================= */
 async function boot() {
+  loadPieceList();   // async, independent of the piece itself
   const [dRes, mRes] = await Promise.all([
     fetch(DATA_DIR + 'annotator_data.json'), fetch(DATA_DIR + 'mcr_interpretation.json')]);
+  if (!dRes.ok || !mRes.ok) {
+    $('loadmsg').textContent = 'no data' + (PIECE ? ' for piece "' + PIECE + '"' : '') +
+      ' — pick a piece above or run the prep script';
+    return;
+  }
   D = await dRes.json(); MCR = await mRes.json();
+  if (D.meta.band_up) { BAND_UP = D.meta.band_up;
+    BAND_DN = D.meta.band_dn || BAND_DN; LINE_BAND = BAND_UP + BAND_DN; }
+  if (D.meta.step_pos) STEP_POS = D.meta.step_pos;
+  if (D.meta.step_name) STEP_NAME = D.meta.step_name;
+  else if (D.meta.step_deg) STEP_NAME = D.meta.step_deg.map(degName);
+  else if (D.meta.step_pos) STEP_NAME = null;   // unknown grid: no labels
+  if (D.meta.mor_min != null) MOR_MIN = D.meta.mor_min;
+  if (D.meta.mor_max != null) MOR_MAX = D.meta.mor_max;
+  document.title = (PIECE || D.meta.piece_id) + ' — Chant Annotator';
   corrected = new Array(nS()).fill(null);
   pinned = new Array(nS()).fill(false);
   restore(); updateCounts();
@@ -552,6 +715,13 @@ function drawLane(ctx, off, vw) {
     ctx.font = '9px system-ui';
     ctx.fillStyle = r.name.startsWith('0x') ? '#c98a5e' : '#9fb4cc';
     ctx.fillText(NSHORT[r.name] || r.name.slice(2), x+1, y0+2);
+    // expected degree as its parallagi syllable, right-aligned on the name row
+    const ed = r.expected_degrees;
+    if (ed && ed.length && w >= 30) {
+      ctx.fillStyle = '#7fa8d8'; ctx.textAlign = 'right';
+      ctx.fillText(degName(ed[ed.length - 1]), x + w - 2, y0 + 2);
+      ctx.textAlign = 'left';
+    }
     let m2 = beatsStr(r.beats);
     if (r.gorgon) m2 += r.gorgon_kind === 'digorgon' ? ' GG' : ' G';
     if (r.duration_mark !== 'none') m2 += ' ' + DSHORT[r.duration_mark];
@@ -645,6 +815,25 @@ function drawTL() {
   ctx.strokeStyle = 'rgba(255,255,255,0.05)';
   for (const m of STEP_POS) { ctx.beginPath();
     ctx.moveTo(0, mY(m)); ctx.lineTo(W, mY(m)); ctx.stroke(); }
+  // parallagi syllable per grid line, so the pitch curve reads as Pa/Vou/Ga
+  // rather than bare moria. Skipped when the lines crowd past legibility.
+  if (STEP_NAME && STEP_POS.length > 1) {
+    const gap = Math.abs(mY(STEP_POS[1]) - mY(STEP_POS[0]));
+    if (gap >= 11) {
+      ctx.font = '9px system-ui, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      for (let i = 0; i < STEP_POS.length; i++) {
+        const nm = STEP_NAME[i];
+        if (!nm) continue;
+        const y = mY(STEP_POS[i]);
+        if (y < pTop - 1 || y > pTop + pH + 1) continue;
+        ctx.fillStyle = nm.startsWith('Ni') ? 'rgba(224,160,48,0.75)'
+                                            : 'rgba(255,255,255,0.30)';
+        ctx.fillText(nm, 3, y);
+      }
+      ctx.textBaseline = 'alphabetic';
+    }
+  }
   if (D.ison && D.ison.length) {
     ctx.strokeStyle = 'rgba(224,160,48,0.8)'; ctx.setLineDash([4,3]);
     for (let i = 0; i < D.ison.length; i++) {
@@ -810,7 +999,8 @@ function openDetail(gi) {
     ['duration', r.duration_mark],
     ['quality', r.quality_marks.join(', ') || '—'],
     ['other marks', r.other_marks.join(', ') || '—'],
-    ['expected deg', r.expected_degrees ? r.expected_degrees.join(' → ') : '?'],
+    ['expected deg', r.expected_degrees
+      ? r.expected_degrees.map(degLabel).join(' → ') : '?'],
     ['ison at start', r.ison_at_start == null ? '?' : r.ison_at_start],
   ];
   $('fields').innerHTML = rows.map(([k, v]) =>
@@ -854,8 +1044,10 @@ function selectSlot(i, scroll = true) {
     // (score band) opens it explicitly.
     if (!isNarrow() || $('detail').classList.contains('open')) openDetail(gi);
     if (scroll) scrollGlyphIntoView(gi);
+    const ed = MCR[gi].expected_degrees;
     $('selinfo').innerHTML = `slot <b>${gi}.${D.slots.sub[i]}</b> ` +
       `${MCR[gi].name} “${MCR[gi].word}” ` +
+      (ed && ed.length ? `<b>${degLabel(ed[ed.length - 1])}</b> ` : '') +
       `t=<b>${fmtT(slotT(i))}</b>` +
       (corrected[i] != null ? ` (machine ${fmtT(D.slots.t[i])})` : '') +
       (pinned[i] ? ' ⚑ pinned' : '');
@@ -1187,8 +1379,24 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'f' || e.key === 'F') $('follow').checked = !$('follow').checked;
   else if (e.key === 'g' || e.key === 'G') toggleGhostMode();
   else if (e.key === 'm' || e.key === 'M') toggleMelMode();
+  else if (e.key === 's' || e.key === 'S') cycleSpeed();
 });
 $('playbtn').onclick = togglePlay;
+/* pitch-preserving playback speed: tap to cycle (S on desktop) */
+const SPEEDS = [1, 0.75, 0.5, 0.35, 1.5];
+let speedIdx = 0;
+function applySpeed() {
+  const r = SPEEDS[speedIdx];
+  audio.preservesPitch = true;
+  audio.webkitPreservesPitch = true;         // older iOS Safari
+  audio.defaultPlaybackRate = r;             // survives src reload
+  audio.playbackRate = r;
+  $('speedbtn').textContent = r + '×';
+  $('speedbtn').classList.toggle('on', r !== 1);
+}
+function cycleSpeed() { speedIdx = (speedIdx + 1) % SPEEDS.length; applySpeed(); }
+$('speedbtn').onclick = cycleSpeed;
+audio.addEventListener('loadedmetadata', applySpeed);
 $('fitbtn').onclick = () => setView(0, D.meta.duration);
 function toggleGhostMode() {
   ghostMode = !ghostMode;
@@ -1212,6 +1420,7 @@ $('nudgeR').onclick = () => nudgeSel(1);
 $('loopbtn').onclick = toggleLoopSel;
 $('pinbtn').onclick = togglePinSel;
 $('detclose').onclick = () => selectSlot(-1);
+$('refitbtn').onclick = refitUnpinned;
 $('resetbtn').onclick = () => {
   if (sel >= 0) { corrected[sel] = null; pinned[sel] = false; save(); selectSlot(sel, false); } };
 $('clearbtn').onclick = () => {

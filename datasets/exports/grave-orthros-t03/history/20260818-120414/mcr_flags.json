@@ -1,0 +1,34 @@
+[
+ {
+  "gi": 0,
+  "note": "Should be plus 1\nThe word is \u039a\u03b1 (drop cap \u039a and vowel \u03b1)\n"
+ },
+ {
+  "gi": 1,
+  "note": "\u03a4\u03b5 is the word. Interval is +1 (\u03c0\u03b5\u03c4\u03b1\u03c3\u03c4\u03ae)"
+ },
+ {
+  "gi": 2,
+  "note": "Interval is down one (\u03b1\u03c0\u03cc\u03c3\u03c4\u03c1\u03bf\u03c6\u03bf\u03c2)"
+ },
+ {
+  "gi": 3,
+  "note": "Interval stays the same (\u03b9\u03c3\u03cc\u03bd)"
+ },
+ {
+  "gi": 6,
+  "note": "This is two different notes with a \u03bf\u03bc\u03b1\u03bb\u03bf\u03bd below it which is ties the two together, but is qualitatively/orthographic only. Technically i think it\u2019s under the second. The first note is the oligon (up one) then the ison (stay the same)"
+ },
+ {
+  "gi": 9,
+  "note": "This is an oligon with psifiston underneath. Psifiston is just orthographic and qualitative. Oligon should be +1"
+ },
+ {
+  "gi": 11,
+  "note": "This is a \u03b1\u03c0\u03bf\u03c3\u03c4\u03c1\u03bf\u03c6\u03cc\u03c2 with a klasma meaning interval -1 with an extra beat due to the klasma"
+ },
+ {
+  "gi": 12,
+  "note": "This is an ison with gorgon underneath. Meaning the note is +0 and 1/2 a beat, and it steals a 1/2 beat from the previous note with the klasma which makes the previous note 1-1/2 beats"
+ }
+]

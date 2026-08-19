@@ -43,6 +43,9 @@ class Handler(SimpleHTTPRequestHandler):
                       ".json": "application/json; charset=utf-8"}
 
     def do_POST(self):
+        if self.path.rstrip("/") == "/api/clusters":
+            self.handle_clusters()
+            return
         if self.path.rstrip("/") != "/api/export":
             self.send_error(404, "unknown endpoint")
             return
@@ -84,6 +87,35 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
         self.log_message("export %s -> %s (history/%s)", piece, dest, stamp)
+
+    def handle_clusters(self):
+        """POST /api/clusters — save the cluster classifier's state
+        (classifications + chanter-marked wrong examples + notes) into
+        <exports-dir>/clusters/classifications.json with timestamped history,
+        same never-destroy pattern as piece exports."""
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+            if not 0 < n <= MAX_BODY:
+                raise ValueError(f"bad content length {n}")
+            payload = json.loads(self.rfile.read(n))
+            if "classifications" not in payload:
+                raise ValueError("missing key: classifications")
+        except (ValueError, json.JSONDecodeError) as e:
+            self.send_error(400, str(e))
+            return
+        dest = self.exports_dir / "clusters"
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        (dest / "history").mkdir(parents=True, exist_ok=True)
+        text = json.dumps(payload, ensure_ascii=False, indent=1)
+        (dest / "classifications.json").write_text(text)
+        (dest / "history" / f"{stamp}.json").write_text(text)
+        body = json.dumps({"ok": True, "dir": str(dest), "stamp": stamp}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        self.log_message("clusters -> %s (history/%s)", dest, stamp)
 
 
 def main():

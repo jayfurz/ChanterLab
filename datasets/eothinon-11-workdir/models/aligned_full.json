@@ -1,0 +1,1287 @@
+{
+ "7": {
+  "slot": 0,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.858
+ },
+ "8": {
+  "slot": 1,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.989
+ },
+ "9": {
+  "slot": 2,
+  "glyph": "apostrofos.0",
+  "conf": 0.994
+ },
+ "11": {
+  "slot": 3,
+  "glyph": "apostrofos.0",
+  "conf": 0.996
+ },
+ "12": {
+  "slot": 4,
+  "glyph": "ison.0",
+  "conf": 0.998
+ },
+ "13": {
+  "slot": 5,
+  "glyph": "oligon.0",
+  "conf": 0.999
+ },
+ "15": {
+  "slot": 8,
+  "glyph": "apostrofos.0",
+  "conf": 0.994
+ },
+ "17": {
+  "slot": 9,
+  "glyph": "apostrofos.0",
+  "conf": 0.997
+ },
+ "19": {
+  "slot": 10,
+  "glyph": "oligon.0",
+  "conf": 0.985
+ },
+ "22": {
+  "slot": 11,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.971
+ },
+ "23": {
+  "slot": 12,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.999
+ },
+ "24": {
+  "slot": 13,
+  "glyph": "apostrofos.0",
+  "conf": 0.991
+ },
+ "25": {
+  "slot": 14,
+  "glyph": "oligon.0",
+  "conf": 1.0
+ },
+ "27": {
+  "slot": 15,
+  "glyph": "elafron+kentimata.0",
+  "conf": 0.982
+ },
+ "28": {
+  "slot": 18,
+  "glyph": "apostrofos.0",
+  "conf": 0.994
+ },
+ "29": {
+  "slot": 19,
+  "glyph": "apostrofos.0",
+  "conf": 0.999
+ },
+ "31": {
+  "slot": 21,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.999
+ },
+ "32": {
+  "slot": 22,
+  "glyph": "oligon.0",
+  "conf": 0.996
+ },
+ "33": {
+  "slot": 23,
+  "glyph": "oligon.0",
+  "conf": 0.996
+ },
+ "35": {
+  "slot": 28,
+  "glyph": "ison+kentimata.0",
+  "conf": 0.997
+ },
+ "36": {
+  "slot": 31,
+  "glyph": "yporrhoe.0",
+  "conf": 0.988
+ },
+ "37": {
+  "slot": 32,
+  "glyph": "yporrhoe.1",
+  "conf": 0.994
+ },
+ "38": {
+  "slot": 33,
+  "glyph": "oligon.0",
+  "conf": 0.995
+ },
+ "39": {
+  "slot": 34,
+  "glyph": "apostrofos.0",
+  "conf": 0.997
+ },
+ "40": {
+  "slot": 36,
+  "glyph": "ison.0",
+  "conf": 0.989
+ },
+ "41": {
+  "slot": 37,
+  "glyph": "oligon+ypsili+kentimata.0",
+  "conf": 0.995
+ },
+ "42": {
+  "slot": 38,
+  "glyph": "oligon+ypsili+kentimata.1",
+  "conf": 0.995
+ },
+ "43": {
+  "slot": 39,
+  "glyph": "apostrofos.0",
+  "conf": 0.997
+ },
+ "44": {
+  "slot": 40,
+  "glyph": "apostrofos.0",
+  "conf": 0.999
+ },
+ "45": {
+  "slot": 41,
+  "glyph": "apostrofos.0",
+  "conf": 0.993
+ },
+ "46": {
+  "slot": 43,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.999
+ },
+ "47": {
+  "slot": 44,
+  "glyph": "apostrofos.0",
+  "conf": 0.998
+ },
+ "48": {
+  "slot": 45,
+  "glyph": "oligon.0",
+  "conf": 0.994
+ },
+ "49": {
+  "slot": 46,
+  "glyph": "ison.0",
+  "conf": 0.558
+ },
+ "51": {
+  "slot": 47,
+  "glyph": "ison.0",
+  "conf": 0.584
+ },
+ "52": {
+  "slot": 48,
+  "glyph": "apostrofos.0",
+  "conf": 0.987
+ },
+ "53": {
+  "slot": 49,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.974
+ },
+ "55": {
+  "slot": 50,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.992
+ },
+ "56": {
+  "slot": 51,
+  "glyph": "apostrofos.0",
+  "conf": 0.996
+ },
+ "57": {
+  "slot": 52,
+  "glyph": "apostrofos.0",
+  "conf": 0.576
+ },
+ "58": {
+  "slot": 53,
+  "glyph": "apostrofos.0",
+  "conf": 0.549
+ },
+ "59": {
+  "slot": 55,
+  "glyph": "ison.0",
+  "conf": 0.994
+ },
+ "60": {
+  "slot": 56,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.994
+ },
+ "61": {
+  "slot": 57,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.992
+ },
+ "62": {
+  "slot": 59,
+  "glyph": "0xf071.0",
+  "conf": 0.99
+ },
+ "63": {
+  "slot": 60,
+  "glyph": "apostrofos.0",
+  "conf": 0.986
+ },
+ "64": {
+  "slot": 62,
+  "glyph": "oligon.0",
+  "conf": 0.964
+ },
+ "65": {
+  "slot": 63,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.958
+ },
+ "66": {
+  "slot": 64,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.979
+ },
+ "67": {
+  "slot": 65,
+  "glyph": "oligon.0",
+  "conf": 0.973
+ },
+ "68": {
+  "slot": 66,
+  "glyph": "ison.0",
+  "conf": 0.975
+ },
+ "69": {
+  "slot": 67,
+  "glyph": "apostrofos.0",
+  "conf": 0.981
+ },
+ "71": {
+  "slot": 68,
+  "glyph": "apostrofos.0",
+  "conf": 0.974
+ },
+ "72": {
+  "slot": 69,
+  "glyph": "ison.0",
+  "conf": 0.993
+ },
+ "73": {
+  "slot": 70,
+  "glyph": "apostrofos.0",
+  "conf": 0.943
+ },
+ "74": {
+  "slot": 71,
+  "glyph": "oligon.0",
+  "conf": 0.971
+ },
+ "75": {
+  "slot": 74,
+  "glyph": "apostrofos.0",
+  "conf": 0.981
+ },
+ "76": {
+  "slot": 75,
+  "glyph": "yporrhoe.0",
+  "conf": 0.993
+ },
+ "77": {
+  "slot": 76,
+  "glyph": "yporrhoe.1",
+  "conf": 1.0
+ },
+ "78": {
+  "slot": 77,
+  "glyph": "oligon.0",
+  "conf": 0.999
+ },
+ "79": {
+  "slot": 78,
+  "glyph": "apostrofos.0",
+  "conf": 0.983
+ },
+ "80": {
+  "slot": 80,
+  "glyph": "0xf040.0",
+  "conf": 0.685
+ },
+ "81": {
+  "slot": 81,
+  "glyph": "kentimata.0",
+  "conf": 0.741
+ },
+ "83": {
+  "slot": 82,
+  "glyph": "0xf071.0",
+  "conf": 0.529
+ },
+ "84": {
+  "slot": 83,
+  "glyph": "apostrofos.0",
+  "conf": 0.953
+ },
+ "86": {
+  "slot": 86,
+  "glyph": "apostrofos.0",
+  "conf": 0.928
+ },
+ "87": {
+  "slot": 87,
+  "glyph": "apostrofos.0",
+  "conf": 0.98
+ },
+ "88": {
+  "slot": 88,
+  "glyph": "ison.0",
+  "conf": 0.979
+ },
+ "89": {
+  "slot": 89,
+  "glyph": "ison.0",
+  "conf": 0.992
+ },
+ "90": {
+  "slot": 90,
+  "glyph": "ison+kentimata.0",
+  "conf": 0.998
+ },
+ "91": {
+  "slot": 93,
+  "glyph": "running-elafron.0",
+  "conf": 0.981
+ },
+ "92": {
+  "slot": 94,
+  "glyph": "running-elafron.1",
+  "conf": 0.816
+ },
+ "93": {
+  "slot": 95,
+  "glyph": "oligon.0",
+  "conf": 0.99
+ },
+ "95": {
+  "slot": 96,
+  "glyph": "kentimata-compound.0",
+  "conf": 1.0
+ },
+ "96": {
+  "slot": 97,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.996
+ },
+ "97": {
+  "slot": 98,
+  "glyph": "apostrofos.0",
+  "conf": 0.992
+ },
+ "98": {
+  "slot": 99,
+  "glyph": "oligon.0",
+  "conf": 0.998
+ },
+ "100": {
+  "slot": 100,
+  "glyph": "ison.0",
+  "conf": 0.99
+ },
+ "101": {
+  "slot": 102,
+  "glyph": "oligon.0",
+  "conf": 0.999
+ },
+ "102": {
+  "slot": 103,
+  "glyph": "apostrofos.0",
+  "conf": 0.999
+ },
+ "103": {
+  "slot": 104,
+  "glyph": "apostrofos.0",
+  "conf": 0.999
+ },
+ "104": {
+  "slot": 105,
+  "glyph": "apostrofos.0",
+  "conf": 0.997
+ },
+ "105": {
+  "slot": 106,
+  "glyph": "oligon.0",
+  "conf": 0.994
+ },
+ "106": {
+  "slot": 107,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.982
+ },
+ "107": {
+  "slot": 108,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.994
+ },
+ "108": {
+  "slot": 109,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.987
+ },
+ "109": {
+  "slot": 110,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.996
+ },
+ "110": {
+  "slot": 111,
+  "glyph": "apostrofos.0",
+  "conf": 0.97
+ },
+ "111": {
+  "slot": 112,
+  "glyph": "yporrhoe.0",
+  "conf": 0.995
+ },
+ "112": {
+  "slot": 113,
+  "glyph": "yporrhoe.1",
+  "conf": 1.0
+ },
+ "113": {
+  "slot": 114,
+  "glyph": "oligon.0",
+  "conf": 1.0
+ },
+ "114": {
+  "slot": 115,
+  "glyph": "apostrofos.0",
+  "conf": 0.994
+ },
+ "115": {
+  "slot": 116,
+  "glyph": "ison.0",
+  "conf": 0.966
+ },
+ "117": {
+  "slot": 119,
+  "glyph": "ison.0",
+  "conf": 0.948
+ },
+ "118": {
+  "slot": 120,
+  "glyph": "apostrofos+klasma.0",
+  "conf": 0.988
+ },
+ "119": {
+  "slot": 121,
+  "glyph": "apostrofos.0",
+  "conf": 0.98
+ },
+ "120": {
+  "slot": 122,
+  "glyph": "apostrofos.0",
+  "conf": 0.973
+ },
+ "122": {
+  "slot": 123,
+  "glyph": "apostrofos+kentimata.0",
+  "conf": 0.998
+ },
+ "123": {
+  "slot": 124,
+  "glyph": "apostrofos+kentimata.1",
+  "conf": 0.999
+ },
+ "124": {
+  "slot": 125,
+  "glyph": "apostrofos.0",
+  "conf": 0.999
+ },
+ "125": {
+  "slot": 126,
+  "glyph": "oligon.0",
+  "conf": 0.953
+ },
+ "128": {
+  "slot": 127,
+  "glyph": "oligon.0",
+  "conf": 0.997
+ },
+ "129": {
+  "slot": 128,
+  "glyph": "oligon.0",
+  "conf": 0.999
+ },
+ "130": {
+  "slot": 129,
+  "glyph": "oligon.0",
+  "conf": 0.983
+ },
+ "132": {
+  "slot": 130,
+  "glyph": "apostrofos.0",
+  "conf": 0.968
+ },
+ "133": {
+  "slot": 131,
+  "glyph": "apostrofos.0",
+  "conf": 0.978
+ },
+ "134": {
+  "slot": 133,
+  "glyph": "apostrofos.0",
+  "conf": 0.973
+ },
+ "136": {
+  "slot": 134,
+  "glyph": "ison.0",
+  "conf": 0.9
+ },
+ "137": {
+  "slot": 135,
+  "glyph": "kentimata.0",
+  "conf": 0.996
+ },
+ "138": {
+  "slot": 136,
+  "glyph": "ison+kentimata.0",
+  "conf": 0.946
+ },
+ "139": {
+  "slot": 139,
+  "glyph": "apostrofos.0",
+  "conf": 0.993
+ },
+ "140": {
+  "slot": 140,
+  "glyph": "ison.0",
+  "conf": 0.999
+ },
+ "141": {
+  "slot": 141,
+  "glyph": "yporrhoe.0",
+  "conf": 0.997
+ },
+ "142": {
+  "slot": 142,
+  "glyph": "yporrhoe.1",
+  "conf": 0.998
+ },
+ "143": {
+  "slot": 143,
+  "glyph": "oligon.0",
+  "conf": 0.997
+ },
+ "144": {
+  "slot": 144,
+  "glyph": "apostrofos.0",
+  "conf": 0.996
+ },
+ "145": {
+  "slot": 146,
+  "glyph": "petasti+kentima.0",
+  "conf": 1.0
+ },
+ "146": {
+  "slot": 147,
+  "glyph": "apostrofos.0",
+  "conf": 0.991
+ },
+ "147": {
+  "slot": 148,
+  "glyph": "apostrofos.0",
+  "conf": 0.995
+ },
+ "148": {
+  "slot": 149,
+  "glyph": "ison.0",
+  "conf": 0.986
+ },
+ "149": {
+  "slot": 150,
+  "glyph": "oligon.0",
+  "conf": 0.995
+ },
+ "150": {
+  "slot": 151,
+  "glyph": "oligon.0",
+  "conf": 0.999
+ },
+ "151": {
+  "slot": 152,
+  "glyph": "oligon.0",
+  "conf": 0.998
+ },
+ "152": {
+  "slot": 153,
+  "glyph": "ison+kentimata.0",
+  "conf": 0.992
+ },
+ "153": {
+  "slot": 154,
+  "glyph": "ison+kentimata.1",
+  "conf": 1.0
+ },
+ "154": {
+  "slot": 155,
+  "glyph": "0xf040.0",
+  "conf": 0.998
+ },
+ "155": {
+  "slot": 156,
+  "glyph": "kentimata.0",
+  "conf": 0.986
+ },
+ "156": {
+  "slot": 158,
+  "glyph": "apostrofos.0",
+  "conf": 0.691
+ },
+ "159": {
+  "slot": 159,
+  "glyph": "oligon.0",
+  "conf": 0.686
+ },
+ "160": {
+  "slot": 160,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.65
+ },
+ "161": {
+  "slot": 162,
+  "glyph": "apostrofos.0",
+  "conf": 0.563
+ },
+ "163": {
+  "slot": 163,
+  "glyph": "apostrofos.0",
+  "conf": 0.998
+ },
+ "164": {
+  "slot": 164,
+  "glyph": "kentimata.0",
+  "conf": 0.996
+ },
+ "166": {
+  "slot": 165,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.999
+ },
+ "167": {
+  "slot": 166,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.999
+ },
+ "168": {
+  "slot": 167,
+  "glyph": "apostrofos.0",
+  "conf": 0.998
+ },
+ "169": {
+  "slot": 168,
+  "glyph": "apostrofos+kentimata.0",
+  "conf": 0.997
+ },
+ "170": {
+  "slot": 169,
+  "glyph": "apostrofos+kentimata.1",
+  "conf": 0.993
+ },
+ "171": {
+  "slot": 170,
+  "glyph": "apostrofos.0",
+  "conf": 0.998
+ },
+ "172": {
+  "slot": 171,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.998
+ },
+ "174": {
+  "slot": 172,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.959
+ },
+ "176": {
+  "slot": 173,
+  "glyph": "apostrofos.0",
+  "conf": 0.98
+ },
+ "177": {
+  "slot": 174,
+  "glyph": "apostrofos.0",
+  "conf": 0.998
+ },
+ "178": {
+  "slot": 175,
+  "glyph": "apostrofos.0",
+  "conf": 0.996
+ },
+ "179": {
+  "slot": 177,
+  "glyph": "oligon.0",
+  "conf": 0.974
+ },
+ "180": {
+  "slot": 178,
+  "glyph": "yporrhoe.0",
+  "conf": 0.993
+ },
+ "181": {
+  "slot": 179,
+  "glyph": "yporrhoe.1",
+  "conf": 0.995
+ },
+ "182": {
+  "slot": 180,
+  "glyph": "apostrofos.0",
+  "conf": 0.999
+ },
+ "183": {
+  "slot": 181,
+  "glyph": "apostrofos.0",
+  "conf": 0.987
+ },
+ "184": {
+  "slot": 182,
+  "glyph": "oligon.0",
+  "conf": 0.984
+ },
+ "188": {
+  "slot": 183,
+  "glyph": "running-elafron.0",
+  "conf": 0.931
+ },
+ "189": {
+  "slot": 184,
+  "glyph": "running-elafron.1",
+  "conf": 0.929
+ },
+ "190": {
+  "slot": 185,
+  "glyph": "kentimata.0",
+  "conf": 0.916
+ },
+ "192": {
+  "slot": 186,
+  "glyph": "oligon.0",
+  "conf": 0.846
+ },
+ "193": {
+  "slot": 191,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.9
+ },
+ "194": {
+  "slot": 194,
+  "glyph": "apostrofos.0",
+  "conf": 0.906
+ },
+ "195": {
+  "slot": 195,
+  "glyph": "apostrofos.0",
+  "conf": 0.907
+ },
+ "197": {
+  "slot": 198,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.98
+ },
+ "198": {
+  "slot": 199,
+  "glyph": "apostrofos.0",
+  "conf": 0.987
+ },
+ "199": {
+  "slot": 200,
+  "glyph": "apostrofos.0",
+  "conf": 0.983
+ },
+ "201": {
+  "slot": 201,
+  "glyph": "oligon.0",
+  "conf": 0.883
+ },
+ "202": {
+  "slot": 202,
+  "glyph": "apostrofos.0",
+  "conf": 0.994
+ },
+ "203": {
+  "slot": 203,
+  "glyph": "apostrofos.0",
+  "conf": 0.98
+ },
+ "204": {
+  "slot": 206,
+  "glyph": "oligon.0",
+  "conf": 0.995
+ },
+ "205": {
+  "slot": 207,
+  "glyph": "oligon.0",
+  "conf": 0.996
+ },
+ "207": {
+  "slot": 208,
+  "glyph": "oligon.0",
+  "conf": 0.91
+ },
+ "208": {
+  "slot": 209,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.999
+ },
+ "209": {
+  "slot": 210,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.999
+ },
+ "210": {
+  "slot": 211,
+  "glyph": "0xf040.0",
+  "conf": 0.98
+ },
+ "211": {
+  "slot": 212,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.965
+ },
+ "212": {
+  "slot": 213,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.983
+ },
+ "213": {
+  "slot": 215,
+  "glyph": "apostrofos.0",
+  "conf": 0.998
+ },
+ "214": {
+  "slot": 216,
+  "glyph": "apostrofos.0",
+  "conf": 0.984
+ },
+ "215": {
+  "slot": 217,
+  "glyph": "oligon.0",
+  "conf": 0.998
+ },
+ "216": {
+  "slot": 218,
+  "glyph": "ison.0",
+  "conf": 0.968
+ },
+ "218": {
+  "slot": 220,
+  "glyph": "yporrhoe.0",
+  "conf": 0.968
+ },
+ "219": {
+  "slot": 221,
+  "glyph": "yporrhoe.1",
+  "conf": 0.986
+ },
+ "220": {
+  "slot": 222,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.985
+ },
+ "221": {
+  "slot": 224,
+  "glyph": "apostrofos+kentimata.0",
+  "conf": 0.983
+ },
+ "222": {
+  "slot": 226,
+  "glyph": "apostrofos.0",
+  "conf": 0.992
+ },
+ "223": {
+  "slot": 227,
+  "glyph": "running-elafron.0",
+  "conf": 0.989
+ },
+ "224": {
+  "slot": 228,
+  "glyph": "running-elafron.1",
+  "conf": 0.967
+ },
+ "225": {
+  "slot": 229,
+  "glyph": "oligon.0",
+  "conf": 0.878
+ },
+ "226": {
+  "slot": 230,
+  "glyph": "apostrofos.0",
+  "conf": 0.971
+ },
+ "227": {
+  "slot": 232,
+  "glyph": "apostrofos.0",
+  "conf": 1.0
+ },
+ "228": {
+  "slot": 233,
+  "glyph": "kentimata.0",
+  "conf": 0.982
+ },
+ "230": {
+  "slot": 234,
+  "glyph": "oligon.0",
+  "conf": 0.914
+ },
+ "231": {
+  "slot": 235,
+  "glyph": "apostrofos.0",
+  "conf": 0.999
+ },
+ "233": {
+  "slot": 236,
+  "glyph": "apostrofos.0",
+  "conf": 0.999
+ },
+ "235": {
+  "slot": 237,
+  "glyph": "apostrofos.0",
+  "conf": 0.976
+ },
+ "236": {
+  "slot": 239,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.964
+ },
+ "237": {
+  "slot": 240,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.993
+ },
+ "238": {
+  "slot": 241,
+  "glyph": "0xf040.0",
+  "conf": 0.999
+ },
+ "239": {
+  "slot": 242,
+  "glyph": "apostrofos.0",
+  "conf": 0.997
+ },
+ "240": {
+  "slot": 243,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.989
+ },
+ "241": {
+  "slot": 244,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.922
+ },
+ "242": {
+  "slot": 245,
+  "glyph": "apostrofos.0",
+  "conf": 0.746
+ },
+ "244": {
+  "slot": 246,
+  "glyph": "running-elafron.0",
+  "conf": 0.991
+ },
+ "245": {
+  "slot": 248,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.877
+ },
+ "247": {
+  "slot": 249,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.995
+ },
+ "248": {
+  "slot": 250,
+  "glyph": "apostrofos.0",
+  "conf": 0.997
+ },
+ "249": {
+  "slot": 251,
+  "glyph": "apostrofos.0",
+  "conf": 1.0
+ },
+ "250": {
+  "slot": 252,
+  "glyph": "apostrofos.0",
+  "conf": 0.996
+ },
+ "251": {
+  "slot": 253,
+  "glyph": "oligon+ypsili.0",
+  "conf": 0.998
+ },
+ "252": {
+  "slot": 255,
+  "glyph": "apostrofos.0",
+  "conf": 1.0
+ },
+ "253": {
+  "slot": 256,
+  "glyph": "oligon.0",
+  "conf": 0.993
+ },
+ "255": {
+  "slot": 258,
+  "glyph": "apostrofos.0",
+  "conf": 0.993
+ },
+ "256": {
+  "slot": 260,
+  "glyph": "apostrofos.0",
+  "conf": 1.0
+ },
+ "257": {
+  "slot": 261,
+  "glyph": "apostrofos.0",
+  "conf": 0.993
+ },
+ "258": {
+  "slot": 262,
+  "glyph": "oligon.0",
+  "conf": 1.0
+ },
+ "259": {
+  "slot": 263,
+  "glyph": "kentimata.0",
+  "conf": 0.998
+ },
+ "260": {
+  "slot": 264,
+  "glyph": "0xf071.0",
+  "conf": 0.999
+ },
+ "261": {
+  "slot": 266,
+  "glyph": "apostrofos.0",
+  "conf": 0.996
+ },
+ "262": {
+  "slot": 267,
+  "glyph": "oligon.0",
+  "conf": 0.982
+ },
+ "263": {
+  "slot": 268,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.878
+ },
+ "265": {
+  "slot": 271,
+  "glyph": "petasti+oligon.0",
+  "conf": 0.962
+ },
+ "266": {
+  "slot": 274,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.994
+ },
+ "267": {
+  "slot": 275,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.969
+ },
+ "270": {
+  "slot": 278,
+  "glyph": "yporrhoe.0",
+  "conf": 0.982
+ },
+ "272": {
+  "slot": 279,
+  "glyph": "yporrhoe.1",
+  "conf": 0.981
+ },
+ "273": {
+  "slot": 280,
+  "glyph": "kentimata-compound.0",
+  "conf": 0.996
+ },
+ "274": {
+  "slot": 281,
+  "glyph": "kentimata-compound.1",
+  "conf": 1.0
+ },
+ "275": {
+  "slot": 282,
+  "glyph": "oligon.0",
+  "conf": 0.999
+ },
+ "276": {
+  "slot": 283,
+  "glyph": "apostrofos.0",
+  "conf": 0.981
+ },
+ "277": {
+  "slot": 284,
+  "glyph": "apostrofos.0",
+  "conf": 0.872
+ },
+ "278": {
+  "slot": 286,
+  "glyph": "apostrofos.0",
+  "conf": 0.99
+ },
+ "279": {
+  "slot": 288,
+  "glyph": "kentimata-compound.1",
+  "conf": 0.567
+ },
+ "280": {
+  "slot": 290,
+  "glyph": "apostrofos+kentimata.1",
+  "conf": 0.989
+ },
+ "281": {
+  "slot": 291,
+  "glyph": "apostrofos+kentimata.0",
+  "conf": 0.984
+ },
+ "282": {
+  "slot": 292,
+  "glyph": "apostrofos+kentimata.1",
+  "conf": 0.991
+ },
+ "283": {
+  "slot": 293,
+  "glyph": "apostrofos.0",
+  "conf": 0.998
+ },
+ "284": {
+  "slot": 294,
+  "glyph": "running-elafron.0",
+  "conf": 0.998
+ },
+ "285": {
+  "slot": 295,
+  "glyph": "running-elafron.1",
+  "conf": 0.98
+ },
+ "286": {
+  "slot": 296,
+  "glyph": "oligon.0",
+  "conf": 0.994
+ },
+ "287": {
+  "slot": 297,
+  "glyph": "apostrofos.0",
+  "conf": 0.995
+ },
+ "288": {
+  "slot": 299,
+  "glyph": "ison+kentimata.0",
+  "conf": 0.499
+ },
+ "289": {
+  "slot": 300,
+  "glyph": "ison+kentimata.1",
+  "conf": 0.507
+ },
+ "291": {
+  "slot": 301,
+  "glyph": "apostrofos.0",
+  "conf": 0.861
+ },
+ "292": {
+  "slot": 302,
+  "glyph": "apostrofos.0",
+  "conf": 0.83
+ },
+ "293": {
+  "slot": 303,
+  "glyph": "oligon.0",
+  "conf": 0.886
+ },
+ "294": {
+  "slot": 304,
+  "glyph": "kentimata.0",
+  "conf": 0.997
+ },
+ "295": {
+  "slot": 305,
+  "glyph": "petasti+oligon.0",
+  "conf": 1.0
+ },
+ "296": {
+  "slot": 306,
+  "glyph": "apostrofos.0",
+  "conf": 0.986
+ },
+ "298": {
+  "slot": 307,
+  "glyph": "ison+petasti.0",
+  "conf": 0.975
+ },
+ "299": {
+  "slot": 308,
+  "glyph": "apostrofos.0",
+  "conf": 0.983
+ },
+ "300": {
+  "slot": 309,
+  "glyph": "apostrofos.0",
+  "conf": 0.993
+ },
+ "301": {
+  "slot": 310,
+  "glyph": "oligon.0",
+  "conf": 0.997
+ },
+ "303": {
+  "slot": 312,
+  "glyph": "apostrofos.0",
+  "conf": 0.997
+ },
+ "304": {
+  "slot": 313,
+  "glyph": "yporrhoe.0",
+  "conf": 0.997
+ },
+ "305": {
+  "slot": 316,
+  "glyph": "kentimata.0",
+  "conf": 0.9
+ },
+ "306": {
+  "slot": 318,
+  "glyph": "ison+kentimata.1",
+  "conf": 0.55
+ },
+ "307": {
+  "slot": 319,
+  "glyph": "ison.0",
+  "conf": 0.642
+ },
+ "309": {
+  "slot": 321,
+  "glyph": "ison.0",
+  "conf": 0.967
+ },
+ "310": {
+  "slot": 322,
+  "glyph": "yporrhoe.0",
+  "conf": 0.999
+ },
+ "311": {
+  "slot": 323,
+  "glyph": "yporrhoe.1",
+  "conf": 0.999
+ },
+ "312": {
+  "slot": 324,
+  "glyph": "oligon.0",
+  "conf": 0.995
+ },
+ "313": {
+  "slot": 325,
+  "glyph": "apostrofos.0",
+  "conf": 0.907
+ }
+}

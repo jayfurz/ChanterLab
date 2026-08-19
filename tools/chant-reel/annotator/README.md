@@ -21,6 +21,42 @@ python3 -m http.server 8777
 # 3. open http://localhost:8777/
 ```
 
+## Multi-track: the Vasilikos corpus pieces
+
+The whole aligned corpus (all mode workdirs under
+`/mnt/data/chant-corpus/workdirs`) can be loaded as annotator pieces, one per
+melos track:
+
+```sh
+# bridge corpus hymns -> data/<piece-id>/ + manifest data/index.json
+/mnt/data/chant-corpus/venv/bin/python ../../corpus/prep_hymn_annotator.py --all-workdirs
+
+# serve with the export endpoint (Export posts to exports/<piece-id>/)
+python3 serve.py --port 8779
+```
+
+Open `/?piece=mode1-t04` (or any manifest id) — or just `/`: the header gains
+a **piece picker** listing every prepped track with its machine movement
+agreement, coverage, and your local pin count, so low-confidence hymns are
+easy to hunt. Slot markers seed from the machine alignment (`aligned.json`);
+units the aligner did not match carry interpolated times and say so in the
+detail panel (`UNMATCHED`). The pitch band's degree grid comes from the
+hymn's genus ladder (`meta.step_pos`), so soft/hard chromatic hymns draw
+correctly. Edits still autosave per piece; Export goes to
+`exports/<piece-id>/` with history.
+
+After annotating, feed pins back to the corpus scoreboard:
+
+```sh
+/mnt/data/chant-corpus/venv/bin/python ../../corpus/ingest_pins.py
+```
+
+which scores pins against the machine (timing + strict-on-pins degree
+agreement), stages `chanter_pins.json` into each hymn's melos dir, and
+updates `/mnt/data/chant-corpus/verification_ledger.json`. The
+`annotator-batch` subagent (`.claude/agents/annotator-batch.md`) automates
+prep / validate / ingest / record keeping.
+
 `prep_annotator.py` expects the standard chant-reel pipeline filenames inside
 `--input` (`score_notes.json`, `slots.json`, `strip.png`, `line_centers.npy`,
 `master.wav` required; `timing.json`, `modifiers.json`, `expected_degrees.json`,

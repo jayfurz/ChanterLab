@@ -23,7 +23,7 @@ FM = "/usr/share/fonts/noto/NotoSerif-Medium.ttf"
 
 f_title = ImageFont.truetype(FB, 58)
 f_sub = ImageFont.truetype(FM, 34)
-f_cap = ImageFont.truetype(FB, 51)
+f_cap = ImageFont.truetype(FB, 44)
 
 # ---------- static background ----------
 def make_bg():
@@ -40,7 +40,7 @@ def make_bg():
 BG = make_bg()
 
 # card geometry
-CX0, CY0, CX1, CY1 = 40, 385, 1040, 965
+CX0, CY0, CX1, CY1 = 40, 450, 1040, 985
 CARD_H = CY1 - CY0
 CARD_CTR = (CY0 + CY1) // 2
 
@@ -91,19 +91,19 @@ def draw_header(im):
     d = ImageDraw.Draw(im)
     t1 = "Eleventh Matinal Doxastikon"
     w1 = d.textlength(t1, font=f_title)
-    d.text(((W-w1)/2+2, 152+2), t1, font=f_title, fill=(0,0,0,160))
-    d.text(((W-w1)/2, 152), t1, font=f_title, fill=GOLD)
+    d.text(((W-w1)/2+2, 260+2), t1, font=f_title, fill=(0,0,0,160))
+    d.text(((W-w1)/2, 260), t1, font=f_title, fill=GOLD)
     t2 = "Byzantine Chant  ·  Plagal Fourth Mode"
     w2 = d.textlength(t2, font=f_sub)
-    d.text(((W-w2)/2, 238), t2, font=f_sub, fill=MUTED)
+    d.text(((W-w2)/2, 344), t2, font=f_sub, fill=MUTED)
     # thin rules
-    d.line((W/2-330, 305, W/2-40, 305), fill=(120,100,60), width=2)
-    d.line((W/2+40, 305, W/2+330, 305), fill=(120,100,60), width=2)
-    d.regular_polygon((W/2, 305, 9), 4, rotation=45, fill=GOLD)
+    d.line((W/2-330, 412, W/2-40, 412), fill=(120,100,60), width=2)
+    d.line((W/2+40, 412, W/2+330, 412), fill=(120,100,60), width=2)
+    d.regular_polygon((W/2, 412, 9), 4, rotation=45, fill=GOLD)
     f_credit = ImageFont.truetype(FR, 26)
     t3 = "Translation © Holy Transfiguration Monastery  ·  Notation: Chadi Karam"
     w3 = d.textlength(t3, font=f_credit)
-    d.text(((W-w3)/2, 1700), t3, font=f_credit, fill=(120, 105, 80))
+    d.text(((W-w3)/2, 1032), t3, font=f_credit, fill=(120, 105, 80))
     return im
 
 STATIC = draw_header(CARD_BG.copy())
@@ -334,7 +334,7 @@ if LADDER:
     for i in range(len(LT_M)):
         a = min(1.0, a + 0.25) if not np.isnan(LT_M[i]) else max(0.0, a - 0.05)
         LT_A[i] = a
-    LAD_Y0, LAD_Y1 = 1392, 1668       # maps moria 84 .. -8
+    LAD_Y0, LAD_Y1 = 1245, 1490       # maps moria 84 .. -8 (TikTok-safe)
     def m2y(m): return LAD_Y0 + (84 - m) * (LAD_Y1 - LAD_Y0) / 92
     LAD_X = 500
     f_rung = ImageFont.truetype(FB, 26)
@@ -391,7 +391,7 @@ def draw_ladder(im, fi):
     im.alpha_composite(layer)
 
 # ---------- caption layout ----------
-MAXW = 930
+MAXW = 780
 def layout_caption(cap):
     """pre-compute per-word (line, x, y-offset) positions, centered lines"""
     words = [w['w'] for w in cap['words']]
@@ -415,7 +415,7 @@ def layout_caption(cap):
     return placed, len(rows)*74
 
 CAP_LAYOUTS = [layout_caption(c) for c in captions]
-CAP_Y = 1120
+CAP_Y = 1060
 
 def draw_caption(im, t):
     ci = None

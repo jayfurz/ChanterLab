@@ -1,0 +1,98 @@
+[
+ {
+  "gi": 0,
+  "note": "Should be plus 1\nThe word is \u039a\u03b1 (drop cap \u039a and vowel \u03b1)\n"
+ },
+ {
+  "gi": 1,
+  "note": "\u03a4\u03b5 is the word. Interval is +1 (\u03c0\u03b5\u03c4\u03b1\u03c3\u03c4\u03ae)"
+ },
+ {
+  "gi": 2,
+  "note": "Interval is down one (\u03b1\u03c0\u03cc\u03c3\u03c4\u03c1\u03bf\u03c6\u03bf\u03c2)"
+ },
+ {
+  "gi": 3,
+  "note": "Interval stays the same (\u03b9\u03c3\u03cc\u03bd)"
+ },
+ {
+  "gi": 6,
+  "note": "This is two different notes with a \u03bf\u03bc\u03b1\u03bb\u03bf\u03bd below it which is ties the two together, but is qualitatively/orthographic only. Technically i think it\u2019s under the second. The first note is the oligon (up one) then the ison (stay the same)"
+ },
+ {
+  "gi": 9,
+  "note": "This is an oligon with psifiston underneath. Psifiston is just orthographic and qualitative. Oligon should be +1"
+ },
+ {
+  "gi": 11,
+  "note": "This is a \u03b1\u03c0\u03bf\u03c3\u03c4\u03c1\u03bf\u03c6\u03cc\u03c2 with a klasma meaning interval -1 with an extra beat due to the klasma"
+ },
+ {
+  "gi": 12,
+  "note": "This is an ison with gorgon underneath. Meaning the note is +0 and 1/2 a beat, and it steals a 1/2 beat from the previous note with the klasma which makes the previous note 1-1/2 beats"
+ },
+ {
+  "gi": 13,
+  "note": "This is a petasti compound with a kentima meaning go up three. It also has a klasma below which means it is two beats. The red ajem on top turns the scale into harmonic meaning the zo gets flattened to be only 6 moria from ke and 12 from ni (ie one semitone from ke and two semitones (fullstep ) from ni)"
+ },
+ {
+  "gi": 18,
+  "note": "Ison plus kentimata with klasma below. 2 beats, +0 interval (interval is correct)"
+ },
+ {
+  "gi": 21,
+  "note": ""
+ },
+ {
+  "gi": 23,
+  "note": ""
+ },
+ {
+  "gi": 30,
+  "note": ""
+ },
+ {
+  "gi": 35,
+  "note": ""
+ },
+ {
+  "gi": 38,
+  "note": ""
+ },
+ {
+  "gi": 41,
+  "note": ""
+ },
+ {
+  "gi": 44,
+  "note": "Petasti with KLASMA on bottom. Should add an extra beat"
+ },
+ {
+  "gi": 47,
+  "note": "Oligon with vareia underneath. Vareia is qualitative. Oligon makes it +1"
+ },
+ {
+  "gi": 49,
+  "note": "Apostrophos with KLASMA on top. Two beats. The martyria afterwards says ga. Is that degree 3? Just use the solfege syllables. "
+ },
+ {
+  "gi": 60,
+  "note": "Oligon with petasti. Hold an extra beat. "
+ },
+ {
+  "gi": 62,
+  "note": "Oligon with kentima on top like this is +3. Vareia underneath qualitative/orthographic only. "
+ },
+ {
+  "gi": 65,
+  "note": "Petasti with klasma compound. Should be plus one beat"
+ },
+ {
+  "gi": 70,
+  "note": "This is an oligon with psifiston underneath. Should be +1 interval"
+ },
+ {
+  "gi": 74,
+  "note": "This is a oligon with a dipli. (Dipli only Usually at the end of phrases)"
+ }
+]

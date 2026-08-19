@@ -1,0 +1,381 @@
+{
+ "saved_at": "2026-08-18T22:41:32.271Z",
+ "classifications": {
+  "10": {
+   "name": "apli",
+   "sublabel": "",
+   "note": "Apli is a single beat addition. Dipli are two together, tripli are three.  P161 p215 p355 p650 are examples of dipli. Apli are never standalone. When used with a melodic (quantitative neume adds a beat (dipli two beats added tripli—three) if combine with a preceding vareia is treated as a standalone rest (or two for dipli or rest for three beats with tripli)",
+   "ts": "2026-08-18T21:58:24.456Z"
+  },
+  "13": {
+   "name": "compound",
+   "sublabel": "",
+   "note": "Oligon. All the examples here are actually compound glyphs that include the petasti underneath the oligon. This actually means +2. But please determine if its the combination that actually got classified or if it’s just the oligon by itself. Oligon by itself is not a compound neume but the fact that all these are the same compound is a little fishy. Ive marked it compound for that reason so it doesnt get lost. Please do something about this.",
+   "ts": "2026-08-18T22:16:33.479Z"
+  },
+  "14": {
+   "name": "martyria-letter",
+   "sublabel": "",
+   "note": "NOT SUNG: solfege/martyria indicator, part of martyria compound. Means pa. P5 and p162 are pa in hard chromatic (plagal 2) and the others are pa in diatonic. Given by the symbol below them.",
+   "ts": "2026-08-18T22:06:04.687Z"
+  },
+  "16": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "quantitative marker, NEVER standalone; fairly small. Below or to the RIGHT of an oligon -> compound = +2 jump. On top in the MIDDLE of an oligon or petasti (without ypsili) -> +3 jump. (Chanter corrected their earlier yporrhoe reading 2026-08-18; resolves t03 gi13 3|16ab = petasti+kentima = +3.) combined with a ypseli or more than one kentima with ypseli are combination glyphs that have higher jumps.",
+   "ts": "2026-08-18T21:57:03.671Z"
+  },
+  "20": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "jump down two. The SHAPE is always just elaphron — whether an instance participates in a syneches-elaphron figure is a PER-INSTANCE call from context (on the context sheet only the p115 p426 p573; the other two were plain elaphrons). See figures.syneches_elaphron for the proximity rule and the -2 vs -3 stakes",
+   "ts": "2026-08-18T21:55:49.741Z"
+  },
+  "21": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "Oligon in compound glyph with  two quantity neumes above it (all the examples shown here have ison and kentimata on top, but also true if it was an apostrophos and kentimata on top) where the oligon is used orthographically — like a table, but has no value.",
+   "ts": "2026-08-18T22:07:24.565Z"
+  },
+  "22": {
+   "name": "ison",
+   "sublabel": "",
+   "note": "chanter: 'an ison as well, duplicate of cluster 6' — but 6=oligon and extraction has 22 in the RED klasma-family set; sheet had no color. RE-REVIEW with color context sheet\n\nThis is an ison but they are all examples of ison inside of compound glyphs.  Ison with petasti under it is just a ison +0 with the petasti used qualitatively orthographiy only. P184 is an ison and kentimata over oligon that has a dotted right gorgon over the kentimata. The oligon is ignored here and only used for orthographic purposes.  P650 is a ison kentimata with regular gorgon over oligon and syndesmos. Oligon is ifnored. Syndesmos is a qualitative (interpreted note).",
+   "ts": "2026-08-18T22:01:16.429Z"
+  },
+  "23": {
+   "name": "martyria-letter",
+   "sublabel": "",
+   "note": "Letter gamma for ga",
+   "ts": "2026-08-18T22:13:12.731Z"
+  },
+  "24": {
+   "name": "martyria-scale-sign",
+   "sublabel": "",
+   "note": "Martyria part of the compound meaning nana which is normally ga in diatonic scale.",
+   "ts": "2026-08-18T22:14:35.189Z"
+  },
+  "25": {
+   "name": "digorgon",
+   "sublabel": "",
+   "note": "",
+   "ts": "2026-08-18T22:27:40.263Z"
+  },
+  "28": {
+   "name": "ypsili",
+   "sublabel": "",
+   "note": "",
+   "ts": "2026-08-18T22:15:25.993Z"
+  },
+  "30": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "Trigorgon. Class not listed",
+   "ts": "2026-08-18T22:26:17.465Z"
+  },
+  "32": {
+   "name": "dotted-gorgon",
+   "sublabel": "",
+   "note": "This is part of the dotted gorgon. This is the dot itself. All the examples are dots on the right of the gorgon.",
+   "ts": "2026-08-18T22:20:31.746Z"
+  },
+  "33": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "This is a time signature for argosyntoma hymns. (Like the slower lord i have cried or the doxasticons)",
+   "ts": "2026-08-18T22:22:08.450Z"
+  },
+  "34": {
+   "name": "martyria-letter",
+   "sublabel": "",
+   "note": "NOT SUNG: martyria compound part, indicates the note you should be on; a check, no melodic meaning. This one is the dhi. P93 and p136 are soft chromatic dhi (mode two scale) while the others are diatonic.",
+   "ts": "2026-08-18T22:08:51.958Z"
+  },
+  "35": {
+   "name": "martyria-scale-sign",
+   "sublabel": "",
+   "note": "Part of martyria indicating aghia.  Normal for dhi diatonic",
+   "ts": "2026-08-18T22:14:06.478Z"
+  },
+  "38": {
+   "name": "martyria-scale-sign",
+   "sublabel": "",
+   "note": "hard-chromatic equivalent of cluster 15 (usually the 0th degree, e.g. hard-chromatic Pa). Chanter: that system repeats every perfect FIFTH, not octave — REVIEW hymn_align hard_pos which is octave-cyclic. The ones selected that are marked wrong are because those are actually for SOFT CHROMATIC. They have two dots over the curvy line. Thats 0th degree soft chromatic  the dhi on top means its a dhi.  The others are all hard chromatic. P646 is actually hard chromatic dhi being a 0th degree hard chromatic, which means the hard chromatic scale is shifted from the normal 0th degree on pa.",
+   "ts": "2026-08-18T22:12:37.457Z"
+  },
+  "41": {
+   "name": "compound",
+   "sublabel": "",
+   "note": "Apostrophos but its all combination neumes. Apostrophos inside elafron is just a -3 jump.",
+   "ts": "2026-08-18T22:19:07.983Z"
+  },
+  "42": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "Time marking. Syntoma. Very fast",
+   "ts": "2026-08-18T22:29:54.582Z"
+  },
+  "43": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "Another time signature",
+   "ts": "2026-08-18T22:25:16.354Z"
+  },
+  "47": {
+   "name": "elaphron",
+   "sublabel": "",
+   "note": "This is elaphron with kentimata on top of oligon compound. Oligon has no meaning is only orthographical in these combinations. Its used as a table. The three i marked not in this cluster are syneches elafron with kentimata over oligon. The oligon again is orthographic only, it is treated like it isnt there and only the neumes on top are heard.",
+   "ts": "2026-08-18T22:23:12.960Z"
+  },
+  "48": {
+   "name": "kamili",
+   "sublabel": "",
+   "note": "",
+   "ts": "2026-08-18T22:25:36.258Z"
+  },
+  "50": {
+   "name": "martyria-scale-sign",
+   "sublabel": "",
+   "note": "Ananes but indicates the ke in the diatonic scale (in octave mode)",
+   "ts": "2026-08-18T22:13:34.192Z"
+  },
+  "52": {
+   "name": "martyria-letter",
+   "sublabel": "",
+   "note": "Ke (kappa greek letter meaning martyira on ke )",
+   "ts": "2026-08-18T22:18:02.642Z"
+  },
+  "56": {
+   "name": "martyria-scale-sign",
+   "sublabel": "",
+   "note": "Aghia sound. Meaning diatonic scale usually for the nominal diatonic ni.",
+   "ts": "2026-08-18T22:21:13.803Z"
+  },
+  "57": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "Time marking. Means argo- slow.",
+   "ts": "2026-08-18T22:27:57.300Z"
+  },
+  "61": {
+   "name": "stavros",
+   "sublabel": "",
+   "note": "",
+   "ts": "2026-08-18T22:25:50.725Z"
+  },
+  "67": {
+   "name": "martyria-letter",
+   "sublabel": "",
+   "note": "Letter beta for vou",
+   "ts": "2026-08-18T22:12:53.462Z"
+  },
+  "73": {
+   "name": "compound",
+   "sublabel": "",
+   "note": "This is like a di argon with a gorgon. Technically not a compound but its own class",
+   "ts": "2026-08-18T22:28:51.829Z"
+  },
+  "75": {
+   "name": "vareia",
+   "sublabel": "",
+   "note": "",
+   "ts": "2026-08-18T22:28:17.884Z"
+  },
+  "79": {
+   "name": "unknown",
+   "sublabel": "",
+   "note": "Likely a strange artifact",
+   "ts": "2026-08-18T22:41:20.938Z"
+  },
+  "83": {
+   "name": "compound",
+   "sublabel": "",
+   "note": "Ypsili compounds with kentima. Means up 7 (octave jump)",
+   "ts": "2026-08-18T22:27:29.192Z"
+  },
+  "85": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "This is like a western tie",
+   "ts": "2026-08-18T22:30:26.112Z"
+  },
+  "90": {
+   "name": "argon",
+   "sublabel": "",
+   "note": "",
+   "ts": "2026-08-18T22:25:59.212Z"
+  },
+  "91": {
+   "name": "note-only",
+   "sublabel": "",
+   "note": "This is a time symbol like the western one where the chanter can hold this as long as they want.",
+   "ts": "2026-08-18T22:30:50.839Z"
+  }
+ },
+ "presets_from_atlas": {
+  "3": {
+   "name": "petasti",
+   "interval": 1,
+   "note": "looks similar to klasma; petasti is LARGER and stands alone; klasma only ever appears in combination with another glyph above/below",
+   "source": "chanter-atlas"
+  },
+  "4": {
+   "name": "apostrofos",
+   "interval": -1,
+   "note": "",
+   "source": "chanter-atlas"
+  },
+  "5": {
+   "name": "ison",
+   "interval": 0,
+   "note": "",
+   "source": "chanter-atlas"
+  },
+  "6": {
+   "name": "oligon",
+   "interval": 1,
+   "note": "",
+   "source": "chanter-atlas"
+  },
+  "7": {
+   "name": "psifiston",
+   "interval": null,
+   "note": "qualitative; in 7|6ab figures the bar above (cluster 6, oligon) is the melodic note (+1)",
+   "source": "chanter-atlas"
+  },
+  "8": {
+   "name": "klasma",
+   "interval": null,
+   "note": "BLACK duration mark (+1 beat); only in combination above/below a note; appears in keys as 8ab/8be",
+   "source": "chanter-atlas"
+  },
+  "11": {
+   "name": "gorgon",
+   "interval": null,
+   "note": "single-step staircase; digorgon is the two-step staircase. Both neanes matches on the sheet were wrong. RED in print.",
+   "source": "chanter-atlas"
+  },
+  "12": {
+   "name": "vareia",
+   "interval": null,
+   "note": "silent/orthographic alone; vareia + apli/dipli/tripli right next to it = REST compound (chanters sometimes skip rests)",
+   "source": "chanter-atlas"
+  },
+  "15": {
+   "name": "martyria-diatonic-on-Pa (2nd part)",
+   "interval": null,
+   "note": "pairs UNDER the Pa indicator, never alone. Over a melodic glyph it is a FTHORA: that note becomes diatonic Pa regardless of where it lands — ALL fthores work this way (note takes on the new degree quality in the new scale)",
+   "source": "chanter-atlas"
+  },
+  "17": {
+   "name": "kentimata",
+   "interval": 1,
+   "note": "JUST the kentimata (earlier 'oligon+kentimata compound' reading was an artifact of crop padding — the bar under it is a separate glyph). Above an oligon the FIGURE is two notes (+1 +1)",
+   "source": "chanter-atlas"
+  },
+  "18": {
+   "name": "yporrhoe (variant)",
+   "interval": null,
+   "note": "TWO notes -1 -1; sheet-matched to neanes gorgon/digorgon COMPOUND codepoints only because neanes encodes every combination; the book composes yporrhoe + gorgon/digorgon on top as separate glyphs",
+   "source": "chanter-atlas"
+  },
+  "19": {
+   "name": "antikenoma",
+   "interval": null,
+   "note": "orthographic/qualitative only, no quantitative value",
+   "source": "chanter-atlas"
+  }
+ },
+ "wrong_examples": {
+  "38": [
+   {
+    "file": "c38_1.png",
+    "page": 105,
+    "red": 1,
+    "bbox": [
+     169.2,
+     469.7,
+     188.4,
+     478.4
+    ],
+    "line": 7
+   },
+   {
+    "file": "c38_2.png",
+    "page": 114,
+    "red": 1,
+    "bbox": [
+     504.7,
+     69.7,
+     524,
+     78.3
+    ],
+    "line": 0
+   },
+   {
+    "file": "c38_3.png",
+    "page": 138,
+    "red": 1,
+    "bbox": [
+     504.7,
+     355.4,
+     524,
+     364
+    ],
+    "line": 5
+   }
+  ],
+  "41": [
+   {
+    "file": "c41_1.png",
+    "page": 177,
+    "red": 0,
+    "bbox": [
+     362.4,
+     397.8,
+     376.7,
+     404.2
+    ],
+    "line": 7
+   }
+  ],
+  "47": [
+   {
+    "file": "c47_1.png",
+    "page": 176,
+    "red": 0,
+    "bbox": [
+     178.1,
+     54.4,
+     202.4,
+     61.5
+    ],
+    "line": 0
+   },
+   {
+    "file": "c47_2.png",
+    "page": 185,
+    "red": 0,
+    "bbox": [
+     372.2,
+     454.5,
+     396.6,
+     461.6
+    ],
+    "line": 8
+   },
+   {
+    "file": "c47_4.png",
+    "page": 545,
+    "red": 0,
+    "bbox": [
+     228.7,
+     454.7,
+     253.1,
+     461.7
+    ],
+    "line": 7
+   }
+  ]
+ }
+}

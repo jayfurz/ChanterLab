@@ -14,3 +14,9 @@ datasets/**/*.wav
 datasets/**/*.m4a
 datasets/**/*.mp4
 *.bak*
+
+# trained model binaries and raw analysis tracks: regenerable, kept on disk
+*.joblib
+*.pt
+datasets/**/*.npy
+datasets/**/*.png

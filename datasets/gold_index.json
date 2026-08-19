@@ -1,0 +1,68 @@
+{
+ "updated_at": "2026-08-18",
+ "note": "Registry of chanter-verified gold datasets. A piece belongs here only when a chanter has signed off on its labels. Machine or silver output must never be added.",
+ "datasets": [
+  {
+   "id": "eothinon-11-plagal4",
+   "title": "Eleventh Matinal Doxastikon (English, Karam EZ fonts)",
+   "mode": "plagal 4",
+   "workdir": "datasets/eothinon-11-workdir",
+   "ground_truth": "datasets/exports/eothinon-11-plagal4",
+   "duration_s": 264.02,
+   "n_glyphs": 270,
+   "n_slots": 327,
+   "labels": [
+    "note_times.json: 259 chanter-verified note onsets",
+    "slot_claims.json: 327 slot -> event claims",
+    "pitch_ghosts_classified.json: chanter taxonomy of pitch-detector artifacts",
+    "analytical_interpretations.json: melisma spellings",
+    "exports/analytical_notes.json: 2 melisma spans"
+   ],
+   "n_pins": 0,
+   "licenses_claims_about": [
+    "melisma spelling and analytical notation",
+    "pitch-detector artifact classification",
+    "long-form reel rendering"
+   ]
+  },
+  {
+   "id": "grave-orthros-t03",
+   "title": "Mode Grave Anastasimatarion 2 Orthros, hymn t03 (Greek, Ioannou vector)",
+   "mode": "grave",
+   "genus": "diatonic",
+   "workdir": "/mnt/data/chant-corpus/workdirs/grave-orthros",
+   "hymn": "t03_",
+   "ground_truth": "datasets/grave-orthros-t03-gold",
+   "live_export": "datasets/exports/grave-orthros-t03",
+   "duration_s": 53.4,
+   "n_units": 76,
+   "labels": [
+    "pins.json: 76 chanter timing anchors, one per unit, complete",
+    "chanter_notes.json: 25 neume-level corrections in the chanter's words (6 empty, 9 pending transcription)",
+    "score_units.json: frozen score-side unit stream the pin indices refer to"
+   ],
+   "n_pins": 76,
+   "licenses_claims_about": [
+    "per-unit onset accuracy against a chanter",
+    "compound-neume interval and duration decoding",
+    "martyria degree anchoring"
+   ],
+   "baseline_at_freeze": {
+    "median_abs_dt_s": 0.563,
+    "within_0.35s": "16/54",
+    "coverage_units_pct": 71.1,
+    "aligner_movement_agreement": 0.96,
+    "previous_r1": {
+     "median_abs_dt_s": 4.1,
+     "within_0.35s": "6/44",
+     "coverage_units_pct": 58.7
+    },
+    "warning": "movement agreement FELL 0.98->0.96 while median onset error improved 7x; never tune on it alone",
+    "strict_on_pins_unassisted": 0.76,
+    "strict_on_pins_assisted": 0.787
+   },
+   "revision": 2,
+   "revision_note": "r2 2026-08-18: chanter-corrected segmentation \u2014 fused oligon+omalon+ison split into two units; old index g maps to g (g<=6) or g+1 (g>=7)"
+  }
+ ]
+}

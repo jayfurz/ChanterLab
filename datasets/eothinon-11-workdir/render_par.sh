@@ -19,6 +19,6 @@ DUR=264.02
   -vf "fade=t=in:st=0:d=0.7,fade=t=out:st=$(python3 -c "print($DUR-2.2)"):d=2.2,format=yuv420p" \
   -c:v libx264 -preset medium -crf 18 -r 30 \
   -c:a aac -b:a 192k -ar 44100 -shortest -movflags +faststart \
-  chant_reel_v3.6.mp4
+  chant_reel_v3.7.mp4
 rm -f chunk_*.mp4 concat_list.txt
 echo "parallel render complete"
