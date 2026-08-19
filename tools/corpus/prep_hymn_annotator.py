@@ -102,10 +102,16 @@ def render_page(pdf, page, cache_dir):
     os.makedirs(cache_dir, exist_ok=True)
     out = os.path.join(cache_dir, f'page{page:03d}.png')
     if not os.path.exists(out):
+        # Render to a scratch name and rename into place. The cache is keyed on
+        # existence alone, so a pdftoppm killed part-way (a timeout, a Ctrl-C)
+        # used to leave a truncated PNG that every later run happily reused and
+        # then failed to decode. os.replace is atomic within the directory.
+        tmp = os.path.join(cache_dir, f'.page{page:03d}.{os.getpid()}')
         # -cropbox: glyph JSON coords are CropBox-relative (fitz page space)
         subprocess.run(['pdftoppm', '-png', '-cropbox', '-r', str(72 * ZOOM),
                         '-f', str(page), '-l', str(page),
-                        '-singlefile', pdf, out[:-4]], check=True)
+                        '-singlefile', pdf, tmp], check=True)
+        os.replace(tmp + '.png', out)
     return out
 
 
@@ -172,7 +178,8 @@ def machine_times(units, aligned, beats, duration):
     interpolation elsewhere; strictly increasing, clamped to [0, duration]."""
     t = [None] * len(units)
     for a in aligned:
-        t[a['unit']] = a['t0']
+        if 0 <= a['unit'] < len(units):
+            t[a['unit']] = a['t0']
     matched = [j for j, v in enumerate(t) if v is not None]
     if not matched:
         # never aligned: spread evenly (annotator still usable, all machine)
@@ -257,12 +264,23 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
             return rec
     summ = json.load(open(summ_f))
     aligned = json.load(open(alig_f))
+    # aligned.json is the ALIGNER's output, and its 'unit' fields index the unit
+    # stream as it was when the aligner ran. Re-segmenting the score — the
+    # kentimata split, the silenced chiasma — moves those indices, so a stale
+    # aligned.json does not just crash on the tail (it did, on 6 hymns), it
+    # quietly hangs the right times on the WRONG glyphs for every hymn where it
+    # does not crash. Detected here rather than papered over: the piece is still
+    # built, because the score side and the chanter's own pins are what he works
+    # from, but the machine times are marked untrustworthy and the manifest says
+    # so. Fixing it properly means re-running the aligner, which is its own job.
     genus = summ['genus']
     iv = json.load(open(os.path.join(wd, 'legend_global.json')))['keys']
     units, lyrics = load_units_h(h)
     if not units:
         rec['status'] = 'skipped: no units in slice'
         return rec
+    n_over = sum(1 for a in aligned if not 0 <= a['unit'] < len(units))
+    stale = n_over > 0 or (summ.get('n_units') not in (None, len(units)))
 
     out = os.path.join(ann_data_dir, piece)
     os.makedirs(out, exist_ok=True)
@@ -319,7 +337,8 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
                 ([f'interval {interval:+d}'] if isinstance(interval, int) else
                  [f'interval {interval:+.1f}'])
                 + (['martyria: %s' % deg_label(u['mart_deg'])] if 'mart_deg' in u else [])
-                + ([] if j in matched_units else ['UNMATCHED (interpolated time)']),
+                + ([] if j in matched_units else ['UNMATCHED (interpolated time)'])
+                + (['ALIGNMENT STALE: times predate a re-segmentation'] if stale else []),
             'expected_degrees': [exp] if exp is not None else None,
             'ison_at_start': None,
             'slot_ids': [j], 'word': word[j], 'word_start': bool(wstart[j]),
@@ -357,6 +376,7 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
             'strip_w': strip_w, 'strip_h': strip_h, 'line_centers': centers,
             'audio': 'audio.wav', 'strip': 'strip.png',
             'slot_struct_verified': True,
+            'alignment_stale': stale,
             'band_up': BAND_UP, 'band_dn': BAND_DN,
             'step_pos': step_pos, 'step_deg': step_deg, 'step_name': step_name,
             'mor_min': mor_min, 'mor_max': mor_max,
@@ -384,6 +404,8 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
 
     rec.update({
         'status': 'ready', 'data_rev': data_rev, 'n_units': len(units),
+        'alignment_stale': stale,
+        'aligned_out_of_range': n_over,
         'n_matched': n_matched,
         'coverage_pct': summ.get('coverage_units_pct'),
         'movement_agreement': summ.get('movement_agreement'),

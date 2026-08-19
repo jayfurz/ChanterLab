@@ -9,6 +9,13 @@ Serves the annotator directory like `python -m http.server` did, plus:
                      timestamped copy under .../history/<stamp>/ so an
                      accidental empty export can never destroy good work.
 
+  GET  /api/parallagi?piece=<id>          the degree per glyph, index-aligned
+                                          with the piece's own notes array
+  POST /api/parallagi-flag  body: {piece, gi, shown, note, clear}
+  GET  /api/parallagi-flags?piece=<id>    what the chanter rejected, so a later
+                                          legend fix can be scored against the
+                                          label he was actually shown
+
 Usage:
   python3 serve.py [--port 8779] [--bind 0.0.0.0] [--exports-dir DIR]
 
@@ -24,7 +31,13 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 MAX_BODY = 32 * 1024 * 1024
-PIECE_RE = re.compile(r"^(?!\.+$)[A-Za-z0-9._-]{1,80}$")   # no "." / ".."
+# Span pieces are named from the score's lyric layer, so a piece id is Greek:
+# "grave-orthros-κατελυσαςτωσταυ-ρω-ωσουτον-parallagi" (longest in the gold
+# set is 54 chars). This guards a filesystem path, so it stays a strict
+# allowlist — Greek and Greek Extended added, "/" "\" NUL and "."/".." still
+# rejected, length still capped.
+PIECE_RE = re.compile(
+    "^(?!\\.+$)[A-Za-z0-9._\u0370-\u03ff\u1f00-\u1fff-]{1,80}$")
 
 EXPORT_FILES = {          # payload key -> filename written
     "pins": "pins.json",
@@ -33,6 +46,7 @@ EXPORT_FILES = {          # payload key -> filename written
     "pitch_ghosts": "pitch_ghosts.json",
     "analytical_notes": "analytical_notes.json",
 }
+FLAGS_FILE = "parallagi_flags.json"   # under data/<piece>/, not exports/
 OPTIONAL_KEYS = {"pitch_ghosts": [], "analytical_notes": []}   # defaults for older clients
 
 
@@ -48,14 +62,41 @@ CUTTER_PREFIXES = ('/score', '/cut', '/tape/', '/page/', '/api/tapes',
                    '/api/degree-flag')
 
 
+# The cutter owns '/api/degree-flag'; these two are the annotator's own and
+# must be answered here, so they are checked before the proxy test.
+LOCAL_PREFIXES = ('/api/parallagi', '/api/parallagi-flag',
+                  '/api/parallagi-flags')
+
+
 def _is_cutter(path):
     p = path.split('?')[0]
+    if any(p == x for x in LOCAL_PREFIXES):
+        return False
     return any(p == x.rstrip('/') or p.startswith(x) for x in CUTTER_PREFIXES)
 
 
 CORPUS_TOOLS = '/mnt/data/code/byzorgan-web-worktrees/chant-annotator/tools/corpus'
 CANON = '/mnt/data/chant-corpus/scores/legend_canon.json'
 DEG_GR = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω']
+
+
+def _piece_arg(raw):
+    """One piece id off the wire, decoded and validated (None if it fails).
+
+    http.server decodes the request line as latin-1, so a Greek id arrives
+    either percent-encoded (what fetch() sends) or as utf-8 bytes read as
+    latin-1. Undo both before matching, or every span piece 400s.
+    """
+    from urllib.parse import unquote
+    pid = unquote(raw, encoding='utf-8', errors='replace')
+    if any(c in pid for c in ('/', '\\', '\0')):
+        return None
+    if '\ufffd' in pid:
+        try:
+            pid = unquote(raw, encoding='latin-1').encode('latin-1').decode('utf-8')
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            return None
+    return pid if PIECE_RE.match(pid) else None
 
 
 def parallagi_for(piece_id):
@@ -82,8 +123,12 @@ def parallagi_for(piece_id):
     keys = (json.loads(open(CANON).read())['keys'] if os.path.exists(CANON)
             else {})
 
-    anchor = None
-    m = re.match(r'^(.*)-t(\d+)$', piece_id)
+    # A span piece is not a hymns.json row and its id will never match "-tNN",
+    # so the generator resolves leading_anchor() over the span's own score
+    # range and records it. Prefer it; the regex path below still serves the
+    # 179 pieces prep_hymn_annotator.py built.
+    anchor = D.get('meta', {}).get('parallagi_anchor')
+    m = None if anchor is not None else re.match(r'^(.*)-t(\d+)$', piece_id)
     if m:
         wd, num = m.group(1), m.group(2)
         hj = f'/mnt/data/chant-corpus/workdirs/{wd}/hymns.json'
@@ -116,6 +161,25 @@ def parallagi_for(piece_id):
             'names': [None if d is None else DEG_GR[d] for d in out],
             'unknown': sum(1 for n in notes
                            if n.get('key') not in keys)}
+
+
+def read_parallagi_flags(piece_id):
+    """The flags on a piece: {piece, flags:[gi], notes:{"<gi>": {...}}}.
+
+    Missing file is not an error — a piece nobody has flagged yet reads as
+    empty, which is what the overlay expects on first load.
+    """
+    f = HERE / 'data' / piece_id / FLAGS_FILE
+    if f.exists():
+        try:
+            d = json.loads(f.read_text(encoding='utf-8'))
+            notes = d.get('notes') or {}
+            return {'piece': piece_id,
+                    'flags': sorted(int(k) for k in notes),
+                    'notes': notes}
+        except (ValueError, TypeError):
+            pass
+    return {'piece': piece_id, 'flags': [], 'notes': {}}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -156,23 +220,34 @@ class Handler(SimpleHTTPRequestHandler):
                 break
         c.close()
 
+    def _json(self, obj, status=200):
+        body = json.dumps(obj, ensure_ascii=False).encode()
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _query_piece(self):
+        """The validated 'piece' query arg, or None (400 already sent)."""
+        from urllib.parse import parse_qs, urlparse
+        q = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+        pid = _piece_arg((q.get('piece') or [''])[0])
+        if pid is None:
+            self._json({'error': 'bad piece'}, 400)
+        return pid
+
     def do_GET(self):
-        if self.path.split('?')[0] == '/api/parallagi':
-            from urllib.parse import parse_qs, urlparse
-            q = parse_qs(urlparse(self.path).query)
-            pid = (q.get('piece') or [''])[0]
-            if not PIECE_RE.match(pid):
-                body = json.dumps({'error': 'bad piece'}).encode()
-                self.send_response(400)
-            else:
-                body = json.dumps(parallagi_for(pid),
-                                  ensure_ascii=False).encode()
-                self.send_response(200)
-            self.send_header('Content-Type',
-                             'application/json; charset=utf-8')
-            self.send_header('Content-Length', str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+        route = self.path.split('?')[0]
+        if route == '/api/parallagi':
+            pid = self._query_piece()
+            if pid is not None:
+                self._json(parallagi_for(pid))
+            return
+        if route == '/api/parallagi-flags':
+            pid = self._query_piece()
+            if pid is not None:
+                self._json(read_parallagi_flags(pid))
             return
         if _is_cutter(self.path):
             return self._proxy('GET')
@@ -190,6 +265,9 @@ class Handler(SimpleHTTPRequestHandler):
                       ".json": "application/json; charset=utf-8"}
 
     def do_POST(self):
+        if self.path.rstrip('/') == '/api/parallagi-flag':
+            self.handle_parallagi_flag()
+            return
         if _is_cutter(self.path):
             return self._proxy('POST')
         if self.path.rstrip("/") == "/api/clusters":
@@ -265,6 +343,53 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
         self.log_message("clusters -> %s (history/%s)", dest, stamp)
+
+    def handle_parallagi_flag(self):
+        """POST /api/parallagi-flag — the chanter rejecting one printed degree.
+
+        'shown' is the degree name the overlay had on screen when he tapped, so
+        a later legend fix can be scored against what he actually rejected
+        rather than against whatever the current legend would print. 'clear'
+        removes the flag. Written to data/<piece>/parallagi_flags.json with a
+        timestamped history copy, the same never-destroy pattern as exports.
+        """
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+            if not 0 < n <= MAX_BODY:
+                raise ValueError(f"bad content length {n}")
+            payload = json.loads(self.rfile.read(n))
+            piece = _piece_arg(str(payload.get("piece", "")))
+            if piece is None:
+                raise ValueError(f"bad piece {payload.get('piece')!r}")
+            if not (HERE / 'data' / piece).is_dir():
+                raise ValueError(f"no such piece {piece}")
+            gi = int(payload["gi"])
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as e:
+            self.send_error(400, str(e))
+            return
+
+        state = read_parallagi_flags(piece)
+        notes = state["notes"]
+        if payload.get("clear"):
+            notes.pop(str(gi), None)
+        else:
+            notes[str(gi)] = {"gi": gi,
+                              "shown": payload.get("shown"),
+                              "note": payload.get("note") or "",
+                              "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        state["flags"] = sorted(int(k) for k in notes)
+
+        dest = HERE / 'data' / piece
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        hist = dest / "history" / stamp
+        hist.mkdir(parents=True, exist_ok=True)
+        text = json.dumps(state, ensure_ascii=False, indent=1)
+        (dest / FLAGS_FILE).write_text(text, encoding='utf-8')
+        (hist / FLAGS_FILE).write_text(text, encoding='utf-8')
+        self._json({"ok": True, "piece": piece, "gi": gi, "stamp": stamp,
+                    "flags": state["flags"]})
+        self.log_message("parallagi-flag %s gi=%s -> %s (history/%s)",
+                         piece, gi, dest / FLAGS_FILE, stamp)
 
 
 def main():

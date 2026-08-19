@@ -36,15 +36,86 @@ RED_TIME = set()
 # 2026-08-18): 14=Πα 23=Γα 34=Δι 52=Κε 67=Βου. 24 REMOVED — it is the nana
 # SCALE SIGN (≈Ga context), not the Νη letter; anchoring it to Νη=0 was a -3
 # anchor error at Ga cadences. 26=Ζω kept but UNREVIEWED by the chanter.
-MARTYRIA_DEG = {34: 4, 14: 1, 26: 6, 23: 3, 52: 5, 67: 2}
+# 26 = Ζω was carried UNREVIEWED for a long time; the chanter's 2026-08-19
+# description of the Ζω martyria as "a greek zeta z with a psifiston looking
+# thing under it" is the first confirmation of it, and it identified its
+# companion mark as cluster 27 (see MARTYRIA_ANY).
+# Nine more martyria letters, chanter-ruled 2026-08-19 from anchor_sheet.py.
+# They were found by profile — RED, right-aligned at a line end, not a known
+# martyria — after he identified cluster 89 from its shape: "the z martyrria zo
+# … looks like a greek zeta z with a psifiston looking thing under it". Every
+# instance of each cluster got the same reading, so these are cluster-level, not
+# per-instance. 199 hymn openings whose pitch was unreadable.
+# Chanter on how to read one: "the greek letters on the top portion of the
+# martyria are the actual letters corresponding to the parallagi syllable. the
+# symbols below indicate degree and scale (hard chromatic vs soft chromatic vs
+# diatonic)" — so only the LETTER anchors, which is why the scale signs stay out
+# of MARTYRIA_DEG and live in MARTYRIA_ANY.
+MARTYRIA_DEG = {34: 4, 14: 1, 26: 6, 23: 3, 52: 5, 67: 2,
+                77: 2, 49: 5, 54: 0, 44: 4, 51: 4, 89: 6, 37: 1, 29: 3, 65: 3}
 # The martyria FAMILY, letters and scale signs together, from the chanter's
 # atlas. Presence only — these are NOT degree anchors, and cluster 24 in
 # particular was wrongly used as one before ("it is the nana scale sign,
 # removed from degree anchors"). A scale sign says which scale, the letter says
 # which degree, so only letters may anchor. But a cadence is marked by the
 # whole compound, so detecting that a martyria is THERE needs the full set.
-MARTYRIA_ANY = set(MARTYRIA_DEG) | {15, 24, 35, 38, 50, 56}
-SILENT_BLACK = {12, 61, 55}      # bareia, stavros, lone slash
+# 27 is the second part of the Ζω martyria, the same way 15 pairs under the Pa
+# indicator. Chanter, 2026-08-19: "the z martyrria zo for some grave mode pieces
+# looks like a greek zeta z with a psifiston looking thing under it" — the zeta
+# is cluster 26 and the mark under it is 27. The corpus agrees flatly: all 66
+# instances of 27 are RED, and 65 of them sit directly beneath a cluster 26.
+# Neither 26 nor 27 is in the chanter's atlas, so both were unreviewed; this is
+# the first evidence for either, and it confirms the 26=Ζω anchor the aligner had
+# been carrying on trust.
+MARTYRIA_ANY = set(MARTYRIA_DEG) | {15, 24, 27, 35, 38, 50, 56}
+# ---- cluster 7 is TWO neumes, told apart by height ------------------------
+# The extraction merged psifiston and omalon into one cluster. The chanter found
+# it by eye while ruling the kentimata figures, 2026-08-19: "about half have
+# omalon underneath" — in figures where the atlas said omalon (cluster 36) could
+# not occur at all.
+#
+# The glyph boxes agree, and the separation is not a judgement call: cluster 7's
+# height is bimodal with an EMPTY GAP — 7295 instances at 6.2-6.4 pt, 175 at
+# 6.7-6.9 pt, and not one at 6.5 or 6.6. Rendered, the short one is the deep
+# U-swoop of a psifiston and the tall one the flat level stroke omalon is named
+# for. The chanter ruled 100 of the 175 on cluster7_sheet.py: omalon, 100 of 100.
+#
+# Neither neume carries an interval or a beat, so no degree and no duration
+# moves. What moves is note SEGMENTATION: cluster 7 is a legal base, so a wide
+# psifiston under two notes joins them into its own x-overlap group, while an
+# omalon is a MARK_ONLY span mark that _note_subgroups is careful to let tie two
+# notes without fusing them. That is the same defect already found and fixed for
+# the omalons that were correctly clustered.
+PSIFISTON, OMALON = 7, 36
+OMALON_MIN_H = 6.6              # the empty gap in the height histogram
+
+
+def _reclass(g):
+    """Cluster id for one glyph record, splitting cluster 7 by height."""
+    if g['cluster'] == PSIFISTON and g['y1'] - g['y0'] >= OMALON_MIN_H:
+        return OMALON
+    return g['cluster']
+
+
+# Cluster 33 is the CHIASMA, the tempo sign — atlas: "a time signature for
+# argosyntoma hymns". Chanter, 2026-08-19: "chiasma indicates time symbols …
+# argo on top of the xhiasma means slower, and argon and a gorgon next to
+# eachother on top of the chiasma mean not quite as slow (in between) and just
+# the gorgon means fast. there are also digorgons on top for faster and
+# trigorgons for really fast like recititive speed."
+#
+# It was BLACK and unclassified, so load_units took it as a NOTE BASE. Two
+# consequences, both wrong, on 268 instances: it emitted a phantom note for a
+# glyph that is never sung, and — because a group with a black candidate never
+# reaches the martyria branch — it SWALLOWED the martyria printed with it. 198
+# of the 268 sit in a martyria group, which is why hymns opening with a tempo
+# sign had no anchor at all. Silencing it recovers both.
+#
+# A gorgon or argon riding on a chiasma is a TEMPO for the hymn, not a note's
+# duration, so it must never reach beats_seq() — silencing the chiasma drops the
+# whole group, and the reading is preserved as 'tempo' on the anchored unit.
+CHIASMA = 33
+SILENT_BLACK = {12, 61, 55, CHIASMA}   # bareia, stavros, lone slash, chiasma
 MARK_ONLY = {36, 13, 27, 10, 16, 9}  # dots/kentima slabs: never a base alone
 # cluster 9 (chanter export): "Antikenoma that has a apli right underneath.
 # Orthographical but the apli still applies. Apli adds the extra beat" — a mark
@@ -78,6 +149,127 @@ KLASMA = {8}
 # argon "adds a beat to the symbol and removes half a beat from the two
 # symbols before it"
 ARGON = {58, 90}
+# ---- oligon + kentimata is TWO notes, not one net displacement -------------
+# Chanter, 2026-08-19, resolving the last open figure in the atlas:
+#
+#   "yes oligon kentimata are two notes. oligon +1 then kentimata +1 (if the
+#    oligon is on the bottom) byzantine neumes in general go bottom to top, the
+#    other variation is the kentimata under the oligon. that means the kentimata
+#    +1 first then the oligon +1. it's done that way because kentimata can never
+#    be on a down beat."
+#
+# So the figure is read BOTTOM TO TOP and emits two units of +1 each. The
+# pipeline used to emit one unit whose key (6|17ab) the canon legend gave +2 as
+# net displacement: the running degree stayed right, but one label was printed
+# where two belong, and the figure occupied one beat where it occupies two.
+#
+# Timing, same message:
+#
+#   "the meaning of the gorgon on top changes slightly. on top of the oligon
+#    kentimata it makes both the oligon and the kentimata half a beat. in the
+#    case of the kentimata under the oligon, the gorgon on top is as if the
+#    gorgon is on the first neume, the kentimata, and therefore makes that neume
+#    1/2 beat as well as the preceding note, shortening it by 1/2 beat
+#    (following the general rules about gorgon/digorgon/trigorgon/dotted
+#    equivalents) while the oligon maintains the full beat, and if a klasma or
+#    apli/dipli/tripli is on the kentimata under the oligon the beats are added
+#    to the oligon."
+#
+# Both timing rules fall straight out of the GENERIC gorgon window once the
+# figure is two units and the gorgon is attached to the KENTIMATA — no special
+# case is needed in beats_seq():
+#
+#   kentimata ABOVE (read oligon, kentimata): gorgon sits on the second unit, so
+#     its k+1 window covers the oligon and the kentimata -> ½ ½, and it never
+#     reaches the note before the figure. Exactly "makes both half a beat".
+#   kentimata BELOW (read kentimata, oligon): gorgon sits on the first unit, so
+#     its window covers the preceding note and the kentimata -> the kentimata is
+#     ½ and the note before it loses ½, while the oligon keeps its full beat.
+#     Exactly "as if the gorgon is on the first neume".
+#
+# Duration marks go the other way, to the OLIGON — his rule for the
+# kentimata-below case. There is no above-case rule to write, because the
+# chanter ruled the above case cannot happen: "kentimata over oligon never have
+# klasma/apli ever so no need to infer or do a rule. that is probably 22 or 37
+# mistakes on mcr".
+#
+# That is a testable prediction, and the corpus keeps it 113/113. Every one of
+# the 113 split figures carrying a klasma or a dot is kentimata-BELOW-oligon —
+# 6|17be+8ab (37), 7|17ab+6ab+8ab (22) and 19|10be+17ab+6ab (54) — and not one
+# of the 3556 kentimata-above figures carries either. The 22 and 54 are worth
+# noting: their keys mark every glyph 'ab' because those are positions relative
+# to a psifiston/antikenoma BASE, not relative to the oligon, so the key alone
+# cannot tell the two variants apart. Only the ken-vs-oligon geometry can, and it
+# puts all 76 of them in the half his rule says they must be in. So the figures
+# he suspected were MCR errors are not errors at all; they are the legal variant,
+# and the pipeline had simply lost the distinction by reading position off the
+# wrong glyph.
+#
+# It stays a prediction rather than an assumption: if an above-case figure ever
+# does turn up carrying duration, _split_kentimata marks it 'suspect' rather than
+# quietly handing the beat to the oligon, so it surfaces as a recognition error
+# to check instead of as a silent extra beat.
+# The figure's ORDER is read off the geometry, because the key cannot always
+# carry it. In 6|17ab / 6|17be the 'ab'/'be' is measured against the oligon and
+# says it outright. In 7|17ab+6ab (1012 in the book) it is measured against the
+# PSIFISTON base, so both glyphs read 'above the base' and neither is known to be
+# above the OTHER. Geometry splits those 1012 into 934 kentimata-over and 78
+# kentimata-under, cleanly bimodal with an empty middle (+4.65..+4.85 pt under,
+# -5.15..-4.70 pt over).
+#
+# The chanter reviewed all 78 on the review sheet (kentimata_sheet.py) and ruled
+# them, 2026-08-19: "are all kentimata under. most have psifiston underneath and
+# maybe gorgon or argo on top." So geometry is right 78/78 where he looked.
+#
+# His description also yields a NOTATIONAL check independent of the geometry, and
+# it is nearly perfect: every one of the 78 carries a red timing mark on top
+# (41 gorgon-family + 37 argon), against 1 of the 934. Two unrelated signals
+# agreeing 1011/1012 is why the split is trusted on this key without hand-ruling
+# the remaining 934.
+OLIGON, KENTIMATA = 6, 17
+# The CARRIER case. Chanter, 2026-08-19, ruling the whole family at once:
+#
+#   "apostrophos kentimata over oligon is just an apostrophos kentimata. oligon
+#    is ignored. ison kentimata over oligon the olgion is ignored too. elafron
+#    kentimata over oligon is also just elafron kentimata (-2 +1) and
+#    occasionally the elafron is actually a running elafron so the other
+#    possibility is running elafron kentimata over oligon, oligon is ignored and
+#    it's the same as just having a running elafron and then an oligon."
+#
+# So there are two shapes, and which one applies turns on whether the figure
+# holds a quantity BESIDES the oligon and the kentimata:
+#
+#   bare   — nothing else: the oligon is the melodic note. Two notes, +1 then +1,
+#            ordered bottom to top (6|17ab, 6|17be).
+#   carrier— something else: the oligon is orthographic "used as a table"
+#            (atlas) and is DROPPED. Two notes, that neume then the kentimata's
+#            +1. His last clause is the same statement: a kentimata after a
+#            running elafron behaves as an oligon would, because +1 is what both
+#            are worth.
+#
+# Every 17-bearing key that survives the bare split is a carrier one — 2135
+# units — and the rule reproduces the atlas's independently locked NET values
+# exactly, which is the check that it is right:
+#   22|17be+21be  ison 0 + kentimata +1 = +1   atlas-locked +1
+#   47|17be+21be  elafron -2 + kentimata +1 = -1   atlas-locked -1
+# It also answers 4|17be+6be (660 units), where the carrier is drawn with the
+# ordinary oligon cluster rather than 21: apostrofos -1 then kentimata +1, net 0,
+# where the old fall-back to a bare apostrofos gave -1 as a single note.
+CARRIER_OLIGON = 21
+OLIGONS = {OLIGON, CARRIER_OLIGON}
+# Neumes that can be the melodic partner in a carrier figure — things that are a
+# NOTE on their own. Deliberately excludes the jump MARKS (16 kentima, 28 ypsili,
+# 83): those modify a note rather than being one, so 28|17be+6be (23 units) and
+# its relatives are left as single units for the chanter to rule on separately.
+# 47 is the elaphron combination variant: the atlas gives it no interval of its
+# own but locks 47|17be+21be at -1, which with the kentimata's +1 makes the
+# elaphron -2 — the plain elaphron value.
+CARRIER_PARTNER = {3: 1, 4: -1, 5: 0, 20: -2, 22: 0, 41: -1, 47: -2, 48: -4}
+# Clusters that carry melodic quantity (atlas: every cluster with a non-null
+# interval, plus the jump marks).
+MELODIC_CLUSTERS = {3, 4, 5, 6, 17, 20, 22, 41, 48, 83, 16, 28, 47}
+MART_OPEN_GAP = 40.0        # pt: past this a martyria is right-aligned, i.e.
+                            # the next hymn's opening sign, NOT a cadence check
 MIN_BEAT = 0.125            # floor: stacked deductions must not go negative
 W_MV, MV_CAP = 1.0, 2.6
 SKIP_U, SKIP_E = 1.2, 0.25
@@ -175,6 +367,136 @@ def _note_subgroups(cands):
     return subs
 
 
+def _tempo(grp):
+    """The tempo a chiasma group states. See CHIASMA for the chanter's scale."""
+    k = max((GORGON_ORDER[x['cluster']] for x in grp
+             if x['cluster'] in GORGON_ORDER), default=0)
+    argon = any(x['cluster'] in ARGON for x in grp)
+    if argon and k:
+        return 'medium'          # "not quite as slow (in between)"
+    if argon:
+        return 'slow'
+    return {0: 'plain', 1: 'fast', 2: 'faster', 3: 'recitative'}[k]
+
+
+def _mk_unit(pl, mine, base, fig, part=None, xr=None, yr=None, drop=()):
+    """One unit from a glyph group. `drop` removes clusters that belong to the
+    figure's OTHER half (see _split_kentimata); xr/yr override the box."""
+    mine = [x for x in mine if x is base or x['cluster'] not in drop]
+    black = [x for x in mine if not x['red']
+             and x['cluster'] not in SILENT_BLACK]
+    marks = []
+    for x in black:
+        if x is base:
+            continue
+        pos = ('ab' if (x['y0'] + x['y1']) / 2
+               < (base['y0'] + base['y1']) / 2 - 1 else 'be')
+        marks.append(f"{x['cluster']}{pos}")
+    timing = max((GORGON_ORDER[x['cluster']] for x in mine
+                  if x['cluster'] in GORGON_ORDER), default=0)
+    x0, x1 = xr if xr else (min(x['x0'] for x in mine), max(x['x1'] for x in mine))
+    y0, y1 = yr if yr else (min(x['y0'] for x in mine), max(x['y1'] for x in mine))
+    return {'pl': pl, 'x0': x0, 'x1': x1, 'y0': y0, 'y1': y1,
+            'key': f"{base['cluster']}|{'+'.join(sorted(marks))}",
+            'base': base['cluster'],
+            'gorgon': timing >= 1, 'klasma': any(x['cluster'] in KLASMA for x in mine),
+            'timing': timing, 'rest': False,
+            'argon': any(x['cluster'] in ARGON for x in mine),
+            'dots': (sum(1 for x in black if x['cluster'] in DOTS)
+                     + sum(1 for x in black if x['cluster'] in APLI_COMPOUND)),
+            'apli': any(x['cluster'] in DOTS or x['cluster'] in APLI_COMPOUND
+                        for x in black),
+            # 'fig' is the unit's index in the PRE-SPLIT stream, which is what a
+            # chanter-marked g0/g1 or pin index means — reindex_kentimata.py
+            # migrates through it. It is unique only WITHIN one load_units call:
+            # units_for() calls load_units once per page and concatenates, so fig
+            # repeats across pages. Group on (pl, fig), or use 'part' — 0 opens a
+            # split figure and 1 continues it — which needs no key at all.
+            'fig': fig, 'part': part}
+
+
+def _kentimata_pair(mine):
+    """The figure's two notes, or None if this group is not one.
+
+    Returns (partner, kentimata, carrier) where `partner` is the glyph the
+    kentimata is a second note to and `carrier` is the orthographic oligon to
+    drop, if any. See the CARRIER_PARTNER block above for the chanter's rule.
+    """
+    ken = [x for x in mine if x['cluster'] == KENTIMATA]
+    oli = [x for x in mine if x['cluster'] in OLIGONS]
+    if len(ken) != 1 or len(oli) != 1:
+        return None
+    ken, oli = ken[0], oli[0]
+    others = [x for x in mine if x is not ken and x is not oli
+              and x['cluster'] in MELODIC_CLUSTERS]
+    if not others:
+        # bare: the oligon IS the note
+        return oli, ken, None
+    if len(others) != 1 or others[0]['cluster'] not in CARRIER_PARTNER:
+        # a jump mark, or more than one quantity besides the oligon — not a
+        # shape the chanter has ruled on. Leave it as a single unit.
+        return None
+    return others[0], ken, oli
+
+
+def _split_kentimata(pl, mine, fig, oli, ken, carrier=None):
+    """The kentimata figure as its two notes, in reading order.
+
+    `oli` is the melodic partner — the oligon itself in the bare figure, or the
+    apostrofos/ison/elaphron it carries in the carrier figure, where `carrier`
+    is the orthographic oligon to drop.
+
+    Bare figure: bottom to top, the lower glyph is sung first. Carrier figure:
+    the partner is always first, since the carrier oligon it sits on is not
+    sung at all and the kentimata is what follows it.
+
+    The gorgon family goes with the KENTIMATA and the duration marks with the
+    partner — see the chanter quotes at OLIGON/KENTIMATA above; between them
+    those two assignments make the generic beats_seq() window produce both of
+    his timing rules.
+
+    The two notes are stacked vertically, so they have no separate x extent of
+    their own. They are given the left and right half of the figure's box in
+    READING order instead: the parallagi label of each lands over its own half
+    rather than on top of the other's, the global sort by x0 keeps them in
+    reading order, and a click selects one or the other. Both keep the figure's
+    full y extent so the highlight and the detail crop still show the figure.
+    """
+    # in a carrier figure the partner is always sung first; only the bare
+    # figure is ordered by which glyph sits lower on the page
+    below = (carrier is None
+             and (ken['y0'] + ken['y1']) / 2 > (oli['y0'] + oli['y1']) / 2 + 1)
+    first, second = (ken, oli) if below else (oli, ken)
+    if carrier is not None:
+        mine = [x for x in mine if x is not carrier]
+    X0 = min(x['x0'] for x in mine)
+    X1 = max(x['x1'] for x in mine)
+    YR = (min(x['y0'] for x in mine), max(x['y1'] for x in mine))
+    XM = (X0 + X1) / 2
+    gorgons = [x for x in mine if x['cluster'] in GORGON_ORDER]
+    gids = {id(x) for x in gorgons}          # identity: glyph dicts compare equal
+    # the kentimata half: its own glyph plus the gorgon family, nothing else
+    ken_mine = [ken] + gorgons
+    # the oligon half: everything else, so klasma/apli/dipli/tripli land here
+    oli_mine = [x for x in mine if x is not ken and id(x) not in gids]
+    if not oli_mine:
+        oli_mine = [oli]
+    a_mine, b_mine = ((ken_mine, oli_mine) if below else (oli_mine, ken_mine))
+    out = [
+        _mk_unit(pl, a_mine, first, fig, part=0, xr=(X0, XM), yr=YR,
+                 drop={KENTIMATA}),
+        _mk_unit(pl, b_mine, second, fig, part=1, xr=(XM, X1), yr=YR,
+                 drop={KENTIMATA}),
+    ]
+    if not below and any(u['klasma'] or u['dots'] for u in out):
+        # cannot happen in the book as read today (0 of 3556) — see above
+        for u in out:
+            u['suspect'] = ('duration mark on a kentimata-over-oligon figure: '
+                            'the chanter rules this impossible, so the glyph '
+                            'recognition is likely wrong here')
+    return out
+
+
 def load_units(p0, l0, p1, l1):
     """units for the hymn slice [(p0,l0) .. (p1,l1))"""
     recs, lyr = [], []
@@ -186,12 +508,14 @@ def load_units(p0, l0, p1, l1):
             if (p == p0 and g['line'] < l0) or (p == p1 and g['line'] >= l1) \
                or p > p1:
                 continue
+            g['cluster'] = _reclass(g)
             recs.append(g)
         for w in d.get('lyrics', []):
             if (p == p0 and w.get('line', 0) < l0) or (p == p1 and w.get('line', 0) >= l1):
                 continue
             lyr.append(w)
     units = []
+    fig = 0                  # index in the PRE-SPLIT unit stream (see 'fig')
     by_line = defaultdict(list)
     for g in recs:
         by_line[(g['page'], g['line'])].append(g)
@@ -231,13 +555,65 @@ def load_units(p0, l0, p1, l1):
                                   'key': 'rest', 'base': None, 'rest': True,
                                   'gorgon': False, 'klasma': False,
                                   'timing': 0, 'argon': False, 'dots': n_dots,
-                                  'apli': True})
+                                  'apli': True, 'fig': fig, 'part': None})
+                    fig += 1
                     continue
                 # martyria letters state the ABSOLUTE degree of the melody at
                 # this cadence — recorded as an anchor on the previous unit
                 degs = [MARTYRIA_DEG[x['cluster']] for x in grp
                         if x['red'] and x['cluster'] in MARTYRIA_DEG]
+                if any(x['cluster'] == CHIASMA for x in grp):
+                    # 'fig' must keep meaning "index in the stream the chanter
+                    # counted against", because reindex_kentimata.py migrates his
+                    # hand-marked g0/g1 and pins through it. The chiasma used to
+                    # emit a phantom note, so it occupied an index in that
+                    # stream; silencing it here would silently renumber every
+                    # figure after it and slide 19 of his 47 marked ranges. It
+                    # keeps its slot without producing a unit.
+                    fig += 1
                 if degs and units:
+                    # A line can END with TWO martyrias: the CADENCE one that
+                    # names the note just sung, printed right after it, and the
+                    # OPENING one for the next hymn, right-aligned to the far
+                    # margin. Chanter: "the opening one is right aligned to the
+                    # end of the last hymn". Both land on the same unit — the
+                    # last note of the line — and the assignment below is a
+                    # plain overwrite, so the opening one silently destroyed the
+                    # cadence one. Example: page 521 line 4 carries Ζω at x=167
+                    # (the cadence) and Γα at x=515 (the opening), and unit 68
+                    # kept only Γα.
+                    #
+                    # mart_deg KEEPS the overwrite, because leading_anchor()
+                    # wants exactly the right-aligned opening one and every
+                    # anchor in use depends on that. mart_all preserves the whole
+                    # sequence in printed order, so the cadence martyria — which
+                    # is the checksum the parallagi overlay marks — is no longer
+                    # thrown away. 91 units corpus-wide carry more than one.
+                    units[-1].setdefault('mart_all', []).extend(degs)
+                    # OPENING vs CADENCE. Chanter, 2026-08-19: "sometimes the
+                    # right aligned martyria are just a sign for the opening of
+                    # the next hymn and dont act as a checksum btw. little weird
+                    # but it happens." So the two kinds mean different things and
+                    # must not be pooled: a cadence martyria NAMES the note just
+                    # sung and is a checkable claim about the melody; a
+                    # right-aligned one announces the next hymn's starting pitch
+                    # and says nothing about the note it is printed beside.
+                    #
+                    # They separate on the x-gap to whatever is printed before
+                    # them, which is flatly bimodal over the book: 679 martyrias
+                    # sit within 20 pt (inline) and 254 at 80 pt or more
+                    # (flung out to the margin), with a thin valley between —
+                    # hence the 40 pt cut. On page 521 line 4 the cadence Ζω has
+                    # a 7 pt gap and the opening Γα a 336 pt one.
+                    if any(x['cluster'] == CHIASMA for x in grp):
+                        units[-1]['tempo'] = _tempo(grp)
+                    left = [h for h in gl if h['x1'] <= min(x['x0'] for x in grp) + 1]
+                    gap = (min(x['x0'] for x in grp) - max(h['x1'] for h in left)
+                           if left else 0.0)
+                    if gap >= MART_OPEN_GAP:
+                        units[-1]['mart_open'] = degs[0]
+                    else:
+                        units[-1].setdefault('mart_cad', []).extend(degs)
                     units[-1]['mart_deg'] = degs[0]
                 continue                      # martyria/silent group: no slot
             # one unit per NOTE, not per x-overlap group: a span mark that ties
@@ -255,35 +631,12 @@ def load_units(p0, l0, p1, l1):
             for s, ex in zip(subs, extra):
                 mine = s + ex
                 base = max(s, key=lambda x: (x['x1'] - x['x0']) * (x['y1'] - x['y0']))
-                black = [x for x in mine if not x['red']
-                         and x['cluster'] not in SILENT_BLACK]
-                red = [x for x in mine if x['red']]
-                marks = []
-                for x in black:
-                    if x is base:
-                        continue
-                    pos = ('ab' if (x['y0'] + x['y1']) / 2
-                           < (base['y0'] + base['y1']) / 2 - 1 else 'be')
-                    marks.append(f"{x['cluster']}{pos}")
-                timing = max((GORGON_ORDER[x['cluster']] for x in mine
-                              if x['cluster'] in GORGON_ORDER), default=0)
-                gorgon = timing >= 1
-                klasma = any(x['cluster'] in KLASMA for x in mine)
-                units.append({'pl': pl, 'x0': min(x['x0'] for x in mine),
-                              'x1': max(x['x1'] for x in mine),
-                              'y0': min(x['y0'] for x in mine),
-                              'y1': max(x['y1'] for x in mine),
-                              'key': f"{base['cluster']}|{'+'.join(sorted(marks))}",
-                              'base': base['cluster'],
-                              'gorgon': gorgon, 'klasma': klasma,
-                              'timing': timing, 'rest': False,
-                              'argon': any(x['cluster'] in ARGON for x in mine),
-                              'dots': (sum(1 for x in black if x['cluster'] in DOTS)
-                                       + sum(1 for x in black
-                                             if x['cluster'] in APLI_COMPOUND)),
-                              'apli': any(x['cluster'] in DOTS
-                                          or x['cluster'] in APLI_COMPOUND
-                                          for x in black)})
+                pair = _kentimata_pair(mine)
+                if pair is None:
+                    units.append(_mk_unit(pl, mine, base, fig))
+                else:
+                    units.extend(_split_kentimata(pl, mine, fig, *pair))
+                fig += 1
     units.sort(key=lambda u: (u['pl'], u['x0']))
     return units, lyr
 

@@ -72,6 +72,8 @@
   #transport button.on { background: #1e4976; border-color: #2a6fb0; }
   #ghostbtn.on { background: #5e3570; border-color: #9c5ab0; }
   #melbtn.on { background: #14595e; border-color: #2a9aa0; }
+  #parabtn.on { background: #1b3d63; border-color: #4a7fbd; }
+  #paraflagbtn.on { background: #6b2f28; border-color: #c0564a; }
   #playbtn { flex: 1.4 1 0; font-size: 20px; }
   #detail {
     flex: 0 0 300px; background: var(--panel); border-left: 1px solid var(--edge);
@@ -137,6 +139,8 @@
   <label class="chk"><input type="checkbox" id="follow" checked> follow</label>
   <button id="ghostbtn" title="Mark pitch-ghost regions (G): drag on the pitch band to paint one, tap a region to remove it">Ghost</button>
   <button id="melbtn" title="Melisma note pinning (M): drag the teal boundaries inside an analytical span — the underlying melodic pins stay untouched">Mel</button>
+  <button id="parabtn" title="Parallagi overlay (A): the degree the score implies over each glyph, in blue; a gold tick marks a unit whose martyria states the degree outright">Para</button>
+  <button id="paraflagbtn" title="Flag a wrong parallagi (X): tap a glyph to mark the shown degree wrong; flagged glyphs turn red and the flag is saved on the server">Para⚑</button>
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
   <button id="refitbtn" title="Redistribute all UNPINNED markers by beat weight: between pins piecewise, before the first / after the last pin spread to the audio edges. Pins never move. Pin a few, refit, pin the next few…">Refit</button>
@@ -171,7 +175,7 @@
   <span id="counts"></span>
   <span id="savestate"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
-    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · long-press marker pin · pinch zoom</span>
+    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
 </div>
 <div id="transport">
   <button id="playbtn" class="primary" title="play/pause (space)">▶</button>
@@ -215,6 +219,10 @@ const DEG_NAMES = ['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
    nothing is matched by coordinate. Chanter asked for it "in small blue font
    above the glyphs so that i can see if anything is off. then i can flag". */
 let PARA = null, PARA_FLAGS = new Set(), showPara = true;
+let paraFlagMode = false;    // Para⚑ button: a glyph tap flags its degree
+/* units whose printed martyria names the degree outright — the checksum
+   points, where a drifting parallagi becomes visible */
+let PARA_MART = new Set();
 async function loadParallagi(pieceId) {
   PARA = null;
   try {
@@ -227,7 +235,36 @@ async function loadParallagi(pieceId) {
     const fj = await f.json();
     PARA_FLAGS = new Set(fj.flags || []);
   } catch (e) { PARA_FLAGS = new Set(); }
-  draw();
+  PARA_MART = martyriaUnits();
+  dirtyScore = true;
+}
+/* /api/parallagi does not report martyriae, and serve.py belongs to another
+   lane, so read them off the MCR rows the annotator already loaded:
+   other_marks carries "martyria: Ga (3)". PARA.martyria wins if it appears. */
+function martyriaUnits() {
+  if (PARA && Array.isArray(PARA.martyria)) return new Set(PARA.martyria);
+  const out = new Set();
+  (MCR || []).forEach((r, gi) => {
+    if ((r.other_marks || []).some(m => /^martyria/i.test(String(m)))) out.add(gi);
+  });
+  return out;
+}
+/* Optimistic so a phone tap feels instant, reconciled from the response so the
+   server stays the truth about what is flagged. */
+async function toggleParaFlag(gi) {
+  const on = !PARA_FLAGS.has(gi);
+  if (on) PARA_FLAGS.add(gi); else PARA_FLAGS.delete(gi);
+  dirtyScore = true;
+  const piece = PIECE || (D && D.meta.piece_id);
+  const shown = PARA && PARA.names ? PARA.names[gi] : null;
+  try {
+    const r = await fetch('/api/parallagi-flag', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ piece, gi, shown, note: '', clear: !on }) });
+    const j = await r.json();
+    if (j && Array.isArray(j.flags)) PARA_FLAGS = new Set(j.flags);
+  } catch (e) { /* keep the optimistic state; a reload re-reads the server */ }
+  dirtyScore = true;
 }
 function degName(d) {
   if (d == null || !isFinite(d)) return '?';
@@ -571,6 +608,7 @@ async function boot() {
   img.src = DATA_DIR + D.meta.strip;
 
   setupScore();
+  loadParallagi(PIECE || D.meta.piece_id);   // async; 404 leaves the overlay off
   requestAnimationFrame(frame);
   decodePeaks();   // async; UI is usable before it completes
 }
@@ -670,8 +708,11 @@ function drawScore() {
   // where flagged as wrong
   if (PARA && showPara && D.notes) {
     ctx.save();
-    ctx.font = Math.max(10, Math.round(11 * ribScale / RIB_BASE)) + 'px system-ui';
+    // clamped both ways: on a phone ribScale runs to RIB_MAX and an unclamped
+    // size overflows the glyph box; below ~9px the Greek is unreadable
+    const fs = Math.max(9, Math.min(16, Math.round(11 * ribScale / RIB_BASE)));
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
     for (let gi = 0; gi < D.notes.length; gi++) {
       const nm = PARA.names[gi];
       if (!nm) continue;
@@ -679,8 +720,19 @@ function drawScore() {
       if (rx1 < off - 20 || rx0 > off + vw + 20) continue;
       const cy = D.meta.line_centers[n.line];
       const ry = (n.y0 - bandTop(cy)) * ribScale;
+      const cx = (rx0 + rx1) / 2 - off;
+      // a split oligon+kentimata gets half a box each, so its two labels are
+      // narrow: shrink to fit rather than let the pair run together
+      ctx.font = fs + 'px system-ui';
+      if (ctx.measureText(nm).width > (rx1 - rx0) + 6)
+        ctx.font = Math.max(9, fs - 2) + 'px system-ui';
+      const ty = Math.max(ry - 4, fs + 4);   // leave room for the martyria tick
       ctx.fillStyle = PARA_FLAGS.has(gi) ? '#ff8a75' : '#6fa8dc';
-      ctx.fillText(nm, (rx0 + rx1) / 2 - off, Math.max(ry - 4, 9));
+      ctx.fillText(nm, cx, ty);
+      if (PARA_MART.has(gi)) {               // the score states this degree
+        ctx.fillStyle = '#ffd54f';
+        ctx.fillRect(cx - 4, ty - fs - 3, 8, 2);
+      }
     }
     ctx.restore();
   }
@@ -1379,7 +1431,19 @@ tlCv.addEventListener('wheel', e => {
 }, { passive: false });
 
 /* ================= score band interaction ================= */
+/* the ribbon pans by dragging, and a pan ends in a click on most phones —
+   only treat a tap as a flag if the strip did not move under the finger */
+let scoreDownScroll = null;
+scoreCv.addEventListener('pointerdown', () => { scoreDownScroll = wrap.scrollLeft; });
 scoreCv.addEventListener('click', e => {
+  const panned = scoreDownScroll != null && Math.abs(wrap.scrollLeft - scoreDownScroll) > 4;
+  scoreDownScroll = null;
+  if (paraFlagMode) {
+    if (panned) return;
+    const gf = glyphAtScoreXY(e.offsetX, e.offsetY);
+    if (gf >= 0) toggleParaFlag(gf);
+    return;
+  }
   const g = glyphAtScoreXY(e.offsetX, e.offsetY);
   if (g >= 0) {
     const i = MCR[g].slot_ids[0];
@@ -1416,6 +1480,8 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'f' || e.key === 'F') $('follow').checked = !$('follow').checked;
   else if (e.key === 'g' || e.key === 'G') toggleGhostMode();
   else if (e.key === 'm' || e.key === 'M') toggleMelMode();
+  else if (e.key === 'a' || e.key === 'A') toggleParaMode();
+  else if (e.key === 'x' || e.key === 'X') toggleParaFlagMode();
   else if (e.key === 's' || e.key === 'S') cycleSpeed();
 });
 $('playbtn').onclick = togglePlay;
@@ -1451,6 +1517,22 @@ function toggleMelMode() {
   dirtyTL = true;
 }
 $('melbtn').onclick = toggleMelMode;
+function toggleParaMode() {
+  showPara = !showPara;
+  if (!showPara && paraFlagMode) toggleParaFlagMode();   // nothing to flag unseen
+  $('parabtn').classList.toggle('on', showPara);
+  dirtyScore = true;
+}
+$('parabtn').onclick = toggleParaMode;
+$('parabtn').classList.toggle('on', showPara);   // overlay is on by default
+function toggleParaFlagMode() {
+  paraFlagMode = !paraFlagMode;
+  if (paraFlagMode && !showPara) toggleParaMode();       // he flags what he sees
+  $('paraflagbtn').classList.toggle('on', paraFlagMode);
+  scoreCv.style.cursor = paraFlagMode ? 'cell' : 'default';
+  dirtyScore = true;
+}
+$('paraflagbtn').onclick = toggleParaFlagMode;
 $('exportbtn').onclick = doExport;
 $('nudgeL').onclick = () => nudgeSel(-1);
 $('nudgeR').onclick = () => nudgeSel(1);

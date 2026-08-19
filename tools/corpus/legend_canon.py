@@ -45,12 +45,42 @@ FIGURES = {
     '3|16ab+8be': 3,
     '20|41be': -3,        # elaphron + apostrofos
     '20|41be+8ab': -3,
-    '47|17be+21be': -1,   # elaphron + kentimata over carrier oligon
+    '47|17be+21be': -1,   # elafron + kentimata over carrier oligon
+    # The elaphron combination variant carries no interval in the atlas, but the
+    # atlas LOCKS the figure above at -1 and the chanter reads that figure as
+    # "elafron kentimata (-2 +1)". Subtracting the kentimata's own +1 leaves the
+    # elaphron at -2, which is just the plain elaphron value (cluster 20). Needed
+    # as a standalone key because _split_kentimata now emits it as its own note.
+    '47|': -2,   # elaphron + kentimata over carrier oligon
     '7|6ab': 1,           # psifiston qualitative, oligon above is the note
     '7|16ab+6ab': 1,
     '7|6ab+8ab': 1,
     '7|16ab+6ab+8ab': 1,
 }
+
+
+# Keys the legend must carry whether or not the learned inventory happens to
+# hold them. The learned legend_global.json is 36 keys from one workdir, so a
+# key can be load-bearing corpus-wide and still be missing there. '6|' and '17|'
+# are the two halves of every split oligon+kentimata figure -- 4692 figures
+# corpus-wide, 9384 sub-units -- and if either were absent the split would
+# silently lose its interval. The rest are the 17-bearing compounds that survive
+# the split (measured over all 673 glyph pages) and are derivable from the atlas.
+#
+# '4|17be+6be' is deliberately NOT seeded, though it occurs 660 times. Composing
+# it gives apostrofos -1 + kentimata +1 + oligon +1 = +1, where today it falls
+# back to the bare '4|' = -1 -- a +2 swing on 660 units, which moved the closing
+# degree of 10 of the 47 chanter-marked ranges. Both values are guesses. The
+# figure carries THREE melodic quantities, and the lesson of the oligon+kentimata
+# ruling is that such a stack is usually several NOTES rather than one net
+# displacement, so composing a net for it is probably the wrong question. Left
+# unseeded, i.e. on the behaviour the chanter's gold work was verified against,
+# until he rules on it.
+SEED = ['6|', '17|', '4|', '5|', '20|', '22|', '41|', '47|', '3|',
+        '22|17be+21be',        # 1009 occurrences, carrier oligon
+        '47|17be+21be',        #  188
+        '22|17be+21be+36be',   #    2
+        '4|17ab+33ab+4be+6ab'] #    1
 
 
 def build():
@@ -81,7 +111,16 @@ def build():
                 continue
             if c == 16:            # kentima
                 add += 2 if pos == 'be' else 3
-            elif c == 17:          # kentimata: a second note of +1
+            elif c == 17:
+                # NOT the general oligon+kentimata figure. That figure is two
+                # notes of +1 read bottom to top (chanter, 2026-08-19) and
+                # hymn_align._split_kentimata now emits it as two units, '6|'
+                # and '17|', so it never reaches this rule. What is left here is
+                # only what the split declines: the atlas-locked carrier-oligon
+                # compounds (22|17be+21be +1, 47|17be+21be -1) and the figures
+                # with a third melodic quantity (4|17be+6be, 28|17be+6be,
+                # 7|17ab+4ab+6ab ...). In those the kentimata really is one
+                # added step on top of the base, which is what +1 means here.
                 add += 1
             elif c == 28:          # ypsili
                 add += 4
@@ -105,6 +144,8 @@ def main():
     learned = json.load(open(
         f'/mnt/data/chant-corpus/workdirs/{a.workdir}/legend_global.json'))
     keys, support = learned['keys'], learned.get('support', {})
+    for k in SEED:
+        keys.setdefault(k, None)          # None = no learned value to compare
 
     canon, why = {}, {}
     for k in keys:
@@ -121,6 +162,8 @@ def main():
             if k not in canon:
                 unk += n
                 continue
+            if keys[k] is None:
+                continue                  # seeded key, nothing learned to compare
             if canon[k] == keys[k]:
                 agree += n
             else:

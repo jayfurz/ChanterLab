@@ -52,15 +52,60 @@ def leading_anchor(p0, g0):
     the beginning pitch". On gold t03's parallagi the range starts at unit 67
     and unit 66 carries mart_deg=3, which is Ga.
     """
-    if g0 <= 0:
+    def look(page, before=None):
+        """martyria in the 3 units ending at `before` (default: end of page)."""
+        try:
+            us, _ = load_units(page, 0, page, 10 ** 6)
+        except Exception:
+            return None
+        hi = len(us) if before is None else min(before, len(us))
+        # The window follows the LINE, not a fixed unit count. An opening
+        # martyria is printed either at the end of the previous line (flung to
+        # the right margin) or at the left of the range's own line, before its
+        # first note — so the units that can carry it are "everything earlier on
+        # this line, plus the tail of the line before". A flat 3-unit lookback
+        # missed t01_#22/#23, whose g0 sits 3 units into its line while the Γα
+        # sits on the last unit of the line before: 4 back, one too far.
+        window = []
+        if hi and hi <= len(us):
+            line = us[hi - 1]['pl'][1] if before is None else (
+                us[hi]['pl'][1] if hi < len(us) else us[hi - 1]['pl'][1])
+            i = hi - 1
+            while i >= 0 and us[i]['pl'][1] == line:      # earlier on this line
+                window.append(i); i -= 1
+            prev = us[i]['pl'][1] if i >= 0 else None     # tail of the line before
+            while i >= 0 and us[i]['pl'][1] == prev and len(window) < hi:
+                window.append(i); i -= 1
+                if prev is not None and len(
+                        [j for j in window if us[j]['pl'][1] == prev]) >= 3:
+                    break
+        # The OPENING martyria is the one wanted here — the right-aligned sign
+        # that announces the next hymn's starting pitch. Chanter: "sometimes the
+        # right aligned martyria are just a sign for the opening of the next
+        # hymn and dont act as a checksum". Preferring it over a cadence
+        # martyria in the same window makes that explicit rather than relying on
+        # load_units' last-one-wins overwrite to happen to leave the right value
+        # in mart_deg.
+        for key in ('mart_open', 'mart_deg'):
+            for i in window:
+                if us[i].get(key) is not None:
+                    return us[i][key]
         return None
-    try:
-        us, _ = load_units(p0, 0, p0, 10 ** 6)
-    except Exception:
-        return None
-    for i in range(g0 - 1, max(g0 - 4, -1), -1):
-        if i < len(us) and us[i].get('mart_deg') is not None:
-            return us[i]['mart_deg']
+
+    if g0 > 0:
+        d = look(p0, g0)
+        if d is not None:
+            return d
+    # A range that opens at the very TOP of a page has its martyria printed at
+    # the end of the PREVIOUS page — it is right-aligned to the close of the
+    # previous hymn, which is the whole reason this function exists, and that
+    # position can fall across the page break. Looking only within p0 lost the
+    # anchor for every hymn that starts a page: 4 of the 47 chanter-cut spans
+    # (πασαπνο-ηαι-νε at g0=1, χριστουου-την-α at g0=0, and their parallagi).
+    # The window is the same three units, measured back from the previous page's
+    # end rather than from g0.
+    if g0 <= 3 and p0 > 0:
+        return look(p0 - 1)
     return None
 
 

@@ -1,0 +1,815 @@
+{
+ "items": [
+  {
+   "page": 2,
+   "line": 4,
+   "key": "6|17ab",
+   "below": false,
+   "dy": -4.8,
+   "group": "cal-above",
+   "img": "kentimata/cal-above-002-04-0.png"
+  },
+  {
+   "page": 107,
+   "line": 11,
+   "key": "6|17ab",
+   "below": false,
+   "dy": -4.7,
+   "group": "cal-above",
+   "img": "kentimata/cal-above-107-11-1.png"
+  },
+  {
+   "page": 250,
+   "line": 10,
+   "key": "6|17ab",
+   "below": false,
+   "dy": -4.75,
+   "group": "cal-above",
+   "img": "kentimata/cal-above-250-10-2.png"
+  },
+  {
+   "page": 349,
+   "line": 2,
+   "key": "6|17ab",
+   "below": false,
+   "dy": -4.75,
+   "group": "cal-above",
+   "img": "kentimata/cal-above-349-02-3.png"
+  },
+  {
+   "page": 479,
+   "line": 4,
+   "key": "6|17ab",
+   "below": false,
+   "dy": -4.8,
+   "group": "cal-above",
+   "img": "kentimata/cal-above-479-04-4.png"
+  },
+  {
+   "page": 586,
+   "line": 0,
+   "key": "6|17ab",
+   "below": false,
+   "dy": -4.8,
+   "group": "cal-above",
+   "img": "kentimata/cal-above-586-00-5.png"
+  },
+  {
+   "page": 2,
+   "line": 4,
+   "key": "6|17be",
+   "below": true,
+   "dy": 4.7,
+   "group": "cal-below",
+   "img": "kentimata/cal-below-002-04-6.png"
+  },
+  {
+   "page": 112,
+   "line": 1,
+   "key": "6|17be",
+   "below": true,
+   "dy": 4.75,
+   "group": "cal-below",
+   "img": "kentimata/cal-below-112-01-7.png"
+  },
+  {
+   "page": 298,
+   "line": 9,
+   "key": "6|17be",
+   "below": true,
+   "dy": 4.75,
+   "group": "cal-below",
+   "img": "kentimata/cal-below-298-09-8.png"
+  },
+  {
+   "page": 422,
+   "line": 10,
+   "key": "6|17be",
+   "below": true,
+   "dy": 4.75,
+   "group": "cal-below",
+   "img": "kentimata/cal-below-422-10-9.png"
+  },
+  {
+   "page": 510,
+   "line": 9,
+   "key": "6|17be",
+   "below": true,
+   "dy": 4.75,
+   "group": "cal-below",
+   "img": "kentimata/cal-below-510-09-10.png"
+  },
+  {
+   "page": 554,
+   "line": 9,
+   "key": "6|17be",
+   "below": true,
+   "dy": 4.75,
+   "group": "cal-below",
+   "img": "kentimata/cal-below-554-09-11.png"
+  },
+  {
+   "page": 20,
+   "line": 10,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-020-10-12.png"
+  },
+  {
+   "page": 21,
+   "line": 5,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-021-05-13.png"
+  },
+  {
+   "page": 21,
+   "line": 7,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-021-07-14.png"
+  },
+  {
+   "page": 22,
+   "line": 6,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-022-06-15.png"
+  },
+  {
+   "page": 23,
+   "line": 5,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-023-05-16.png"
+  },
+  {
+   "page": 28,
+   "line": 9,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-028-09-17.png"
+  },
+  {
+   "page": 38,
+   "line": 5,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-038-05-18.png"
+  },
+  {
+   "page": 39,
+   "line": 10,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-039-10-19.png"
+  },
+  {
+   "page": 40,
+   "line": 4,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-040-04-20.png"
+  },
+  {
+   "page": 40,
+   "line": 5,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-040-05-21.png"
+  },
+  {
+   "page": 42,
+   "line": 4,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.85,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-042-04-22.png"
+  },
+  {
+   "page": 43,
+   "line": 6,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-043-06-23.png"
+  },
+  {
+   "page": 44,
+   "line": 4,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-044-04-24.png"
+  },
+  {
+   "page": 45,
+   "line": 9,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-045-09-25.png"
+  },
+  {
+   "page": 46,
+   "line": 0,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-046-00-26.png"
+  },
+  {
+   "page": 49,
+   "line": 1,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-049-01-27.png"
+  },
+  {
+   "page": 55,
+   "line": 10,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-055-10-28.png"
+  },
+  {
+   "page": 71,
+   "line": 12,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-071-12-29.png"
+  },
+  {
+   "page": 76,
+   "line": 12,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-076-12-30.png"
+  },
+  {
+   "page": 79,
+   "line": 4,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-079-04-31.png"
+  },
+  {
+   "page": 79,
+   "line": 17,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-079-17-32.png"
+  },
+  {
+   "page": 81,
+   "line": 9,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-081-09-33.png"
+  },
+  {
+   "page": 82,
+   "line": 1,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-082-01-34.png"
+  },
+  {
+   "page": 82,
+   "line": 11,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-082-11-35.png"
+  },
+  {
+   "page": 83,
+   "line": 0,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-083-00-36.png"
+  },
+  {
+   "page": 83,
+   "line": 6,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-083-06-37.png"
+  },
+  {
+   "page": 85,
+   "line": 6,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-085-06-38.png"
+  },
+  {
+   "page": 85,
+   "line": 11,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-085-11-39.png"
+  },
+  {
+   "page": 110,
+   "line": 11,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-110-11-40.png"
+  },
+  {
+   "page": 114,
+   "line": 5,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-114-05-41.png"
+  },
+  {
+   "page": 117,
+   "line": 7,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-117-07-42.png"
+  },
+  {
+   "page": 133,
+   "line": 5,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-133-05-43.png"
+  },
+  {
+   "page": 137,
+   "line": 11,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-137-11-44.png"
+  },
+  {
+   "page": 144,
+   "line": 1,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-144-01-45.png"
+  },
+  {
+   "page": 148,
+   "line": 8,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-148-08-46.png"
+  },
+  {
+   "page": 159,
+   "line": 9,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-159-09-47.png"
+  },
+  {
+   "page": 162,
+   "line": 9,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-162-09-48.png"
+  },
+  {
+   "page": 268,
+   "line": 0,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-268-00-49.png"
+  },
+  {
+   "page": 272,
+   "line": 12,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-272-12-50.png"
+  },
+  {
+   "page": 276,
+   "line": 8,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-276-08-51.png"
+  },
+  {
+   "page": 277,
+   "line": 4,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-277-04-52.png"
+  },
+  {
+   "page": 282,
+   "line": 8,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-282-08-53.png"
+  },
+  {
+   "page": 297,
+   "line": 9,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-297-09-54.png"
+  },
+  {
+   "page": 299,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-299-02-55.png"
+  },
+  {
+   "page": 309,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-309-02-56.png"
+  },
+  {
+   "page": 313,
+   "line": 10,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-313-10-57.png"
+  },
+  {
+   "page": 314,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-314-02-58.png"
+  },
+  {
+   "page": 326,
+   "line": 6,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-326-06-59.png"
+  },
+  {
+   "page": 329,
+   "line": 10,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-329-10-60.png"
+  },
+  {
+   "page": 349,
+   "line": 4,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-349-04-61.png"
+  },
+  {
+   "page": 353,
+   "line": 7,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-353-07-62.png"
+  },
+  {
+   "page": 353,
+   "line": 7,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-353-07-63.png"
+  },
+  {
+   "page": 377,
+   "line": 1,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-377-01-64.png"
+  },
+  {
+   "page": 378,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-378-02-65.png"
+  },
+  {
+   "page": 392,
+   "line": 1,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-392-01-66.png"
+  },
+  {
+   "page": 397,
+   "line": 7,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-397-07-67.png"
+  },
+  {
+   "page": 410,
+   "line": 4,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-410-04-68.png"
+  },
+  {
+   "page": 413,
+   "line": 8,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-413-08-69.png"
+  },
+  {
+   "page": 434,
+   "line": 6,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-434-06-70.png"
+  },
+  {
+   "page": 441,
+   "line": 7,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-441-07-71.png"
+  },
+  {
+   "page": 447,
+   "line": 4,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-447-04-72.png"
+  },
+  {
+   "page": 464,
+   "line": 3,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-464-03-73.png"
+  },
+  {
+   "page": 476,
+   "line": 11,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-476-11-74.png"
+  },
+  {
+   "page": 478,
+   "line": 0,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-478-00-75.png"
+  },
+  {
+   "page": 480,
+   "line": 8,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-480-08-76.png"
+  },
+  {
+   "page": 481,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-481-02-77.png"
+  },
+  {
+   "page": 491,
+   "line": 6,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-491-06-78.png"
+  },
+  {
+   "page": 494,
+   "line": 9,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-494-09-79.png"
+  },
+  {
+   "page": 515,
+   "line": 11,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-515-11-80.png"
+  },
+  {
+   "page": 519,
+   "line": 1,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-519-01-81.png"
+  },
+  {
+   "page": 519,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-519-02-82.png"
+  },
+  {
+   "page": 544,
+   "line": 9,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-544-09-83.png"
+  },
+  {
+   "page": 546,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-546-02-84.png"
+  },
+  {
+   "page": 560,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.7,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-560-02-85.png"
+  },
+  {
+   "page": 561,
+   "line": 3,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.8,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-561-03-86.png"
+  },
+  {
+   "page": 564,
+   "line": 2,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-564-02-87.png"
+  },
+  {
+   "page": 568,
+   "line": 1,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.75,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-568-01-88.png"
+  },
+  {
+   "page": 595,
+   "line": 12,
+   "key": "7|17ab+6ab",
+   "below": true,
+   "dy": 4.65,
+   "group": "ambiguous",
+   "img": "kentimata/ambiguous-595-12-89.png"
+  }
+ ],
+ "n_ambiguous": 78
+}

@@ -1,0 +1,410 @@
+{
+ "items": [
+  {
+   "span": "t01_#10",
+   "page": 521,
+   "g0": 168,
+   "line": 11,
+   "incipit": "Ηζω ηεν τωτα α φω",
+   "lane": "melos",
+   "back": 34,
+   "back_deg": "γα",
+   "imgs": [
+    {
+     "src": "anchors/p521-l10.png",
+     "line": 10,
+     "role": "the line before"
+    },
+    {
+     "src": "anchors/p521-l11.png",
+     "line": 11,
+     "role": "the range starts here"
+    }
+   ]
+  },
+  {
+   "span": "t01_#22",
+   "page": 527,
+   "g0": 123,
+   "line": 9,
+   "incipit": "Νευσεισουπροςγεω ω δη αντιτυπι",
+   "lane": "parallagi",
+   "back": 97,
+   "back_deg": "γα",
+   "imgs": [
+    {
+     "src": "anchors/p527-l08.png",
+     "line": 8,
+     "role": "the line before"
+    },
+    {
+     "src": "anchors/p527-l09.png",
+     "line": 9,
+     "role": "the range starts here"
+    }
+   ]
+  },
+  {
+   "span": "t01_#23",
+   "page": 527,
+   "g0": 123,
+   "line": 9,
+   "incipit": "Νευσεισουπροςγεω ω δη αντιτυπι",
+   "lane": "melos",
+   "back": 97,
+   "back_deg": "γα",
+   "imgs": [
+    {
+     "src": "anchors/p527-l08.png",
+     "line": 8,
+     "role": "the line before"
+    },
+    {
+     "src": "anchors/p527-l09.png",
+     "line": 9,
+     "role": "the range starts here"
+    }
+   ]
+  },
+  {
+   "span": "t01_#5",
+   "page": 520,
+   "g0": 147,
+   "line": 11,
+   "incipit": "Κατελυσαςτω σταυ ρωσου τονθα να τον η",
+   "lane": "parallagi",
+   "back": 26,
+   "back_deg": "γα",
+   "imgs": [
+    {
+     "src": "anchors/p520-l10.png",
+     "line": 10,
+     "role": "the line before"
+    },
+    {
+     "src": "anchors/p520-l11.png",
+     "line": 11,
+     "role": "the range starts here"
+    }
+   ]
+  },
+  {
+   "span": "t01_#6",
+   "page": 520,
+   "g0": 147,
+   "line": 11,
+   "incipit": "Κατελυσαςτω σταυ ρωσου τονθα να τον η",
+   "lane": "melos",
+   "back": 26,
+   "back_deg": "γα",
+   "imgs": [
+    {
+     "src": "anchors/p520-l10.png",
+     "line": 10,
+     "role": "the line before"
+    },
+    {
+     "src": "anchors/p520-l11.png",
+     "line": 11,
+     "role": "the range starts here"
+    }
+   ]
+  },
+  {
+   "span": "t01_#9",
+   "page": 521,
+   "g0": 168,
+   "line": 11,
+   "incipit": "Ηζω ηεν τωτα α φω",
+   "lane": "parallagi",
+   "back": 34,
+   "back_deg": "γα",
+   "imgs": [
+    {
+     "src": "anchors/p521-l10.png",
+     "line": 10,
+     "role": "the line before"
+    },
+    {
+     "src": "anchors/p521-l11.png",
+     "line": 11,
+     "role": "the range starts here"
+    }
+   ]
+  }
+ ],
+ "candidates": [
+  {
+   "cluster": 77,
+   "page": 254,
+   "line": 7,
+   "img": "anchors/c77-p254-l7.png",
+   "n": 126,
+   "h": 10.3
+  },
+  {
+   "cluster": 77,
+   "page": 255,
+   "line": 0,
+   "img": "anchors/c77-p255-l0.png",
+   "n": 126,
+   "h": 10.3
+  },
+  {
+   "cluster": 77,
+   "page": 255,
+   "line": 2,
+   "img": "anchors/c77-p255-l2.png",
+   "n": 126,
+   "h": 10.2
+  },
+  {
+   "cluster": 77,
+   "page": 255,
+   "line": 5,
+   "img": "anchors/c77-p255-l5.png",
+   "n": 126,
+   "h": 10.3
+  },
+  {
+   "cluster": 77,
+   "page": 255,
+   "line": 8,
+   "img": "anchors/c77-p255-l8.png",
+   "n": 126,
+   "h": 10.3
+  },
+  {
+   "cluster": 77,
+   "page": 255,
+   "line": 11,
+   "img": "anchors/c77-p255-l11.png",
+   "n": 126,
+   "h": 10.2
+  },
+  {
+   "cluster": 49,
+   "page": 24,
+   "line": 7,
+   "img": "anchors/c49-p24-l7.png",
+   "n": 27,
+   "h": 8.0
+  },
+  {
+   "cluster": 49,
+   "page": 25,
+   "line": 4,
+   "img": "anchors/c49-p25-l4.png",
+   "n": 27,
+   "h": 7.9
+  },
+  {
+   "cluster": 49,
+   "page": 26,
+   "line": 7,
+   "img": "anchors/c49-p26-l7.png",
+   "n": 27,
+   "h": 7.9
+  },
+  {
+   "cluster": 49,
+   "page": 29,
+   "line": 11,
+   "img": "anchors/c49-p29-l11.png",
+   "n": 27,
+   "h": 7.9
+  },
+  {
+   "cluster": 49,
+   "page": 31,
+   "line": 6,
+   "img": "anchors/c49-p31-l6.png",
+   "n": 27,
+   "h": 7.9
+  },
+  {
+   "cluster": 49,
+   "page": 337,
+   "line": 2,
+   "img": "anchors/c49-p337-l2.png",
+   "n": 27,
+   "h": 8.0
+  },
+  {
+   "cluster": 54,
+   "page": 589,
+   "line": 5,
+   "img": "anchors/c54-p589-l5.png",
+   "n": 26,
+   "h": 8.0
+  },
+  {
+   "cluster": 54,
+   "page": 589,
+   "line": 9,
+   "img": "anchors/c54-p589-l9.png",
+   "n": 26,
+   "h": 8.0
+  },
+  {
+   "cluster": 54,
+   "page": 589,
+   "line": 13,
+   "img": "anchors/c54-p589-l13.png",
+   "n": 26,
+   "h": 7.9
+  },
+  {
+   "cluster": 54,
+   "page": 592,
+   "line": 10,
+   "img": "anchors/c54-p592-l10.png",
+   "n": 26,
+   "h": 8.1
+  },
+  {
+   "cluster": 54,
+   "page": 592,
+   "line": 13,
+   "img": "anchors/c54-p592-l13.png",
+   "n": 26,
+   "h": 8.0
+  },
+  {
+   "cluster": 54,
+   "page": 593,
+   "line": 4,
+   "img": "anchors/c54-p593-l4.png",
+   "n": 26,
+   "h": 8.0
+  },
+  {
+   "cluster": 44,
+   "page": 276,
+   "line": 11,
+   "img": "anchors/c44-p276-l11.png",
+   "n": 10,
+   "h": 11.9
+  },
+  {
+   "cluster": 44,
+   "page": 277,
+   "line": 7,
+   "img": "anchors/c44-p277-l7.png",
+   "n": 10,
+   "h": 12.0
+  },
+  {
+   "cluster": 44,
+   "page": 278,
+   "line": 2,
+   "img": "anchors/c44-p278-l2.png",
+   "n": 10,
+   "h": 12.0
+  },
+  {
+   "cluster": 44,
+   "page": 278,
+   "line": 10,
+   "img": "anchors/c44-p278-l10.png",
+   "n": 10,
+   "h": 12.0
+  },
+  {
+   "cluster": 44,
+   "page": 279,
+   "line": 6,
+   "img": "anchors/c44-p279-l6.png",
+   "n": 10,
+   "h": 12.0
+  },
+  {
+   "cluster": 44,
+   "page": 425,
+   "line": 4,
+   "img": "anchors/c44-p425-l4.png",
+   "n": 10,
+   "h": 12.0
+  },
+  {
+   "cluster": 51,
+   "page": 274,
+   "line": 7,
+   "img": "anchors/c51-p274-l7.png",
+   "n": 3,
+   "h": 6.9
+  },
+  {
+   "cluster": 51,
+   "page": 468,
+   "line": 7,
+   "img": "anchors/c51-p468-l7.png",
+   "n": 3,
+   "h": 7.1
+  },
+  {
+   "cluster": 51,
+   "page": 481,
+   "line": 2,
+   "img": "anchors/c51-p481-l2.png",
+   "n": 3,
+   "h": 7.1
+  },
+  {
+   "cluster": 89,
+   "page": 514,
+   "line": 5,
+   "img": "anchors/c89-p514-l5.png",
+   "n": 3,
+   "h": 14.0
+  },
+  {
+   "cluster": 89,
+   "page": 518,
+   "line": 8,
+   "img": "anchors/c89-p518-l8.png",
+   "n": 3,
+   "h": 14.1
+  },
+  {
+   "cluster": 89,
+   "page": 520,
+   "line": 10,
+   "img": "anchors/c89-p520-l10.png",
+   "n": 3,
+   "h": 14.1
+  },
+  {
+   "cluster": 37,
+   "page": 54,
+   "line": 8,
+   "img": "anchors/c37-p54-l8.png",
+   "n": 2,
+   "h": 6.4
+  },
+  {
+   "cluster": 37,
+   "page": 469,
+   "line": 3,
+   "img": "anchors/c37-p469-l3.png",
+   "n": 2,
+   "h": 6.3
+  },
+  {
+   "cluster": 29,
+   "page": 196,
+   "line": 12,
+   "img": "anchors/c29-p196-l12.png",
+   "n": 1,
+   "h": 8.4
+  },
+  {
+   "cluster": 65,
+   "page": 609,
+   "line": 11,
+   "img": "anchors/c65-p609-l11.png",
+   "n": 1,
+   "h": 9.0
+  }
+ ]
+}

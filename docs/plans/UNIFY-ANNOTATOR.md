@@ -192,10 +192,45 @@ tape-level and has no equivalent in the annotator.
 - **Do not use file mtimes for ordering** the Plagal 1st folders; every file
   carries the same stamp. `presplit_map.py:order_key` parses the clock out of
   the filename.
-- **`6|17ab` is unresolved.** The atlas says kentimata above an oligon is TWO
-  notes (+1, +1); the pipeline emits one unit and the canon legend gives it +2
-  as net displacement. The running degree stays right but one label is printed
-  where two belong. Ask the user rather than guessing.
+- **- **`6|17ab` and its whole family are RESOLVED** (chanter, 2026-08-19). A
+  kentimata figure is TWO notes, never one net displacement, and there are two
+  shapes. Bare — nothing in the figure but the oligon and the kentimata — the
+  oligon is the note: "+1 then kentimata +1 (if the oligon is on the bottom)
+  byzantine neumes in general go bottom to top, the other variation is the
+  kentimata under the oligon. that means the kentimata +1 first then the oligon
+  +1 … because kentimata can never be on a down beat." Carrier — anything else
+  in the figure — the oligon is orthographic and is DROPPED: "apostrophos
+  kentimata over oligon is just an apostrophos kentimata. oligon is ignored.
+  ison kentimata over oligon the olgion is ignored too. elafron kentimata over
+  oligon is also just elafron kentimata (-2 +1)."
+  Timing, bare figure: a gorgon on top of a kentimata-over-oligon "makes both
+  the oligon and kentimata half a beat"; on a kentimata-UNDER-oligon it acts "as
+  if the gorgon is on the first neume, the kentimata … while the oligon
+  maintains the full beat", and a klasma or apli/dipli/tripli there adds its
+  beats to the oligon. Both fall out of the generic gorgon window once the
+  gorgon is attached to the kentimata and duration to the partner, so
+  `beats_seq` needed no special case.
+  He also ruled that a kentimata OVER an oligon never carries a klasma or apli
+  at all — confirmed 113/113 on the corpus, so `_split_kentimata` marks any such
+  figure `suspect` rather than inventing a rule for it.
+  Measured: 4466 figures split, 109040 -> 115826 units, and the split parts
+  reproduce every net the atlas had independently locked (`22|17be+21be` +1,
+  `47|17be+21be` -1, `6|17ab` +2). Unit indices moved, so the chanter's
+  hand-marked `g0`/`g1` and gold pins are migrated by
+  `tools/corpus/reindex_kentimata.py`, which always re-derives from the
+  pre-split `.prekentimata.bak` and is therefore idempotent.
+  Still unruled, left as single units: 41 figures whose quantity is a jump MARK
+  rather than a note (`28|17be+6be` ypsili, 23) or that carry two partners
+  (`47|17be+21be+41be`, the running elafron, 2).
+
+- **Cluster 7 is two neumes.** The chanter spotted it while ruling the above:
+  psifiston and omalon were merged. Cluster 7's glyph height is bimodal with an
+  empty gap — 7295 at 6.2-6.4 pt, 175 at 6.7-6.9 pt, none at 6.5 or 6.6 — and he
+  ruled 100 of the 175 tall ones omalon, 100/100. `hymn_align._reclass` splits
+  them by height. No degree and no beat moves (both neumes are qualitative); what
+  moves is note segmentation, since a psifiston is a legal base and an omalon is
+  a MARK_ONLY span mark.
+
 - **The cutter's output never touches `hymns.json`.** Keep it that way;
   adopting is a separate reviewable step.
 - **Services:** `systemctl --user restart chant-annotator` (8779) and
