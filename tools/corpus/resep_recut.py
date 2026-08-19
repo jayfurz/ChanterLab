@@ -32,6 +32,8 @@ def main():
     ap.add_argument('--max-loss', type=float, default=4.5)
     ap.add_argument('--lead', type=float, default=0.20)
     ap.add_argument('--tail', type=float, default=0.60)
+    ap.add_argument('--min-ratio', type=float, default=0.6)
+    ap.add_argument('--max-ratio', type=float, default=1.8)
     a = ap.parse_args()
 
     name = os.path.basename(a.workdir.rstrip('/'))
@@ -57,6 +59,19 @@ def main():
             continue
         s = max(0.0, r['t0'] - a.lead)
         e = r['t1'] + a.tail
+        # Duration sanity. A segment run that is wildly longer or shorter than
+        # the existing cut means the hymn was assigned to the wrong span, and
+        # adopting it would replace good audio with the wrong material. This
+        # guard exists because an earlier pass put gold hymn t03 on a 129.8 s
+        # span in place of its correct 49.9 s.
+        old = loc[r['hymn']]['cur']
+        old_d = max(old[1] - old[0], 0.1)
+        ratio = (e - s) / old_d
+        if not (a.min_ratio <= ratio <= a.max_ratio):
+            skip += 1
+            print('%-22s SKIP  %.1fs vs existing %.1fs (x%.2f)'
+                  % (r['hymn'][:22], e - s, old_d, ratio))
+            continue
         out.append({'workdir': name, 'hymn': r['hymn'], 'tape': tape,
                     'piece': piece, 'new': [round(s, 3), round(e, 3)],
                     'dur': round(e - s, 2), 'lpt': r['lpt'],

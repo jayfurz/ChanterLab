@@ -6,6 +6,16 @@ the assignment itself is a cheap CPU problem. This solves it, and adds the
 constraint that was still missing: a canonical text may be assigned to at most
 ONE hymn.
 
+USE-ONCE CAN BE HARMFUL, verified against gold. On grave-orthros both t03 and
+t05 match Κατέλυσας; use-once keeps it for t05 (2.93/tok) and bans it for t03
+(3.82) — but t03 is the hymn independently KNOWN to be Κατέλυσας, from its own
+lyric fragments. The ban then pushed t03 onto a 2-segment run of 129.8 s instead
+of the correct 49.9 s, which would have replaced the gold hymn's audio with the
+wrong span. A text legitimately CAN appear twice in a service (the same
+sticheron in small and great vespers, a repeated troparion), so an absolute
+use-once rule is wrong; reuse should be penalised, not forbidden. Enable with
+--use-once, off by default until that penalty exists.
+
 Use-once is NOT text-index monotonicity. That was tried and is wrong — the
 candidate pool is GLT document order, which interleaves the Horologion ordinary
 with the mode-proper hymns and does not follow the recording; imposing it took
@@ -87,6 +97,10 @@ def main():
     ap.add_argument('--workdir', required=True)
     ap.add_argument('--max-seg-run', type=int, default=2)
     ap.add_argument('--max-iter', type=int, default=25)
+    ap.add_argument('--use-once', action='store_true',
+                    help='forbid a text being assigned twice. OFF by default: '
+                         'it demoted the gold hymn t03 off its own verified text '
+                         '(see the module docstring).')
     a = ap.parse_args()
     name = os.path.basename(a.workdir.rstrip('/'))
     cf = f'/mnt/data/chant-corpus/texts/segscores_{name}.json'
@@ -100,6 +114,8 @@ def main():
     banned, res = set(), []
     for it in range(a.max_iter):
         res = solve(segs_n, hymns, scores, banned, a.max_seg_run)
+        if not a.use_once:
+            break
         seen = {}
         dup = None
         for hi, key, o in res:

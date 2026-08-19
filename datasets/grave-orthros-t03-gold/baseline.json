@@ -1,14 +1,15 @@
 {
  "frozen_at": "2026-08-18",
- "revision": 4,
- "revision_note": "r4: read the chanter cluster export. RED_TIME emptied \u2014 9 and 22 are always BLACK (110/2155) so never reached the red-only klasma test, and 23 is always RED (759) and is the Ga martyria LETTER, so it was the sole source of a phantom \"red klasma\". Cluster 9 (antikenoma+apli) moved to MARK_ONLY and now contributes its one apli beat. ALSO fixed a long-standing off-by-one: the DTW duration prior compared onset-to-onset time against beats of units j2+1..j instead of j2..j-1 \u2014 invisible while all beats were 1.0/2.0, material once the duration model produced 0.125..4.0. Rests now fold into the PRECEDING note (chanter: \"otherwise the next note will go on for too long instead of being delayed the duration of the rest\").",
+ "revision": 5,
+ "revision_note": "r5: audio re-cut at silence-bounded segment edges (RESEP-02). The old cut began 1.5 s before the singing; the new one begins at the segment edge, so every pin is shifted by -1.5 s and the first pin now sits at the 0.2 s lead margin. Pin INDICES are unchanged \u2014 the score slice did not move. Previous pins kept at pins.json.r4-pre-resep.",
  "piece": "grave-orthros-t03",
  "hymn": "t03_",
  "workdir": "/mnt/data/chant-corpus/workdirs/grave-orthros",
  "audio": {
-  "path": "/mnt/data/chant-corpus/workdirs/grave-orthros/melos_t03_/audio.wav",
-  "sha256_16": "9c82ec0417cbfc7c",
-  "source": "/mnt/data/chant-corpus/pieces/Mode Grave Anastasimatarion 2 Orthros/004_melos_fixed.wav"
+  "path": "/mnt/data/chant-corpus/pieces/Mode Grave Anastasimatarion 2 Orthros/004_melos_fixed.recut.wav",
+  "previous": "/mnt/data/chant-corpus/pieces/Mode Grave Anastasimatarion 2 Orthros/004_melos_fixed.wav",
+  "recut_shift_s": 1.5,
+  "source": "segment_edges"
  },
  "score": {
   "pages": [
