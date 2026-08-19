@@ -343,6 +343,53 @@ class H(BaseHTTPRequestHandler):
                     return
                 left -= len(chunk)
 
+    def patch_span(self):
+        """Update one field of one audio span, in place.
+
+        The score picker needs to set the apichima mark, which lives on the
+        AUDIO span, but it must not rewrite the whole cuts file from its own
+        copy -- that would let a stale page silently drop spans. So it patches
+        a single named span and leaves every other byte alone.
+        """
+        try:
+            n = int(self.headers.get('Content-Length', 0))
+            if not 0 < n <= MAX_BODY:
+                raise ValueError('bad length')
+            b = json.loads(self.rfile.read(n))
+            wd, hymn = b.get('workdir', ''), str(b.get('hymn', ''))
+            if not WD_RE.match(wd):
+                raise ValueError('bad workdir')
+            f = f'{TEXTS}/cuts_{wd}.json'
+            if not os.path.exists(f):
+                raise ValueError('this tape has no audio cuts yet')
+            doc = json.load(open(f))
+            row = next((c for c in doc['cuts'] if c['hymn'] == hymn), None)
+            if row is None:
+                raise ValueError(f'no span named {hymn!r}')
+            if 't_in' in b:
+                ti = b['t_in']
+                if ti is not None:
+                    ti = float(ti)
+                    if not (row['t0'] - 0.001 <= ti <= row['t1'] + 0.001):
+                        raise ValueError(
+                            f"apichima end {ti:.2f} is outside the span "
+                            f"{row['t0']:.2f}-{row['t1']:.2f}")
+                    ti = round(ti, 3)
+                row['t_in'] = ti
+            if 'label' in b and b['label'] is not None:
+                row['label'] = str(b['label'])[:300]
+        except Exception as e:
+            return self._send(400, json.dumps({'error': str(e)}))
+        hd = f'{TEXTS}/cuts_history'
+        os.makedirs(hd, exist_ok=True)
+        json.dump(doc, open(
+            f'{hd}/cuts_{wd}_{time.strftime("%Y%m%d-%H%M%S")}.json', 'w'),
+            indent=1, ensure_ascii=False)
+        doc['saved'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+        json.dump(doc, open(f, 'w'), indent=1, ensure_ascii=False)
+        self._send(200, json.dumps({'ok': True, 'hymn': hymn,
+                                    't_in': row.get('t_in')}))
+
     def save_scorecuts(self):
         try:
             n = int(self.headers.get('Content-Length', 0))
@@ -382,6 +429,8 @@ class H(BaseHTTPRequestHandler):
         path = self.path.split('?')[0]
         if path == '/api/scorecuts':
             return self.save_scorecuts()
+        if path == '/api/span':
+            return self.patch_span()
         if path != '/api/cuts':
             return self._send(404, '{"error":"not found"}')
         try:

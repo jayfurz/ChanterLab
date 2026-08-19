@@ -58,6 +58,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
     <button id="pp">Play</button>
     <button id="back">&#8630;3s</button>
     <button id="fwd">3s&#8631;</button>
+    <button id="setI" title="mark where the held νε ends">νε&#9679;</button>
     <span id="tl">0:00</span>
   </div>
   <div class="row rates" id="rates"></div>
@@ -118,6 +119,26 @@ A.addEventListener('timeupdate', () => {
 A.addEventListener('play', () => $('#pp').textContent = 'Pause');
 A.addEventListener('pause', () => $('#pp').textContent = 'Play');
 $('#pp').onclick = () => { if (A.paused) playSpan(); else A.pause(); };
+// The apichima mark belongs to the audio span, so it is patched on the span
+// rather than saved with the score bounds.
+$('#setI').onclick = async () => {
+  const r = rows[sel];
+  if (!r || r.t0 == null) return msg('this row has no audio span');
+  const t = +A.currentTime.toFixed(3);
+  if (t < r.t0 || t > r.t1) return msg('playhead is outside this span');
+  const val = (r.t_in != null && Math.abs(r.t_in - t) < 0.05) ? null : t;
+  try {
+    const res = await fetch('/api/span', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workdir: wd, hymn: r.name, t_in: val }) });
+    const j = await res.json();
+    if (!res.ok) return msg('✗ ' + (j.error || res.status));
+    r.t_in = j.t_in;
+    msg(j.t_in == null ? 'apichima mark cleared'
+                       : 'apichima ends ' + fmt(j.t_in) + ' — hymn starts there');
+    drawWave(); render();
+  } catch (e) { msg('✗ ' + e.message); }
+};
 $('#back').onclick = () => A.currentTime = Math.max(0, A.currentTime - 3);
 $('#fwd').onclick = () => A.currentTime = A.currentTime + 3;
 
@@ -316,6 +337,7 @@ function render() {
     d.className = 'h' + (i === sel ? ' sel' : '') + (done ? ' done' : '');
     const esc = t => (t || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
     d.innerHTML = `<span class="n">${esc(r.name)}${r.label ? ' — ' + esc(r.label) : ''}</span>` +
+      (r.t_in != null ? `<span class="lane-tag">νε</span>` : '') +
       (r.lane ? `<span class="lane-tag">${esc(r.lane)}</span>` : '') +
       `<span class="t">${done ? `p${r.p0}·${r.l0}·${r.g0} → p${r.p1}·${r.l1}·${r.g1}`
         : (r.t0 != null ? `${fmt(r.t1 - r.t0)}` : `hint p${r.hint?.[0]}–${r.hint?.[2]}`)}</span>`;
