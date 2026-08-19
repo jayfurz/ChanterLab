@@ -26,11 +26,13 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))       # tools/corpus
 TEXTS = '/mnt/data/chant-corpus/texts'
 WORKDIRS = '/mnt/data/chant-corpus/workdirs'
 WD_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
@@ -165,6 +167,15 @@ def page_thumb(pno):
     return out
 
 
+def beats(u):
+    """Written beats for a unit, for display only."""
+    try:
+        from hymn_align import beats_written
+        return beats_written(u)
+    except Exception:
+        return 1.0
+
+
 def score_pages(wd):
     OFF = json.load(open(OFFSETS)) if os.path.exists(OFFSETS) else {}
     hj = f'{WORKDIRS}/{wd}/hymns.json'
@@ -180,10 +191,25 @@ def score_pages(wd):
             continue
         d = json.load(open(gf))
         off = OFF.get(str(pno), {})
-        gl = sorted(d.get('glyphs', []),
-                    key=lambda g: (g.get('line', 0), g['x0']))
+        # Tap targets are UNITS, not raw glyphs. A unit is the compound the
+        # chanter actually reads -- base note plus the apli/dipli/tripli/klasma
+        # that only augment its beat count -- and it is also the g0/g1
+        # coordinate load_units_h already indexes by. Picking a sub-glyph out
+        # of a compound was both confusing and the wrong granularity.
+        from hymn_align import load_units
+        try:
+            us, _ = load_units(pno, 0, pno, 10 ** 6)
+        except Exception:
+            us = []
+        gl = [{'i': i, 'l': u['pl'][1],
+               'x0': round(u['x0'], 1), 'y0': round(u['y0'], 1),
+               'x1': round(u['x1'], 1), 'y1': round(u['y1'], 1),
+               'k': ('rest' if u.get('rest') else str(u.get('base'))),
+               'b': round(beats(u), 2)}
+              for i, u in enumerate(us)]
         pages.append({
             'page': pno, 'lines': d.get('n_lines', 0), 'scale': PT2PX,
+            'n_units': len(gl),
             # per page: the book has mixed page sizes and the glyph boxes were
             # extracted against the smaller crop, so the taller pages need a
             # vertical shift. Solved by page_offsets.py, never assumed.
@@ -192,10 +218,7 @@ def score_pages(wd):
             'ink': off.get('ink'), 'aligned': off.get('ok', True),
             # index within the page, in reading order -- this is the g0/g1
             # coordinate hymns.json already understands
-            'glyphs': [{'i': i, 'l': g.get('line', 0), 'r': g.get('red', 0),
-                        'x0': round(g['x0'], 1), 'y0': round(g['y0'], 1),
-                        'x1': round(g['x1'], 1), 'y1': round(g['y1'], 1)}
-                       for i, g in enumerate(gl)],
+            'glyphs': gl,
         })
     sf = f'{TEXTS}/scorecuts_{wd}.json'
     saved = json.load(open(sf))['cuts'] if os.path.exists(sf) else []

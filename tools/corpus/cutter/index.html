@@ -182,8 +182,13 @@ function render() {
                   (h.t0 != null && h.t1 != null ? ' done' : '');
     const esc = t => (t || '').replace(/[<>&]/g, c =>
       ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    // ordinal by time once a span is marked, so the list reads in the order
+    // it is heard rather than the order hymns.json happens to store
+    const ord = h.t0 == null ? '--'
+      : String(hymns.filter(x => x.t0 != null && x.t0 <= h.t0).length)
+          .padStart(2, '0');
     d.innerHTML =
-      `<span class="n">${h.extra ? '&#8627; ' : ''}${esc(h.name)}` +
+      `<span class="n">#${ord} ${h.extra ? '&#8627; ' : ''}${esc(h.name)}` +
       (h.label ? `<br><span class="lb">${esc(h.label)}</span>` : '') +
       `</span>` +
       (h.lane ? `<span class="lane">${h.lane[0]}</span>` : '') +

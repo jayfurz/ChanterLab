@@ -292,6 +292,8 @@ function pick(p, fx, fy, cv) {
   const r = rows[sel]; if (!r) return;
   if (mode === 0) { r.p0 = p.page; r.l0 = best.l; r.g0 = best.i; }
   else { r.p1 = p.page; r.l1 = best.l; r.g1 = best.i; }
+  msg(`${mode === 0 ? 'start' : 'end'}: p${p.page} line ${best.l + 1} unit ${best.i}` +
+      ` — ${best.k === 'rest' ? 'rest' : 'base ' + best.k}, ${best.b} beat${best.b === 1 ? '' : 's'}`);
   // once a start is set, the next tap is naturally the end
   if (mode === 0 && r.p1 == null) setMode(1);
   render(); repaintAll(); autosave();
@@ -336,7 +338,12 @@ function render() {
     const d = document.createElement('div');
     d.className = 'h' + (i === sel ? ' sel' : '') + (done ? ' done' : '');
     const esc = t => (t || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
-    d.innerHTML = `<span class="n">${esc(r.name)}${r.label ? ' — ' + esc(r.label) : ''}</span>` +
+    // Show a time-order ordinal. The stored names are identifiers, not
+    // positions: "+ span" numbers from #2, and the base row keeps the hymn's
+    // own name, so a row called t01_ can sit twentieth on the tape.
+    const ord = String(i + 1).padStart(2, '0');
+    d.innerHTML = `<span class="n">#${ord} ${esc(r.name)}` +
+      `${r.label ? ' — ' + esc(r.label) : ''}</span>` +
       (r.t_in != null ? `<span class="lane-tag">νε</span>` : '') +
       (r.lane ? `<span class="lane-tag">${esc(r.lane)}</span>` : '') +
       `<span class="t">${done ? `p${r.p0}·${r.l0}·${r.g0} → p${r.p1}·${r.l1}·${r.g1}`
@@ -345,9 +352,20 @@ function render() {
     L.append(d);
   });
   const r = rows[sel];
-  $('#who').textContent = r ? `${sel + 1}/${rows.length}  ${r.name}` : '';
+  $('#who').textContent = r
+    ? `#${String(sel + 1).padStart(2, '0')} of ${rows.length}  ${r.name}` +
+      (r.lane ? `  (${r.lane})` : '') : '';
   if ($('#lab').value !== (r?.label || '')) $('#lab').value = r?.label || '';
-  document.querySelectorAll('.h')[sel]?.scrollIntoView({ block: 'nearest' });
+  // scrollIntoView also scrolls every ANCESTOR scroller, including the
+  // document -- which threw the score back to page one on every neume tap.
+  // Scroll the row list and nothing else.
+  const L2 = $('#list'), el = document.querySelectorAll('.h')[sel];
+  if (el) {
+    const top = el.offsetTop - L2.offsetTop;
+    if (top < L2.scrollTop) L2.scrollTop = top;
+    else if (top + el.offsetHeight > L2.scrollTop + L2.clientHeight)
+      L2.scrollTop = top + el.offsetHeight - L2.clientHeight;
+  }
   drawWave();
 }
 
