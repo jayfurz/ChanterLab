@@ -236,6 +236,18 @@ def beats(u):
 
 def score_pages(wd):
     OFF = json.load(open(OFFSETS)) if os.path.exists(OFFSETS) else {}
+    # Drop caps. Measured on the gold tape, 26 of 26 score-range starts land
+    # exactly on one, so snapping a start to the nearest cap cannot lose a
+    # correct answer -- it can only prevent a wrong one. There are ~4x more
+    # caps than hymns (they also open verses inside a hymn), so this narrows
+    # the choice rather than making it.
+    CAPS = {}
+    try:
+        for c in json.load(open(f'{SCORES}/dropcaps.json')):
+            if c.get('size', 0) >= 18.0:
+                CAPS.setdefault(c['page'], []).append(c)
+    except Exception:
+        pass
     hj = f'{WORKDIRS}/{wd}/hymns.json'
     if not os.path.exists(hj):
         return None
@@ -268,9 +280,17 @@ def score_pages(wd):
                'k': ('rest' if u.get('rest') else str(u.get('base'))),
                'b': round(beats(u), 2)}
               for i, u in enumerate(us)]
+        caps = []
+        for c in sorted(CAPS.get(pno, []), key=lambda c: (c['line'], c['x0'])):
+            near = [u for u in gl if u['l'] == c['line']]
+            if not near:
+                continue
+            best = min(near, key=lambda u: abs(u['x0'] - c['x0']))
+            caps.append({'i': best['i'], 'l': c['line'],
+                         'letter': c.get('letter', '')})
         pages.append({
             'page': pno, 'lines': d.get('n_lines', 0), 'scale': PT2PX,
-            'n_units': len(gl),
+            'n_units': len(gl), 'caps': caps,
             # per page: the book has mixed page sizes and the glyph boxes were
             # extracted against the smaller crop, so the taller pages need a
             # vertical shift. Solved by page_offsets.py, never assumed.

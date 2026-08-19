@@ -58,6 +58,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
   <div class="row">
     <button id="mode0" class="on">tap = START</button>
     <button id="mode1">tap = END</button>
+    <button id="snap" class="on">snap ⇥</button>
   </div>
   <div id="wf"><canvas></canvas></div>
   <div class="row">
@@ -364,7 +365,18 @@ function pick(p, fx, fy, cv) {
     best = nb;
   }
   const r = rows[sel]; if (!r) return;
-  if (mode === 0) { r.p0 = p.page; r.l0 = best.l; r.g0 = best.i; }
+  if (mode === 0) {
+    let g = best;
+    if (snap && (p.caps || []).length) {
+      const c = p.caps.reduce((a, b) =>
+        Math.abs(b.i - best.i) < Math.abs(a.i - best.i) ? b : a);
+      if (Math.abs(c.i - best.i) <= 12) {
+        g = p.glyphs.find(q => q.i === c.i) || best;
+        if (c.i !== best.i) msg(`snapped to the drop cap ${c.letter}`);
+      }
+    }
+    r.p0 = p.page; r.l0 = g.l; r.g0 = g.i;
+  }
   else { r.p1 = p.page; r.l1 = best.l; r.g1 = best.i; }
   msg(`${mode === 0 ? 'start' : 'end'}: p${p.page} line ${best.l + 1} unit ${best.i}` +
       ` — ${best.k === 'rest' ? 'rest' : 'base ' + best.k}, ${best.b} beat${best.b === 1 ? '' : 's'}`);
@@ -507,6 +519,16 @@ function setMode(m) {
   $('#mode0').className = m === 0 ? 'on' : '';
   $('#mode1').className = m === 1 ? 'on' : '';
 }
+// Every score-range start in the gold tape lands on a drop cap (26/26), so
+// snapping a START to the nearest one cannot lose a correct answer. Ends are
+// never snapped: they fall on a compound before the NEXT cap, not on a cap.
+let snap = true;
+$('#snap').onclick = () => {
+  snap = !snap;
+  $('#snap').className = snap ? 'on' : '';
+  msg(snap ? 'starts snap to the nearest drop cap'
+           : 'snapping off — starts land exactly where you tap');
+};
 $('#mode0').onclick = () => setMode(0);
 $('#mode1').onclick = () => setMode(1);
 $('#prev').onclick = () => { sel = Math.max(0, sel - 1); setMode(0); render(); repaintAll(); };
