@@ -139,3 +139,50 @@ rather than the opening move.
   - Apichima and the held νε at section openings are not degree names in the
     ordinary sense; the chanter's `t_in` marks let them be excluded from
     training rather than learned as noise.
+
+---
+
+## Results so far
+
+**Stage 1 gate: PASSED, decisively.** `degree_pitch.py`, no training:
+
+    median histogram cosine vs score   0.73   (ASR 0.47)
+    median residual to a scale degree  20 cents
+    spans scored                       21 of 23
+
+A moria is 16.7 cents, so a 20-cent residual means the sung pitches land
+essentially ON the notated diatonic degrees. The quantiser is not being forced;
+it fits. Pitch is confirmed as the stronger channel, exactly as the chanter
+said, and base estimation is sound.
+
+**Stage 3 gate: FAILED.** `degree_match.py` compares the pitch-recovered degree
+sequence against each candidate's score-derived sequence by DTW:
+
+    pitch-vs-score identification   1/21, median rank 11 of 21
+    ASR baseline                    2/23, median rank ~9
+
+No better than chance and no better than the ASR it replaced. Two flaws were
+found and fixed along the way -- long spans were being matched on 60 s of audio
+against their WHOLE score, and DTW normalised by n+m rewarded candidates merely
+for being long -- and neither changed the outcome. A single candidate still
+absorbs nearly every comparison; fixing the normalisation only moved which one.
+
+## What that combination means
+
+Aggregate pitch statistics are good and symbol-level sequence recovery is not.
+A histogram can be right while the ordering is wrong, and identification needs
+the ordering. So the untrained quantiser is sufficient evidence that the signal
+is there, and insufficient as a recogniser.
+
+This makes Stage 2 necessary rather than optional. The specific job for a
+trained model is now much clearer than when this plan was written: not "tell the
+degrees apart" -- the quantiser already does that well enough in aggregate --
+but produce a degree SEQUENCE whose ordering survives comparison. That argues
+for CTC over frame-wise classification, since CTC is trained on sequence
+agreement directly.
+
+Open question worth settling before Stage 2: whether the failure is in the
+recovered sequence or in DTW as the comparison. A cheap check is to run
+degree_match with the SCORE's own sequence substituted for the audio side --
+if identity does not then score 21/21, the matcher is broken independently of
+the recogniser, and no model will rescue it.
