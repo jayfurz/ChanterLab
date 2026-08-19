@@ -80,6 +80,41 @@ def locate(tape, piece):
 _CORP = None
 
 
+# whisper hallucinations on this corpus: subtitle credits injected into silence
+JUNK = ('AUTHORWAVE', 'Υπότιτλοι', 'ΥΠΟΤΙΤΛΟΙ', 'subtitle', 'Subtitle')
+
+
+def tape_segments(tape_path):
+    """(start, end) of real sung segments in the TAPE-level whisper transcript.
+
+    Chanter: "perhaps we also weigh in the whisper transcript with timestamp
+    recordings as well" — for tracks where the pause is too short for the RMS
+    search to find. Whisper is used ONLY as a BOUND here, never as the cut
+    itself: it mutes on melisma (that is how t03 lost 21 s of parallagi in an
+    earlier session), so it under-reports singing. That makes it a sound LOWER
+    bound on where sound continues, and the next segment's start a sound UPPER
+    bound on how far to extend, but never a reliable cut point on its own.
+    """
+    base = os.path.splitext(os.path.basename(tape_path))[0]
+    p = os.path.join(CORPUS, 'transcripts', base + '.json')
+    if not os.path.exists(p):
+        return []
+    try:
+        d = json.load(open(p))
+    except Exception:
+        return []
+    out = []
+    for sg in d.get('segments', []):
+        if 'start' not in sg or 'end' not in sg:
+            continue
+        t = str(sg.get('text', ''))
+        if any(j in t for j in JUNK) or not t.strip():
+            continue
+        out.append((float(sg['start']), float(sg['end'])))
+    out.sort()
+    return out
+
+
 def find_tape(piece_path):
     """the source recording a piece dir was cut from.
 
@@ -125,6 +160,7 @@ def main():
     name = os.path.basename(a.workdir.rstrip('/'))
     hy = json.load(open(os.path.join(a.workdir, 'hymns.json')))
     tapes = {}
+    tseg = {}
     out = []
     print('%-22s %8s %8s %8s %8s %s' % ('hymn', 'corr', 'cur_end', 'new_end', 'delta', 'note'))
     for h in hy:
@@ -172,6 +208,32 @@ def main():
             else:
                 j = end + int(a.tail / HOP)
         new_end = min(tape.size, j + int(a.tail / HOP))
+        # whisper bounds, in seconds
+        segs = tseg.get(key)
+        if segs is None:
+            segs = tseg[key] = tape_segments(tp)
+        if segs:
+            e_s = end * HOP
+            spanning = [e for st, e in segs if st <= e_s <= e]
+            if spanning:                      # cut lands mid-utterance
+                lo = int(max(spanning) / HOP)
+                if lo > new_end:
+                    new_end = min(tape.size, lo + int(a.tail / HOP))
+            nxt = [st for st, e in segs if st > e_s + 0.2]
+            if nxt:
+                # Cap the extension at the next utterance — but only if the tape
+                # actually has sound there. Measured on the grave orthros tape:
+                # whisper misses 55% of the sung audio and still emits 463 s of
+                # segments over silence even after the junk filter, because it
+                # was never trained on ecclesiastical Greek or on chant. An
+                # uncorroborated segment would cut a hymn short, so require RMS
+                # to agree before letting whisper shorten anything.
+                c0 = int(min(nxt) / HOP)
+                win = tape[c0:c0 + int(0.5 / HOP)]
+                if win.size and float(win.mean()) > thr:
+                    cap = int((min(nxt) - 0.1) / HOP)
+                    if cap > end:
+                        new_end = min(new_end, cap)
         if a.move_start:
             k = off
             back = int(a.max_extend / HOP)
