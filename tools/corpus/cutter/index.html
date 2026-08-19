@@ -19,6 +19,8 @@ select,button{font:inherit;color:var(--ink);background:#241f1b;
 select{width:100%;margin-bottom:8px}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 button:active{transform:translateY(1px)}
+button[disabled]{opacity:.38;cursor:default}
+button[disabled]:active{transform:none}
 button.on{background:var(--gold);color:#1a1512;border-color:var(--gold);font-weight:600}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .rates button{flex:1;min-width:44px;padding:9px 4px;text-align:center}
@@ -88,7 +90,7 @@ kbd{background:#2a241f;border:1px solid var(--line);border-radius:4px;
   </div>
 </footer>
 
-<audio id="a" preload="metadata"></audio>
+<audio id="a" preload="metadata" playsinline webkit-playsinline></audio>
 <script>
 const $ = s => document.querySelector(s);
 const A = $('#a');
@@ -115,9 +117,15 @@ function drawRates() {
   });
 }
 function applyRate() {
-  A.preservesPitch = A.mozPreservesPitch = A.webkitPreservesPitch = true;
-  try { A.playbackRate = rate; }
-  catch (e) { msg('this browser caps playback at ' + A.playbackRate + 'x'); }
+  try {
+    A.preservesPitch = A.mozPreservesPitch = A.webkitPreservesPitch = true;
+  } catch (e) { /* older WebKit: property is read-only, pitch will shift */ }
+  try {
+    A.playbackRate = rate;
+    // iOS silently clamps rather than throwing, so read it back.
+    if (Math.abs(A.playbackRate - rate) > 0.01)
+      msg(`this browser caps playback at ${A.playbackRate}x`);
+  } catch (e) { msg('rate ' + rate + 'x refused: ' + e.message); }
 }
 
 function msg(t) { $('#msg').textContent = t || ''; }
@@ -162,6 +170,11 @@ function render() {
   });
   const h = hymns[sel];
   $('#cur').textContent = h ? `${sel + 1}/${hymns.length}  ${h.name}` : '';
+  // "Play this hymn" needs a marked start. Disabling it says so up front
+  // instead of failing into a one-line message the thumb is covering.
+  const ps = $('#playSel');
+  ps.disabled = !h || h.t0 == null;
+  ps.textContent = ps.disabled ? 'Play this hymn (mark start)' : 'Play this hymn';
   document.querySelectorAll('.h')[sel]
     ?.scrollIntoView({ block: 'nearest' });
 }
@@ -211,10 +224,27 @@ A.addEventListener('timeupdate', () => {
 A.addEventListener('loadedmetadata', draw);
 A.addEventListener('progress', draw);
 A.addEventListener('ratechange', () => { if (A.playbackRate !== rate) applyRate(); });
+A.addEventListener('error', () => msg('✗ ' + why()));
+A.addEventListener('stalled', () => msg('stalled — waiting for audio'));
+A.addEventListener('canplay', () => msg(TAPES[wd]?.basename || ''));
 A.addEventListener('play', () => $('#pp').textContent = 'Pause');
 A.addEventListener('pause', () => $('#pp').textContent = 'Play');
 
-$('#pp').onclick = () => A.paused ? A.play() : A.pause();
+const MEDIA_ERR = {1:'aborted', 2:'network', 3:'decode',
+                   4:'src not supported'};
+function why() {
+  const e = A.error;
+  if (e) return `media error: ${MEDIA_ERR[e.code] || e.code}` +
+                (e.message ? ' — ' + e.message : '');
+  if (A.networkState === 3) return 'no source loaded';
+  return '';
+}
+function play() {
+  const p = A.play();
+  if (p && p.catch) p.catch(err => msg('✗ ' + err.name + ': ' + err.message +
+                                       (why() ? ' (' + why() + ')' : '')));
+}
+$('#pp').onclick = () => A.paused ? play() : A.pause();
 $('#back').onclick = () => A.currentTime = Math.max(0, A.currentTime - 5);
 $('#fwd').onclick = () => A.currentTime = Math.min(A.duration || 1e9, A.currentTime + 5);
 $('#setS').onclick = () => { hymns[sel].t0 = +A.currentTime.toFixed(3); render(); draw(); autosave(); };
@@ -223,8 +253,8 @@ $('#prev').onclick = () => { sel = Math.max(0, sel - 1); render(); draw(); };
 $('#next').onclick = () => { sel = Math.min(hymns.length - 1, sel + 1); render(); draw(); };
 $('#playSel').onclick = () => {
   const h = hymns[sel];
-  if (h.t0 == null) return msg('no start marked yet');
-  A.currentTime = h.t0; A.play();
+  if (h.t0 == null) return msg('mark a start first — the Start button');
+  A.currentTime = h.t0; play();
   if (h.t1 != null) {
     const stop = () => {
       if (A.currentTime >= h.t1) { A.pause(); A.removeEventListener('timeupdate', stop); }

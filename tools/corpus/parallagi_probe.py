@@ -23,10 +23,10 @@ import argparse
 import glob
 import json
 import os
+import subprocess
 import sys
 
 import numpy as np
-import soundfile as sf
 import torch
 from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
@@ -38,6 +38,22 @@ SR = 16000
 # The seven degrees as the chanter sings them. Octave equivalents share a name,
 # so the stream is degree mod 7.
 DEG = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω']
+
+
+def read_audio(path):
+    """Decode to 16 kHz mono float32 via ffmpeg.
+
+    soundfile refuses some of the corpus m4a files ("Format not recognised"),
+    which killed a full-corpus run 123 tracks in. ffmpeg reads everything the
+    recordings are actually in, so the probe is not limited by the container.
+    """
+    p = subprocess.run(
+        ['ffmpeg', '-v', 'quiet', '-i', path, '-f', 'f32le',
+         '-ac', '1', '-ar', str(SR), '-'],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if p.returncode != 0 or not p.stdout:
+        return None
+    return np.frombuffer(p.stdout, dtype=np.float32)
 
 
 def degree_text(wd, hymn):
@@ -54,14 +70,8 @@ def ctc_per_tok(model, proc, vocab, blank, sep, dev, wav, text):
     if not w:
         return None
     ids = ids_of(w, vocab, sep)
-    x, sr = sf.read(wav, dtype='float32')
-    if x.ndim > 1:
-        x = x.mean(1)
-    if sr != SR:
-        n = int(len(x) * SR / sr)
-        x = np.interp(np.linspace(0, len(x) - 1, n),
-                      np.arange(len(x)), x).astype(np.float32)
-    if x.size < SR:
+    x = read_audio(wav)
+    if x is None or x.size < SR:
         return None
     with torch.inference_mode():
         logp = torch.log_softmax(

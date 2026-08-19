@@ -19,11 +19,11 @@ import argparse
 import glob
 import json
 import os
+import subprocess
 import re
 import unicodedata
 
 import numpy as np
-import soundfile as sf
 import torch
 from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
@@ -35,20 +35,30 @@ DEG = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω']
 DEG_LETTERS = set('νηπαβουγδικεζω')
 
 
+def read_audio(path):
+    """Decode to 16 kHz mono float32 via ffmpeg.
+
+    soundfile refuses some of the corpus m4a files ("Format not recognised"),
+    which killed a full-corpus run 123 tracks in. ffmpeg reads everything the
+    recordings are actually in, so the probe is not limited by the container.
+    """
+    p = subprocess.run(
+        ['ffmpeg', '-v', 'quiet', '-i', path, '-f', 'f32le',
+         '-ac', '1', '-ar', str(SR), '-'],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if p.returncode != 0 or not p.stdout:
+        return None
+    return np.frombuffer(p.stdout, dtype=np.float32)
+
+
 def strip(s):
     s = unicodedata.normalize('NFD', s.lower())
     return ''.join(c for c in s if not unicodedata.combining(c))
 
 
 def decode(model, proc, dev, wav):
-    x, sr = sf.read(wav, dtype='float32')
-    if x.ndim > 1:
-        x = x.mean(1)
-    if sr != SR:
-        n = int(len(x) * SR / sr)
-        x = np.interp(np.linspace(0, len(x) - 1, n),
-                      np.arange(len(x)), x).astype(np.float32)
-    if x.size < SR:
+    x = read_audio(wav)
+    if x is None or x.size < SR:
         return None
     with torch.inference_mode():
         lg = model(torch.from_numpy(x.copy()).unsqueeze(0).to(dev)).logits
@@ -73,7 +83,14 @@ def main():
         for h in json.load(open(f)):
             for lane in ('melos_audio', 'parallagi_track'):
                 wav = h.get(lane)
-                if not wav or not os.path.exists(wav):
+                if not wav:
+                    continue
+                # parallagi_track is stored as a bare filename, relative to the
+                # same pieces directory the melos piece came from.
+                if not os.path.isabs(wav):
+                    wav = os.path.join(os.path.dirname(h.get('melos_audio', '')),
+                                       wav)
+                if not os.path.exists(wav):
                     continue
                 d = decode(model, proc, dev, wav)
                 if not d:

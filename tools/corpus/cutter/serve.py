@@ -147,7 +147,14 @@ class H(BaseHTTPRequestHandler):
                 try:
                     self.wfile.write(chunk)
                 except (BrokenPipeError, ConnectionResetError):
-                    return          # normal: the browser seeked away
+                    # Normal: the browser seeked away or aborted the probe.
+                    # But we have now written fewer bytes than Content-Length
+                    # promised, so this keep-alive connection is desynchronised
+                    # and the NEXT request on it would be parsed as body. Safari
+                    # aborts the initial no-Range probe immediately, so leaving
+                    # it open is what made playback fail on iOS.
+                    self.close_connection = True
+                    return
                 left -= len(chunk)
 
     def do_POST(self):
