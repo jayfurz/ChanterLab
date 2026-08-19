@@ -25,6 +25,7 @@ import glob
 import json
 import os
 import re
+import subprocess
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
@@ -35,6 +36,54 @@ WORKDIRS = '/mnt/data/chant-corpus/workdirs'
 WD_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 MAX_BODY = 8 * 1024 * 1024
 MIME = {'.m4a': 'audio/mp4', '.mp3': 'audio/mpeg', '.wav': 'audio/wav'}
+PEAKS = f'{TEXTS}/peaks'
+PPS = 20                # peak buckets per second -> 50 ms resolution
+PEAK_SR = 8000          # decode rate for the envelope; plenty for amplitude
+
+
+def peaks_for(wd, path):
+    """Amplitude envelope as one uint8 per 50 ms, cached on disk.
+
+    A browser cannot decode a two-hour tape to draw a waveform, and without a
+    waveform there is nothing to zoom into -- which is the whole reason the
+    first version was unusable. So ffmpeg does it once, server side, and the
+    page fetches ~80 KB of bytes instead of 200 MB of audio.
+    """
+    os.makedirs(PEAKS, exist_ok=True)
+    out = f'{PEAKS}/{wd}.u8'
+    if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
+        return out
+    import array
+    p = subprocess.Popen(
+        ['ffmpeg', '-v', 'quiet', '-i', path, '-f', 's16le',
+         '-ac', '1', '-ar', str(PEAK_SR), '-'],
+        stdout=subprocess.PIPE)
+    step = PEAK_SR // PPS
+    buf, tmp = bytearray(), b''
+    while True:
+        chunk = p.stdout.read(step * 2 * 256)
+        if not chunk:
+            break
+        tmp += chunk
+        n = len(tmp) // (step * 2)
+        if not n:
+            continue
+        a = array.array('h')
+        a.frombytes(tmp[:n * step * 2])
+        tmp = tmp[n * step * 2:]
+        for i in range(n):
+            seg = a[i * step:(i + 1) * step]
+            m = 0
+            for v in seg:
+                if v < 0:
+                    v = -v
+                if v > m:
+                    m = v
+            buf.append(min(255, m >> 7))
+    p.stdout.close(); p.wait()
+    with open(out, 'wb') as fh:
+        fh.write(bytes(buf))
+    return out
 
 
 def tapes():
@@ -66,7 +115,22 @@ def tapes():
             hymns.append({'name': n, 'cur': cur.get(n),
                           't0': s['t0'] if s else None,
                           't1': s['t1'] if s else None,
+                          'label': (s or {}).get('label'),
+                          'lane': (s or {}).get('lane'),
                           'page': h.get('p0'), 'line': h.get('l0')})
+        # spans the chanter added with "+ span" have no hymns.json row, so
+        # carry them back in after their base, or they vanish on reload
+        known = {h['name'] for h in hymns}
+        for n, c in saved.items():
+            if n in known:
+                continue
+            row = {'name': n, 'cur': None, 't0': c.get('t0'), 't1': c.get('t1'),
+                   'label': c.get('label'), 'lane': c.get('lane'),
+                   'extra': True, 'page': None, 'line': None}
+            base = n.split('#')[0]
+            at = next((i for i, h in enumerate(hymns)
+                       if h['name'].split('#')[0] == base), len(hymns) - 1)
+            hymns.insert(at + 1, row)
         out[wd] = {'tape': tape, 'basename': os.path.basename(tape),
                    'hymns': hymns}
     return out
@@ -95,6 +159,25 @@ class H(BaseHTTPRequestHandler):
                               'text/html; charset=utf-8')
         if p == '/api/tapes':
             return self._send(200, json.dumps(tapes(), ensure_ascii=False))
+        if p.startswith('/api/peaks/'):
+            wd = unquote(p[11:])
+            if not WD_RE.match(wd):
+                return self._send(400, '{"error":"bad workdir"}')
+            t = tapes().get(wd)
+            if not t:
+                return self._send(404, '{"error":"unknown workdir"}')
+            try:
+                f = peaks_for(wd, t['tape'])
+            except Exception as e:
+                return self._send(500, json.dumps({'error': str(e)}))
+            body = open(f, 'rb').read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('X-Peaks-Per-Second', str(PPS))
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if p.startswith('/tape/'):
             return self.serve_tape(unquote(p[6:]))
         self._send(404, '{"error":"not found"}')
@@ -176,8 +259,16 @@ class H(BaseHTTPRequestHandler):
                 t0, t1 = float(t0), float(t1)
                 if t1 <= t0:
                     raise ValueError(f"{c.get('hymn')}: end is not after start")
+                lane = c.get('lane')
+                if lane is not None and lane not in (
+                        'melos', 'parallagi', 'speech', 'other'):
+                    raise ValueError(f'bad lane {lane!r}')
+                lab = c.get('label')
+                if lab is not None:
+                    lab = str(lab)[:300]
                 cuts.append({'hymn': str(c['hymn']),
-                             't0': round(t0, 3), 't1': round(t1, 3)})
+                             't0': round(t0, 3), 't1': round(t1, 3),
+                             'label': lab or None, 'lane': lane})
         except Exception as e:
             return self._send(400, json.dumps({'error': str(e)}))
         out = f'{TEXTS}/cuts_{wd}.json'

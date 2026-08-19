@@ -26,15 +26,24 @@ button.on{background:var(--gold);color:#1a1512;border-color:var(--gold);font-wei
 .rates button{flex:1;min-width:44px;padding:9px 4px;text-align:center}
 #time{font-variant-numeric:tabular-nums;font-size:20px;font-weight:600;
   letter-spacing:.5px}
-#wrap{position:relative;height:74px;margin:8px 0;background:#0d0b0a;
-  border:1px solid var(--line);border-radius:9px;overflow:hidden;touch-action:none}
-#wave{position:absolute;inset:0;width:100%;height:100%}
-#play{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);
-  pointer-events:none}
-.mark{position:absolute;top:0;bottom:0;width:2px;pointer-events:none}
-.mark.s{background:var(--green)} .mark.e{background:var(--red)}
-#band{position:absolute;top:0;bottom:0;background:rgba(216,162,74,.16);
-  pointer-events:none}
+#wrap{position:relative;height:120px;margin:8px 0 6px;background:#0d0b0a;
+  border:1px solid var(--line);border-radius:9px;overflow:hidden;
+  touch-action:none;user-select:none;-webkit-user-select:none}
+#wave,#minic{position:absolute;inset:0;width:100%;height:100%}
+#mini{position:relative;height:20px;margin-bottom:6px;background:#0d0b0a;
+  border:1px solid var(--line);border-radius:6px;overflow:hidden;
+  touch-action:none}
+#miniview{position:absolute;top:0;bottom:0;background:rgba(216,162,74,.28);
+  border-left:1px solid var(--gold);border-right:1px solid var(--gold)}
+.zrow button{flex:1;padding:8px 4px}
+#lab{width:100%;padding:10px;margin:6px 0 4px;border-radius:9px;
+  background:#241f1b;color:var(--ink);border:1px solid var(--line);font:inherit}
+.lanes button{flex:1;padding:8px 4px;font-size:14px}
+.lanes button.on{background:var(--gold);color:#1a1512;border-color:var(--gold)}
+.h .lane{font-size:11px;color:var(--dim);text-transform:uppercase;
+  letter-spacing:.4px}
+.h .lb{font-size:12px;color:var(--gold);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 main{padding:8px 10px 90px}
 .h{display:flex;gap:8px;align-items:center;padding:9px 10px;
   border:1px solid var(--line);border-radius:10px;margin-bottom:6px;
@@ -59,12 +68,14 @@ kbd{background:#2a241f;border:1px solid var(--line);border-radius:4px;
     <span id="time">0:00.00</span>
     <span id="cur" class="t" style="color:var(--dim);font-size:13px"></span>
   </div>
-  <div id="wrap">
-    <canvas id="wave"></canvas>
-    <div id="band" hidden></div>
-    <div class="mark s" id="ms" hidden></div>
-    <div class="mark e" id="me" hidden></div>
-    <div id="play"></div>
+  <div id="wrap"><canvas id="wave"></canvas></div>
+  <div id="mini"><canvas id="minic"></canvas><div id="miniview"></div></div>
+  <div class="row zrow">
+    <button id="zout">&minus;</button>
+    <button id="zin">+</button>
+    <button id="fit">fit</button>
+    <button id="here">&#9673; playhead</button>
+    <button id="zsel">hymn</button>
   </div>
   <div class="row rates" id="rates"></div>
 </header>
@@ -72,6 +83,9 @@ kbd{background:#2a241f;border:1px solid var(--line);border-radius:4px;
 <main><div id="list"></div></main>
 
 <footer>
+  <input id="lab" placeholder="what is this? e.g. God is the Lord — parallagi"
+         autocapitalize="off" autocomplete="off" spellcheck="false">
+  <div class="row lanes" id="lanes"></div>
   <div id="msg"></div>
   <div class="row">
     <button id="back">&#8630; 5s</button>
@@ -86,6 +100,7 @@ kbd{background:#2a241f;border:1px solid var(--line);border-radius:4px;
   </div>
   <div class="row" style="margin-top:6px">
     <button id="playSel">Play this hymn</button>
+    <button id="split">+ span</button>
     <button id="save">Save</button>
   </div>
 </footer>
@@ -147,10 +162,11 @@ async function boot() {
 
 function load(k) {
   wd = k;
-  hymns = TAPES[k].hymns.map(h => ({ ...h }));
+  hymns = TAPES[k].hymns.map(h => ({ ...h }));   // label/lane/extra ride along
   sel = 0; peaks = null;
   A.src = '/tape/' + encodeURIComponent(k);
   A.load();
+  loadPeaks(k);
   applyRate();
   msg(TAPES[k].basename);
   draw(); render();
@@ -163,8 +179,15 @@ function render() {
     const d = document.createElement('div');
     d.className = 'h' + (i === sel ? ' sel' : '') +
                   (h.t0 != null && h.t1 != null ? ' done' : '');
-    d.innerHTML = `<span class="n">${h.name}</span><span class="t">${
-      h.t0 == null ? '—' : fmt(h.t0)} → ${h.t1 == null ? '—' : fmt(h.t1)}</span>`;
+    const esc = t => (t || '').replace(/[<>&]/g, c =>
+      ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    d.innerHTML =
+      `<span class="n">${h.extra ? '&#8627; ' : ''}${esc(h.name)}` +
+      (h.label ? `<br><span class="lb">${esc(h.label)}</span>` : '') +
+      `</span>` +
+      (h.lane ? `<span class="lane">${h.lane[0]}</span>` : '') +
+      `<span class="t">${h.t0 == null ? '—' : fmt(h.t0)} → ${
+        h.t1 == null ? '—' : fmt(h.t1)}</span>`;
     d.onclick = () => { sel = i; render(); draw(); if (h.t0 != null) A.currentTime = h.t0; };
     L.append(d);
   });
@@ -172,6 +195,8 @@ function render() {
   $('#cur').textContent = h ? `${sel + 1}/${hymns.length}  ${h.name}` : '';
   // "Play this hymn" needs a marked start. Disabling it says so up front
   // instead of failing into a one-line message the thumb is covering.
+  if ($('#lab').value !== (h?.label || '')) $('#lab').value = h?.label || '';
+  drawLanes();
   const ps = $('#playSel');
   ps.disabled = !h || h.t0 == null;
   ps.textContent = ps.disabled ? 'Play this hymn (mark start)' : 'Play this hymn';
@@ -179,47 +204,215 @@ function render() {
     ?.scrollIntoView({ block: 'nearest' });
 }
 
-// Waveform. Decoding a two-hour tape in the browser is not viable, so the
-// strip is a coarse amplitude sketch built from what has actually buffered;
-// it is an orientation aid, and the ear is the instrument that decides.
+// Waveform. Peaks come from the server (one uint8 per 50 ms) because a browser
+// cannot decode a two-hour tape, and without a drawn waveform there is nothing
+// to zoom into. v0/v1 are the visible window in seconds; everything else is a
+// projection through them.
 const cv = $('#wave'), cx = cv.getContext('2d');
+const mc = $('#minic'), mx = mc.getContext('2d');
+let PK = null, PPS = 20, v0 = 0, v1 = 60, follow = true;
+
+async function loadPeaks(k) {
+  PK = null;
+  try {
+    const r = await fetch('/api/peaks/' + encodeURIComponent(k));
+    if (!r.ok) throw new Error('peaks ' + r.status);
+    PPS = +(r.headers.get('X-Peaks-Per-Second') || 20);
+    PK = new Uint8Array(await r.arrayBuffer());
+    fit();
+  } catch (e) { msg('waveform unavailable: ' + e.message); draw(); }
+}
+
+const dur = () => (PK ? PK.length / PPS : (isFinite(A.duration) ? A.duration : 0));
+function clampView() {
+  const D = dur() || 1, span = Math.min(Math.max(v1 - v0, 0.5), D);
+  if (v0 < 0) v0 = 0;
+  v1 = v0 + span;
+  if (v1 > D) { v1 = D; v0 = Math.max(0, D - span); }
+}
+function fit() { v0 = 0; v1 = dur() || 1; follow = false; draw(); }
+function zoom(f, at) {
+  const D = dur() || 1, c = at == null ? (v0 + v1) / 2 : at;
+  const span = Math.min(Math.max((v1 - v0) * f, 0.5), D);
+  v0 = c - (c - v0) * (span / (v1 - v0)); v1 = v0 + span;
+  clampView(); draw();
+}
+function centerOn(t) { const sp = v1 - v0; v0 = t - sp / 2; v1 = v0 + sp; clampView(); draw(); }
+
 function draw() {
-  const w = cv.width = cv.clientWidth * devicePixelRatio;
-  const hgt = cv.height = cv.clientHeight * devicePixelRatio;
-  cx.clearRect(0, 0, w, hgt);
-  const D = A.duration;
-  cx.strokeStyle = '#2a2521'; cx.lineWidth = devicePixelRatio;
-  for (let i = 1; i < 10; i++) {
-    const x = w * i / 10;
-    cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, hgt); cx.stroke();
+  const W = cv.width = cv.clientWidth * devicePixelRatio;
+  const H = cv.height = cv.clientHeight * devicePixelRatio;
+  const D = dur();
+  cx.clearRect(0, 0, W, H);
+  const x = t => (t - v0) / (v1 - v0) * W;
+
+  // seconds grid, with a step that keeps labels legible at every zoom
+  const span = v1 - v0;
+  const step = [0.5,1,2,5,10,15,30,60,120,300,600].find(s => span / s < 12) || 900;
+  cx.font = (11 * devicePixelRatio) + 'px system-ui';
+  for (let t = Math.ceil(v0 / step) * step; t < v1; t += step) {
+    const px = x(t);
+    cx.strokeStyle = '#2a2521'; cx.lineWidth = devicePixelRatio;
+    cx.beginPath(); cx.moveTo(px, 0); cx.lineTo(px, H); cx.stroke();
+    cx.fillStyle = '#6b615a';
+    cx.fillText(fmt(t).replace(/\.\d+$/, ''), px + 3 * devicePixelRatio,
+                11 * devicePixelRatio);
   }
-  if (isFinite(D)) {
-    for (let i = 0; i < A.buffered.length; i++) {
-      const a = A.buffered.start(i) / D * w, b = A.buffered.end(i) / D * w;
-      cx.fillStyle = '#221d19'; cx.fillRect(a, hgt * .35, b - a, hgt * .3);
+
+  if (PK) {
+    const i0 = Math.max(0, Math.floor(v0 * PPS)), i1 = Math.min(PK.length, Math.ceil(v1 * PPS));
+    const mid = H / 2, per = W / Math.max(i1 - i0, 1);
+    cx.fillStyle = '#5c7f9c';
+    if (per >= 1) {
+      for (let i = i0; i < i1; i++) {
+        const h = PK[i] / 255 * (H * 0.44);
+        cx.fillRect((i - i0) * per, mid - h, Math.max(per - 0.5, 0.7), h * 2);
+      }
+    } else {                       // more peaks than pixels: max per column
+      for (let px = 0; px < W; px++) {
+        const a = i0 + Math.floor(px / W * (i1 - i0));
+        const b = i0 + Math.floor((px + 1) / W * (i1 - i0));
+        let m = 0;
+        for (let i = a; i < Math.max(b, a + 1); i++) if (PK[i] > m) m = PK[i];
+        const h = m / 255 * (H * 0.44);
+        cx.fillRect(px, mid - h, 1, h * 2);
+      }
     }
   }
-  const h = hymns[sel];
-  const px = t => (isFinite(D) && t != null) ? (t / D * cv.clientWidth) : null;
-  const S = px(h?.t0), E = px(h?.t1);
-  $('#ms').hidden = S == null; if (S != null) $('#ms').style.left = S + 'px';
-  $('#me').hidden = E == null; if (E != null) $('#me').style.left = E + 'px';
-  const band = $('#band');
-  band.hidden = !(S != null && E != null);
-  if (!band.hidden) { band.style.left = S + 'px'; band.style.width = (E - S) + 'px'; }
+
+  // every hymn's marks, not just the selected one -- seeing the work already
+  // done is the point of the strip
+  hymns.forEach((h, i) => {
+    const on = i === sel;
+    if (h.t0 != null && h.t1 != null) {
+      cx.fillStyle = on ? 'rgba(216,162,74,.20)' : 'rgba(110,164,95,.10)';
+      cx.fillRect(x(h.t0), 0, Math.max(x(h.t1) - x(h.t0), 1), H);
+    }
+    [['t0', '#6ea45f'], ['t1', '#c65b4e']].forEach(([k, col]) => {
+      if (h[k] == null) return;
+      const px = x(h[k]);
+      if (px < -20 || px > W + 20) return;
+      cx.fillStyle = col;
+      cx.fillRect(px - (on ? 1.5 : 0.5) * devicePixelRatio, 0,
+                  (on ? 3 : 1) * devicePixelRatio, H);
+      if (on) { cx.fillRect(px - 5 * devicePixelRatio, k === 't0' ? 0 : H - 8 * devicePixelRatio,
+                            10 * devicePixelRatio, 8 * devicePixelRatio); }
+    });
+    if (on && h.t0 != null) {
+      cx.fillStyle = '#efe7dc';
+      cx.fillText(h.name, x(h.t0) + 6 * devicePixelRatio, H - 6 * devicePixelRatio);
+    }
+  });
+
+  const t = A.currentTime;
+  if (t >= v0 && t <= v1) {
+    cx.fillStyle = '#d8a24a';
+    cx.fillRect(x(t) - devicePixelRatio, 0, 2 * devicePixelRatio, H);
+  }
+  drawMini();
+}
+
+function drawMini() {
+  const W = mc.width = mc.clientWidth * devicePixelRatio;
+  const H = mc.height = mc.clientHeight * devicePixelRatio;
+  const D = dur() || 1;
+  mx.clearRect(0, 0, W, H);
+  if (PK) {
+    mx.fillStyle = '#3d5568';
+    for (let px = 0; px < W; px++) {
+      const a = Math.floor(px / W * PK.length), b = Math.floor((px + 1) / W * PK.length);
+      let m = 0;
+      for (let i = a; i < Math.max(b, a + 1); i++) if (PK[i] > m) m = PK[i];
+      const h = m / 255 * H;
+      mx.fillRect(px, (H - h) / 2, 1, h);
+    }
+  }
+  hymns.forEach(h => {
+    if (h.t0 == null) return;
+    mx.fillStyle = '#6ea45f';
+    mx.fillRect(h.t0 / D * W, 0, devicePixelRatio, H);
+  });
+  const mv = $('#miniview');
+  mv.style.left = (v0 / D * 100) + '%';
+  mv.style.width = Math.max((v1 - v0) / D * 100, 0.6) + '%';
 }
 addEventListener('resize', draw);
 
-$('#wrap').addEventListener('pointerdown', e => {
-  if (!isFinite(A.duration)) return;
-  const r = e.currentTarget.getBoundingClientRect();
-  A.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * A.duration;
+// Pointer: tap seeks, one-finger drag pans, two fingers pinch-zoom.
+const pts = new Map();
+let dragged = false, panT0 = 0, panX = 0, pinch0 = 0, pinchSpan = 0, pinchMid = 0;
+const wrap = $('#wrap');
+wrap.addEventListener('pointerdown', e => {
+  wrap.setPointerCapture(e.pointerId);
+  pts.set(e.pointerId, e.clientX);
+  dragged = false;
+  if (pts.size === 1) { panX = e.clientX; panT0 = v0; follow = false; }
+  else if (pts.size === 2) {
+    const [a, b] = [...pts.values()];
+    pinch0 = Math.abs(a - b) || 1; pinchSpan = v1 - v0;
+    const r = wrap.getBoundingClientRect();
+    pinchMid = v0 + ((a + b) / 2 - r.left) / r.width * (v1 - v0);
+  }
 });
+wrap.addEventListener('pointermove', e => {
+  if (!pts.has(e.pointerId)) return;
+  pts.set(e.pointerId, e.clientX);
+  const r = wrap.getBoundingClientRect();
+  if (pts.size === 2) {
+    const [a, b] = [...pts.values()];
+    const d = Math.abs(a - b) || 1;
+    const span = Math.min(Math.max(pinchSpan * pinch0 / d, 0.5), dur() || 1);
+    const f = ((a + b) / 2 - r.left) / r.width;
+    v0 = pinchMid - f * span; v1 = v0 + span;
+    dragged = true; clampView(); draw();
+  } else if (pts.size === 1) {
+    const dx = e.clientX - panX;
+    if (Math.abs(dx) > 3) dragged = true;
+    const span = v1 - v0;
+    v0 = panT0 - dx / r.width * span; v1 = v0 + span;
+    clampView(); draw();
+  }
+});
+function up(e) {
+  const r = wrap.getBoundingClientRect();
+  const was = pts.size;
+  pts.delete(e.pointerId);
+  if (was === 1 && !dragged && isFinite(A.duration)) {
+    A.currentTime = Math.max(0, Math.min(dur(),
+      v0 + (e.clientX - r.left) / r.width * (v1 - v0)));
+    draw();
+  }
+}
+wrap.addEventListener('pointerup', up);
+wrap.addEventListener('pointercancel', e => pts.delete(e.pointerId));
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = wrap.getBoundingClientRect();
+  zoom(e.deltaY > 0 ? 1.25 : 0.8, v0 + (e.clientX - r.left) / r.width * (v1 - v0));
+}, { passive: false });
+
+$('#mini').addEventListener('pointerdown', e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  centerOn((e.clientX - r.left) / r.width * (dur() || 1));
+  follow = false;
+});
+
+$('#zin').onclick = () => zoom(0.5);
+$('#zout').onclick = () => zoom(2);
+$('#fit').onclick = fit;
+$('#here').onclick = () => { follow = true; centerOn(A.currentTime); };
+$('#zsel').onclick = () => {
+  const h = hymns[sel];
+  if (h?.t0 == null) return msg('mark a start first');
+  const a = h.t0, b = h.t1 ?? (h.t0 + 30), pad = Math.max((b - a) * 0.25, 2);
+  v0 = a - pad; v1 = b + pad; follow = false; clampView(); draw();
+};
 
 A.addEventListener('timeupdate', () => {
   $('#time').textContent = fmt(A.currentTime);
-  if (isFinite(A.duration))
-    $('#play').style.left = (A.currentTime / A.duration * 100) + '%';
+  const t = A.currentTime;
+  if (follow && (t < v0 + (v1 - v0) * 0.1 || t > v0 + (v1 - v0) * 0.9)) centerOn(t);
+  else draw();
 });
 A.addEventListener('loadedmetadata', draw);
 A.addEventListener('progress', draw);
@@ -244,7 +437,7 @@ function play() {
   if (p && p.catch) p.catch(err => msg('✗ ' + err.name + ': ' + err.message +
                                        (why() ? ' (' + why() + ')' : '')));
 }
-$('#pp').onclick = () => A.paused ? play() : A.pause();
+$('#pp').onclick = () => { follow = true; A.paused ? play() : A.pause(); };
 $('#back').onclick = () => A.currentTime = Math.max(0, A.currentTime - 5);
 $('#fwd').onclick = () => A.currentTime = Math.min(A.duration || 1e9, A.currentTime + 5);
 $('#setS').onclick = () => { hymns[sel].t0 = +A.currentTime.toFixed(3); render(); draw(); autosave(); };
@@ -269,7 +462,8 @@ function autosave() { clearTimeout(pend); pend = setTimeout(() => save(true), 12
 
 async function save(quiet) {
   const cuts = hymns.filter(h => h.t0 != null && h.t1 != null)
-                    .map(h => ({ hymn: h.name, t0: h.t0, t1: h.t1 }));
+                    .map(h => ({ hymn: h.name, t0: h.t0, t1: h.t1,
+                                 label: h.label || null, lane: h.lane || null }));
   const bad = hymns.find(h => h.t0 != null && h.t1 != null && h.t1 <= h.t0);
   if (bad) return msg('✗ ' + bad.name + ': end is not after start');
   try {
@@ -282,6 +476,42 @@ async function save(quiet) {
              : '✗ ' + (j.error || r.status));
   } catch (e) { msg('✗ ' + e.message); }
 }
+// A score slice does not always hold exactly one sung stretch -- "Θεὸς Κύριος"
+// is sung with its verses, and some slices open on the tail of the hymn before.
+// So a hymn can carry several spans: this adds a sibling row, named base#2,
+// base#3, which the adopt step can either merge or keep separate.
+// The label is the point of the exercise: a cut with no name is a number, a
+// cut with "God is the Lord - parallagi" is training data. Free text, because
+// the chanter knows distinctions the schema does not, plus a lane chip so the
+// melos/parallagi split -- the one that broke text identification -- is
+// recorded explicitly rather than inferred.
+const LANES = ['melos', 'parallagi', 'speech', 'other'];
+function drawLanes() {
+  const h = hymns[sel]; const box = $('#lanes'); box.innerHTML = '';
+  LANES.forEach(L => {
+    const b = document.createElement('button');
+    b.textContent = L;
+    if (h && h.lane === L) b.className = 'on';
+    b.onclick = () => { h.lane = (h.lane === L ? null : L); drawLanes(); render(); autosave(); };
+    box.append(b);
+  });
+}
+$('#lab').addEventListener('input', e => {
+  const h = hymns[sel]; if (!h) return;
+  h.label = e.target.value; autosave(); render();
+});
+
+$('#split').onclick = () => {
+  const h = hymns[sel];
+  const base = h.name.split('#')[0];
+  let n = 2;
+  while (hymns.some(x => x.name === base + '#' + n)) n++;
+  hymns.splice(sel + 1, 0, { name: base + '#' + n, cur: h.cur,
+                             t0: null, t1: null, extra: true });
+  sel += 1; render(); draw();
+  msg('added ' + base + '#' + n + ' — mark its start and end');
+};
+
 $('#save').onclick = () => save(false);
 
 addEventListener('keydown', e => {
