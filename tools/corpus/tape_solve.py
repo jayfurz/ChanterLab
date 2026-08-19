@@ -109,7 +109,7 @@ def main():
                     't0': b['t0'], 't1': b['t1'],
                     'dur': round(b['t1'] - b['t0'], 1),
                     'lpt': round(o['lpt'], 3), 'gi': o['gi'],
-                    'text': o['text'][:80], 'heading': o['head']})
+                    'text': o['text'], 'heading': o['head']})
     jf = f'/mnt/data/chant-corpus/texts/tapeassign_{name}.json'
     json.dump({'workdir': name, 'iterations': it + 1, 'banned': sorted(banned),
                'assigned': out}, open(jf, 'w'), ensure_ascii=False, indent=1)
