@@ -21,6 +21,13 @@ button[disabled]{opacity:.38}
 #who{font-size:14px;color:var(--gold);margin-top:4px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #msg{font-size:13px;color:var(--dim);min-height:18px}
+#wf{position:relative;height:64px;margin:6px 0 2px;background:#0d0b0a;
+  border:1px solid var(--line);border-radius:8px;overflow:hidden;touch-action:none}
+#wf canvas{position:absolute;inset:0;width:100%;height:100%}
+#tl{font-variant-numeric:tabular-nums;font-size:13px;color:var(--dim)}
+.rates button{flex:1;min-width:40px;padding:7px 2px;font-size:14px}
+.lane-tag{font-size:11px;color:var(--dim);text-transform:uppercase;
+  letter-spacing:.4px;border:1px solid var(--line);border-radius:5px;padding:1px 5px}
 main{padding:6px 0 96px}
 .pg{position:relative;margin:0 auto 10px;max-width:1100px}
 .pg img{display:block;width:100%;height:auto;border-radius:6px}
@@ -46,8 +53,17 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
     <button id="mode0" class="on">tap = START</button>
     <button id="mode1">tap = END</button>
   </div>
+  <div id="wf"><canvas></canvas></div>
+  <div class="row">
+    <button id="pp">Play</button>
+    <button id="back">&#8630;3s</button>
+    <button id="fwd">3s&#8631;</button>
+    <span id="tl">0:00</span>
+  </div>
+  <div class="row rates" id="rates"></div>
   <div id="msg"></div>
 </header>
+<audio id="a" preload="metadata" playsinline webkit-playsinline></audio>
 
 <div id="list"></div>
 <main id="pages"></main>
@@ -67,8 +83,99 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
 <script>
 const $ = s => document.querySelector(s);
 let D = null, wd = null, rows = [], sel = 0, mode = 0;
+const A = $('#a');
+let PK = null, PPS = 20, rate = 1, stopAt = null;
+
+const fmt = t => { const m = Math.floor(t / 60), x = t - m * 60;
+  return m + ':' + (x < 10 ? '0' : '') + x.toFixed(1); };
+
+const RATES = [0.5, 1, 2, 4];
+function drawRates() {
+  $('#rates').innerHTML = '';
+  RATES.forEach(r => {
+    const b = document.createElement('button');
+    b.textContent = r + 'x'; if (r === rate) b.className = 'on';
+    b.onclick = () => { rate = r; applyRate(); drawRates(); };
+    $('#rates').append(b);
+  });
+}
+function applyRate() {
+  try { A.preservesPitch = A.mozPreservesPitch = A.webkitPreservesPitch = true; } catch (e) {}
+  try { A.playbackRate = rate; } catch (e) {}
+}
+function playSpan() {
+  const r = rows[sel];
+  if (!r || r.t0 == null) return msg('this row has no audio span');
+  A.currentTime = r.t0; stopAt = r.t1; applyRate();
+  const p = A.play();
+  if (p && p.catch) p.catch(e => msg('✗ ' + e.message));
+}
+A.addEventListener('timeupdate', () => {
+  $('#tl').textContent = fmt(A.currentTime);
+  if (stopAt != null && A.currentTime >= stopAt) { A.pause(); stopAt = null; }
+  drawWave();
+});
+A.addEventListener('play', () => $('#pp').textContent = 'Pause');
+A.addEventListener('pause', () => $('#pp').textContent = 'Play');
+$('#pp').onclick = () => { if (A.paused) playSpan(); else A.pause(); };
+$('#back').onclick = () => A.currentTime = Math.max(0, A.currentTime - 3);
+$('#fwd').onclick = () => A.currentTime = A.currentTime + 3;
+
+// Waveform of the SELECTED span only -- this is a picker for one hymn at a
+// time, so the whole tape is noise here. Tap or drag to seek inside it.
+const wcv = $('#wf canvas');
+function drawWave() {
+  const cx = wcv.getContext('2d');
+  const W = wcv.width = wcv.clientWidth * devicePixelRatio;
+  const H = wcv.height = wcv.clientHeight * devicePixelRatio;
+  cx.clearRect(0, 0, W, H);
+  const r = rows[sel];
+  if (!r || r.t0 == null) return;
+  const a = r.t0, b = r.t1;
+  if (PK) {
+    const i0 = Math.floor(a * PPS), i1 = Math.min(PK.length, Math.ceil(b * PPS));
+    cx.fillStyle = '#5c7f9c';
+    for (let px = 0; px < W; px++) {
+      const s0 = i0 + Math.floor(px / W * (i1 - i0));
+      const s1 = i0 + Math.floor((px + 1) / W * (i1 - i0));
+      let m = 0;
+      for (let i = s0; i < Math.max(s1, s0 + 1); i++) if (PK[i] > m) m = PK[i];
+      const h = m / 255 * (H * 0.44);
+      cx.fillRect(px, H / 2 - h, 1, h * 2);
+    }
+  }
+  if (r.t_in != null && r.t_in > a && r.t_in < b) {   // apichima: hymn starts after this
+    const px = (r.t_in - a) / (b - a) * W;
+    cx.fillStyle = 'rgba(216,162,74,.75)';
+    for (let y = 0; y < H; y += 9 * devicePixelRatio)
+      cx.fillRect(px - devicePixelRatio, y, 2 * devicePixelRatio, 4 * devicePixelRatio);
+  }
+  const t = A.currentTime;
+  if (t >= a && t <= b) {
+    cx.fillStyle = '#d8a24a';
+    cx.fillRect((t - a) / (b - a) * W - devicePixelRatio, 0, 2 * devicePixelRatio, H);
+  }
+}
+$('#wf').addEventListener('pointerdown', e => {
+  const r = rows[sel]; if (!r || r.t0 == null) return;
+  const q = e.currentTarget.getBoundingClientRect();
+  A.currentTime = r.t0 + Math.max(0, Math.min(1, (e.clientX - q.left) / q.width)) * (r.t1 - r.t0);
+  stopAt = r.t1; drawWave();
+});
+addEventListener('resize', drawWave);
 const key = g => `${g.page}:${g.i}`;
 const msg = t => $('#msg').textContent = t || '';
+
+async function loadPeaks(k) {
+  PK = null;
+  try {
+    const r = await fetch('/api/peaks/' + encodeURIComponent(k));
+    if (!r.ok) throw new Error('peaks ' + r.status);
+    PPS = +(r.headers.get('X-Peaks-Per-Second') || 20);
+    PK = new Uint8Array(await r.arrayBuffer());
+  } catch (e) { msg('waveform unavailable: ' + e.message); }
+  drawWave();
+}
 
 async function boot() {
   const tapes = await (await fetch('/api/tapes')).json();
@@ -84,20 +191,31 @@ async function load(k) {
   wd = k; msg('loading score…');
   D = await (await fetch('/api/score/' + encodeURIComponent(k))).json();
   const saved = Object.fromEntries((D.saved || []).map(c => [c.hymn, c]));
-  // Rows come from hymns.json, but its page/line bounds are the thing being
-  // corrected, so they are shown as a starting hint and nothing more.
-  rows = D.hymns.map(h => {
-    const s = saved[h.name];
-    return { name: h.name, hint: [h.p0, h.l0, h.p1, h.l1],
-             p0: s?.p0 ?? null, l0: s?.l0 ?? null, g0: s?.g0 ?? null,
-             p1: s?.p1 ?? null, l1: s?.l1 ?? null, g1: s?.g1 ?? null,
-             label: s?.label ?? null };
-  });
-  (D.saved || []).filter(c => !rows.some(r => r.name === c.hymn))
-    .forEach(c => rows.push({ ...c, extra: true }));
+  // Rows are the chanter's audio spans when the tape has been cut: those are
+  // the things he can hear, and hymns.json's bounds are what we are fixing.
+  if (D.spans && D.spans.length) {
+    rows = D.spans.map(sp => {
+      const s = saved[sp.hymn];
+      return { name: sp.hymn, lane: sp.lane, label: s?.label ?? sp.label ?? null,
+               t0: sp.t0, t1: sp.t1, t_in: sp.t_in ?? null,
+               p0: s?.p0 ?? null, l0: s?.l0 ?? null, g0: s?.g0 ?? null,
+               p1: s?.p1 ?? null, l1: s?.l1 ?? null, g1: s?.g1 ?? null };
+    });
+  } else {
+    rows = D.hymns.map(h => {
+      const s = saved[h.name];
+      return { name: h.name, hint: [h.p0, h.l0, h.p1, h.l1], t0: null, t1: null,
+               p0: s?.p0 ?? null, l0: s?.l0 ?? null, g0: s?.g0 ?? null,
+               p1: s?.p1 ?? null, l1: s?.l1 ?? null, g1: s?.g1 ?? null,
+               label: s?.label ?? null };
+    });
+  }
   sel = 0;
+  A.src = '/tape/' + encodeURIComponent(k); A.load(); applyRate();
+  loadPeaks(k);
   drawPages(); render();
-  msg(`${D.pages.length} pages, ${D.pages.reduce((a, p) => a + p.glyphs.length, 0)} glyphs`);
+  const n = rows.filter(r => r.t0 != null).length;
+  msg(`${D.pages.length} pages · ${D.pages.reduce((a, p) => a + p.glyphs.length, 0)} glyphs · ${n} audio spans`);
 }
 
 function drawPages() {
@@ -198,15 +316,17 @@ function render() {
     d.className = 'h' + (i === sel ? ' sel' : '') + (done ? ' done' : '');
     const esc = t => (t || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
     d.innerHTML = `<span class="n">${esc(r.name)}${r.label ? ' — ' + esc(r.label) : ''}</span>` +
+      (r.lane ? `<span class="lane-tag">${esc(r.lane)}</span>` : '') +
       `<span class="t">${done ? `p${r.p0}·${r.l0}·${r.g0} → p${r.p1}·${r.l1}·${r.g1}`
-                              : `hint p${r.hint?.[0]}–${r.hint?.[2]}`}</span>`;
-    d.onclick = () => { sel = i; setMode(0); render(); repaintAll(); };
+        : (r.t0 != null ? `${fmt(r.t1 - r.t0)}` : `hint p${r.hint?.[0]}–${r.hint?.[2]}`)}</span>`;
+    d.onclick = () => { sel = i; setMode(0); render(); repaintAll(); drawWave(); };
     L.append(d);
   });
   const r = rows[sel];
   $('#who').textContent = r ? `${sel + 1}/${rows.length}  ${r.name}` : '';
   if ($('#lab').value !== (r?.label || '')) $('#lab').value = r?.label || '';
   document.querySelectorAll('.h')[sel]?.scrollIntoView({ block: 'nearest' });
+  drawWave();
 }
 
 function setMode(m) {
@@ -245,10 +365,12 @@ async function save(quiet) {
 $('#save').onclick = () => save(false);
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-  if (e.key === 's') setMode(0);
+  if (e.key === ' ') { e.preventDefault(); $('#pp').click(); }
+  else if (e.key === 's') setMode(0);
   else if (e.key === 'e') setMode(1);
   else if (e.key === 'ArrowUp') { e.preventDefault(); $('#prev').click(); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); $('#next').click(); }
 });
+drawRates();
 boot();
 </script>

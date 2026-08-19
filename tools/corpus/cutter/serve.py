@@ -199,7 +199,14 @@ def score_pages(wd):
         })
     sf = f'{TEXTS}/scorecuts_{wd}.json'
     saved = json.load(open(sf))['cuts'] if os.path.exists(sf) else []
+    # The rows to mark are the chanter's own audio spans, not hymns.json --
+    # he can hear those, and hymns.json's boundaries are the thing being
+    # corrected. Falls back to hymns.json only when a tape has not been cut.
+    af = f'{TEXTS}/cuts_{wd}.json'
+    spans = json.load(open(af))['cuts'] if os.path.exists(af) else []
+    spans = sorted(spans, key=lambda c: c['t0'])
     return {'workdir': wd, 'pages': pages, 'thumb_w': THUMB_W,
+            'spans': spans,
             'hymns': [{'name': h['name'], 'p0': h['p0'], 'l0': h['l0'],
                        'p1': h['p1'], 'l1': h['l1']} for h in hy],
             'saved': saved}
