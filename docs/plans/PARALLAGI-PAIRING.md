@@ -37,13 +37,8 @@ The pairing turns that liability into the strongest constraint available:
 
 - A melos span's identity is the identity of the parallagi immediately before
   it. Identify either one and the other is free.
-- Parallagi spans should be EXCLUDED from text identification rather than
-  detected by it. Detection was tried twice and failed: a decode-based
-  detector could not separate known-parallagi from known-melos tracks
-  (0.53-0.80 vs 0.49-0.65, overlapping), and the forced-alignment probe rests
-  on the same model handling sung solfege that the decode test showed it
-  cannot. The lane is a structural fact about position in the tape, not an
-  acoustic judgement.
+- Parallagi spans should be EXCLUDED from text identification. The lane is
+  known from position, and it is ALSO detectable acoustically -- see below.
 - The count is a checksum. A tape that does not come out to equal numbers of
   parallagi and melos, strictly alternating, has a boundary error somewhere,
   and the tool can say so before a human looks.
@@ -79,3 +74,40 @@ every one of those splits out.
 Cut a second tape, then test whether pairing plus position alone assigns the
 right text without any acoustic identification. Score with `name_check.py` and
 against these spans — never against loss.
+
+
+## The lane is acoustically detectable after all
+
+Recorded here because the earlier conclusion in this file was wrong.
+
+A first detector asked what FRACTION of decoded letters belong to the degree
+names, thresholded at 0.80, and failed its control (known-parallagi 0.53-0.80
+against known-melos 0.49-0.65). From that I concluded the model cannot hear
+sung solfege. That conclusion does not follow, and it is false. Reading the
+decodes rather than the summary statistic:
+
+    parallagi   ΠΑΨ ΠΑΒΟΎ-ΚΑΡΒΉ ΒΗ ΚΕΖΏ-Ο- ... ΒΟΥΚΑΔ Κ-Ε-ΘΗ ΔΗ Κ-ΕΑ-ΔΙ
+    melos       ΑΤΈΛΙΣΑΣΤΌΣΤΑΦΑΏΣΟΥΣ ΤΟΝ ΘΆΡΝΑΚΤΟΝ   (Κατέλυσας τῷ Σταυρῷ...)
+
+The degree names are plainly present; they are surrounded by junk letters,
+which is exactly what a letter-fraction measure cannot see. The right unit is
+the TOKEN. Counting occurrences of πα/βου/γα/δι/κε/ζω/νη per second, over the
+chanter's 46 labelled gold spans (`degree_tokens.py`):
+
+    parallagi   n=23   median 0.72 deg/s   range 0.24 - 1.28
+    melos       n=23   median 0.12 deg/s   range 0.00 - 0.28
+
+The medians differ by 6x and the ranges barely touch. A threshold at 0.43
+deg/s misreads no melos span as parallagi and misses 2 of 23 parallagi: 96%.
+
+Two things follow. Lane detection no longer depends on a tape being cut in
+order, which matters for the three tapes that arrive already split into
+per-hymn files. And step 4 -- matching called-out degrees against notated ones
+-- has a working front end.
+
+It is not yet good enough for step 4 itself. The recovered sequences are
+Vou/Ke-heavy and do not obviously track a melody, so the token stream is
+usable as a RATE but not yet as a SEQUENCE. Getting from one to the other is
+the open problem, and it should be measured against the score's own degrees
+rather than against unitdeg, which was itself derived from parallagi
+alignment and would make the test circular.
