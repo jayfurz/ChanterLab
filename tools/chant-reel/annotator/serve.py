@@ -16,6 +16,7 @@ Default exports dir is ./exports next to this script.
 """
 import argparse
 import json
+import os
 import re
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -50,6 +51,71 @@ CUTTER_PREFIXES = ('/score', '/cut', '/tape/', '/page/', '/api/tapes',
 def _is_cutter(path):
     p = path.split('?')[0]
     return any(p == x.rstrip('/') or p.startswith(x) for x in CUTTER_PREFIXES)
+
+
+CORPUS_TOOLS = '/mnt/data/code/byzorgan-web-worktrees/chant-annotator/tools/corpus'
+CANON = '/mnt/data/chant-corpus/scores/legend_canon.json'
+DEG_GR = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω']
+
+
+def parallagi_for(piece_id):
+    """The degree each glyph of a piece should be sung on.
+
+    Computed against the piece's OWN notes array so the result is index-aligned
+    with what the annotator draws — no matching by coordinate, which is where
+    an overlay silently ends up showing nothing.
+
+    The anchor comes from the martyria printed before the hymn. load_units
+    attaches a martyria to the unit BEFORE it (right at a cadence, wrong at a
+    hymn's opening), so it sits just outside the slice and has to be fetched
+    deliberately. Chanter: "grave mode starts with the ga martyria so it should
+    start on ga as the beginning pitch".
+    """
+    import sys
+    if CORPUS_TOOLS not in sys.path:
+        sys.path.insert(0, CORPUS_TOOLS)
+    dd = HERE / 'data' / piece_id / 'annotator_data.json'
+    if not dd.exists():
+        return {'error': f'no data for {piece_id}'}
+    D = json.loads(dd.read_text())
+    notes = D.get('notes', [])
+    keys = (json.loads(open(CANON).read())['keys'] if os.path.exists(CANON)
+            else {})
+
+    anchor = None
+    m = re.match(r'^(.*)-t(\d+)$', piece_id)
+    if m:
+        wd, num = m.group(1), m.group(2)
+        hj = f'/mnt/data/chant-corpus/workdirs/{wd}/hymns.json'
+        if os.path.exists(hj):
+            row = next((h for h in json.loads(open(hj).read())
+                        if h['name'].rstrip('_') == f't{num}'), None)
+            if row:
+                try:
+                    from hymn_align import load_units
+                    from score_degrees import leading_anchor
+                    us, _ = load_units(row['p0'], 0, row['p0'], 10 ** 6)
+                    g0 = next((i for i, u in enumerate(us)
+                               if u['pl'][1] >= row['l0']), 0)
+                    anchor = leading_anchor(row['p0'], g0)
+                except Exception:
+                    anchor = None
+
+    deg, out = anchor, []
+    opening = anchor is not None
+    for n in notes:
+        if opening:
+            opening = False
+        elif deg is not None:
+            iv = keys.get(n.get('key'), keys.get(f"{n.get('cp')}|"))
+            deg = deg + iv if iv is not None else None
+        out.append(None if deg is None else deg % 7)
+    return {'piece': piece_id, 'anchor': anchor,
+            'anchor_name': DEG_GR[anchor % 7] if anchor is not None else None,
+            'degrees': out,
+            'names': [None if d is None else DEG_GR[d] for d in out],
+            'unknown': sum(1 for n in notes
+                           if n.get('key') not in keys)}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -91,6 +157,23 @@ class Handler(SimpleHTTPRequestHandler):
         c.close()
 
     def do_GET(self):
+        if self.path.split('?')[0] == '/api/parallagi':
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            pid = (q.get('piece') or [''])[0]
+            if not PIECE_RE.match(pid):
+                body = json.dumps({'error': 'bad piece'}).encode()
+                self.send_response(400)
+            else:
+                body = json.dumps(parallagi_for(pid),
+                                  ensure_ascii=False).encode()
+                self.send_response(200)
+            self.send_header('Content-Type',
+                             'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if _is_cutter(self.path):
             return self._proxy('GET')
         return super().do_GET()

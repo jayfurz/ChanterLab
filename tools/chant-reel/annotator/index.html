@@ -210,6 +210,25 @@ let MOR_MIN = -30, MOR_MAX = 95;
 /* absolute scale degree -> parallagi syllable; the chanter reads solfege, not
    degree integers. ' = octave up, , = octave down (Νη=0 … Ζω=6). */
 const DEG_NAMES = ['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
+/* The parallagi the score implies, one degree per glyph, drawn over the strip.
+   Index-aligned with D.notes: the server walks the piece's own notes array, so
+   nothing is matched by coordinate. Chanter asked for it "in small blue font
+   above the glyphs so that i can see if anything is off. then i can flag". */
+let PARA = null, PARA_FLAGS = new Set(), showPara = true;
+async function loadParallagi(pieceId) {
+  PARA = null;
+  try {
+    const r = await fetch('/api/parallagi?piece=' + encodeURIComponent(pieceId));
+    const j = await r.json();
+    if (j && j.names && j.names.length) PARA = j;
+  } catch (e) { /* an overlay must never break the annotator */ }
+  try {
+    const f = await fetch('/api/parallagi-flags?piece=' + encodeURIComponent(pieceId));
+    const fj = await f.json();
+    PARA_FLAGS = new Set(fj.flags || []);
+  } catch (e) { PARA_FLAGS = new Set(); }
+  draw();
+}
 function degName(d) {
   if (d == null || !isFinite(d)) return '?';
   const oct = Math.floor(d / 7), i = d - oct * 7;
@@ -646,6 +665,24 @@ function drawScore() {
     }
     else { ctx.strokeStyle = '#4da3ff'; ctx.lineWidth = 2;
            ctx.strokeRect(rx0-off-2, ry-2, rx1-rx0+4, rh+4); ctx.lineWidth = 1; }
+  }
+  // parallagi over each glyph: small and blue so it reads as annotation, gold
+  // where flagged as wrong
+  if (PARA && showPara && D.notes) {
+    ctx.save();
+    ctx.font = Math.max(10, Math.round(11 * ribScale / RIB_BASE)) + 'px system-ui';
+    ctx.textAlign = 'center';
+    for (let gi = 0; gi < D.notes.length; gi++) {
+      const nm = PARA.names[gi];
+      if (!nm) continue;
+      const n = D.notes[gi], [rx0, rx1] = glyphRX(gi);
+      if (rx1 < off - 20 || rx0 > off + vw + 20) continue;
+      const cy = D.meta.line_centers[n.line];
+      const ry = (n.y0 - bandTop(cy)) * ribScale;
+      ctx.fillStyle = PARA_FLAGS.has(gi) ? '#ff8a75' : '#6fa8dc';
+      ctx.fillText(nm, (rx0 + rx1) / 2 - off, Math.max(ry - 4, 9));
+    }
+    ctx.restore();
   }
   // analytical figures: parallel per-note timeline — each analytical neume
   // lights as its note sounds (current bright, completed dim)
