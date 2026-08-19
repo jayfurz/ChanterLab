@@ -50,6 +50,8 @@ OFFSETS = f'{SCORES}/page_offsets.json'
 # (the rest is lyric text, which is stored separately).
 PT2PX = 6.0
 THUMB_W = 1100
+PAD_BEFORE = 2
+PAD_AFTER = 12
 PPS = 20                # peak buckets per second -> 50 ms resolution
 PEAK_SR = 8000          # decode rate for the envelope; plenty for amplitude
 
@@ -238,8 +240,11 @@ def score_pages(wd):
     if not os.path.exists(hj):
         return None
     hy = json.load(open(hj))
-    p0 = min(h['p0'] for h in hy)
-    p1 = max(h['p1'] for h in hy)
+    # hymns.json's page bounds are the thing being corrected, so they must not
+    # also bound what can be SEEN. The doxology runs past the last page any
+    # hymns.json row mentions, which made its ending unreachable in the picker.
+    p0 = min(h['p0'] for h in hy) - PAD_BEFORE
+    p1 = max(h['p1'] for h in hy) + PAD_AFTER
     pages = []
     for pno in range(p0, p1 + 1):
         gf = f'{GLYPHS}/page{pno}.json'
