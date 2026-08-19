@@ -181,8 +181,24 @@ but produce a degree SEQUENCE whose ordering survives comparison. That argues
 for CTC over frame-wise classification, since CTC is trained on sequence
 agreement directly.
 
-Open question worth settling before Stage 2: whether the failure is in the
-recovered sequence or in DTW as the comparison. A cheap check is to run
-degree_match with the SCORE's own sequence substituted for the audio side --
-if identity does not then score 21/21, the matcher is broken independently of
-the recogniser, and no model will rescue it.
+**Identity check: the matcher is fine.** `degree_match --identity-check`
+substitutes each score's own sequence for its audio side:
+
+    identity            20/21, median rank 1
+    pitch-recovered      1/21, median rank 11 (chance is 11)
+
+So the 21 score sequences ARE mutually distinguishable, and DTW recovers that
+distinction when handed a correct sequence. The pitch-recovered sequence
+carries almost none of it.
+
+That localises the problem exactly: score side good, matcher good, RECOGNISER
+is the entire gap. It also gives Stage 2 a concrete target rather than a vague
+one -- the model does not need to beat DTW or improve the score representation,
+it needs to emit a sequence close enough to the notated one that the existing
+matcher fires. The 20/21 identity result is the ceiling that target is measured
+against.
+
+Note the tension with Stage 1 for whoever picks this up: the same pitch track
+that yields a 0.73 histogram cosine yields a sequence at chance. Getting the
+distribution right while getting the order wrong is what a frame-wise quantiser
+with no temporal model does. That is the argument for CTC.

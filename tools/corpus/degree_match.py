@@ -72,6 +72,10 @@ def main():
     ap.add_argument('--workdir', default='grave-orthros')
     ap.add_argument('--genus', default='diatonic', choices=list(GENERA))
     ap.add_argument('--limit-sec', type=float, default=60.0)
+    ap.add_argument('--identity-check', action='store_true',
+                    help='substitute each score sequence for its own audio. If '
+                         'this does not score 100%%, the MATCHER is broken '
+                         'independently of the recogniser and no model helps.')
     a = ap.parse_args()
 
     wd = a.workdir
@@ -122,6 +126,13 @@ def main():
               % (h, len(heard[h]), len(notated[h]), len(full), 100 * frac),
               flush=True)
 
+    if a.identity_check:
+        # Same comparison, but the "audio" side is the score's own sequence,
+        # run-length collapsed the way a sung rendition would be. Any failure
+        # here is the matcher, not the recogniser.
+        for h in list(heard):
+            n = notated.get(h) or []
+            heard[h] = [n[i] for i in range(len(n)) if i == 0 or n[i] != n[i - 1]]
     names = [h for h in heard if notated.get(h)]
     hit, ranks = 0, []
     print()
