@@ -25,6 +25,8 @@ button[disabled]{opacity:.38}
   border:1px solid var(--line);border-radius:8px;overflow:hidden;touch-action:none}
 #wf canvas{position:absolute;inset:0;width:100%;height:100%}
 #tl{font-variant-numeric:tabular-nums;font-size:13px;color:var(--dim)}
+#apx{font-size:12px;color:var(--gold);font-variant-numeric:tabular-nums}
+#clrI{flex:0 0 auto;padding:8px 10px;font-size:13px}
 .rates button{flex:1;min-width:40px;padding:7px 2px;font-size:14px}
 .lane-tag{font-size:11px;color:var(--dim);text-transform:uppercase;
   letter-spacing:.4px;border:1px solid var(--line);border-radius:5px;padding:1px 5px}
@@ -60,10 +62,14 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
     <button id="pp">Play</button>
     <button id="back">&#8630;3s</button>
     <button id="fwd">3s&#8631;</button>
-    <button id="setI" title="mark where the held νε ends">νε&#9679;</button>
     <span id="tl">0:00</span>
   </div>
   <div class="row rates" id="rates"></div>
+  <div class="row">
+    <button id="setI">notes start here</button>
+    <button id="clrI" hidden>clear</button>
+    <span id="apx" class="t"></span>
+  </div>
   <div id="msg"></div>
 </header>
 <audio id="a" preload="metadata" playsinline webkit-playsinline></audio>
@@ -128,12 +134,14 @@ A.addEventListener('pause', () => $('#pp').textContent = 'Play');
 $('#pp').onclick = () => { if (A.paused) playSpan(); else A.pause(); };
 // The apichima mark belongs to the audio span, so it is patched on the span
 // rather than saved with the score bounds.
-$('#setI').onclick = async () => {
+// Where the first NOTATED note begins. Everything before it in the span is the
+// apichima -- the held νε -- which has no neumes in the score, so an aligner
+// given that audio smears the opening notes across it.
+async function setApichima(val) {
   const r = rows[sel];
   if (!r || r.t0 == null) return msg('this row has no audio span');
-  const t = +A.currentTime.toFixed(3);
-  if (t < r.t0 || t > r.t1) return msg('playhead is outside this span');
-  const val = (r.t_in != null && Math.abs(r.t_in - t) < 0.05) ? null : t;
+  if (val != null && (val < r.t0 || val > r.t1))
+    return msg('playhead is outside this span');
   try {
     const res = await fetch('/api/span', { method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -141,11 +149,14 @@ $('#setI').onclick = async () => {
     const j = await res.json();
     if (!res.ok) return msg('✗ ' + (j.error || res.status));
     r.t_in = j.t_in;
-    msg(j.t_in == null ? 'apichima mark cleared'
-                       : 'apichima ends ' + fmt(j.t_in) + ' — hymn starts there');
+    msg(j.t_in == null ? 'cleared — the notes start at the span start'
+        : `notes start ${fmt(j.t_in - r.t0)} into the span` +
+          ` (${fmt(j.t_in - r.t0)} of apichima before them)`);
     drawWave(); render();
   } catch (e) { msg('✗ ' + e.message); }
-};
+}
+$('#setI').onclick = () => setApichima(+A.currentTime.toFixed(3));
+$('#clrI').onclick = () => setApichima(null);
 $('#back').onclick = () => A.currentTime = Math.max(0, A.currentTime - 3);
 $('#fwd').onclick = () => A.currentTime = A.currentTime + 3;
 
@@ -390,6 +401,12 @@ function render() {
       L2.scrollTop = top + el.offsetHeight - L2.clientHeight;
   }
   fillPick();
+  const rr = rows[sel];
+  const has = rr && rr.t_in != null && rr.t0 != null;
+  $('#apx').textContent = has
+    ? `apichima ${fmt(rr.t_in - rr.t0)} long — notes start there`
+    : (rr && rr.t0 != null ? 'no apichima marked' : '');
+  $('#clrI').hidden = !has;
   drawWave();
 }
 

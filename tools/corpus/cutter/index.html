@@ -95,7 +95,7 @@ kbd{background:#2a241f;border:1px solid var(--line);border-radius:4px;
   <div class="row" style="margin-top:6px">
     <button id="setS" style="border-color:var(--green)">Start &#9679;</button>
     <button id="setE" style="border-color:var(--red)">End &#9679;</button>
-    <button id="setI" title="apichima ends">νε&#9679;</button>
+    <button id="setI" title="mark where the notated notes begin">notes&#9679;</button>
     <button id="prev">&#8593;</button>
     <button id="next">&#8595;</button>
   </div>
@@ -461,7 +461,8 @@ $('#setI').onclick = () => {
   if (h.t0 != null && t < h.t0) return msg('that is before the span start');
   if (h.t1 != null && t > h.t1) return msg('that is after the span end');
   h.t_in = (h.t_in === t ? null : t);
-  msg(h.t_in == null ? 'apichima mark cleared' : 'apichima ends ' + fmt(t));
+  msg(h.t_in == null ? 'cleared — notes start at the span start'
+      : 'notes start here — ' + fmt(t - (h.t0 ?? t)) + ' of apichima before');
   render(); draw(); autosave();
 };
 $('#prev').onclick = () => { sel = Math.max(0, sel - 1); render(); draw(); };
