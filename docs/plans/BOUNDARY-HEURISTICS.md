@@ -119,3 +119,27 @@ Two things were tried for ends and rejected:
     The rule is a good description of where ends fall and a bad snap target,
     because more candidates dilute the snap. Descriptive accuracy and snapping
     utility are not the same property.
+
+## Drafting score ranges from filenames: attempted, not shipped
+
+The pre-split mode2-vespers files are named with their own incipits
+("ΚΥΡΙΕ ΕΚΕΚΡΑΞΑ", "ΤΟΝ ΠΡΟ ΑΙΩΝΩΝ ΕΚ ΠΑΤΡΟΣ ΓΕΝΝΗΘΕΝΤΑ") and the book has a
+lyric layer, so in principle that one tape's score ranges could be drafted with
+no ear at all -- find the incipit, snap to the drop cap that opens it, run to
+the next.
+
+Attempted and abandoned. Greedy first-best matching placed 7 of 19 and was not
+monotonic: "ΚΥΡΙΕ ΕΚΕΚΡΑΞΑ" matched at ratio 1.00 on p154, near the END of the
+mode 2 section, and anchoring on that blocked twelve later hymns. Replacing it
+with a monotonic DP over all candidates placed 0 of 19 -- the backtrace was
+wrong -- and the tool was deleted rather than shipped returning nothing.
+
+Two things worth keeping from it:
+
+  - The lyric layer DOES contain these incipits at high match ratios, so the
+    approach is not unfounded. What is missing is a way to tell a hymn's own
+    opening from the same words recurring later, which is the same problem that
+    defeated text identification on audio.
+  - It would have helped exactly one tape. pl1-vespers and pl1-orthros are
+    named by timestamp and carry no incipit, so there is nothing to match. The
+    ceiling on this idea was always low.
