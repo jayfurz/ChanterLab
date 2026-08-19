@@ -147,3 +147,32 @@ This does not close the approach; it identifies the missing piece. A seven-way
 degree classifier would fix it, and the gold tape now makes one trainable: 23
 parallagi spans whose score-derived degree sequences give weak labels for
 exactly the classes the general model is collapsing.
+
+## The pairing is NOT universal across the corpus
+
+It holds exactly on Grave Orthros (23/23). It does not hold on the three
+recordings that arrive already split per hymn:
+
+    mode2-vespers   34 files   15 parallagi   19 melos    5 melos with no parallagi
+    pl1-vespers     33 files    9 parallagi   24 melos   15 melos with no parallagi
+    pl1-orthros     52 files   21 parallagi   31 melos   10 melos with no parallagi
+
+On mode2-vespers the unpaired melos are named in the chanter's own filenames --
+the doxology and the four ΑΠΟΣΤΙΧΑ ΣΥΝΤΟΜΟΣ tracks -- so those are short-form
+settings recorded without a parallagi, not detection errors.
+
+On pl1-vespers the lanes come from the degree-rate detector, and the split is
+clean rather than marginal: the sorted rates run
+
+    0.00 ... 0.24 0.24 0.24 0.28 | 0.44 0.44 0.48 0.52 0.52 0.60 0.76 0.84 0.96
+
+with an empty band from 0.28 to 0.44 -- precisely where the gold tape divides
+(melos max 0.28, parallagi min 0.24). The detector is not failing; that tape
+genuinely carries parallagi for only 9 of its 33 hymns.
+
+Consequence for the pipeline: equal alternating counts are a checksum for a
+CONTINUOUS TAPE, where the chanter worked through the service in order. They
+are not a corpus-wide invariant, and using them as a hard constraint on the
+pre-split folders would force wrong lane assignments onto two thirds of
+pl1-vespers. Position supplies the lane on a tape; the degree rate supplies it
+in a folder; neither generalises to the other case.

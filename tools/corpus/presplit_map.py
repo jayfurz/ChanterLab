@@ -35,6 +35,29 @@ AUDIO_EXT = ('.mp3', '.m4a', '.wav', '.flac')
 THRESH = 0.43           # deg/s, the split measured on the gold tape
 
 
+TS_RX = re.compile(r'(\d{1,2})\.(\d{2})\s*([AP])M(?:\s+(\d+))?', re.I)
+
+
+def order_key(name):
+    """Recording order for the Plagal 1st folders.
+
+    Their names carry a clock time and an optional index: "... 4.58 AM 0.m4a",
+    "... 5.02 AM.m4a", "... 5.02 AM 1.m4a". Plain sorting breaks this twice --
+    a space sorts before a dot, so "5.02 AM 1" lands ahead of "5.02 AM", and
+    "5.09" would follow "5.10". File mtimes cannot rescue it either: every file
+    in the folder carries the same stamp. So parse the clock out of the name.
+    """
+    m = TS_RX.search(name)
+    if not m:
+        return (1, name)
+    h, mi, ap, idx = int(m.group(1)), int(m.group(2)), m.group(3).upper(), m.group(4)
+    if h == 12:
+        h = 0
+    if ap == 'P':
+        h += 12
+    return (0, h, mi, -1 if idx is None else int(idx), name)
+
+
 def dur_of(path):
     r = subprocess.run(['ffprobe', '-v', 'error', '-show_entries',
                         'format=duration', '-of',
@@ -68,8 +91,8 @@ def main():
     ap.add_argument('--limit-sec', type=float, default=25.0)
     a = ap.parse_args()
 
-    files = sorted(f for f in os.listdir(a.dir)
-                   if f.lower().endswith(AUDIO_EXT))
+    files = sorted((f for f in os.listdir(a.dir)
+                    if f.lower().endswith(AUDIO_EXT)), key=order_key)
     if not files:
         raise SystemExit(f'no audio in {a.dir}')
     named = [lane_from_name(f) for f in files]
