@@ -157,7 +157,12 @@ def degree_stream(units, legend, start=None):
         elif opening:
             pass                       # first note of the hymn: it IS the anchor
         elif deg is not None:
-            iv = keys.get(u.get('key'), keys.get(f"{u.get('base')}|"))
+            # u['iv'] is an explicit reading the chanter gave for a figure
+            # whose interval the KEY cannot express — the ypsili's left/right
+            # position is horizontal, the key only records ab/be. It wins.
+            iv = u.get('iv')
+            if iv is None:
+                iv = keys.get(u.get('key'), keys.get(f"{u.get('base')}|"))
             if iv is not None:
                 deg += iv
         opening = False

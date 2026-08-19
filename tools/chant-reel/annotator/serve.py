@@ -152,7 +152,11 @@ def parallagi_for(piece_id):
         if opening:
             opening = False
         elif deg is not None:
-            iv = keys.get(n.get('key'), keys.get(f"{n.get('cp')}|"))
+            # an explicit chanter reading on the note wins over the legend;
+            # see score_degrees.degree_stream for why the key cannot carry it
+            iv = n.get('iv')
+            if iv is None:
+                iv = keys.get(n.get('key'), keys.get(f"{n.get('cp')}|"))
             deg = deg + iv if iv is not None else None
         out.append(None if deg is None else deg % 7)
     return {'piece': piece_id, 'anchor': anchor,

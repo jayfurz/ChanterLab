@@ -301,6 +301,7 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
         ty = tops[pl]
         notes.append({
             'cp': u['base'], 'key': u['key'], 'line': li,
+            **({'iv': u['iv']} if u.get('iv') is not None else {}),
             'x0': round(u['x0'] * ZOOM, 1), 'x1': round(u['x1'] * ZOOM, 1),
             'y0': round((u['y0'] - ty) * ZOOM + li * LINE_BAND, 1),
             'y1': round((u['y1'] - ty) * ZOOM + li * LINE_BAND, 1),
@@ -337,6 +338,7 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
                 ([f'interval {interval:+d}'] if isinstance(interval, int) else
                  [f'interval {interval:+.1f}'])
                 + (['martyria: %s' % deg_label(u['mart_deg'])] if 'mart_deg' in u else [])
+                + (['tempo: %s' % u['tempo']] if u.get('tempo') else [])
                 + ([] if j in matched_units else ['UNMATCHED (interpolated time)'])
                 + (['ALIGNMENT STALE: times predate a re-segmentation'] if stale else []),
             'expected_degrees': [exp] if exp is not None else None,

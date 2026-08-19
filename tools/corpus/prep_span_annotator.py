@@ -211,6 +211,7 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
         ty = tops[pl]
         notes.append({
             'cp': u['base'], 'key': u['key'], 'line': li,
+            **({'iv': u['iv']} if u.get('iv') is not None else {}),
             'x0': round(u['x0'] * ZOOM, 1), 'x1': round(u['x1'] * ZOOM, 1),
             'y0': round((u['y0'] - ty) * ZOOM + li * LINE_BAND, 1),
             'y1': round((u['y1'] - ty) * ZOOM + li * LINE_BAND, 1),
@@ -244,6 +245,7 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
                   else f'interval {interval:+.1f}'])
                 + (['martyria: %s' % deg_label(u['mart_deg'])]
                    if u.get('mart_deg') is not None else [])
+                + (['tempo: %s' % u['tempo']] if u.get('tempo') else [])
                 + ['SEEDED TIME (' + seed_method + ')'],
             'expected_degrees': [expected[j]] if expected[j] is not None else None,
             'ison_at_start': None,
