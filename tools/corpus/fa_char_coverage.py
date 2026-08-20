@@ -9,17 +9,20 @@ artefact of post-processing, not a property of CTC.
 
 Measured on t03 (2026-08-20), 33 words / 179 aligned characters:
 
-    distinct character-level onsets in the CTC path      211
-    gold pins with SOME character onset within 0.05 s   47/76  (62%)
-    gold pins with SOME character onset within 0.10 s   64/76  (84%)
+    distinct character-level onsets in the CTC path      179
+    gold pins with SOME character onset within 0.05 s   46/76  (61%)
+    gold pins with SOME character onset within 0.10 s   62/76  (82%)
     gold pins with SOME word onset within 0.05 s         3/76  ( 4%)
+
+(An earlier run reported 211/47/62% because it counted the 32 "|" word
+separators as character onsets. They are not sung characters.)
 
 Two things follow, and the second matters more.
 
   * The stored word-level output is nearly useless as a note-onset source: 4%.
-  * The character path already holds evidence for 62% of notes at 50 ms.
+  * The character path already holds evidence for 61% of notes at 50 ms.
 
-But 211 candidates for 76 notes is ~2.8 per note, so this is an ORACLE number:
+But 179 candidates for 76 notes is ~2.4 per note, so this is an ORACLE number:
 it says the information is present, not that it can be picked out. What FA
 leaves is a SELECTION problem, not an availability problem. Read it as an upper
 bound on what any FA-derived anchor set could give, never as an achieved score.
@@ -56,7 +59,11 @@ for fi,tok in enumerate(path):
     if tok==prev or tok==vocab.get('<pad>',0):
         prev=tok; continue
     ti+=1; first.setdefault(ti,fi); prev=tok
-onsets=sorted({round(first[i]*ratio,3) for i in first})
+# charpos[i] is None for the '|' word separators appended between words. A
+# separator is not a sung character and its CTC onset is not note evidence;
+# counting them inflated an earlier run from 179 onsets to 211.
+onsets=sorted({round(first[i]*ratio,3) for i in first
+               if i < len(charpos) and charpos[i] is not None})
 print('t03 canonical text: %d words, %d aligned characters'%(len(words), sum(len(w) for w in words)))
 print('DISTINCT character-level CTC onsets: %d'%len(onsets))
 pins=[p[1] for p in json.load(open('datasets/grave-orthros-t03-gold/pins.json'))]
