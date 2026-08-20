@@ -99,9 +99,12 @@
     open. The other six have nothing.
   </p>
   <p class="note">
-    Three examples of each cluster. <span style="color:#d62728">Red box</span> is the
-    pthora; <span style="color:#1f77b4">blue box</span> is the note I think it governs
-    &mdash; tell me if that is the wrong note.
+    Three examples of each. <span style="color:#d62728">Red</span> is the pthora.
+    <span style="color:#1f77b4">Blue</span> is a note it sits on;
+    <span style="color:#ff7f0e">orange</span> is a martyria it sits on. It never reaches
+    forward to the following note &mdash; the earlier version of this sheet drew it that
+    way and you were right that it was wrong. In the book it is on a note 642 times and on
+    a martyria 48 times.
   </p>
 </div>
 </details>
@@ -191,7 +194,7 @@ fetch('pthdeg.json').then(r=>r.json()).then(j=>{
     const kn=it.known!=null?` &middot; you already ruled it names ${DEG[it.known%7]}`:'';
     return `<div class="card" data-id="${id}">
       <img src="${it.img}" loading="lazy" alt="">
-      <div class="meta"><span><b>cluster ${it.cluster}</b>${kn}</span><span>p${it.page} l${it.line}</span></div>
+      <div class="meta"><span><b>cluster ${it.cluster}</b>${kn}</span><span>p${it.page} l${it.line} &middot; on a ${it.sits_on}</span></div>
       <div class="choices">${degs}</div>
       <div class="choices" style="margin-top:6px">${scls}</div>
       <div class="meta"><span style="color:var(--dim);font-size:11px">degree, then scale</span>

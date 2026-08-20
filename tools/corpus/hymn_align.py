@@ -109,6 +109,20 @@ MARTYRIA_ANY = set(MARTYRIA_DEG) | {15, 24, 27, 35, 38, 50, 56}
 # exactly the shape the atlas describes and which an earlier pass reported as
 # occurring ZERO times. It missed them for the same reason the review sheet
 # first failed to box them: it only considered clusters already in the table.
+#
+# WHERE it applies, chanter 2026-08-19: "the pthora effects the note that its on
+# … if its on the martyria it changes it in place, if its on a note it effects
+# after you move." So it never reaches forward to the following note — an
+# earlier version of the review sheet drew it that way and he called it out.
+#
+#   on a NOTE      (642 of 690)  the note's own interval is applied first, and
+#                                the note you land on takes the new degree
+#   on a MARTYRIA   (48)         the martyria's stated degree is replaced where
+#                                it stands; the next note still moves from it
+#
+# For the degree stream the note case reduces to "this unit takes the pthora's
+# degree", since after moving you are on that note either way. The martyria case
+# is the one that differs: it rewrites the ANCHOR rather than a sounded note.
 PTHORA = {37: (None, 1),        # names Pa   (anchors.html)
           65: (None, 3)}        # names Ga   (anchors.html)
 PTHORA_UNRULED = {2, 39, 40, 45, 63, 70}

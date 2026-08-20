@@ -157,9 +157,12 @@ def degree_stream(units, legend, start=None):
         # a best-rotation of -1 against the sung parallagi (cosine 0.889
         # rotated against 0.742 unrotated on gold t03's pair).
         if u.get('fthora'):
-            # a fthora respells the scale from here: the note TAKES the named
-            # degree and the genus changes under it. Chanter via the atlas:
-            # "the note takes on the new degree quality in the new scale."
+            # A fthora respells the scale from here. On a NOTE the interval is
+            # applied first and the note you land on takes the new degree —
+            # chanter: "if its on a note it effects after you move" — which for
+            # the degree stream is just this note taking it, since after moving
+            # you are on this note. A fthora on a MARTYRIA is a different thing
+            # and is handled with the anchor, not here.
             deg = u['fthora'][1]
         elif u.get('mart_deg') is not None:
             deg = u['mart_deg']

@@ -5,168 +5,216 @@
    "page": 3,
    "line": 8,
    "img": "pthdeg/c2-0.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "5|"
   },
   {
    "cluster": 2,
    "page": 5,
    "line": 0,
    "img": "pthdeg/c2-1.png",
-   "known": null
+   "known": null,
+   "sits_on": "martyria",
+   "host": "c38"
   },
   {
    "cluster": 2,
    "page": 7,
    "line": 13,
    "img": "pthdeg/c2-2.png",
-   "known": null
+   "known": null,
+   "sits_on": "martyria",
+   "host": "c44"
   },
   {
    "cluster": 39,
    "page": 3,
    "line": 10,
    "img": "pthdeg/c39-0.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "5|7be"
   },
   {
    "cluster": 39,
    "page": 7,
    "line": 6,
    "img": "pthdeg/c39-1.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "4|"
   },
   {
    "cluster": 39,
    "page": 7,
    "line": 13,
    "img": "pthdeg/c39-2.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "4|"
   },
   {
    "cluster": 40,
    "page": 3,
    "line": 10,
    "img": "pthdeg/c40-0.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "3|"
   },
   {
    "cluster": 40,
    "page": 8,
    "line": 0,
    "img": "pthdeg/c40-1.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "4|"
   },
   {
    "cluster": 40,
    "page": 8,
    "line": 7,
    "img": "pthdeg/c40-2.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "4|"
   },
   {
    "cluster": 45,
    "page": 7,
    "line": 6,
    "img": "pthdeg/c45-0.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "3|16ab"
   },
   {
    "cluster": 45,
    "page": 24,
    "line": 5,
    "img": "pthdeg/c45-1.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "6|8ab"
   },
   {
    "cluster": 45,
    "page": 51,
    "line": 6,
    "img": "pthdeg/c45-2.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "6|8ab"
   },
   {
    "cluster": 63,
    "page": 49,
    "line": 4,
    "img": "pthdeg/c63-0.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "20|"
   },
   {
    "cluster": 63,
    "page": 255,
    "line": 5,
    "img": "pthdeg/c63-1.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "4|8ab"
   },
   {
    "cluster": 63,
    "page": 256,
    "line": 5,
    "img": "pthdeg/c63-2.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "4|8ab"
   },
   {
    "cluster": 70,
    "page": 152,
    "line": 8,
    "img": "pthdeg/c70-0.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "4|8ab"
   },
   {
    "cluster": 70,
    "page": 518,
    "line": 10,
    "img": "pthdeg/c70-1.png",
-   "known": null
+   "known": null,
+   "sits_on": "martyria",
+   "host": "c77"
   },
   {
    "cluster": 70,
    "page": 545,
    "line": 4,
    "img": "pthdeg/c70-2.png",
-   "known": null
+   "known": null,
+   "sits_on": "note",
+   "host": "6|7be"
   },
   {
    "cluster": 37,
    "page": 3,
    "line": 7,
    "img": "pthdeg/c37-0.png",
-   "known": 1
+   "known": 1,
+   "sits_on": "note",
+   "host": "5|"
   },
   {
    "cluster": 37,
    "page": 4,
    "line": 14,
    "img": "pthdeg/c37-1.png",
-   "known": 1
+   "known": 1,
+   "sits_on": "note",
+   "host": "5|"
   },
   {
    "cluster": 37,
    "page": 53,
    "line": 9,
    "img": "pthdeg/c37-2.png",
-   "known": 1
+   "known": 1,
+   "sits_on": "note",
+   "host": "20|41be"
   },
   {
    "cluster": 65,
    "page": 74,
    "line": 4,
    "img": "pthdeg/c65-0.png",
-   "known": 3
+   "known": 3,
+   "sits_on": "note",
+   "host": "6|16ab"
   },
   {
    "cluster": 65,
    "page": 150,
    "line": 1,
    "img": "pthdeg/c65-1.png",
-   "known": 3
+   "known": 3,
+   "sits_on": "note",
+   "host": "4|"
   },
   {
    "cluster": 65,
    "page": 225,
    "line": 3,
    "img": "pthdeg/c65-2.png",
-   "known": 3
+   "known": 3,
+   "sits_on": "note",
+   "host": "7|16ab+6ab+8ab"
   }
  ]
 }
