@@ -90,6 +90,29 @@ MARTYRIA_ANY = set(MARTYRIA_DEG) | {15, 24, 27, 35, 38, 50, 56}
 # 603 stacks in the book hold more than one letter like that. Until he rules
 # which part is the pthora, nothing sets `fthora` and the degree walk is
 # unaffected; the machinery below is what his answer plugs into.
+# The eight clusters the chanter ruled as PTHORAS, 2026-08-19, from
+# pthora.html — each glyph boxed individually because "sometimes there is a
+# pthora on top of martyria so i need to know specifically what it is".
+#
+#   2, 37, 39, 40, 45, 63, 65, 70   are pthoras          (708 glyphs)
+#   55, 80, 81                      are not              (he ruled "none")
+#
+# 37 and 65 are in MARTYRIA_DEG as well. That is not a contradiction: he ruled
+# on anchors.html what those signs NAME (Pa and Ga), and a pthora names a degree
+# — so right-aligned at a hymn opening one still announces the starting pitch,
+# which is how leading_anchor uses them. Their degree is therefore known; their
+# GENUS is not, because that sheet asked only for the degree.
+#
+# The other six have no degree yet, so they are detected and flagged but change
+# nothing. Note where they sit: 39 (220), 40 (181) and 45 (118) almost never
+# share a column with a martyria — they stand over a note on their own, which is
+# exactly the shape the atlas describes and which an earlier pass reported as
+# occurring ZERO times. It missed them for the same reason the review sheet
+# first failed to box them: it only considered clusters already in the table.
+PTHORA = {37: (None, 1),        # names Pa   (anchors.html)
+          65: (None, 3)}        # names Ga   (anchors.html)
+PTHORA_UNRULED = {2, 39, 40, 45, 63, 70}
+NOT_PTHORA = {55, 80, 81}
 SCALE_SIGN = {15: ('diatonic', 1),          # Pa
               24: ('diatonic', 3),          # nana, normally Ga
               35: ('diatonic', 4),          # aghia, Di

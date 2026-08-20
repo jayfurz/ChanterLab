@@ -1,0 +1,217 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pthora — what does each respell to?</title>
+<style>
+  :root {
+    --bg:#14171c; --panel:#1c2027; --edge:#2c323c; --fg:#d8dee6; --dim:#8a93a0;
+    --accent:#4da3ff; --ok:#6fce8f; --warn:#e0a030; --bad:#ff5252;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--fg); font:14px/1.5 system-ui,sans-serif;
+         padding:0 0 80px; -webkit-tap-highlight-color:transparent; }
+  header { position:sticky; top:0; z-index:5; background:var(--panel);
+           border-bottom:1px solid var(--edge); padding:12px 16px; }
+  h1 { font-size:17px; font-weight:600; }
+  h2 { font-size:14px; font-weight:600; margin:26px 16px 10px; color:var(--accent); }
+  p.note { color:var(--dim); margin:6px 16px; max-width:70ch; }
+  header p.note { margin:6px 0 0; }
+  button { background:#262c36; color:var(--fg); border:1px solid var(--edge);
+           border-radius:6px; padding:5px 11px; font:inherit; cursor:pointer; }
+  button:hover { background:#303845; }
+  button.primary { background:#1e4976; border-color:#2a6fb0; }
+  .cal { display:flex; flex-wrap:wrap; gap:14px; padding:0 16px; }
+  .cal figure { background:var(--panel); border:1px solid var(--edge);
+                border-radius:8px; padding:8px; }
+  .cal figcaption { color:var(--dim); font-size:12px; margin-top:4px; }
+  .grid { display:grid; gap:14px; padding:0 16px;
+          grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
+  .card { background:var(--panel); border:1px solid var(--edge); border-radius:8px;
+          padding:8px; }
+  .card img, .cal img { width:100%; height:auto; display:block; background:#fff;
+                        border-radius:4px; }
+  .meta { display:flex; justify-content:space-between; align-items:baseline;
+          color:var(--dim); font-size:12px; margin:6px 2px 8px; }
+  .choices { display:flex; gap:6px; flex-wrap:wrap; }
+  .choices button { flex:1 1 auto; font-size:12px; padding:5px 6px; }
+  .card[data-v="under"]  { border-color:var(--ok);   box-shadow:0 0 0 1px var(--ok); }
+  .card[data-v="over"]   { border-color:var(--warn); box-shadow:0 0 0 1px var(--warn); }
+  .card[data-v="other"]  { border-color:var(--bad);  box-shadow:0 0 0 1px var(--bad); }
+  .card[data-v="under"] .b-under, .card[data-v="over"] .b-over,
+  .card[data-v="other"] .b-other { background:#1e4976; border-color:#2a6fb0; }
+  footer { position:fixed; bottom:0; left:0; right:0; background:var(--panel);
+           border-top:1px solid var(--edge); padding:10px 16px; display:flex;
+           gap:12px; align-items:center; }
+  #tally { color:var(--dim); }
+  textarea { width:100%; height:160px; background:#0f1216; color:var(--fg);
+             border:1px solid var(--edge); border-radius:6px; padding:8px;
+             font:12px/1.4 ui-monospace,monospace; margin:8px 16px; display:none; }
+
+  /* Collapsible header: the explanation is long and on a phone it filled the
+     screen before any glyph was visible. Collapsed by default on narrow
+     screens, open on wide ones, and the choice is remembered. */
+  header details > summary { list-style: none; cursor: pointer; display: flex;
+    align-items: center; gap: 10px; }
+  header details > summary::-webkit-details-marker { display: none; }
+  header details > summary::after { content: 'why  ▾'; margin-left: auto;
+    font-size: 12px; color: var(--dim); border: 1px solid var(--edge);
+    border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+  header details[open] > summary::after { content: 'hide  ▴'; }
+  header details > summary h1 { margin: 0; }
+  header .notes { margin-top: 8px; }
+  @media (max-width: 900px) {
+    header { padding: 8px 12px; }
+    header details > summary h1 { font-size: 15px; line-height: 1.25; }
+  }
+
+
+  /* Answered state. Green outer edge on the card so a filled-in one is obvious
+     while scrolling, and the chosen button filled so it is obvious WHICH. */
+  .choices button.sel { background: var(--ok) !important; border-color: var(--ok) !important;
+    color: #08210f !important; font-weight: 700; }
+  .card.chosen { border-color: var(--ok) !important;
+    box-shadow: 0 0 0 3px var(--ok) !important; }
+  .card.chosen .choices button:not(.sel) { opacity: .4; }
+  .rulingbar { display: none; margin-top: 8px; padding: 6px 10px; border-radius: 6px;
+    background: rgba(111,206,143,.18); color: var(--fg); font-size: 13px;
+    font-weight: 600; align-items: center; gap: 8px; }
+  .card.chosen .rulingbar { display: flex; }
+  .rulingbar::before { content: '✓'; color: var(--ok); font-size: 15px; }
+</style>
+
+<style>
+  .parts { display:flex; flex-wrap:wrap; gap:8px; margin:6px 2px; font-size:12px; }
+  .parts span { display:inline-flex; align-items:center; gap:5px; }
+  .sw { width:12px; height:12px; border-radius:2px; display:inline-block; }
+  .choices button { font-size:12px; }
+</style>
+<header>
+<details id="hdr">
+<summary><h1>What does each pthora respell to?</h1></summary>
+<div class="notes">
+  <p class="note">
+    You ruled eight clusters as pthoras &mdash; <strong>2, 37, 39, 40, 45, 63, 65, 70</strong>
+    &mdash; and three as not (55, 80, 81). That is 708 glyphs in the book.
+  </p>
+  <p class="note">
+    What I still need is what each one <em>means</em>: the degree it respells to, and the
+    scale. Two are already implied &mdash; you ruled c37 names Pa and c65 names Ga on the
+    anchors sheet &mdash; but that sheet only asked for the degree, so their scale is still
+    open. The other six have nothing.
+  </p>
+  <p class="note">
+    Three examples of each cluster. <span style="color:#d62728">Red box</span> is the
+    pthora; <span style="color:#1f77b4">blue box</span> is the note I think it governs
+    &mdash; tell me if that is the wrong note.
+  </p>
+</div>
+</details>
+</header>
+<div class="grid" id="g"></div>
+<textarea id="out" readonly></textarea>
+<footer><button class="primary" id="copy">Copy my rulings</button><button id="reset">Clear</button><span id="tally"></span></footer>
+<script>
+'use strict';
+/* The ruling cell, found without :last-child. The sheets used
+   ".meta:last-child span:last-child", which broke the moment anything was
+   appended to the card — the selector returned null and the click handler threw
+   before it could save, so a click silently did nothing at all. */
+function rulingCell(card) {
+  var cells = card.querySelectorAll('.meta');
+  if (!cells.length) return null;
+  return cells[cells.length - 1].lastElementChild;
+}
+function syncCard(card) {
+  if (!card || !card.classList || !card.classList.contains('card')) return;
+  var v = card.dataset.v;
+  if (v === 'set' || v === undefined || v === null) {
+    var cells = card.querySelectorAll('.meta');
+    var last = cells.length ? cells[cells.length - 1].lastElementChild : null;
+    var txt = last ? last.textContent.trim() : '';
+    v = txt || (v === 'set' ? '' : v);
+  }
+  var on = !!(card.getAttribute('data-v') && v);
+  card.classList.toggle('chosen', on);
+  card.querySelectorAll('.choices button').forEach(function (b) {
+    b.classList.toggle('sel', on && b.dataset.set === v);
+  });
+  var bar = card.querySelector('.rulingbar');
+  if (!bar) { bar = document.createElement('div'); bar.className = 'rulingbar'; card.appendChild(bar); }
+  // Only WRITE when the value actually changes. The observer watches childList,
+  // and assigning textContent replaces child nodes — so an unconditional write
+  // re-triggers the observer, which writes again, forever. That is not a slow
+  // loop, it is a frozen tab.
+  var want = on ? v : '';
+  if (bar.textContent !== want) bar.textContent = want;
+}
+function syncAll() { document.querySelectorAll('.card').forEach(syncCard); }
+(function () {
+  var obs = new MutationObserver(function (muts) {
+    var seen = new Set();
+    muts.forEach(function (m) {
+      var n = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+      var card = n && n.closest ? n.closest('.card') : null;
+      if (card && !seen.has(card)) { seen.add(card); syncCard(card); }
+      if (!card && n) n.querySelectorAll && n.querySelectorAll('.card').forEach(function (c) {
+        if (!seen.has(c)) { seen.add(c); syncCard(c); } });
+    });
+  });
+  obs.observe(document.documentElement, { subtree: true, childList: true,
+    characterData: true, attributes: true, attributeFilter: ['data-v'] });
+  syncAll();
+  setTimeout(syncAll, 200);
+})();
+
+
+
+/* header starts collapsed on a phone, open on a wide screen; the chanter's own
+   choice wins once he makes one */
+(function () {
+  var d = document.getElementById('hdr');
+  if (!d) return;
+  var K = 'sheet-hdr-open';
+  var saved = null;
+  try { saved = localStorage.getItem(K); } catch (e) { saved = null; }
+  d.open = saved !== null ? saved === '1'
+                          : !window.matchMedia('(max-width: 900px)').matches;
+  d.addEventListener('toggle', function () {
+    try { localStorage.setItem(K, d.open ? '1' : '0'); } catch (e) { /* private mode */ }
+  });
+})();
+
+const KEY='pthdeg:v1'; let V={};
+try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
+const $=id=>document.getElementById(id);
+const DEG=['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
+const SCALE=['diatonic','hard chromatic','soft chromatic','enharmonic','grave diatonic'];
+fetch('pthdeg.json').then(r=>r.json()).then(j=>{
+  $('g').innerHTML=j.items.map(it=>{
+    const id='c'+it.cluster+':'+it.page+':'+it.line;
+    const degs=DEG.map(d=>`<button data-set="${d}">${d}</button>`).join('');
+    const scls=SCALE.map(s=>`<button data-set="${s}">${s}</button>`).join('');
+    const kn=it.known!=null?` &middot; you already ruled it names ${DEG[it.known%7]}`:'';
+    return `<div class="card" data-id="${id}">
+      <img src="${it.img}" loading="lazy" alt="">
+      <div class="meta"><span><b>cluster ${it.cluster}</b>${kn}</span><span>p${it.page} l${it.line}</span></div>
+      <div class="choices">${degs}</div>
+      <div class="choices" style="margin-top:6px">${scls}</div>
+      <div class="meta"><span style="color:var(--dim);font-size:11px">degree, then scale</span>
+        <span>${V[id]||''}</span></div></div>`;}).join('');
+  const tally=()=>{$('tally').textContent=Object.keys(V).length+' of '+j.items.length+' ruled';};
+  $('g').onclick=e=>{const b=e.target.closest('button[data-set]'); if(!b)return;
+    const c=b.closest('.card'), id=c.dataset.id, v=b.dataset.set;
+    const cur=(V[id]||'').split(' + ').filter(Boolean);
+    const isScale=SCALE.indexOf(v)>=0;
+    let deg=cur.find(x=>DEG.indexOf(x)>=0)||'', sc=cur.find(x=>SCALE.indexOf(x)>=0)||'';
+    if(isScale) sc = (sc===v?'':v); else deg = (deg===v?'':v);
+    const val=[deg,sc].filter(Boolean).join(' + ');
+    if(val) {V[id]=val; c.dataset.v='set';} else {delete V[id]; c.removeAttribute('data-v');}
+    var _rc = rulingCell(c); if (_rc) _rc.textContent=V[id]||'';
+    localStorage.setItem(KEY,JSON.stringify(V)); tally();};
+  $('copy').onclick=()=>{const t=JSON.stringify(j.items.filter(i=>V['c'+i.cluster+':'+i.page+':'+i.line])
+    .map(i=>({cluster:i.cluster,page:i.page,line:i.line,
+              ruling:V['c'+i.cluster+':'+i.page+':'+i.line]})),null,1);
+    $('out').value=t;$('out').style.display='block';navigator.clipboard&&navigator.clipboard.writeText(t);$('out').select();};
+  $('reset').onclick=()=>{if(!confirm('Clear?'))return;V={};localStorage.removeItem(KEY);
+    document.querySelectorAll('.card').forEach(c=>c.removeAttribute('data-v'));tally();};
+  tally();});
+</script>
