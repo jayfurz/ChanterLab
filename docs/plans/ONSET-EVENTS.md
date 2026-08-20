@@ -113,6 +113,9 @@ because there is a long apichima in the beginning. that should probably be cut
 when put into the forced alignment."* Every span already records `t_in`, the
 apichima end.
 
+**Implementation plan: [FA-ONSETS.md](FA-ONSETS.md)** — self-contained, and
+tested against the chanter's own s01 export (30 pins, 99 corrected slots).
+
 #### Step 1 is done, and the answer is no — measured 2026-08-19
 
 The apichima trim was the chanter's hypothesis for why FA confidence is low. It

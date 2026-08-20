@@ -1,5 +1,9 @@
 # ChanterLab Implementation Plans
 
+- **[FA-ONSETS.md](FA-ONSETS.md)** — *next up, self-contained.* Forced-alignment
+  onsets so the annotator's markers land on the notes. Written to be handed to a
+  session with no context. Ground truth: 76 + 259 + the new 30 pins on s01.
+
 Status: active planning index.
 
 The canonical product roadmap is [`docs/APP-ROADMAP-2026.md`](../APP-ROADMAP-2026.md).
