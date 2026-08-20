@@ -15,6 +15,19 @@ early onsets however slight."*
 > pairs inherit a 57 % spurious rate as training labels. That changes what this
 > model should be trained on and when it should be sized.
 
+> **This document is the DESIGN. The implementation lives in
+> [`NEURAL-CHANT.md`](NEURAL-CHANT.md) (2026-08-20)** — vocabulary, feature
+> cache, tensor shapes, module layout, staging and gates. Two measurements made
+> there change how this plan should be read:
+>
+> * **Forced alignment already solves 80 % of the notes at 0.028 s.** The
+>   baseline to beat is FA, not the DTW's 0.485 s. The network's actual
+>   deliverable is the **20 % of notes inside melismas**, where CTC gives one
+>   timestamp for a whole vowel and only the neume sequence knows what comes next.
+> * **The decoder can be pretrained on 116,043 score-only units with no audio
+>   and no labels**, so the 335 verified onsets only have to train the
+>   cross-attention and the Δt head. That is what makes §4.1's size affordable.
+
 ## 1. Why arithmetic cannot finish this job
 
 The duration model landed today is now correct against the book: apli/dipli/
