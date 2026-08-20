@@ -152,7 +152,9 @@ def parallagi_for(piece_id):
     # ruling — taking the anchor discarded the opening neume's own interval.
     deg, out = anchor, []
     for n in notes:
-        if deg is not None:
+        if n.get('fthora'):
+            deg = n['fthora'][1]          # respelled; see score_degrees
+        elif deg is not None:
             # an explicit chanter reading on the note wins over the legend;
             # see score_degrees.degree_stream for why the key cannot carry it
             iv = n.get('iv')

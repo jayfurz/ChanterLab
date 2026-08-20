@@ -68,6 +68,34 @@ MARTYRIA_DEG = {34: 4, 14: 1, 26: 6, 23: 3, 52: 5, 67: 2,
 # the first evidence for either, and it confirms the 26=Ζω anchor the aligner had
 # been carrying on trust.
 MARTYRIA_ANY = set(MARTYRIA_DEG) | {15, 24, 27, 35, 38, 50, 56}
+# ---- fthora / pthora ------------------------------------------------------
+# A fthora RESPELLS the scale from the note it governs. Atlas, cluster 15, and
+# the chanter states it as the general law: "Over a melodic glyph it is a
+# FTHORA: that note becomes diatonic Pa regardless of where it lands — ALL
+# fthores work this way (note takes on the new degree quality in the new
+# scale)."
+#
+# So mechanically it is a martyria that also changes the genus: the note TAKES
+# the named degree, and everything after is counted in the new scale. That is
+# what SCALE_SIGN records — cluster -> (genus, degree) — read off the atlas
+# names, with the genus vocabulary matching src/tuning/genus.rs.
+#
+# What is NOT yet known is which printed combination signals one. Every scale
+# sign in this book is either stacked with a martyria letter (5995 of them) or
+# alone on a heading line (344, mode titles, no neumes at all); NONE sits over a
+# note on its own, so the atlas's "over a melodic glyph" shape does not occur
+# here in isolation. The chanter's worked example on p375 l9 is a stack of THREE
+# reds between two oligons — Πα above, then Κε with the ananes sign under it —
+# which he reads as a martyria carrying a pthora to "ke in the diatonic scale".
+# 603 stacks in the book hold more than one letter like that. Until he rules
+# which part is the pthora, nothing sets `fthora` and the degree walk is
+# unaffected; the machinery below is what his answer plugs into.
+SCALE_SIGN = {15: ('diatonic', 1),          # Pa
+              24: ('diatonic', 3),          # nana, normally Ga
+              35: ('diatonic', 4),          # aghia, Di
+              38: ('hard_chromatic', 1),    # hard-chromatic equivalent of 15
+              50: ('diatonic', 5),          # ananes, Ke
+              56: ('diatonic', 0)}          # aghia, Ni
 # ---- cluster 7 is TWO neumes, told apart by height ------------------------
 # The extraction merged psifiston and omalon into one cluster. The chanter found
 # it by eye while ruling the kentimata figures, 2026-08-19: "about half have
