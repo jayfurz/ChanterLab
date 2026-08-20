@@ -230,6 +230,52 @@ score ──► neume/syllable stream ──► decoder with CROSS-ATTENTION ─
 genre/meta text ────┘              (Δt distribution, not a point)
 ```
 
+### 4.1 The base model — THREE slots, not one
+
+The plan said "frozen SSL encoder" and "a pretrained 4-7 B multimodal model" and
+never named either, which hid that these are **three different models with three
+different jobs**. Conflating them is how a project ends up trying to regress a
+20 ms onset out of a 7 B chat model.
+
+| slot | job | choice | why |
+|---|---|---|---|
+| **frame encoder** | audio → 20 ms features | **`jonatasgrosman/wav2vec2-large-xlsr-53-greek`**, frozen | the only encoder MEASURED on this material, and it already hits the target |
+| **alignment decoder** | neume/syllable stream ↔ audio, emits Δt | trained here, ~30-80 M, cross-attention | 335 verified onsets support this size and nothing larger |
+| **verifier / generator** | accept-or-reject a proposed onset run; later, emit neumes (§6) | a large multimodal model, unchosen | needs no onset labels, so it scales when labels do not — and it is not needed until ONSET-02 |
+
+**Why wav2vec2-XLSR-Greek is the encoder, on evidence rather than taste:**
+
+- **It already delivers the target.** CTC forced alignment on this encoder gives
+  **0.028 s** median onset error against the chanter's 76 pins, where the DTW
+  path gives 0.485 s. The model this plan proposes must beat 0.028 s to be worth
+  building; anything that starts from a weaker encoder starts behind.
+- **20 ms frames**, from a conv stride product of 320 at 16 kHz — exactly the
+  resolution §4 assumes, with no resampling of features.
+- **It brings a Greek character vocabulary (41 tokens).** That is not incidental:
+  it is what let forced alignment run on a *parallagi* using the score's own
+  degree names as text, which is how the apichima question got answered at all.
+  An encoder without a text head cannot do that.
+- **The obvious alternative is measured to fail here.** Whisper misses 55 % of
+  the sung audio and emits 463 s of segments over silence on the grave orthros
+  tape — it was never trained on ecclesiastical Greek or melismatic chant.
+  `faster-whisper-large-v3` is on disk; it is not a candidate for this.
+
+**What would change the choice, and how to test it.** A music-pretrained SSL
+encoder (MERT and its kin) has better pitch and timbre representations and a
+finer frame rate, which is plausibly worth more than speech pretraining on
+*sung* audio. That is a hypothesis, not a reason to switch. Test it the same way
+everything else here was tested: same 335 verified onsets, same protocol, report
+both. If a music encoder wins, use it as a second stream rather than a
+replacement — the Greek text head has to stay, because forced alignment depends
+on it.
+
+**What is NOT decided, deliberately.** The verifier's base model. It is the last
+thing needed, its requirements depend on what ONSET-01 actually gets wrong, and
+choosing it now would be choosing before there is evidence. The one commitment
+that must be made early is the §6 tokenisation — the decoder vocabulary is the
+full neume stream from the start — because that is unrecoverable later and free
+today.
+
 **Input per query.** The chanter's framing — *"the previous syllable AND the
 syllable of the note it is looking for the onset for as well as a sliver of
 audio time in a window"* — is the right query unit, extended with what the
@@ -364,6 +410,15 @@ Baseline to beat, r4: median |Δt| 0.485 s, 25 of 52 matched pins within 0.15 s,
 | **DATA-01** (M) | label-preserving augmentation + concatenative synthesis, each tagged with the provenance of its timing | synthetic gain reproduces on REAL held-out pins, not just synthetic |
 | **DATA-02** (M) | ingest weekly/imported recordings; encoder adaptation on unlabeled audio; pseudo-label gate feeding the annotator | ≥1 new singer pinned into gold; no drop on gold #2 |
 | **ATTR-01** (S) | provenance schema (singer/school/place/date/source) at ingest; backfill the existing 264 as `vasilikos` | every new file carries attribution; nothing lands untagged |
+
+**Re-order, 2026-08-19.** `ONSET-EVENTS.md` measured the current pipeline and
+found the event layer emits 32 % more events than there are notes while missing a
+quarter of the real onsets — so machine-aligned pairs carry a 57 % spurious rate
+as labels. And forced alignment on the same encoder this plan would freeze
+already gets 0.028 s. Both point the same way: **ONS-01 (forced alignment as the
+onset source) runs before ONSET-01**, and ONSET-01 is then sized against what FA
+leaves wrong rather than against the DTW's 0.485 s. It may be a much smaller job
+than this document assumes, which is the good outcome.
 
 ONSET-01 must not start before SYL-01 is chanter-reviewed. Training a model on
 mis-split syllables bakes the error into the weights, where it is far more
