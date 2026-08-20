@@ -212,6 +212,7 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
         notes.append({
             'cp': u['base'], 'key': u['key'], 'line': li,
             **({'iv': u['iv']} if u.get('iv') is not None else {}),
+            **({'part': u['part']} if u.get('part') is not None else {}),
             'x0': round(u['x0'] * ZOOM, 1), 'x1': round(u['x1'] * ZOOM, 1),
             'y0': round((u['y0'] - ty) * ZOOM + li * LINE_BAND, 1),
             'y1': round((u['y1'] - ty) * ZOOM + li * LINE_BAND, 1),

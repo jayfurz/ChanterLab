@@ -719,13 +719,25 @@ function drawScore() {
       const n = D.notes[gi], [rx0, rx1] = glyphRX(gi);
       if (rx1 < off - 20 || rx0 > off + vw + 20) continue;
       const cy = D.meta.line_centers[n.line];
-      const ry = (n.y0 - bandTop(cy)) * ribScale;
-      const cx = (rx0 + rx1) / 2 - off;
-      // a split oligon+kentimata gets half a box each, so its two labels are
-      // narrow: shrink to fit rather than let the pair run together
+      let ry = (n.y0 - bandTop(cy)) * ribScale;
+      let cx = (rx0 + rx1) / 2 - off;
       ctx.font = fs + 'px system-ui';
-      if (ctx.measureText(nm).width > (rx1 - rx0) + 6)
-        ctx.font = Math.max(9, fs - 2) + 'px system-ui';
+      /* An oligon+kentimata figure is TWO notes drawn STACKED, so each keeps its
+         own glyph box — that is what the playback highlight lights, the oligon
+         then the kentimata rather than the left half then the right half of one
+         glyph. The boxes therefore overlap in x, so only the LABELS are nudged
+         apart: left for the note sung first, right for the second, both lifted
+         clear of the higher of the two glyphs. */
+      const other = n.part === 0 ? D.notes[gi + 1]
+                  : n.part === 1 ? D.notes[gi - 1] : null;
+      if (other && other.part != null && other.line === n.line) {
+        const o = glyphRX(n.part === 0 ? gi + 1 : gi - 1);
+        const fx0 = Math.min(rx0, o[0]), fx1 = Math.max(rx1, o[1]);
+        const mid = (fx0 + fx1) / 2 - off;
+        const w = Math.max(ctx.measureText(nm).width / 2 + 1, (fx1 - fx0) / 4);
+        cx = n.part === 0 ? mid - w : mid + w;
+        ry = Math.min(ry, (other.y0 - bandTop(cy)) * ribScale);
+      }
       const ty = Math.max(ry - 4, fs + 4);   // leave room for the martyria tick
       ctx.fillStyle = PARA_FLAGS.has(gi) ? '#ff8a75' : '#6fa8dc';
       ctx.fillText(nm, cx, ty);

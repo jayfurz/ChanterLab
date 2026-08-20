@@ -465,9 +465,10 @@ def _tempo(grp):
     return {0: 'plain', 1: 'fast', 2: 'faster', 3: 'recitative'}[k]
 
 
-def _mk_unit(pl, mine, base, fig, part=None, xr=None, yr=None, drop=()):
+def _mk_unit(pl, mine, base, fig, part=None, sx=None, drop=()):
     """One unit from a glyph group. `drop` removes clusters that belong to the
-    figure's OTHER half (see _split_kentimata); xr/yr override the box."""
+    figure's OTHER half (see _split_kentimata); `sx` is the shared sort x of a
+    split figure, since its notes are stacked and cannot be ordered by x0."""
     mine = [x for x in mine if x is base or x['cluster'] not in drop]
     black = [x for x in mine if not x['red']
              and x['cluster'] not in SILENT_BLACK]
@@ -480,9 +481,10 @@ def _mk_unit(pl, mine, base, fig, part=None, xr=None, yr=None, drop=()):
         marks.append(f"{x['cluster']}{pos}")
     timing = max((GORGON_ORDER[x['cluster']] for x in mine
                   if x['cluster'] in GORGON_ORDER), default=0)
-    x0, x1 = xr if xr else (min(x['x0'] for x in mine), max(x['x1'] for x in mine))
-    y0, y1 = yr if yr else (min(x['y0'] for x in mine), max(x['y1'] for x in mine))
+    x0, x1 = min(x['x0'] for x in mine), max(x['x1'] for x in mine)
+    y0, y1 = min(x['y0'] for x in mine), max(x['y1'] for x in mine)
     return {'pl': pl, 'x0': x0, 'x1': x1, 'y0': y0, 'y1': y1,
+            'sx': x0 if sx is None else sx,
             'key': f"{base['cluster']}|{'+'.join(sorted(marks))}",
             'base': base['cluster'],
             'gorgon': timing >= 1, 'klasma': any(x['cluster'] in KLASMA for x in mine),
@@ -554,12 +556,18 @@ def _split_kentimata(pl, mine, fig, oli, ken, carrier=None, iv=None):
     those two assignments make the generic beats_seq() window produce both of
     his timing rules.
 
-    The two notes are stacked vertically, so they have no separate x extent of
-    their own. They are given the left and right half of the figure's box in
-    READING order instead: the parallagi label of each lands over its own half
-    rather than on top of the other's, the global sort by x0 keeps them in
-    reading order, and a click selects one or the other. Both keep the figure's
-    full y extent so the highlight and the detail crop still show the figure.
+    Each note keeps its OWN glyph's box. An earlier version split the figure's
+    box into left and right halves so two parallagi labels would not collide,
+    but the notes are not laid out left-to-right — they are stacked — so the
+    playback highlight lit the left half and then the right half of one glyph.
+    Chanter, 2026-08-19: "that is not the intuitive way of doing that. I would
+    instead only highlight the oligon, and then for the second one highlight the
+    kentimata." Which is what a true box gives.
+
+    Reading order can then no longer come from x0, since a kentimata sitting
+    UNDER an oligon is sung first but starts further right. 'sx' carries the
+    figure's shared x for sorting and 'part' breaks the tie, leaving x0/x1/y0/y1
+    free to describe the glyph the chanter actually sees lit.
     """
     # in a carrier figure the partner is always sung first; only the bare
     # figure is ordered by which glyph sits lower on the page
@@ -569,9 +577,6 @@ def _split_kentimata(pl, mine, fig, oli, ken, carrier=None, iv=None):
     if carrier is not None:
         mine = [x for x in mine if x is not carrier]
     X0 = min(x['x0'] for x in mine)
-    X1 = max(x['x1'] for x in mine)
-    YR = (min(x['y0'] for x in mine), max(x['y1'] for x in mine))
-    XM = (X0 + X1) / 2
     gorgons = [x for x in mine if x['cluster'] in GORGON_ORDER]
     gids = {id(x) for x in gorgons}          # identity: glyph dicts compare equal
     # the kentimata half: its own glyph plus the gorgon family, nothing else
@@ -582,10 +587,8 @@ def _split_kentimata(pl, mine, fig, oli, ken, carrier=None, iv=None):
         oli_mine = [oli]
     a_mine, b_mine = ((ken_mine, oli_mine) if below else (oli_mine, ken_mine))
     out = [
-        _mk_unit(pl, a_mine, first, fig, part=0, xr=(X0, XM), yr=YR,
-                 drop={KENTIMATA}),
-        _mk_unit(pl, b_mine, second, fig, part=1, xr=(XM, X1), yr=YR,
-                 drop={KENTIMATA}),
+        _mk_unit(pl, a_mine, first, fig, part=0, sx=X0, drop={KENTIMATA}),
+        _mk_unit(pl, b_mine, second, fig, part=1, sx=X0, drop={KENTIMATA}),
     ]
     if iv is not None:
         # explicit reading from the chanter; the key cannot express it
@@ -747,7 +750,9 @@ def load_units(p0, l0, p1, l1):
                 else:
                     units.extend(_split_kentimata(pl, mine, fig, *pair))
                 fig += 1
-    units.sort(key=lambda u: (u['pl'], u['x0']))
+    # sort on the figure's shared x, then on reading order within it
+    units.sort(key=lambda u: (u['pl'], u.get('sx', u['x0']),
+                              u['part'] if u.get('part') is not None else 0))
     return units, lyr
 
 def load_units_h(h):
