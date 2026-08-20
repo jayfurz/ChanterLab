@@ -775,7 +775,7 @@ function drawScore() {
   // analytical figures: parallel per-note timeline — each analytical neume
   // lights as its note sounds (current bright, completed dim)
   (D.analytical || []).forEach((e, fi) => {
-    const [a, b] = e.span, t2 = audio.currentTime;
+    const [a, b] = e.span, t2 = playheadT();
     if (t2 < a - 0.4 || t2 > b + 0.4) return;
     const ramp = Math.min(1, (t2 - (a - 0.4)) / 0.4, ((b + 0.4) - t2) / 0.4);
     const cy2 = D.meta.line_centers[e.line];
@@ -812,7 +812,7 @@ function drawPartFills(ctx, gi, p, off) {
       ctx.fillRect(x-1, y-1, w+2, h+2);
     }
   }
-  const mFill = markFillCount(gi, audio.currentTime);
+  const mFill = markFillCount(gi, playheadT());
   ctx.fillStyle = 'rgba(255,213,79,0.5)';
   for (let k = 0; k < mFill && k < p.marks.length; k++) {   // one box per extension beat
     const [x, y, w, h] = box(p.marks[k]);
@@ -1053,7 +1053,7 @@ function drawTL() {
   }
 
   // playhead
-  const pt = audio.currentTime;
+  const pt = playheadT();
   if (pt >= view.t0 && pt <= view.t1) {
     ctx.strokeStyle = '#ffd54f'; ctx.beginPath();
     ctx.moveTo(X(pt), 0); ctx.lineTo(X(pt), H); ctx.stroke();
@@ -1142,7 +1142,7 @@ function openDetail(gi) {
   for (const tr of $('slotlist').querySelectorAll('tr[data-slot]'))
     tr.onclick = () => { selectSlot(+tr.dataset.slot, false); };
   $('detseek').onclick = () => {
-    audio.currentTime = slotT(r.slot_ids[0]); dirtyTL = true;
+    seekTo(slotT(r.slot_ids[0]));
     const spanV = view.t1 - view.t0, t = slotT(r.slot_ids[0]);
     if (t < view.t0 || t > view.t1) setView(t - spanV/2, t + spanV/2);
   };
@@ -1188,7 +1188,7 @@ function setSlotTime(i, t) {
   dirtyTL = true;
 }
 function nudgeSel(dir) {
-  if (sel < 0) { audio.currentTime = Math.max(0, audio.currentTime + dir*2); dirtyTL = true; return; }
+  if (sel < 0) { seekTo(playheadT() + dir*2); return; }
   setSlotTime(sel, slotT(sel) + dir*NUDGE);
   pinned[sel] = true; save(); selectSlot(sel, false);
 }
@@ -1200,7 +1200,7 @@ function toggleLoopSel() {
   if (loop) loop = null;
   else if (sel >= 0) {
     loop = { a: slotT(sel), b: slotEnd(sel), slot: sel };
-    audio.currentTime = loop.a;
+    seekTo(loop.a);
     if (audio.paused) audio.play();
   }
   updateTransport(); dirtyTL = true;
@@ -1437,7 +1437,7 @@ function tlPointerEnd(e) {
       const tt = T(p.x);
       const hitG = ghosts.findIndex(([ga, gb]) => tt >= ga && tt <= gb);
       if (hitG >= 0) { ghosts.splice(hitG, 1); save(); }
-      else audio.currentTime = Math.max(0, Math.min(D.meta.duration, tt));
+      else seekTo(tt);
     }
     return;
   }
@@ -1447,7 +1447,7 @@ function tlPointerEnd(e) {
       save(); selectSlot(d.slot, false);
     }
   } else if (!d.moved && e.type !== 'pointercancel') {
-    audio.currentTime = Math.max(0, Math.min(D.meta.duration, T(p.x)));
+    seekTo(T(p.x));
     dirtyTL = true;
   }
 }
@@ -1494,11 +1494,34 @@ scoreCv.addEventListener('click', e => {
 });
 scoreCv.addEventListener('dblclick', e => {
   const g = glyphAtScoreXY(e.offsetX, e.offsetY);
-  if (g >= 0) { audio.currentTime = slotT(MCR[g].slot_ids[0]); dirtyTL = true; }
+  if (g >= 0) seekTo(slotT(MCR[g].slot_ids[0]));
 });
 
 /* ================= transport + keys ================= */
-function togglePlay() { if (audio.paused) audio.play(); else audio.pause(); }
+/* Seeking before the audio has metadata is silently DROPPED by the element, so
+   dragging the playhead on a freshly loaded piece did nothing and playback then
+   started from zero. Hold the request until 'loadedmetadata' and apply it then;
+   playheadT() reports the pending position meanwhile so the marker still moves
+   under the pointer. */
+let pendingSeek = null;
+function seekTo(t) {
+  t = Math.max(0, Math.min(D.meta.duration, t));
+  if (audio.readyState === 0) pendingSeek = t;
+  else { audio.currentTime = t; pendingSeek = null; }
+  dirtyTL = true;
+}
+const playheadT = () => pendingSeek != null ? pendingSeek : audio.currentTime;
+audio.addEventListener('loadedmetadata', () => {
+  if (pendingSeek != null) { audio.currentTime = pendingSeek; pendingSeek = null; }
+});
+function togglePlay() {
+  if (audio.paused) {
+    if (pendingSeek != null && audio.readyState > 0) {
+      audio.currentTime = pendingSeek; pendingSeek = null;
+    }
+    audio.play();
+  } else audio.pause();
+}
 window.addEventListener('keydown', e => {
   const tag = e.target.tagName;
   if (tag === 'TEXTAREA' || tag === 'INPUT') return;
@@ -1593,9 +1616,9 @@ window.addEventListener('resize', () => { setupScore(); dirtyTL = true;
 function frame() {
   requestAnimationFrame(frame);
   if (!D) return;
-  const t = audio.currentTime;
+  const t = playheadT();
   $('cur').textContent = fmtT(t);
-  if (loop && t >= loop.b - 0.01) audio.currentTime = loop.a;
+  if (loop && t >= loop.b - 0.01) seekTo(loop.a);
   const ps = slotAt(t);
   if (ps !== playingSlot) {
     playingSlot = ps; dirtyScore = true; dirtyTL = true;

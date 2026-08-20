@@ -28,6 +28,7 @@ Usage:  legend_canon.py --compare --workdir grave-orthros
 """
 import argparse
 import json
+import os
 import re
 
 ATLAS = '/mnt/data/chant-corpus/scores/atlas_chanter.json'
@@ -37,6 +38,9 @@ OUT = '/mnt/data/chant-corpus/scores/legend_canon.json'
 # (klasma, dots) or tie notes (omalon, eteron), but they never move the pitch.
 QUALITATIVE = {7, 8, 10, 12, 19, 21, 31, 36, 61, 74, 75, 85, 91, 33, 42, 43,
                57, 32, 11, 25, 30, 58, 90, 9, 27}
+# Marks that carry a JUMP rather than a note of their own (atlas): kentima,
+# ypsili, and the ypsili+kentima compound.
+JUMP_MARKS = {16, 28, 83}
 # Explicit figures from the atlas, which override any composition rule.
 FIGURES = {
     '3|13ab': 2,          # petasti + oligon
@@ -83,6 +87,23 @@ SEED = ['6|', '17|', '4|', '5|', '20|', '22|', '41|', '47|', '3|',
         '4|17ab+33ab+4be+6ab'] #    1
 
 
+def corpus_keys():
+    """Every unit key the book actually produces."""
+    import glob
+    import sys as _s
+    _s.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from hymn_align import load_units
+    out = set()
+    for f in sorted(glob.glob('/mnt/data/chant-corpus/scores/glyphs/page*.json')):
+        p = int(re.search(r'(\d+)', os.path.basename(f)).group(1))
+        try:
+            us, _ = load_units(p, 0, p, 10 ** 6)
+        except Exception:
+            continue
+        out.update(u['key'] for u in us if not u.get('rest'))
+    return out
+
+
 def build():
     at = json.load(open(ATLAS))['clusters']
     base = {int(k): v.get('interval') for k, v in at.items()}
@@ -97,6 +118,21 @@ def build():
         b = int(m.group(1))
         marks = [x for x in m.group(2).split('+') if x]
         iv = base.get(b)
+        # A jump MARK cannot be the melodic base. When the extraction makes one
+        # the base — 28|6be is the ypsili with its oligon below, 302 units — the
+        # note is the ordinary neume among the marks and the jump applies to it.
+        # Chanter on the first neume of s04, 2026-08-19: "a ypseli on the left
+        # side on top of an oligon … that's a +5 jump", i.e. oligon +1 plus
+        # ypsili +4. Without this the key derived to nothing and contributed 0.
+        if iv is None and b in JUMP_MARKS:
+            notes = [m2 for m2 in (re.match(r'^(\d+)(ab|be)$', x) for x in marks)
+                     if m2 and base.get(int(m2.group(1))) is not None]
+            if notes:
+                iv = base[int(notes[0].group(1))]
+                marks = [x for x in marks if x != notes[0].group(0)] + [f'{b}ab']
+                b = int(notes[0].group(1))
+            else:
+                return None, f'jump mark {b} with no note to attach to'
         if iv is None:
             if b in QUALITATIVE:
                 return None, 'qualitative base'
@@ -146,6 +182,13 @@ def main():
     keys, support = learned['keys'], learned.get('support', {})
     for k in SEED:
         keys.setdefault(k, None)          # None = no learned value to compare
+    # The learned legend is 35 keys from ONE workdir, but the book holds far
+    # more, and a key it never saw used to fall back to the bare base glyph —
+    # silently dropping every jump a mark carries. 2002 units corpus-wide had no
+    # interval at all under that scheme. Derive over what the corpus actually
+    # contains instead; the atlas can compose most of it.
+    for k in corpus_keys():
+        keys.setdefault(k, None)
 
     canon, why = {}, {}
     for k in keys:

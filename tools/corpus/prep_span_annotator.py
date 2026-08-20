@@ -32,6 +32,7 @@ Usage:
 import argparse
 import hashlib
 import json
+import numpy as np
 import os
 import subprocess
 import sys
@@ -159,6 +160,85 @@ def unit_degrees(units, keys, start):
     return out
 
 
+def sung_onset(wav, t_in):
+    """Where the SUNG material starts, past a held apichima.
+
+    t_in is the chanter's mark for the end of the apichima and the seed used to
+    start there, which put s04's first note 2.06 s early. The audio is continuous
+    and at full level across the gap, so nothing energy-based can see it. What
+    separates them is that an APICHIMA IS HELD and the chant MOVES: on s04 the
+    intonation sits flat around 1250 cents to 15.3, then the parallagi enters at
+    2213; on s34 it is held at 2010 for eight seconds and the parallagi enters at
+    2500. Chanter: "there are probably only two low grave mode apichimas to zo
+    like that", and the two are exactly s04 and s34.
+
+    Octave errors are folded first. The tracker halves s34's held note partway
+    through — 2010 cents becomes 840 — and an earlier version of this took that
+    at face value, read the region as 'low', and then declined the span because
+    the median over the whole stretch came out at the sung register.
+
+    Returns None when there is no held opening to leave, so a span without an
+    apichima keeps its t_in.
+    """
+    import wave as _w
+    with _w.open(wav) as w:
+        sr = w.getframerate()
+        x = np.frombuffer(w.readframes(w.getnframes()),
+                          dtype=np.int16).astype(float) / 32768.
+    hop, win = int(sr * 0.01), 2048
+    lo, hi = int(sr / 370), int(sr / 90)
+    n = min(len(x) // hop, 6000)
+    ps = np.full(n, np.nan)
+    for i in range(n):
+        fr = x[i * hop:i * hop + win]
+        if len(fr) < win or np.sqrt((fr ** 2).mean()) < 0.008:
+            continue
+        fr = fr - fr.mean()
+        sp = np.fft.rfft(fr, 4096)
+        ac = np.fft.irfft(sp * np.conj(sp))[:win]
+        if ac[0] <= 0:
+            continue
+        ac /= ac[0]
+        pk = int(np.argmax(ac[lo:hi])) + lo
+        if not (1 <= pk < len(ac) - 1 and ac[pk] > 0.45):
+            continue
+        a, b, c = ac[pk - 1], ac[pk], ac[pk + 1]
+        ps[i] = 1200 * np.log2(
+            max(sr / (pk + 0.5 * (a - c) / (a - 2 * b + c + 1e-12)), 1) / 55.)
+    if not t_in or np.count_nonzero(~np.isnan(ps)) < 50:
+        return None
+    # the apichima's own pitch: the flattest second inside the marked opening
+    lim = int(t_in / 0.01)
+    best, held, at = None, None, None
+    for a in range(50, max(51, lim - 100), 10):
+        seg = ps[a:a + 100]
+        seg = seg[~np.isnan(seg)]
+        if len(seg) < 60:
+            continue
+        sd = float(np.std(seg))
+        if best is None or sd < best:
+            best, held, at = sd, float(np.median(seg)), a
+    if held is None or best > 120:
+        return None                       # nothing held: no apichima to leave
+    ref = np.where(np.isnan(ps), np.nan, ps)
+    ref = ref + 1200 * np.round((held - ref) / 1200.0)   # fold octave errors
+    # Scan forward from the END of the held window, never from the top of the
+    # clip: the opening second is the attack settling onto the intonation, and
+    # scanning from zero reported that as the sung onset on all six spans.
+    run = 0
+    for i in range(at + 100, len(ref)):
+        c = ref[i]
+        if np.isnan(c):
+            continue
+        if abs(c - held) > 250:
+            run += 1
+            if run >= 25:                 # 0.25 s held away from the intonation
+                return round((i - run + 1) * 0.01, 2)
+        else:
+            run = 0
+    return None
+
+
 def beat_times(beats, t_start, t_end):
     """Slot onsets spread over [t_start, t_end) in proportion to beats.
 
@@ -250,10 +330,32 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
     beats = beats_seq(units)
     # the apichima is sung before the first notated unit, so the notes start at
     # t_in where the chanter marked one
-    times = beat_times(beats, t_in_rel or 0.0, duration)
+    sung = sung_onset(os.path.join(out, 'audio.wav'), t_in_rel)
+    seed_from = t_in_rel or 0.0
+    # Trust the detection only as a CORRECTION to the mark, never as a
+    # replacement for it. Chanter: "there are probably only two low grave mode
+    # apichimas to zo like that" — and on the six spans carrying a t_in the
+    # detector proposes +1.6 to +2.4 s on three of them and +4.8 to +8.3 s on
+    # the other three. A shift of that size means it locked onto a held note
+    # inside the singing rather than the intonation, so it is recorded and
+    # ignored. The bound is the chanter's own count, not a fitted threshold.
+    SUNG_MAX_SHIFT = 3.0
+    corrected = (sung is not None and t_in_rel is not None
+                 and 0.75 < sung - t_in_rel <= SUNG_MAX_SHIFT)
+    if corrected:
+        seed_from = sung
+    times = beat_times(beats, seed_from, duration)
     word, wstart = attach_words(units, lyrics)
     seed_method = ('beat-weighted seed over [%.2f, %.2f]s — no aligner output '
-                   'exists for a span' % (t_in_rel or 0.0, duration))
+                   'exists for a span' % (seed_from, duration))
+    if corrected:
+        seed_method += ('; started from the detected SUNG onset %.2fs rather '
+                        'than the marked apichima end %.2fs — the apichima is '
+                        'held past the mark' % (sung, t_in_rel))
+    elif sung is not None and t_in_rel is not None and sung - t_in_rel > SUNG_MAX_SHIFT:
+        seed_method += ('; a sung onset was detected at %.2fs but is %.1fs past '
+                        'the marked apichima end, too far to trust — kept the mark'
+                        % (sung, sung - t_in_rel))
     mcr = []
     for j, u in enumerate(units):
         interval = keys.get(u['key'], keys.get(f"{u['base']}|"))
@@ -299,6 +401,7 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
             'mor_min': min(step_pos) - 10, 'mor_max': max(step_pos) + 10,
             'parallagi_anchor': anchor,
             't_in_rel': t_in_rel,
+            'sung_onset': sung,
             'seed_method': seed_method,
             'source': {
                 'kind': 'span', 'workdir': wd, 'span': span, 'lane': lane,
