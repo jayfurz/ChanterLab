@@ -115,6 +115,14 @@ leave it alone.</p>
 <script>
 'use strict';
 
+/* Cache-bust. These sheets are regenerated in place under the same filenames,
+   so a browser that has seen an earlier version happily serves it back — the
+   chanter reported a whole cluster "doesnt even show up" when the files were
+   present and served 200. The JSON is fetched past the cache and every image
+   carries the data file's mtime. */
+function bust(u, stamp) { return u + (u.indexOf('?') < 0 ? '?' : '&') + 'v=' + stamp; }
+
+
 /* Reflect the ruling on the card itself. Driven by a MutationObserver rather
    than a click handler: each sheet has its own handler that writes the state,
    and hooking after it by event order proved unreliable — the chanter could not
@@ -191,7 +199,8 @@ const KEY='open-review:v1';
 let V={}; try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
 const $=id=>document.getElementById(id);
 const TEMPO=['plain chiasma','fast (gorgon)','faster (digorgon)','recitative (trigorgon)','slow (argon)','in between (argon+gorgon)','not a tempo sign'];
-fetch('open.json').then(r=>r.json()).then(j=>{
+fetch('open.json?v=' + Date.now()).then(r=>r.json()).then(j=>{
+  var _S = j.stamp || Date.now();
   $('tempo').innerHTML=j.tempo.map(t=>{
     const id='t'+t.cluster+':'+t.page+':'+t.line;
     return `<div class="card" data-id="${id}"${V[id]?' data-v="set"':''}>

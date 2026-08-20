@@ -106,6 +106,14 @@
 <script>
 'use strict';
 
+/* Cache-bust. These sheets are regenerated in place under the same filenames,
+   so a browser that has seen an earlier version happily serves it back — the
+   chanter reported a whole cluster "doesnt even show up" when the files were
+   present and served 200. The JSON is fetched past the cache and every image
+   carries the data file's mtime. */
+function bust(u, stamp) { return u + (u.indexOf('?') < 0 ? '?' : '&') + 'v=' + stamp; }
+
+
 /* Reflect the ruling on the card itself. Driven by a MutationObserver rather
    than a click handler: each sheet has its own handler that writes the state,
    and hooking after it by event order proved unreliable — the chanter could not
@@ -182,11 +190,12 @@ const KEY='gorgon-review:v1'; let V={};
 try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
 const $=id=>document.getElementById(id);
 const OPT=['both are gorgons','the 2nd is not a gorgon','the 1st is not a gorgon','neither is','something else'];
-fetch('gorgons.json').then(r=>r.json()).then(j=>{
+fetch('gorgons.json?v=' + Date.now()).then(r=>r.json()).then(j=>{
+  var _S = j.stamp || Date.now();
   $('g').innerHTML=j.items.map(it=>{
     const id=it.page+':'+it.img;
     return `<div class="card" data-id="${id}"${V[id]?' data-v="set"':''}>
-      <img src="${it.img}" loading="lazy" alt="">
+      <img src="${bust(it.img,_S)}" loading="lazy" alt="">
       <div class="meta"><span>p${it.page} l${it.line}</span><span><code>${it.a}</code> &rarr; <code>${it.b}</code></span></div>
       <div class="choices">${OPT.map(o=>`<button data-set="${o}">${o}</button>`).join('')}</div>
       <div class="meta"><span></span><span>${V[id]||''}</span></div></div>`;}).join('');

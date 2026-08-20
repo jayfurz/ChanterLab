@@ -99,9 +99,12 @@
     open. The other six have nothing.
   </p>
   <p class="note">
-    Three examples of each cluster. <span style="color:#d62728">Red box</span> is the
-    pthora; <span style="color:#1f77b4">blue box</span> is the note I think it governs
-    &mdash; tell me if that is the wrong note.
+    Three examples of each. <span style="color:#d62728">Red</span> is the pthora.
+    <span style="color:#1f77b4">Blue</span> is a note it sits on;
+    <span style="color:#ff7f0e">orange</span> is a martyria it sits on. It never reaches
+    forward to the following note &mdash; the earlier version of this sheet drew it that
+    way and you were right that it was wrong. In the book it is on a note 642 times and on
+    a martyria 48 times.
   </p>
 </div>
 </details>
@@ -111,6 +114,14 @@
 <footer><button class="primary" id="copy">Copy my rulings</button><button id="reset">Clear</button><span id="tally"></span></footer>
 <script>
 'use strict';
+
+/* Cache-bust. These sheets are regenerated in place under the same filenames,
+   so a browser that has seen an earlier version happily serves it back — the
+   chanter reported a whole cluster "doesnt even show up" when the files were
+   present and served 200. The JSON is fetched past the cache and every image
+   carries the data file's mtime. */
+function bust(u, stamp) { return u + (u.indexOf('?') < 0 ? '?' : '&') + 'v=' + stamp; }
+
 /* The ruling cell, found without :last-child. The sheets used
    ".meta:last-child span:last-child", which broke the moment anything was
    appended to the card — the selector returned null and the click handler threw
@@ -183,15 +194,16 @@ try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
 const $=id=>document.getElementById(id);
 const DEG=['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
 const SCALE=['diatonic','hard chromatic','soft chromatic','enharmonic','grave diatonic'];
-fetch('pthdeg.json').then(r=>r.json()).then(j=>{
+fetch('pthdeg.json?v=' + Date.now()).then(r=>r.json()).then(j=>{
+  var _S = j.stamp || Date.now();
   $('g').innerHTML=j.items.map(it=>{
     const id='c'+it.cluster+':'+it.page+':'+it.line;
     const degs=DEG.map(d=>`<button data-set="${d}">${d}</button>`).join('');
     const scls=SCALE.map(s=>`<button data-set="${s}">${s}</button>`).join('');
     const kn=it.known!=null?` &middot; you already ruled it names ${DEG[it.known%7]}`:'';
     return `<div class="card" data-id="${id}">
-      <img src="${it.img}" loading="lazy" alt="">
-      <div class="meta"><span><b>cluster ${it.cluster}</b>${kn}</span><span>p${it.page} l${it.line}</span></div>
+      <img src="${bust(it.img,_S)}" loading="lazy" alt="">
+      <div class="meta"><span><b>cluster ${it.cluster}</b>${kn}</span><span>p${it.page} l${it.line} &middot; on a ${it.sits_on}</span></div>
       <div class="choices">${degs}</div>
       <div class="choices" style="margin-top:6px">${scls}</div>
       <div class="meta"><span style="color:var(--dim);font-size:11px">degree, then scale</span>

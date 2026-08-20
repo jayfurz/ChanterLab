@@ -119,6 +119,14 @@
 <script>
 'use strict';
 
+/* Cache-bust. These sheets are regenerated in place under the same filenames,
+   so a browser that has seen an earlier version happily serves it back — the
+   chanter reported a whole cluster "doesnt even show up" when the files were
+   present and served 200. The JSON is fetched past the cache and every image
+   carries the data file's mtime. */
+function bust(u, stamp) { return u + (u.indexOf('?') < 0 ? '?' : '&') + 'v=' + stamp; }
+
+
 /* Reflect the ruling on the card itself. Driven by a MutationObserver rather
    than a click handler: each sheet has its own handler that writes the state,
    and hooking after it by event order proved unreliable — the chanter could not
@@ -204,21 +212,21 @@ function tally(items) {
     + ` · psifiston ${c('psifiston')} · something else ${c('other')}`;
 }
 
-fetch('cluster7.json').then(r => r.json()).then(j => {
+fetch('cluster7.json?v=' + Date.now()).then(r => r.json()).then(j => {
   const ctrl = j.items.filter(r => r.group === 'short');
   const tall = j.items.filter(r => r.group === 'tall');
   $('n').textContent = tall.length;
 
   $('cal').innerHTML = ctrl.map(r => `
     <figure style="flex:1 1 200px;max-width:280px">
-      <img src="${r.img}" alt="">
+      <img src="${bust(r.img,_S)}" alt="">
       <figcaption>p${r.page} l${r.line} · ${r.h}pt</figcaption>
     </figure>`).join('');
 
   $('grid').innerHTML = tall.map(r => {
     const id = idOf(r);
     return `<div class="card" data-id="${id}"${V[id] ? ` data-v="${V[id]}"` : ''}>
-      <img src="${r.img}" alt="" loading="lazy">
+      <img src="${bust(r.img,_S)}" alt="" loading="lazy">
       <div class="meta"><span>page ${r.page}, line ${r.line}</span><span>${r.h}pt</span></div>
       <div class="choices">
         <button class="b-under" data-set="omalon">omalon</button>
