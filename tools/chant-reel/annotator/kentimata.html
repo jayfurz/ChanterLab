@@ -64,20 +64,19 @@
     header details > summary h1 { font-size: 15px; line-height: 1.25; }
   }
 
-  /* Selection feedback. It used to be a 1px border tint and a dim line of text,
-     which on a phone was invisible — "make the feedback more clear if i select
-     something". The chosen button now fills, the others fade, the card gets a
-     solid accent edge and a checked badge. */
-  .choices button.sel { background: var(--accent); border-color: var(--accent);
-    color: #08131f; font-weight: 700; box-shadow: 0 0 0 2px rgba(77,163,255,.35); }
-  .card.chosen .choices button:not(.sel) { opacity: .45; }
-  .card.chosen { border-color: var(--accent) !important;
-    box-shadow: 0 0 0 2px var(--accent) !important; }
+
+  /* Answered state. Green outer edge on the card so a filled-in one is obvious
+     while scrolling, and the chosen button filled so it is obvious WHICH. */
+  .choices button.sel { background: var(--ok) !important; border-color: var(--ok) !important;
+    color: #08210f !important; font-weight: 700; }
+  .card.chosen { border-color: var(--ok) !important;
+    box-shadow: 0 0 0 3px var(--ok) !important; }
+  .card.chosen .choices button:not(.sel) { opacity: .4; }
   .rulingbar { display: none; margin-top: 8px; padding: 6px 10px; border-radius: 6px;
-    background: rgba(77,163,255,.16); color: var(--fg); font-size: 13px;
+    background: rgba(111,206,143,.18); color: var(--fg); font-size: 13px;
     font-weight: 600; align-items: center; gap: 8px; }
   .card.chosen .rulingbar { display: flex; }
-  .rulingbar::before { content: '✓'; color: var(--accent); font-size: 15px; }
+  .rulingbar::before { content: '✓'; color: var(--ok); font-size: 15px; }
 </style>
 
 <header>
@@ -114,38 +113,61 @@ right group is <code>6|17be</code> (kentimata under, 942).</p>
 <script>
 'use strict';
 
-/* Reflect the current ruling on the buttons themselves, whatever each sheet
-   stores it as: some set data-v to the value, the newer ones set it to "set"
-   and print the value in the last meta cell. Runs after the sheet's own
-   handler, so it always sees the state that was just written. */
-document.addEventListener('click', function (e) {
-  var card = e.target.closest && e.target.closest('.card');
-  if (!card || !e.target.closest('.choices button')) return;
-  setTimeout(function () { syncCard(card); }, 0);
-});
+/* Reflect the ruling on the card itself. Driven by a MutationObserver rather
+   than a click handler: each sheet has its own handler that writes the state,
+   and hooking after it by event order proved unreliable — the chanter could not
+   tell whether a click had registered at all. Watching the DOM catches every
+   write however it is made, including the initial render and a Clear. */
+/* The ruling cell, found without :last-child. The sheets used
+   ".meta:last-child span:last-child", which broke the moment anything was
+   appended to the card — the selector returned null and the click handler threw
+   before it could save, so a click silently did nothing at all. */
+function rulingCell(card) {
+  var cells = card.querySelectorAll('.meta');
+  if (!cells.length) return null;
+  return cells[cells.length - 1].lastElementChild;
+}
 function syncCard(card) {
+  if (!card || !card.classList || !card.classList.contains('card')) return;
   var v = card.dataset.v;
-  if (v === 'set' || v === undefined) {
+  if (v === 'set' || v === undefined || v === null) {
     var cells = card.querySelectorAll('.meta');
     var last = cells.length ? cells[cells.length - 1].lastElementChild : null;
-    v = last && last.textContent.trim() ? last.textContent.trim() : (v === 'set' ? '' : v);
+    var txt = last ? last.textContent.trim() : '';
+    v = txt || (v === 'set' ? '' : v);
   }
-  var on = !!(card.dataset.v && v);
+  var on = !!(card.getAttribute('data-v') && v);
   card.classList.toggle('chosen', on);
   card.querySelectorAll('.choices button').forEach(function (b) {
     b.classList.toggle('sel', on && b.dataset.set === v);
   });
   var bar = card.querySelector('.rulingbar');
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.className = 'rulingbar';
-    card.appendChild(bar);
-  }
-  bar.textContent = on ? v : '';
+  if (!bar) { bar = document.createElement('div'); bar.className = 'rulingbar'; card.appendChild(bar); }
+  // Only WRITE when the value actually changes. The observer watches childList,
+  // and assigning textContent replaces child nodes — so an unconditional write
+  // re-triggers the observer, which writes again, forever. That is not a slow
+  // loop, it is a frozen tab.
+  var want = on ? v : '';
+  if (bar.textContent !== want) bar.textContent = want;
 }
-document.addEventListener('DOMContentLoaded', function () {
-  setTimeout(function () { document.querySelectorAll('.card').forEach(syncCard); }, 60);
-});
+function syncAll() { document.querySelectorAll('.card').forEach(syncCard); }
+(function () {
+  var obs = new MutationObserver(function (muts) {
+    var seen = new Set();
+    muts.forEach(function (m) {
+      var n = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+      var card = n && n.closest ? n.closest('.card') : null;
+      if (card && !seen.has(card)) { seen.add(card); syncCard(card); }
+      if (!card && n) n.querySelectorAll && n.querySelectorAll('.card').forEach(function (c) {
+        if (!seen.has(c)) { seen.add(c); syncCard(c); } });
+    });
+  });
+  obs.observe(document.documentElement, { subtree: true, childList: true,
+    characterData: true, attributes: true, attributeFilter: ['data-v'] });
+  syncAll();
+  setTimeout(syncAll, 200);
+})();
+
 
 
 /* header starts collapsed on a phone, open on a wide screen; the chanter's own
