@@ -269,9 +269,53 @@ both. If a music encoder wins, use it as a second stream rather than a
 replacement — the Greek text head has to stay, because forced alignment depends
 on it.
 
-**What is NOT decided, deliberately.** The verifier's base model. It is the last
-thing needed, its requirements depend on what ONSET-01 actually gets wrong, and
-choosing it now would be choosing before there is evidence. The one commitment
+#### 4.1.1 The chanter's picks, checked against the numbers — 2026-08-19
+
+He named four. All four exist and three land cleanly; one has a number that
+decides its slot rather than its quality.
+
+| model | params | slot | verdict |
+|---|---|---|---|
+| `inclusionAI/Ling-3.0-tiny` | 7.89 B (MoE, 8 of 128 active, 131 k ctx) | **verifier / generator** | takes the slot §4.1 left open |
+| `baidu/Unlimited-OCR` | 3.34 B | **score reading, scanned sources** | already deployed on the cluster |
+| `CohereLabs/North-Micro-Vision-Instruct` | 2.48 B | same lane as the above | he preferred Unlimited-OCR; keep one |
+| `MiniMaxAI/MiniMax-Music3` | 2.43 B | **second audio stream, not the primary encoder** | frame rate — see below |
+
+**MiniMax-Music3's `condition_encoder` runs at 40 ms frames.** Its config:
+`input_hop_length 960` at `input_sampling_rate 24000` — 25 Hz. The architecture
+in §4 assumes 20 ms, and forced alignment on the current encoder already lands
+at **0.028 s**, so a single frame of this encoder is 1.4× the error we are
+trying to measure. You cannot resolve a 28 ms onset on a 40 ms grid without
+interpolating inside a frame, which is inventing the precision rather than
+measuring it. It is also a *condition* encoder feeding an RVQ codec — trained
+for reconstruction and for conditioning generation, not for transient
+discrimination, and codecs discard exactly the attack detail an onset is.
+
+That is an argument about **slot, not quality**. It is a strong candidate for the
+music-pretrained second stream §4.1 already called for: harmonic and timbral
+context, where 40 ms is ample, fused with the 20 ms speech encoder that keeps
+the text head. Test it as a second stream on the 335 verified onsets. Do not
+make it the primary and then discover the ceiling.
+
+**Ling-3.0-tiny is the verifier, not the alignment decoder.** The decoder is
+sized at 30-80 M because there are 335 verified onsets; a 7.89 B model in that
+slot overfits whatever the label count is. As the verifier it needs no onset
+labels at all — it accepts or rejects a proposed run — which is why §5 puts it
+there and why it scales when labels do not. Its 131 k context comfortably holds a
+whole hymn's neume stream, which is what §6's generation direction wants.
+
+**On the vision lane, one caveat worth stating before effort goes in.** For the
+Ioannou book we do not need OCR: the PDF is born-digital and
+`extract_book.py` reads the neume stream out of the text layer exactly, which is
+strictly better than recognising an image of it. The vision model earns its place
+on **scanned and photographed** scores — the manuscripts and the other printed
+editions — which is a real and growing need, but it is a different corpus from
+the one every number in this plan was measured on. Point it there, and keep the
+vector path for anything born-digital.
+
+**What is NOT decided, deliberately.** ~~The verifier's base model.~~ Now chosen
+above (Ling-3.0-tiny). What remains open is the *fusion* of the two audio
+streams, which cannot be decided before the second stream is measured. The one commitment
 that must be made early is the §6 tokenisation — the decoder vocabulary is the
 full neume stream from the start — because that is unrecoverable later and free
 today.
