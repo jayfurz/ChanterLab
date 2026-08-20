@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adjacent gorgons — are these real?</title>
+<style>
+  :root {
+    --bg:#14171c; --panel:#1c2027; --edge:#2c323c; --fg:#d8dee6; --dim:#8a93a0;
+    --accent:#4da3ff; --ok:#6fce8f; --warn:#e0a030; --bad:#ff5252;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--fg); font:14px/1.5 system-ui,sans-serif;
+         padding:0 0 80px; -webkit-tap-highlight-color:transparent; }
+  header { position:sticky; top:0; z-index:5; background:var(--panel);
+           border-bottom:1px solid var(--edge); padding:12px 16px; }
+  h1 { font-size:17px; font-weight:600; }
+  h2 { font-size:14px; font-weight:600; margin:26px 16px 10px; color:var(--accent); }
+  p.note { color:var(--dim); margin:6px 16px; max-width:70ch; }
+  header p.note { margin:6px 0 0; }
+  button { background:#262c36; color:var(--fg); border:1px solid var(--edge);
+           border-radius:6px; padding:5px 11px; font:inherit; cursor:pointer; }
+  button:hover { background:#303845; }
+  button.primary { background:#1e4976; border-color:#2a6fb0; }
+  .cal { display:flex; flex-wrap:wrap; gap:14px; padding:0 16px; }
+  .cal figure { background:var(--panel); border:1px solid var(--edge);
+                border-radius:8px; padding:8px; }
+  .cal figcaption { color:var(--dim); font-size:12px; margin-top:4px; }
+  .grid { display:grid; gap:14px; padding:0 16px;
+          grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
+  .card { background:var(--panel); border:1px solid var(--edge); border-radius:8px;
+          padding:8px; }
+  .card img, .cal img { width:100%; height:auto; display:block; background:#fff;
+                        border-radius:4px; }
+  .meta { display:flex; justify-content:space-between; align-items:baseline;
+          color:var(--dim); font-size:12px; margin:6px 2px 8px; }
+  .choices { display:flex; gap:6px; flex-wrap:wrap; }
+  .choices button { flex:1 1 auto; font-size:12px; padding:5px 6px; }
+  .card[data-v="under"]  { border-color:var(--ok);   box-shadow:0 0 0 1px var(--ok); }
+  .card[data-v="over"]   { border-color:var(--warn); box-shadow:0 0 0 1px var(--warn); }
+  .card[data-v="other"]  { border-color:var(--bad);  box-shadow:0 0 0 1px var(--bad); }
+  .card[data-v="under"] .b-under, .card[data-v="over"] .b-over,
+  .card[data-v="other"] .b-other { background:#1e4976; border-color:#2a6fb0; }
+  footer { position:fixed; bottom:0; left:0; right:0; background:var(--panel);
+           border-top:1px solid var(--edge); padding:10px 16px; display:flex;
+           gap:12px; align-items:center; }
+  #tally { color:var(--dim); }
+  textarea { width:100%; height:160px; background:#0f1216; color:var(--fg);
+             border:1px solid var(--edge); border-radius:6px; padding:8px;
+             font:12px/1.4 ui-monospace,monospace; margin:8px 16px; display:none; }
+</style>
+
+<header>
+  <h1>Two gorgons on neighbouring notes &mdash; you said this is never written</h1>
+  <p class="note">
+    You are right that a note must never be shortened twice, and that is now how the beat
+    model works. But I claimed the cause was two gorgons landing on neighbouring notes, and
+    you said the book never writes that. So here is what I am actually finding:
+    <strong>637 places</strong> where two adjacent notes each carry their own red mark, and
+    <strong>596 of them are the same figure</strong> &mdash; a yporrhoe with a mark over it,
+    followed by an oligon with an antikenoma under it and a mark over that.
+  </p>
+  <p class="note">
+    Cluster 11, which the atlas calls the gorgon, is one consistent shape here
+    (7.4 &times; 4.6&nbsp;pt, no variation) so it is not two glyphs merged. Either these
+    really are adjacent gorgons, or that recurring figure means something I am reading
+    wrong. Tell me which.
+  </p>
+</header>
+<h2>The 637 &mdash; a sample</h2>
+<div class="grid" id="g"></div>
+<textarea id="out" readonly></textarea>
+<footer><button class="primary" id="copy">Copy my rulings</button><button id="reset">Clear</button><span id="tally"></span></footer>
+<script>
+'use strict';
+const KEY='gorgon-review:v1'; let V={};
+try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
+const $=id=>document.getElementById(id);
+const OPT=['both are gorgons','the 2nd is not a gorgon','the 1st is not a gorgon','neither is','something else'];
+fetch('gorgons.json').then(r=>r.json()).then(j=>{
+  $('g').innerHTML=j.items.map(it=>{
+    const id=it.page+':'+it.img;
+    return `<div class="card" data-id="${id}"${V[id]?' data-v="set"':''}>
+      <img src="${it.img}" loading="lazy" alt="">
+      <div class="meta"><span>p${it.page} l${it.line}</span><span><code>${it.a}</code> &rarr; <code>${it.b}</code></span></div>
+      <div class="choices">${OPT.map(o=>`<button data-set="${o}">${o}</button>`).join('')}</div>
+      <div class="meta"><span></span><span>${V[id]||''}</span></div></div>`;}).join('');
+  const tally=()=>{$('tally').textContent=Object.keys(V).length+' of '+j.items.length+' ruled';};
+  $('g').onclick=e=>{const b=e.target.closest('button[data-set]'); if(!b)return;
+    const c=b.closest('.card'), id=c.dataset.id, v=b.dataset.set;
+    if(V[id]===v){delete V[id];c.removeAttribute('data-v');}else{V[id]=v;c.dataset.v='set';}
+    c.querySelector('.meta:last-child span:last-child').textContent=V[id]||'';
+    localStorage.setItem(KEY,JSON.stringify(V)); tally();};
+  $('copy').onclick=()=>{const t=JSON.stringify(j.items.filter(i=>V[i.page+':'+i.img])
+      .map(i=>({page:i.page,line:i.line,pair:i.a+' -> '+i.b,ruling:V[i.page+':'+i.img]})),null,1);
+    $('out').value=t;$('out').style.display='block';navigator.clipboard&&navigator.clipboard.writeText(t);$('out').select();};
+  $('reset').onclick=()=>{if(!confirm('Clear?'))return;V={};localStorage.removeItem(KEY);
+    document.querySelectorAll('.card').forEach(c=>c.removeAttribute('data-v'));tally();};
+  tally();});
+</script>

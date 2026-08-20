@@ -392,27 +392,38 @@ def beats_seq(units):
     """
     b = [beats_written(u) for u in units]
     n = len(b)
-    # A note is shortened by AT MOST ONE gorgon. Chanter, 2026-08-19: "no notes
-    # should ever be shortened twice. gorgons do not stack. if you think two
-    # gorgons are applying themselves to a single note that is wrong and the
-    # gorgon is being interpreted wrong or the logic is incorrect."
+    # A note is shortened by AT MOST ONE gorgon-like sign. Chanter, 2026-08-19:
+    # "no notes should ever be shortened twice. gorgons do not stack", and on
+    # reviewing the actual pages: "they all apply to different notes … in all
+    # cases every note is only being affected by one gorgon like entity at any
+    # time."
     #
-    # A gorgon's window is k+1 symbols starting one BEFORE the sign, so a note
-    # carrying its own gorgon that is also followed by one fell inside two
-    # windows and lost its share twice — 622 notes ended at the MIN_BEAT floor
-    # that way, which is the floor admitting the logic was wrong rather than
-    # protecting against anything. Each note now takes only the LARGEST
-    # deduction that reaches it. That keeps the klasma reading intact (a
-    # 2-beat note under a gorgon is 1½, not ½) while making a run of gorgons
-    # come out as the even run of short notes it is meant to be.
+    # The signs themselves were detected correctly — he confirmed all 14 sampled
+    # pairs as gorgon-family, including two his eye caught as digorgons, which is
+    # what cluster 25 already is. The fault was purely arithmetic: a gorgon's
+    # window is k+1 symbols starting one BEFORE the sign, so a note carrying its
+    # own sign that was also reached by the next one lost its share twice. 622
+    # notes ended on the MIN_BEAT floor that way — the floor admitting the logic
+    # was wrong rather than protecting against anything.
+    #
+    # A note's OWN sign wins; a neighbour's reach applies only to a note that has
+    # none. That keeps the klasma reading intact (a 2-beat note under a gorgon is
+    # 1½) and keeps the chanter's kentimata-under-oligon rule, where the gorgon
+    # does shorten the note before the figure — that note simply has no sign of
+    # its own to defend it.
     ded = [0.0] * n
+    own = [False] * n
     for j, u in enumerate(units):
         k = u.get('timing', 0)
         if not k:                   # gorgon k=1, digorgon k=2, trigorgon k=3
             continue
         d = k / (k + 1.0)           # ½, ⅔, ¾
         for i in range(j - 1, j + k):        # k+1 symbols, starting one before
-            if 0 <= i < n:
+            if not 0 <= i < n:
+                continue
+            if i == j:              # the note the sign is written on
+                ded[i], own[i] = d, True
+            elif not own[i]:        # a neighbour's reach, only if unclaimed
                 ded[i] = max(ded[i], d)
     for i in range(n):
         b[i] -= ded[i]
@@ -541,20 +552,28 @@ def _mk_unit(pl, mine, base, fig, part=None, sx=None, yr=None, drop=()):
 
 def _split_yporrhoe(pl, mine, fig, base):
     """The yporrhoe as its two descending notes. See YPORRHOE above."""
-    # Every mark in the group belongs to the SECOND note — the gorgon so its
-    # window covers the pair, the duration marks because that is where the
-    # figure is held. The first note takes the bare glyph and nothing else; an
-    # earlier version passed it the non-gorgon marks and so counted a klasma
-    # twice, once on each half.
+    # The gorgon goes on the FIRST note. Chanter, 2026-08-19: "the yporrhoe
+    # having gorgon on top means gorgon is applied to the first note of the
+    # yporrhoe" — so the generic window covers the note BEFORE the figure and
+    # the yporrhoe's first note, leaving its second note a full beat. Exactly
+    # the kentimata-under-oligon shape, and the opposite of what this did: the
+    # gorgon sat on the second note and made the pair ½ + ½.
+    #
+    # Duration marks stay on the second note, where the figure is held. The
+    # first note otherwise takes the bare glyph; an earlier version passed it
+    # the non-gorgon marks too and so counted a klasma twice, once per half.
     #
     # The two notes DESCEND, and the glyph is drawn that way, so the highlight
     # splits it top half then bottom half. Chanter, 2026-08-19: "for yphorroe
     # highlight top half then the bottom half". Vertical, unlike anything else
     # here — the kentimata figure is two separate glyphs and keeps its own boxes.
     ym = (base['y0'] + base['y1']) / 2
-    out = [_mk_unit(pl, [base], base, fig, part=0, sx=base['x0'],
+    gorgons = [x for x in mine if x['cluster'] in GORGON_ORDER]
+    gids = {id(x) for x in gorgons}
+    rest = [x for x in mine if id(x) not in gids]
+    out = [_mk_unit(pl, [base] + gorgons, base, fig, part=0, sx=base['x0'],
                     yr=(base['y0'], ym)),
-           _mk_unit(pl, mine, base, fig, part=1, sx=base['x0'],
+           _mk_unit(pl, rest, base, fig, part=1, sx=base['x0'],
                     yr=(ym, base['y1']))]
     for u in out:
         u['iv'] = YPORRHOE_STEP
