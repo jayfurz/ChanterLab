@@ -99,6 +99,14 @@
     open. The other six have nothing.
   </p>
   <p class="note">
+    Degrees are stored by NAME, not by number, since a number means different things per
+    genus &mdash; hard chromatic is the four-phase cycle repeating at the fifth, so
+    &quot;Pa hard chromatic&quot; is phase 0 and Di is phase 3, which is how
+    <code>genus.rs</code> already has it. The scale list matches the engine's genera; grave
+    diatonic is there because the practice needs it (raised Ga, usually a sharpened Ke) even
+    though it is not theoretically a separate scale.
+  </p>
+  <p class="note">
     Three examples of each. <span style="color:#d62728">Red</span> is the pthora.
     <span style="color:#1f77b4">Blue</span> is a note it sits on;
     <span style="color:#ff7f0e">orange</span> is a martyria it sits on. It never reaches
@@ -193,7 +201,7 @@ const KEY='pthdeg:v1'; let V={};
 try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
 const $=id=>document.getElementById(id);
 const DEG=['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
-const SCALE=['diatonic','hard chromatic','soft chromatic','enharmonic','grave diatonic'];
+const SCALE=['diatonic','hard chromatic','soft chromatic','enharmonic zo','enharmonic ga','grave diatonic','western'];
 fetch('pthdeg.json?v=' + Date.now()).then(r=>r.json()).then(j=>{
   var _S = j.stamp || Date.now();
   $('g').innerHTML=j.items.map(it=>{

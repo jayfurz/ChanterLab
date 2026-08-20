@@ -163,7 +163,12 @@ def degree_stream(units, legend, start=None):
             # the degree stream is just this note taking it, since after moving
             # you are on this note. A fthora on a MARTYRIA is a different thing
             # and is handled with the anchor, not here.
-            deg = u['fthora'][1]
+            # the fthora records a degree NAME; an index would mean the
+            # diatonic 0-6 position even under a chromatic genus, where the
+            # cycle is four phases repeating at the fifth
+            from hymn_align import DEG_NAME
+            nm = u['fthora'][1]
+            deg = DEG_NAME.index(nm) if isinstance(nm, str) else nm
         elif u.get('mart_deg') is not None:
             deg = u['mart_deg']
         elif deg is not None:
