@@ -194,7 +194,14 @@
 /* multi-piece: ?piece=<id> loads data/<id>/ (prepped by prep_hymn_annotator
    or prep_annotator --out); no param keeps the legacy single piece in data/ */
 const PIECE = (() => { const p = new URLSearchParams(location.search).get('piece');
-  return p && /^(?!\.+$)[A-Za-z0-9._-]{1,80}$/.test(p) ? p : null; })();
+  /* Must match PIECE_RE in serve.py. The chanter's 47 cut pieces are named from
+     the score's Greek incipit, and this pattern used to be ASCII-only — so every
+     one of them failed validation here, PIECE became null, and the picker
+     silently loaded the legacy piece in data/ instead. Greek + Coptic and Greek
+     Extended are allowed; separators and a bare "."/".." still are not, because
+     this guards a filesystem path. */
+  return p && /^(?!\.+$)[A-Za-z0-9._\u0370-\u03ff\u1f00-\u1fff-]{1,80}$/.test(p)
+    ? p : null; })();
 const DATA_DIR   = PIECE ? 'data/' + PIECE + '/' : 'data/';
 const RIB_BASE   = 0.62;   // score ribbon scale (strip px -> CSS px), desktop
 const RIB_MIN = 0.45, RIB_MAX = 1.15;  // narrow-screen fit-to-height bounds
