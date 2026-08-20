@@ -1,15 +1,10 @@
 {
  "frozen_at": "2026-08-18",
  "revision": 4,
- "revision_note": "r4: read the chanter cluster export. RED_TIME emptied \u2014 9 and 22 are always BLACK (110/2155) so never reached the red-only klasma test, and 23 is always RED (759) and is the Ga martyria LETTER, so it was the sole source of a phantom \"red klasma\". Cluster 9 (antikenoma+apli) moved to MARK_ONLY and now contributes its one apli beat. ALSO fixed a long-standing off-by-one: the DTW duration prior compared onset-to-onset time against beats of units j2+1..j instead of j2..j-1 \u2014 invisible while all beats were 1.0/2.0, material once the duration model produced 0.125..4.0. Rests now fold into the PRECEDING note (chanter: \"otherwise the next note will go on for too long instead of being delayed the duration of the rest\").",
+ "revision_note": "r4: 76 chanter-verified pins against 004_melos_fixed.wav. A revision 5 briefly re-indexed these to a segment-edge re-cut; that re-cut was reverted when name_check.py showed corpus identification is ~20% correct, not the 81% the loss gate implied. Pins are r4 values, unshifted, against the original audio.",
  "piece": "grave-orthros-t03",
  "hymn": "t03_",
  "workdir": "/mnt/data/chant-corpus/workdirs/grave-orthros",
- "audio": {
-  "path": "/mnt/data/chant-corpus/workdirs/grave-orthros/melos_t03_/audio.wav",
-  "sha256_16": "9c82ec0417cbfc7c",
-  "source": "/mnt/data/chant-corpus/pieces/Mode Grave Anastasimatarion 2 Orthros/004_melos_fixed.wav"
- },
  "score": {
   "pages": [
    520,

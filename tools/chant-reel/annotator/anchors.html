@@ -1,0 +1,127 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Anchors: unread martyria signs</title>
+<style>
+  :root {
+    --bg:#14171c; --panel:#1c2027; --edge:#2c323c; --fg:#d8dee6; --dim:#8a93a0;
+    --accent:#4da3ff; --ok:#6fce8f; --warn:#e0a030; --bad:#ff5252;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--fg); font:14px/1.5 system-ui,sans-serif;
+         padding:0 0 80px; -webkit-tap-highlight-color:transparent; }
+  header { position:sticky; top:0; z-index:5; background:var(--panel);
+           border-bottom:1px solid var(--edge); padding:12px 16px; }
+  h1 { font-size:17px; font-weight:600; }
+  h2 { font-size:14px; font-weight:600; margin:26px 16px 10px; color:var(--accent); }
+  p.note { color:var(--dim); margin:6px 16px; max-width:70ch; }
+  header p.note { margin:6px 0 0; }
+  button { background:#262c36; color:var(--fg); border:1px solid var(--edge);
+           border-radius:6px; padding:5px 11px; font:inherit; cursor:pointer; }
+  button:hover { background:#303845; }
+  button.primary { background:#1e4976; border-color:#2a6fb0; }
+  .cal { display:flex; flex-wrap:wrap; gap:14px; padding:0 16px; }
+  .cal figure { background:var(--panel); border:1px solid var(--edge);
+                border-radius:8px; padding:8px; }
+  .cal figcaption { color:var(--dim); font-size:12px; margin-top:4px; }
+  .grid { display:grid; gap:14px; padding:0 16px;
+          grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
+  .card { background:var(--panel); border:1px solid var(--edge); border-radius:8px;
+          padding:8px; }
+  .card img, .cal img { width:100%; height:auto; display:block; background:#fff;
+                        border-radius:4px; }
+  .meta { display:flex; justify-content:space-between; align-items:baseline;
+          color:var(--dim); font-size:12px; margin:6px 2px 8px; }
+  .choices { display:flex; gap:6px; flex-wrap:wrap; }
+  .choices button { flex:1 1 auto; font-size:12px; padding:5px 6px; }
+  .card[data-v="under"]  { border-color:var(--ok);   box-shadow:0 0 0 1px var(--ok); }
+  .card[data-v="over"]   { border-color:var(--warn); box-shadow:0 0 0 1px var(--warn); }
+  .card[data-v="other"]  { border-color:var(--bad);  box-shadow:0 0 0 1px var(--bad); }
+  .card[data-v="under"] .b-under, .card[data-v="over"] .b-over,
+  .card[data-v="other"] .b-other { background:#1e4976; border-color:#2a6fb0; }
+  footer { position:fixed; bottom:0; left:0; right:0; background:var(--panel);
+           border-top:1px solid var(--edge); padding:10px 16px; display:flex;
+           gap:12px; align-items:center; }
+  #tally { color:var(--dim); }
+  textarea { width:100%; height:160px; background:#0f1216; color:var(--fg);
+             border:1px solid var(--edge); border-radius:6px; padding:8px;
+             font:12px/1.4 ui-monospace,monospace; margin:8px 16px; display:none; }
+</style>
+
+<header>
+  <h1>Right-aligned red signs the parser cannot read as martyrias</h1>
+  <p class="note">
+    You said "the martyria is there but back further a bit because of the headings or
+    subheadings". On page 520 it was there — a red zeta with the psifiston-looking stroke
+    under it, right after the heading <em>&#7961;&tau;&epsilon;&rho;&omicron;&nu;</em>. It is
+    <strong>cluster 89</strong>, which is absent from your atlas, so the anchor lookup walked
+    past it. Searching for everything with that same profile &mdash; red, right-aligned at a
+    line end, not a known martyria &mdash; turns up <strong>9 clusters, 199 instances</strong>.
+    Each one is a hymn opening whose pitch is currently unknown.
+  </p>
+  <p class="note">Tell me the degree each sign names, or mark it as not a martyria at all.
+  I am not guessing these: a wrongly-assigned degree anchor caused a &minus;3 error once
+  already (cluster 24, the nana scale sign).</p>
+</header>
+<h2>The signs</h2>
+<div class="grid" id="cands"></div>
+<h2>The 6 range starts still without an anchor</h2>
+<p class="note">Whole lines, so the margins show. Top = the line before, bottom = where the
+range begins.</p>
+<div id="stuck"></div>
+<textarea id="out" readonly></textarea>
+<footer>
+  <button class="primary" id="copy">Copy my rulings</button>
+  <button id="reset">Clear</button>
+  <span id="tally"></span>
+</footer>
+<script>
+'use strict';
+const KEY='anchor-review:v1';
+let V={}; try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
+const $=id=>document.getElementById(id);
+const DEG=['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
+fetch('anchors.json').then(r=>r.json()).then(j=>{
+  const seen=new Set(), cands=[];
+  for(const c of (j.candidates||[])){ cands.push(c); }
+  $('cands').innerHTML=cands.map(c=>{
+    const id='c'+c.cluster+':'+c.page+':'+c.line;
+    return `<div class="card" data-id="${id}"${V[id]?` data-v="set"`:''}>
+      <img src="${c.img}" alt="" loading="lazy">
+      <div class="meta"><span>cluster ${c.cluster} &middot; ${c.n} in the book</span>
+        <span>p${c.page} l${c.line} &middot; ${c.h}pt</span></div>
+      <div class="choices">
+        ${DEG.map(d=>`<button data-set="${d}">${d}</button>`).join('')}
+        <button data-set="not">not a martyria</button>
+      </div>
+      <div class="meta"><span></span><span>${V[id]||''}</span></div></div>`;
+  }).join('');
+  $('stuck').innerHTML=(j.items||[]).map(it=>`
+    <div style="margin:0 16px 22px">
+      <div class="meta"><span><b>${it.span}</b> &middot; ${it.lane||'unset'} &middot;
+        p${it.page} line ${it.line} g0=${it.g0}</span>
+        <span>nearest martyria ${it.back==null?'none':it.back+' units back ('+it.back_deg+')'}</span></div>
+      <div style="color:var(--dim);font-size:12px;margin:0 2px 6px">${it.incipit||''}</div>
+      ${it.imgs.map(im=>`<div style="margin-bottom:4px"><div style="color:var(--dim);font-size:11px">${im.role} (line ${im.line})</div>
+        <img src="${im.src}" style="width:100%;background:#fff;border-radius:4px"></div>`).join('')}
+    </div>`).join('');
+  const tally=()=>{$('tally').textContent=Object.keys(V).length+' of '+cands.length+' signs ruled';};
+  $('cands').onclick=e=>{
+    const b=e.target.closest('button[data-set]'); if(!b)return;
+    const card=b.closest('.card'), id=card.dataset.id, v=b.dataset.set;
+    if(V[id]===v){delete V[id];card.removeAttribute('data-v');}
+    else{V[id]=v;card.dataset.v='set';}
+    card.querySelector('.meta:last-child span:last-child').textContent=V[id]||'';
+    localStorage.setItem(KEY,JSON.stringify(V)); tally();
+  };
+  $('copy').onclick=()=>{
+    const t=JSON.stringify(cands.filter(c=>V['c'+c.cluster+':'+c.page+':'+c.line])
+      .map(c=>({cluster:c.cluster,page:c.page,line:c.line,ruling:V['c'+c.cluster+':'+c.page+':'+c.line]})),null,1);
+    $('out').value=t; $('out').style.display='block';
+    navigator.clipboard&&navigator.clipboard.writeText(t); $('out').select();
+  };
+  $('reset').onclick=()=>{ if(!confirm('Clear?'))return; V={}; localStorage.removeItem(KEY);
+    document.querySelectorAll('.card').forEach(c=>c.removeAttribute('data-v')); tally(); };
+  tally();
+});
+</script>

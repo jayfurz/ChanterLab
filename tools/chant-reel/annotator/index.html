@@ -72,6 +72,8 @@
   #transport button.on { background: #1e4976; border-color: #2a6fb0; }
   #ghostbtn.on { background: #5e3570; border-color: #9c5ab0; }
   #melbtn.on { background: #14595e; border-color: #2a9aa0; }
+  #parabtn.on { background: #1b3d63; border-color: #4a7fbd; }
+  #paraflagbtn.on { background: #6b2f28; border-color: #c0564a; }
   #playbtn { flex: 1.4 1 0; font-size: 20px; }
   #detail {
     flex: 0 0 300px; background: var(--panel); border-left: 1px solid var(--edge);
@@ -137,6 +139,8 @@
   <label class="chk"><input type="checkbox" id="follow" checked> follow</label>
   <button id="ghostbtn" title="Mark pitch-ghost regions (G): drag on the pitch band to paint one, tap a region to remove it">Ghost</button>
   <button id="melbtn" title="Melisma note pinning (M): drag the teal boundaries inside an analytical span — the underlying melodic pins stay untouched">Mel</button>
+  <button id="parabtn" title="Parallagi overlay (A): the degree the score implies over each glyph, in blue; a gold tick marks a unit whose martyria states the degree outright">Para</button>
+  <button id="paraflagbtn" title="Flag a wrong parallagi (X): tap a glyph to mark the shown degree wrong; flagged glyphs turn red and the flag is saved on the server">Para⚑</button>
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
   <button id="refitbtn" title="Redistribute all UNPINNED markers by beat weight: between pins piecewise, before the first / after the last pin spread to the audio edges. Pins never move. Pin a few, refit, pin the next few…">Refit</button>
@@ -171,7 +175,7 @@
   <span id="counts"></span>
   <span id="savestate"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
-    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · long-press marker pin · pinch zoom</span>
+    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
 </div>
 <div id="transport">
   <button id="playbtn" class="primary" title="play/pause (space)">▶</button>
@@ -190,7 +194,14 @@
 /* multi-piece: ?piece=<id> loads data/<id>/ (prepped by prep_hymn_annotator
    or prep_annotator --out); no param keeps the legacy single piece in data/ */
 const PIECE = (() => { const p = new URLSearchParams(location.search).get('piece');
-  return p && /^(?!\.+$)[A-Za-z0-9._-]{1,80}$/.test(p) ? p : null; })();
+  /* Must match PIECE_RE in serve.py. The chanter's 47 cut pieces are named from
+     the score's Greek incipit, and this pattern used to be ASCII-only — so every
+     one of them failed validation here, PIECE became null, and the picker
+     silently loaded the legacy piece in data/ instead. Greek + Coptic and Greek
+     Extended are allowed; separators and a bare "."/".." still are not, because
+     this guards a filesystem path. */
+  return p && /^(?!\.+$)[A-Za-z0-9._\u0370-\u03ff\u1f00-\u1fff-]{1,80}$/.test(p)
+    ? p : null; })();
 const DATA_DIR   = PIECE ? 'data/' + PIECE + '/' : 'data/';
 const RIB_BASE   = 0.62;   // score ribbon scale (strip px -> CSS px), desktop
 const RIB_MIN = 0.45, RIB_MAX = 1.15;  // narrow-screen fit-to-height bounds
@@ -210,6 +221,58 @@ let MOR_MIN = -30, MOR_MAX = 95;
 /* absolute scale degree -> parallagi syllable; the chanter reads solfege, not
    degree integers. ' = octave up, , = octave down (Νη=0 … Ζω=6). */
 const DEG_NAMES = ['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
+/* The parallagi the score implies, one degree per glyph, drawn over the strip.
+   Index-aligned with D.notes: the server walks the piece's own notes array, so
+   nothing is matched by coordinate. Chanter asked for it "in small blue font
+   above the glyphs so that i can see if anything is off. then i can flag". */
+let PARA = null, PARA_FLAGS = new Set(), showPara = true;
+let paraFlagMode = false;    // Para⚑ button: a glyph tap flags its degree
+/* units whose printed martyria names the degree outright — the checksum
+   points, where a drifting parallagi becomes visible */
+let PARA_MART = new Set();
+async function loadParallagi(pieceId) {
+  PARA = null;
+  try {
+    const r = await fetch('/api/parallagi?piece=' + encodeURIComponent(pieceId));
+    const j = await r.json();
+    if (j && j.names && j.names.length) PARA = j;
+  } catch (e) { /* an overlay must never break the annotator */ }
+  try {
+    const f = await fetch('/api/parallagi-flags?piece=' + encodeURIComponent(pieceId));
+    const fj = await f.json();
+    PARA_FLAGS = new Set(fj.flags || []);
+  } catch (e) { PARA_FLAGS = new Set(); }
+  PARA_MART = martyriaUnits();
+  dirtyScore = true;
+}
+/* /api/parallagi does not report martyriae, and serve.py belongs to another
+   lane, so read them off the MCR rows the annotator already loaded:
+   other_marks carries "martyria: Ga (3)". PARA.martyria wins if it appears. */
+function martyriaUnits() {
+  if (PARA && Array.isArray(PARA.martyria)) return new Set(PARA.martyria);
+  const out = new Set();
+  (MCR || []).forEach((r, gi) => {
+    if ((r.other_marks || []).some(m => /^martyria/i.test(String(m)))) out.add(gi);
+  });
+  return out;
+}
+/* Optimistic so a phone tap feels instant, reconciled from the response so the
+   server stays the truth about what is flagged. */
+async function toggleParaFlag(gi) {
+  const on = !PARA_FLAGS.has(gi);
+  if (on) PARA_FLAGS.add(gi); else PARA_FLAGS.delete(gi);
+  dirtyScore = true;
+  const piece = PIECE || (D && D.meta.piece_id);
+  const shown = PARA && PARA.names ? PARA.names[gi] : null;
+  try {
+    const r = await fetch('/api/parallagi-flag', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ piece, gi, shown, note: '', clear: !on }) });
+    const j = await r.json();
+    if (j && Array.isArray(j.flags)) PARA_FLAGS = new Set(j.flags);
+  } catch (e) { /* keep the optimistic state; a reload re-reads the server */ }
+  dirtyScore = true;
+}
 function degName(d) {
   if (d == null || !isFinite(d)) return '?';
   const oct = Math.floor(d / 7), i = d - oct * 7;
@@ -496,7 +559,11 @@ async function loadPieceList() {
     if (!res.ok) return;
     man = await res.json();
   } catch (e) { return; }
-  const ready = (man.pieces || []).filter(p => p.status === 'ready');
+  const ready = (man.pieces || []).filter(p => p.status === 'ready').sort((a, b) => {
+    if ((a.kind === 'span') !== (b.kind === 'span')) return a.kind === 'span' ? -1 : 1;
+    if (a.kind === 'span') return (a.ordinal || 0) - (b.ordinal || 0);
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
   if (!ready.length) return;
   const sel = $('piecesel');
   const opt = (v, label) => { const o = document.createElement('option');
@@ -510,10 +577,23 @@ async function loadPieceList() {
         (p.data_rev ? ':' + p.data_rev : '')));
       if (s && s.pinned) pins = s.pinned.filter(Boolean).length;
     } catch (e) { /* none */ }
-    opt(p.id, p.id +
-      (p.movement_agreement != null ? ' · agr ' + p.movement_agreement.toFixed(2) : '') +
-      (p.coverage_pct != null ? ' · cov ' + Math.round(p.coverage_pct) + '%' : '') +
-      (pins ? ' · ✎' + pins : ''));
+    /* A span piece is one of the chanter's own cuts, so lead with its place on
+       the tape and its LANE — "make sure the 47 have Melos/paralagi as well
+       pretty clear to the user that its parallagi or melos when selecting".
+       The incipit follows, and the machine's confidence numbers only appear on
+       the hymn pieces that actually have an alignment behind them. */
+    const LANE = { melos: 'MELOS', parallagi: 'PARALLAGI' };
+    let label;
+    if (p.kind === 'span') {
+      const ord = p.ordinal != null ? String(p.ordinal).padStart(2, '0') : '--';
+      label = `s${ord}  ${(LANE[p.lane] || 'unset').padEnd(9)}  ${p.incipit || p.id}`;
+    } else {
+      label = p.id +
+        (p.movement_agreement != null ? ' · agr ' + p.movement_agreement.toFixed(2) : '') +
+        (p.coverage_pct != null ? ' · cov ' + Math.round(p.coverage_pct) + '%' : '');
+    }
+    opt(p.id, label + (p.alignment_stale ? ' · ⚠ times stale' : '')
+             + (pins ? ' · ✎' + pins : ''));
   }
   sel.style.display = '';
   sel.onchange = () =>
@@ -552,6 +632,7 @@ async function boot() {
   img.src = DATA_DIR + D.meta.strip;
 
   setupScore();
+  loadParallagi(PIECE || D.meta.piece_id);   // async; 404 leaves the overlay off
   requestAnimationFrame(frame);
   decodePeaks();   // async; UI is usable before it completes
 }
@@ -647,10 +728,54 @@ function drawScore() {
     else { ctx.strokeStyle = '#4da3ff'; ctx.lineWidth = 2;
            ctx.strokeRect(rx0-off-2, ry-2, rx1-rx0+4, rh+4); ctx.lineWidth = 1; }
   }
+  // parallagi over each glyph: small and blue so it reads as annotation, gold
+  // where flagged as wrong
+  if (PARA && showPara && D.notes) {
+    ctx.save();
+    // clamped both ways: on a phone ribScale runs to RIB_MAX and an unclamped
+    // size overflows the glyph box; below ~9px the Greek is unreadable
+    const fs = Math.max(9, Math.min(16, Math.round(11 * ribScale / RIB_BASE)));
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    for (let gi = 0; gi < D.notes.length; gi++) {
+      const nm = PARA.names[gi];
+      if (!nm) continue;
+      const n = D.notes[gi], [rx0, rx1] = glyphRX(gi);
+      if (rx1 < off - 20 || rx0 > off + vw + 20) continue;
+      const cy = D.meta.line_centers[n.line];
+      let ry = (n.y0 - bandTop(cy)) * ribScale;
+      let cx = (rx0 + rx1) / 2 - off;
+      ctx.font = fs + 'px system-ui';
+      /* An oligon+kentimata figure is TWO notes drawn STACKED, so each keeps its
+         own glyph box — that is what the playback highlight lights, the oligon
+         then the kentimata rather than the left half then the right half of one
+         glyph. The boxes therefore overlap in x, so only the LABELS are nudged
+         apart: left for the note sung first, right for the second, both lifted
+         clear of the higher of the two glyphs. */
+      const other = n.part === 0 ? D.notes[gi + 1]
+                  : n.part === 1 ? D.notes[gi - 1] : null;
+      if (other && other.part != null && other.line === n.line) {
+        const o = glyphRX(n.part === 0 ? gi + 1 : gi - 1);
+        const fx0 = Math.min(rx0, o[0]), fx1 = Math.max(rx1, o[1]);
+        const mid = (fx0 + fx1) / 2 - off;
+        const w = Math.max(ctx.measureText(nm).width / 2 + 1, (fx1 - fx0) / 4);
+        cx = n.part === 0 ? mid - w : mid + w;
+        ry = Math.min(ry, (other.y0 - bandTop(cy)) * ribScale);
+      }
+      const ty = Math.max(ry - 4, fs + 4);   // leave room for the martyria tick
+      ctx.fillStyle = PARA_FLAGS.has(gi) ? '#ff8a75' : '#6fa8dc';
+      ctx.fillText(nm, cx, ty);
+      if (PARA_MART.has(gi)) {               // the score states this degree
+        ctx.fillStyle = '#ffd54f';
+        ctx.fillRect(cx - 4, ty - fs - 3, 8, 2);
+      }
+    }
+    ctx.restore();
+  }
   // analytical figures: parallel per-note timeline — each analytical neume
   // lights as its note sounds (current bright, completed dim)
   (D.analytical || []).forEach((e, fi) => {
-    const [a, b] = e.span, t2 = audio.currentTime;
+    const [a, b] = e.span, t2 = playheadT();
     if (t2 < a - 0.4 || t2 > b + 0.4) return;
     const ramp = Math.min(1, (t2 - (a - 0.4)) / 0.4, ((b + 0.4) - t2) / 0.4);
     const cy2 = D.meta.line_centers[e.line];
@@ -687,7 +812,7 @@ function drawPartFills(ctx, gi, p, off) {
       ctx.fillRect(x-1, y-1, w+2, h+2);
     }
   }
-  const mFill = markFillCount(gi, audio.currentTime);
+  const mFill = markFillCount(gi, playheadT());
   ctx.fillStyle = 'rgba(255,213,79,0.5)';
   for (let k = 0; k < mFill && k < p.marks.length; k++) {   // one box per extension beat
     const [x, y, w, h] = box(p.marks[k]);
@@ -928,7 +1053,7 @@ function drawTL() {
   }
 
   // playhead
-  const pt = audio.currentTime;
+  const pt = playheadT();
   if (pt >= view.t0 && pt <= view.t1) {
     ctx.strokeStyle = '#ffd54f'; ctx.beginPath();
     ctx.moveTo(X(pt), 0); ctx.lineTo(X(pt), H); ctx.stroke();
@@ -1017,7 +1142,7 @@ function openDetail(gi) {
   for (const tr of $('slotlist').querySelectorAll('tr[data-slot]'))
     tr.onclick = () => { selectSlot(+tr.dataset.slot, false); };
   $('detseek').onclick = () => {
-    audio.currentTime = slotT(r.slot_ids[0]); dirtyTL = true;
+    seekTo(slotT(r.slot_ids[0]));
     const spanV = view.t1 - view.t0, t = slotT(r.slot_ids[0]);
     if (t < view.t0 || t > view.t1) setView(t - spanV/2, t + spanV/2);
   };
@@ -1063,7 +1188,7 @@ function setSlotTime(i, t) {
   dirtyTL = true;
 }
 function nudgeSel(dir) {
-  if (sel < 0) { audio.currentTime = Math.max(0, audio.currentTime + dir*2); dirtyTL = true; return; }
+  if (sel < 0) { seekTo(playheadT() + dir*2); return; }
   setSlotTime(sel, slotT(sel) + dir*NUDGE);
   pinned[sel] = true; save(); selectSlot(sel, false);
 }
@@ -1075,7 +1200,7 @@ function toggleLoopSel() {
   if (loop) loop = null;
   else if (sel >= 0) {
     loop = { a: slotT(sel), b: slotEnd(sel), slot: sel };
-    audio.currentTime = loop.a;
+    seekTo(loop.a);
     if (audio.paused) audio.play();
   }
   updateTransport(); dirtyTL = true;
@@ -1312,7 +1437,7 @@ function tlPointerEnd(e) {
       const tt = T(p.x);
       const hitG = ghosts.findIndex(([ga, gb]) => tt >= ga && tt <= gb);
       if (hitG >= 0) { ghosts.splice(hitG, 1); save(); }
-      else audio.currentTime = Math.max(0, Math.min(D.meta.duration, tt));
+      else seekTo(tt);
     }
     return;
   }
@@ -1322,7 +1447,7 @@ function tlPointerEnd(e) {
       save(); selectSlot(d.slot, false);
     }
   } else if (!d.moved && e.type !== 'pointercancel') {
-    audio.currentTime = Math.max(0, Math.min(D.meta.duration, T(p.x)));
+    seekTo(T(p.x));
     dirtyTL = true;
   }
 }
@@ -1342,7 +1467,19 @@ tlCv.addEventListener('wheel', e => {
 }, { passive: false });
 
 /* ================= score band interaction ================= */
+/* the ribbon pans by dragging, and a pan ends in a click on most phones —
+   only treat a tap as a flag if the strip did not move under the finger */
+let scoreDownScroll = null;
+scoreCv.addEventListener('pointerdown', () => { scoreDownScroll = wrap.scrollLeft; });
 scoreCv.addEventListener('click', e => {
+  const panned = scoreDownScroll != null && Math.abs(wrap.scrollLeft - scoreDownScroll) > 4;
+  scoreDownScroll = null;
+  if (paraFlagMode) {
+    if (panned) return;
+    const gf = glyphAtScoreXY(e.offsetX, e.offsetY);
+    if (gf >= 0) toggleParaFlag(gf);
+    return;
+  }
   const g = glyphAtScoreXY(e.offsetX, e.offsetY);
   if (g >= 0) {
     const i = MCR[g].slot_ids[0];
@@ -1357,11 +1494,34 @@ scoreCv.addEventListener('click', e => {
 });
 scoreCv.addEventListener('dblclick', e => {
   const g = glyphAtScoreXY(e.offsetX, e.offsetY);
-  if (g >= 0) { audio.currentTime = slotT(MCR[g].slot_ids[0]); dirtyTL = true; }
+  if (g >= 0) seekTo(slotT(MCR[g].slot_ids[0]));
 });
 
 /* ================= transport + keys ================= */
-function togglePlay() { if (audio.paused) audio.play(); else audio.pause(); }
+/* Seeking before the audio has metadata is silently DROPPED by the element, so
+   dragging the playhead on a freshly loaded piece did nothing and playback then
+   started from zero. Hold the request until 'loadedmetadata' and apply it then;
+   playheadT() reports the pending position meanwhile so the marker still moves
+   under the pointer. */
+let pendingSeek = null;
+function seekTo(t) {
+  t = Math.max(0, Math.min(D.meta.duration, t));
+  if (audio.readyState === 0) pendingSeek = t;
+  else { audio.currentTime = t; pendingSeek = null; }
+  dirtyTL = true;
+}
+const playheadT = () => pendingSeek != null ? pendingSeek : audio.currentTime;
+audio.addEventListener('loadedmetadata', () => {
+  if (pendingSeek != null) { audio.currentTime = pendingSeek; pendingSeek = null; }
+});
+function togglePlay() {
+  if (audio.paused) {
+    if (pendingSeek != null && audio.readyState > 0) {
+      audio.currentTime = pendingSeek; pendingSeek = null;
+    }
+    audio.play();
+  } else audio.pause();
+}
 window.addEventListener('keydown', e => {
   const tag = e.target.tagName;
   if (tag === 'TEXTAREA' || tag === 'INPUT') return;
@@ -1379,6 +1539,8 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'f' || e.key === 'F') $('follow').checked = !$('follow').checked;
   else if (e.key === 'g' || e.key === 'G') toggleGhostMode();
   else if (e.key === 'm' || e.key === 'M') toggleMelMode();
+  else if (e.key === 'a' || e.key === 'A') toggleParaMode();
+  else if (e.key === 'x' || e.key === 'X') toggleParaFlagMode();
   else if (e.key === 's' || e.key === 'S') cycleSpeed();
 });
 $('playbtn').onclick = togglePlay;
@@ -1414,6 +1576,22 @@ function toggleMelMode() {
   dirtyTL = true;
 }
 $('melbtn').onclick = toggleMelMode;
+function toggleParaMode() {
+  showPara = !showPara;
+  if (!showPara && paraFlagMode) toggleParaFlagMode();   // nothing to flag unseen
+  $('parabtn').classList.toggle('on', showPara);
+  dirtyScore = true;
+}
+$('parabtn').onclick = toggleParaMode;
+$('parabtn').classList.toggle('on', showPara);   // overlay is on by default
+function toggleParaFlagMode() {
+  paraFlagMode = !paraFlagMode;
+  if (paraFlagMode && !showPara) toggleParaMode();       // he flags what he sees
+  $('paraflagbtn').classList.toggle('on', paraFlagMode);
+  scoreCv.style.cursor = paraFlagMode ? 'cell' : 'default';
+  dirtyScore = true;
+}
+$('paraflagbtn').onclick = toggleParaFlagMode;
 $('exportbtn').onclick = doExport;
 $('nudgeL').onclick = () => nudgeSel(-1);
 $('nudgeR').onclick = () => nudgeSel(1);
@@ -1438,9 +1616,9 @@ window.addEventListener('resize', () => { setupScore(); dirtyTL = true;
 function frame() {
   requestAnimationFrame(frame);
   if (!D) return;
-  const t = audio.currentTime;
+  const t = playheadT();
   $('cur').textContent = fmtT(t);
-  if (loop && t >= loop.b - 0.01) audio.currentTime = loop.a;
+  if (loop && t >= loop.b - 0.01) seekTo(loop.a);
   const ps = slotAt(t);
   if (ps !== playingSlot) {
     playingSlot = ps; dirtyScore = true; dirtyTL = true;

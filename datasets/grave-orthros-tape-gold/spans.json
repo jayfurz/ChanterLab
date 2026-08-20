@@ -1,0 +1,336 @@
+{
+ "workdir": "grave-orthros",
+ "cut_by": "chanter",
+ "cut_on": "2026-08-19T08:48:41",
+ "spans": [
+  {
+   "hymn": "t01_#2",
+   "t0": 61.258,
+   "t1": 107.075,
+   "label": null,
+   "lane": null
+  },
+  {
+   "hymn": "t01_#3",
+   "t0": 107.749,
+   "t1": 158.189,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#4",
+   "t0": 158.69,
+   "t1": 212.185,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#5",
+   "t0": 222.999,
+   "t1": 291.636,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#6",
+   "t0": 293.094,
+   "t1": 349.578,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#7",
+   "t0": 355.357,
+   "t1": 432.708,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#8",
+   "t0": 433.123,
+   "t1": 498.542,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#9",
+   "t0": 500.646,
+   "t1": 555.068,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#10",
+   "t0": 555.243,
+   "t1": 608.827,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#11",
+   "t0": 609.066,
+   "t1": 646.206,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#12",
+   "t0": 646.064,
+   "t1": 683.113,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#13",
+   "t0": 683.517,
+   "t1": 722.595,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#14",
+   "t0": 722.975,
+   "t1": 762.758,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#15",
+   "t0": 763.828,
+   "t1": 809.566,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#16",
+   "t0": 810.136,
+   "t1": 856.84,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#17",
+   "t0": 858.409,
+   "t1": 913.505,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#18",
+   "t0": 913.472,
+   "t1": 968.453,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#19",
+   "t0": 968.812,
+   "t1": 1030.856,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#20",
+   "t0": 1030.856,
+   "t1": 1093.281,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_",
+   "t0": 1095.311,
+   "t1": 1386.498,
+   "label": "godisthelord",
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#21",
+   "t0": 1387.565,
+   "t1": 1643.186,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#22",
+   "t0": 1643.186,
+   "t1": 1688.41,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#23",
+   "t0": 1688.41,
+   "t1": 1718.813,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#24",
+   "t0": 1718.813,
+   "t1": 1756.66,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#25",
+   "t0": 1756.707,
+   "t1": 1793.428,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#26",
+   "t0": 1793.428,
+   "t1": 1824.016,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#27",
+   "t0": 1824.438,
+   "t1": 1854.678,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#28",
+   "t0": 1855.181,
+   "t1": 1892.427,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#29",
+   "t0": 1928.329,
+   "t1": 1964.101,
+   "label": "υπεραγια-θεοτοκε-σωσον-ημας-κανων",
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#30",
+   "t0": 1964.305,
+   "t1": 1999.968,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#31",
+   "t0": 1999.968,
+   "t1": 2035.787,
+   "label": "ο-καταρχάς τους ουρανούς (κανων)",
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#32",
+   "t0": 2040.82,
+   "t1": 2133.702,
+   "label": "μεγαλυνεν τὴν ψηχην μου ωδή θ' απο του Ζώ ",
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#33",
+   "t0": 2134.786,
+   "t1": 2229.592,
+   "label": "μεγάλη νηντηνψηχην μου",
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#34",
+   "t0": 2237.849,
+   "t1": 2316.911,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#35",
+   "t0": 2318.167,
+   "t1": 2389.607,
+   "label": "πασα πνοή ",
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#36",
+   "t0": 2390.761,
+   "t1": 2446.139,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#37",
+   "t0": 2447.275,
+   "t1": 2506.416,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#38",
+   "t0": 2507.461,
+   "t1": 2560.348,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#39",
+   "t0": 2561.95,
+   "t1": 2615.95,
+   "label": "Ανέστη χριστο",
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#40",
+   "t0": 2616.294,
+   "t1": 2662.955,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#41",
+   "t0": 2663.52,
+   "t1": 2709.82,
+   "label": "αναστα",
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#42",
+   "t0": 2710.26,
+   "t1": 2773.314,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#43",
+   "t0": 2773.964,
+   "t1": 2838.076,
+   "label": null,
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#44",
+   "t0": 2838.992,
+   "t1": 3024.313,
+   "label": null,
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#45",
+   "t0": 3025.033,
+   "t1": 3214.184,
+   "label": "τιαναντα",
+   "lane": "melos"
+  },
+  {
+   "hymn": "t01_#46",
+   "t0": 3214.305,
+   "t1": 3628.004,
+   "label": "δοξολογία ",
+   "lane": "parallagi"
+  },
+  {
+   "hymn": "t01_#47",
+   "t0": 3629.996,
+   "t1": 3852.643,
+   "label": "δοξολογία but cuts out after εκπισαμεν επι σε",
+   "lane": "melos"
+  }
+ ]
+}

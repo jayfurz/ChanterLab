@@ -1,0 +1,271 @@
+{
+ "tempo": [
+  {
+   "cluster": 33,
+   "page": 3,
+   "line": 1,
+   "img": "open/t33-0.png",
+   "n": 6,
+   "wh": "8.6 x 13.5"
+  },
+  {
+   "cluster": 33,
+   "page": 21,
+   "line": 9,
+   "img": "open/t33-1.png",
+   "n": 6,
+   "wh": "8.8 x 13.4"
+  },
+  {
+   "cluster": 33,
+   "page": 34,
+   "line": 2,
+   "img": "open/t33-2.png",
+   "n": 6,
+   "wh": "8.8 x 13.4"
+  },
+  {
+   "cluster": 33,
+   "page": 37,
+   "line": 4,
+   "img": "open/t33-3.png",
+   "n": 6,
+   "wh": "8.6 x 13.4"
+  },
+  {
+   "cluster": 33,
+   "page": 66,
+   "line": 1,
+   "img": "open/t33-4.png",
+   "n": 6,
+   "wh": "8.6 x 13.5"
+  },
+  {
+   "cluster": 42,
+   "page": 7,
+   "line": 0,
+   "img": "open/t42-0.png",
+   "n": 6,
+   "wh": "13.4 x 15.7"
+  },
+  {
+   "cluster": 42,
+   "page": 7,
+   "line": 8,
+   "img": "open/t42-1.png",
+   "n": 6,
+   "wh": "13.4 x 15.7"
+  },
+  {
+   "cluster": 42,
+   "page": 8,
+   "line": 2,
+   "img": "open/t42-2.png",
+   "n": 6,
+   "wh": "13.4 x 15.9"
+  },
+  {
+   "cluster": 42,
+   "page": 8,
+   "line": 10,
+   "img": "open/t42-3.png",
+   "n": 6,
+   "wh": "13.4 x 15.9"
+  },
+  {
+   "cluster": 42,
+   "page": 9,
+   "line": 7,
+   "img": "open/t42-4.png",
+   "n": 6,
+   "wh": "13.4 x 15.7"
+  },
+  {
+   "cluster": 43,
+   "page": 7,
+   "line": 1,
+   "img": "open/t43-0.png",
+   "n": 6,
+   "wh": "13.5 x 14.6"
+  },
+  {
+   "cluster": 43,
+   "page": 7,
+   "line": 9,
+   "img": "open/t43-1.png",
+   "n": 6,
+   "wh": "13.5 x 14.6"
+  },
+  {
+   "cluster": 43,
+   "page": 8,
+   "line": 3,
+   "img": "open/t43-2.png",
+   "n": 6,
+   "wh": "13.6 x 14.6"
+  },
+  {
+   "cluster": 43,
+   "page": 8,
+   "line": 12,
+   "img": "open/t43-3.png",
+   "n": 6,
+   "wh": "13.6 x 14.7"
+  },
+  {
+   "cluster": 43,
+   "page": 9,
+   "line": 9,
+   "img": "open/t43-4.png",
+   "n": 6,
+   "wh": "13.6 x 14.6"
+  },
+  {
+   "cluster": 57,
+   "page": 50,
+   "line": 7,
+   "img": "open/t57-0.png",
+   "n": 6,
+   "wh": "9.2 x 13.8"
+  },
+  {
+   "cluster": 57,
+   "page": 55,
+   "line": 12,
+   "img": "open/t57-1.png",
+   "n": 6,
+   "wh": "9.2 x 13.7"
+  },
+  {
+   "cluster": 57,
+   "page": 56,
+   "line": 0,
+   "img": "open/t57-2.png",
+   "n": 6,
+   "wh": "9.2 x 13.7"
+  },
+  {
+   "cluster": 57,
+   "page": 64,
+   "line": 10,
+   "img": "open/t57-3.png",
+   "n": 6,
+   "wh": "9.2 x 13.7"
+  },
+  {
+   "cluster": 57,
+   "page": 69,
+   "line": 9,
+   "img": "open/t57-4.png",
+   "n": 6,
+   "wh": "9.2 x 13.8"
+  }
+ ],
+ "kentimata": [
+  {
+   "key": "28|17be+6be",
+   "page": 21,
+   "line": 6,
+   "img": "open/k28_17be_6be-0.png",
+   "n": 6
+  },
+  {
+   "key": "28|17be+6be",
+   "page": 130,
+   "line": 6,
+   "img": "open/k28_17be_6be-1.png",
+   "n": 6
+  },
+  {
+   "key": "28|17be+6be",
+   "page": 254,
+   "line": 12,
+   "img": "open/k28_17be_6be-2.png",
+   "n": 6
+  },
+  {
+   "key": "7|17ab+21ab+41ab+47ab",
+   "page": 25,
+   "line": 8,
+   "img": "open/k7_17ab_21ab_41ab_47ab-0.png",
+   "n": 2
+  },
+  {
+   "key": "7|17ab+21ab+41ab+47ab",
+   "page": 375,
+   "line": 9,
+   "img": "open/k7_17ab_21ab_41ab_47ab-1.png",
+   "n": 2
+  },
+  {
+   "key": "47|17be+21be+41be",
+   "page": 52,
+   "line": 6,
+   "img": "open/k47_17be_21be_41be-0.png",
+   "n": 2
+  },
+  {
+   "key": "47|17be+21be+41be",
+   "page": 53,
+   "line": 2,
+   "img": "open/k47_17be_21be_41be-1.png",
+   "n": 2
+  },
+  {
+   "key": "7|16ab+17ab+6ab",
+   "page": 147,
+   "line": 1,
+   "img": "open/k7_16ab_17ab_6ab-0.png",
+   "n": 1
+  },
+  {
+   "key": "7|17ab+28ab+6ab",
+   "page": 175,
+   "line": 8,
+   "img": "open/k7_17ab_28ab_6ab-0.png",
+   "n": 6
+  },
+  {
+   "key": "7|17ab+28ab+6ab",
+   "page": 176,
+   "line": 4,
+   "img": "open/k7_17ab_28ab_6ab-1.png",
+   "n": 6
+  },
+  {
+   "key": "7|17ab+28ab+6ab",
+   "page": 216,
+   "line": 6,
+   "img": "open/k7_17ab_28ab_6ab-2.png",
+   "n": 6
+  },
+  {
+   "key": "19|10be+17ab+21ab+22ab+4ab",
+   "page": 222,
+   "line": 11,
+   "img": "open/k19_10be_17ab_21ab_22ab_4ab-0.png",
+   "n": 1
+  },
+  {
+   "key": "19|10be+17ab+21ab+22ab+4ab+4ab",
+   "page": 223,
+   "line": 0,
+   "img": "open/k19_10be_17ab_21ab_22ab_4ab_4ab-0.png",
+   "n": 1
+  },
+  {
+   "key": "19|10be+17ab+21ab+47ab+4ab+4ab",
+   "page": 223,
+   "line": 2,
+   "img": "open/k19_10be_17ab_21ab_47ab_4ab_4ab-0.png",
+   "n": 1
+  },
+  {
+   "key": "4|17ab+4be+6ab",
+   "page": 481,
+   "line": 6,
+   "img": "open/k4_17ab_4be_6ab-0.png",
+   "n": 1
+  }
+ ]
+}

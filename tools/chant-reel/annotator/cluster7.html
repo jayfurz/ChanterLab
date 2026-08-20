@@ -1,0 +1,146 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Is cluster 7 two neumes? — psifiston vs omalon</title>
+<style>
+  :root {
+    --bg:#14171c; --panel:#1c2027; --edge:#2c323c; --fg:#d8dee6; --dim:#8a93a0;
+    --accent:#4da3ff; --ok:#6fce8f; --warn:#e0a030; --bad:#ff5252;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--fg); font:14px/1.5 system-ui,sans-serif;
+         padding:0 0 80px; -webkit-tap-highlight-color:transparent; }
+  header { position:sticky; top:0; z-index:5; background:var(--panel);
+           border-bottom:1px solid var(--edge); padding:12px 16px; }
+  h1 { font-size:17px; font-weight:600; }
+  h2 { font-size:14px; font-weight:600; margin:26px 16px 10px; color:var(--accent); }
+  p.note { color:var(--dim); margin:6px 16px; max-width:70ch; }
+  header p.note { margin:6px 0 0; }
+  button { background:#262c36; color:var(--fg); border:1px solid var(--edge);
+           border-radius:6px; padding:5px 11px; font:inherit; cursor:pointer; }
+  button:hover { background:#303845; }
+  button.primary { background:#1e4976; border-color:#2a6fb0; }
+  .cal { display:flex; flex-wrap:wrap; gap:14px; padding:0 16px; }
+  .cal figure { background:var(--panel); border:1px solid var(--edge);
+                border-radius:8px; padding:8px; }
+  .cal figcaption { color:var(--dim); font-size:12px; margin-top:4px; }
+  .grid { display:grid; gap:14px; padding:0 16px;
+          grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
+  .card { background:var(--panel); border:1px solid var(--edge); border-radius:8px;
+          padding:8px; }
+  .card img, .cal img { width:100%; height:auto; display:block; background:#fff;
+                        border-radius:4px; }
+  .meta { display:flex; justify-content:space-between; align-items:baseline;
+          color:var(--dim); font-size:12px; margin:6px 2px 8px; }
+  .choices { display:flex; gap:6px; flex-wrap:wrap; }
+  .choices button { flex:1 1 auto; font-size:12px; padding:5px 6px; }
+  .card[data-v="under"]  { border-color:var(--ok);   box-shadow:0 0 0 1px var(--ok); }
+  .card[data-v="over"]   { border-color:var(--warn); box-shadow:0 0 0 1px var(--warn); }
+  .card[data-v="other"]  { border-color:var(--bad);  box-shadow:0 0 0 1px var(--bad); }
+  .card[data-v="under"] .b-under, .card[data-v="over"] .b-over,
+  .card[data-v="other"] .b-other { background:#1e4976; border-color:#2a6fb0; }
+  footer { position:fixed; bottom:0; left:0; right:0; background:var(--panel);
+           border-top:1px solid var(--edge); padding:10px 16px; display:flex;
+           gap:12px; align-items:center; }
+  #tally { color:var(--dim); }
+  textarea { width:100%; height:160px; background:#0f1216; color:var(--fg);
+             border:1px solid var(--edge); border-radius:6px; padding:8px;
+             font:12px/1.4 ui-monospace,monospace; margin:8px 16px; display:none; }
+</style>
+
+<header>
+  <h1>Cluster 7: psifiston, or psifiston <em>and</em> omalon? — <span id="n">175</span> odd ones out</h1>
+  <p class="note">
+    You said about half the kentimata figures had <strong>omalon</strong> underneath. On the
+    atlas that should have been impossible — omalon is cluster 36 and it does not occur in
+    those figures at all. But cluster 7's glyph height is <strong>bimodal with an empty
+    gap</strong>: 7295 instances at 6.2&ndash;6.4&nbsp;pt, 175 at 6.7&ndash;6.9&nbsp;pt, and
+    <em>nothing</em> at 6.5 or 6.6. Rendered, the common one is a deep U-swoop and the rare
+    one a flat level stroke. Inside the 78 you ruled, the flat ones take an
+    <strong>argon</strong> on top (37 of 38) and the swooped ones a <strong>gorgon</strong>
+    (40 of 40).
+  </p>
+  <p class="note">
+    Neither carries an interval, so no parallagi degree moves either way. What it changes is
+    the atlas and the beat model &mdash; omalon ties two notes and carries no beat, and a
+    mis-set omalon has already been caught adding a spurious beat elsewhere.
+  </p>
+</header>
+
+<h2>Control &mdash; the common cluster-7 shape (7295 of them)</h2>
+<p class="note">If these are all psifiston to you, the question is just about the 175 below.</p>
+<div class="cal" id="cal"></div>
+
+<h2>The 175 tall ones</h2>
+<div class="grid" id="grid"></div>
+<textarea id="out" readonly></textarea>
+
+<footer>
+  <button class="primary" id="copy">Copy my rulings</button>
+  <button id="reset">Clear</button>
+  <span id="tally"></span>
+</footer>
+
+<script>
+'use strict';
+const KEY = 'cluster7-review:v1';
+let V = {};
+try { V = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { V = {}; }
+const $ = id => document.getElementById(id);
+const idOf = r => r.page + ':' + r.line + ':' + r.img.match(/-(\d+)\.png$/)[1];
+
+function tally(items) {
+  const c = k => items.filter(r => V[idOf(r)] === k).length;
+  $('tally').textContent =
+    `${items.filter(r => V[idOf(r)]).length}/${items.length} ruled · omalon ${c('omalon')}`
+    + ` · psifiston ${c('psifiston')} · something else ${c('other')}`;
+}
+
+fetch('cluster7.json').then(r => r.json()).then(j => {
+  const ctrl = j.items.filter(r => r.group === 'short');
+  const tall = j.items.filter(r => r.group === 'tall');
+  $('n').textContent = tall.length;
+
+  $('cal').innerHTML = ctrl.map(r => `
+    <figure style="flex:1 1 200px;max-width:280px">
+      <img src="${r.img}" alt="">
+      <figcaption>p${r.page} l${r.line} · ${r.h}pt</figcaption>
+    </figure>`).join('');
+
+  $('grid').innerHTML = tall.map(r => {
+    const id = idOf(r);
+    return `<div class="card" data-id="${id}"${V[id] ? ` data-v="${V[id]}"` : ''}>
+      <img src="${r.img}" alt="" loading="lazy">
+      <div class="meta"><span>page ${r.page}, line ${r.line}</span><span>${r.h}pt</span></div>
+      <div class="choices">
+        <button class="b-under" data-set="omalon">omalon</button>
+        <button class="b-over"  data-set="psifiston">psifiston</button>
+        <button class="b-other" data-set="other">something else</button>
+      </div></div>`;
+  }).join('');
+
+  $('grid').onclick = e => {
+    const b = e.target.closest('button[data-set]');
+    if (!b) return;
+    const card = b.closest('.card'), id = card.dataset.id, v = b.dataset.set;
+    if (V[id] === v) { delete V[id]; card.removeAttribute('data-v'); }
+    else { V[id] = v; card.dataset.v = v; }
+    localStorage.setItem(KEY, JSON.stringify(V));
+    tally(tall);
+  };
+  $('copy').onclick = () => {
+    const txt = JSON.stringify(tall.filter(r => V[idOf(r)])
+      .map(r => ({ page: r.page, line: r.line, h: r.h, ruling: V[idOf(r)] })), null, 1);
+    $('out').value = txt; $('out').style.display = 'block';
+    navigator.clipboard && navigator.clipboard.writeText(txt);
+    $('out').select();
+  };
+  $('reset').onclick = () => {
+    if (!confirm('Clear every ruling on this sheet?')) return;
+    V = {}; localStorage.removeItem(KEY);
+    document.querySelectorAll('.card').forEach(c => c.removeAttribute('data-v'));
+    tally(tall);
+  };
+  tally(tall);
+});
+</script>
