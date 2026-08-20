@@ -10,7 +10,7 @@ Numbers below were measured on 2026-08-20 with the command that produced them,
 shows cannot currently be reproduced and must not be quoted until it is.
 
 **Goal: every note onset within 50 ms of the chanter's pins**, over every note
-event. Forced alignment can reach at most 42 % of them (§0.2).
+event. Forced alignment leaves a selection problem, not an availability one (§0.2).
 
 `ONSET-MODEL.md` is the *design* document — why an encoder-decoder, why a
 distribution instead of a scalar, why these four base models. It is not
@@ -28,9 +28,11 @@ The deliverable is **note onsets within 50 ms of the chanter's pins, on every
 note event.** Each note is one timeline event; none are excluded. The release
 criterion is **≥ 90 % within 50 ms with zero slips** (§9).
 
-**The encoder-decoder is a decision, not a hypothesis.** Forced alignment
-cannot reach more than 42 % of note events (§0.2), so a model is being built
-regardless of what the baselines say. Generation (§8) is the stated later goal,
+**The encoder-decoder is a decision, not a hypothesis.** Forced alignment gives
+candidate onsets, not note onsets — ~2.8 candidates per note, and 4 % accuracy
+if you take its word-level output as-is (§0.2). Something has to select among
+them and supply the rest, so a model is being built regardless of what the
+baselines say. Generation (§8) is the stated later goal,
 which is why the vocabulary in §3 is fixed as the full neume stream from day
 one. REPRO-01 exists to *size* the work and give it an honest yardstick — not
 to decide whether it happens.
@@ -71,37 +73,54 @@ The aligner starts correct, drifts out to **+4.6 s**, comes back through zero,
 overshoots to **−3.1 s**, recovers, and then holds a twenty-note run dead-on.
 It is not noisy — it is **losing sync and re-acquiring it**.
 
-### 0.2 Why forced alignment is structurally short — the chanter's diagnosis
+### 0.2 What forced alignment can and cannot give — measured, not assumed
+
+The chanter's diagnosis:
 
 *"FA probably was low because repeated vowel sound extensions wouldn't get a
 syllable onset, instead we would need the chant music aware to know when those
 notes get hit which is a mixture of envelope, beat timing, pitch, etc — which is
 how a human can tell when a certain note is hit."*
 
-This is the load-bearing insight of the plan and it should have been §0 from the
-start. CTC emits a token when the *character* changes. A note re-articulated on
-the vowel already sounding produces **no character change**, so the acoustic
-model has nothing to fire on. This is not a tuning deficiency; the phonetic
-stream is blind to these notes by construction.
+The mechanism is right: CTC emits a token when the *character* changes, so a
+note re-articulated on the vowel already sounding produces no new target token.
+On t03, 18 of 76 glyphs carry no fresh syllable — ordinary notes (`4|`
+apostrophos mostly, some `5|`, one `6|`, 1.0–2.0 beats) that a human places from
+envelope re-attack, pitch movement and where the beat says the note is due.
 
-Measured on t03:
+**But an earlier draft turned that into a "42 % structural ceiling," and that
+was wrong.** `forced_align.py` aligns every *character* and only aggregates
+spans into words at the very end; the 32 stored word records are a
+post-processing artefact, not a property of CTC. Measured with
+`tools/corpus/fa_char_coverage.py`:
 
 ```
-  note events (all pinned)                         76
-  FA word onsets available for them                32     <- 42 % ceiling
-  notes whose glyph carries no fresh syllable      18     (24 %)
+t03: 33 words, 179 aligned characters
+  distinct character-level onsets in the CTC path      211
+  gold pins with SOME character onset within 0.05 s   47/76  (62 %)
+  gold pins with SOME character onset within 0.10 s   64/76  (84 %)
+  gold pins with SOME WORD onset within 0.05 s         3/76  ( 4 %)
 ```
 
-Even at perfect precision, **forced alignment can place at most 32 of 76 note
-events.** That is the honest ceiling, and it is the reason a model is needed at
-all — not melismas, not precision. It also makes DECIDE-01's "FA might already
-win" outcome unlikely, though the gate stays because it must be measured.
+Two conclusions, and the second reshapes the plan:
 
-The 18 continuing-vowel notes are ordinary notes: mostly `4|` (apostrophos),
-some `5|` (ison), one `6|` (oligon), with beats of 1.0 to 2.0. A human hears
-them from **envelope re-attack, pitch movement, and where the beat says the
-note is due** — exactly the cue set the chanter names, and exactly what a
-phonetic encoder discards.
+1. **The stored word-level output is nearly useless as a note-onset source —
+   4 %.** Whatever the documented 0.028 s measured, it was not this.
+2. **The character path already contains evidence for 62 % of notes at 50 ms.**
+
+**Read (2) as an oracle number.** 211 candidates for 76 notes is ~2.8 per note;
+it says the information is *present*, not that it can be picked out. So what FA
+leaves is a **selection problem, not an availability problem** — and that is a
+much better-posed job for a model than regressing time from nothing. The
+decoder's task is to choose among candidate onsets using neume context, the
+`beats` prior and the music cues of §4, and to supply an onset where no
+candidate exists.
+
+This also corrects the strong claim of the previous draft. The phonetic stream
+has no new *target token* for a continuing-vowel note; it does not follow that
+it has no *acoustic evidence*. Hidden states and CTC-logit variation may well
+carry the re-attack. Stream C is required because it carries those cues
+explicitly and cheaply (§4), not because stream A is provably blind.
 
 ### 0.3 What that means for the build
 
@@ -135,7 +154,10 @@ off by up to 35 s.
 32 words it covers; what does not exist is a reproducible number over the 76-pin
 denominator.
 
-**REPRO-01 (S) blocks every other stage.** Write `tools/corpus/fa_eval.py`
+**REPRO-01 (S) blocks every stage that consumes a baseline or an FA anchor —
+NN-02 onward. It does not block NN-01, which waits on notation work instead.**
+It must report character-level and word-level coverage separately (§0.2), and
+validate the mapping rather than merely reproduce it. Write `tools/corpus/fa_eval.py`
 that emits the word→glyph mapping and scores FA against the 76 pins at
 0.05/0.10/0.15 s over a fixed denominator of 76, and record what it says. If FA
 turns out to cover only 32 of 76 notes at high precision, that is a *better*
@@ -157,7 +179,7 @@ Until then, no number in §9 may be quoted as a baseline.
 | audio | **37.4 h / 264 recordings** | `/mnt/data/chant-corpus/corpus.json` | all one singer (see ATTR-01) |
 | span pieces | 47 | `tools/chant-reel/annotator/data/grave-orthros-s*` | chanter-cut, **audio bounds locked forever** |
 | hymn pieces | 173 | same dir, `*-t*` | machine-cut |
-| annotator note slots | 19,868 | across 220 pieces | the melisma numbers above |
+| annotator note slots | 19,868 | across 220 pieces | 4,050 carry no fresh syllable (§0.2) |
 
 **The label scarcity is the design constraint.** 335 verified onsets is not a
 number you train 80 M parameters on from scratch. §4 is built around spending
@@ -187,9 +209,10 @@ ranges overlap at their edges, so a naive pass double-counts.
 
 Two consequences, both important:
 
-1. **The constraint is real and cheap to enforce** — 3,886 checkpoints
-   corpus-wide, zero labelling cost. It goes into the decode (§7) as a hard
-   gate and into the data builder (NN-03) as a filter on silver.
+1. **The constraint is real and cheap to compute** — 3,886 checkpoints
+   corpus-wide, zero labelling cost. It enters the decode (§7) and the silver
+   filter (NN-03) **report-only until Gate C**, and becomes a hard gate only
+   after CHECK-01 passes and clusters 26/29 are chanter-reviewed.
 2. **It is currently violated in 70 % of gaps, asymmetrically.** That is a
    systematic legend gap on the "not climbing enough" side, not solver-shaped
    noise. A solver that collapses each gap independently would paper over it
@@ -281,7 +304,10 @@ Rules that must hold, enforced by tests:
   NN-01 gate; anything less and errors get baked into weights where they are
   far more expensive to find than in a JSON file.
 - **Canonical mark order**, so the same figure is always the same token
-  sequence. Sort by mark id.
+  sequence. Sort by mark id **only once DECODE-01/KEY-01 confirm that position
+  and geometry carry no meaning a sorted id-list would destroy** (§10). If they
+  do, order by the confirmed semantic role instead. Whichever is chosen, record
+  in `vocab_v1.json` exactly which distinctions the vocabulary drops.
 - **Derived quantities are NOT tokens.** `iv` (the interval) and `beats` are
   *computed* from the figure by `legend_canon` / `beats_seq`. Emitting them as
   tokens would let the decoder contradict the legend. They enter as *features*
@@ -321,10 +347,25 @@ They already exist, per workdir, at **10 ms — finer than the encoder grid and
   rms_track.npy     (5390,) float64   amplitude        10.0 ms/frame
 ```
 
-Feed, resampled onto the 20 ms grid: f0 in cents and its first difference
-(a degree change is an onset cue), RMS and its first difference (envelope
-re-attack is *the* cue for a re-articulation), and spectral flux. Add the
-`beats_seq` prediction of when the note is due — §5.2 already carries it.
+**Encoder-input contract**, same footing as stream B: the six channels are
+resampled to the 20 ms grid, layer-normed, projected by a linear map to
+`d_model`, and **concatenated with A and B along the feature axis** before the
+audio self-attention stack. They are audio-side, frame-aligned inputs — not
+neume-side features — so local cross-attention addresses them on the same index
+as A. Channels:
+
+| ch | definition | source |
+|---|---|---|
+| `f0_cents` | pitch in cents, NaN where unvoiced → 0 with the mask bit | `cents_track.npy`, 10 ms |
+| `df0` | first difference of `f0_cents`, masked across unvoiced gaps | derived |
+| `rms` | amplitude | `rms_track.npy`, 10 ms |
+| `drms` | first difference — envelope re-attack, *the* cue for a re-articulation | derived |
+| `flux` | half-wave-rectified spectral flux, **new: computed in `features.py`** — STFT n_fft 1024, hop 320 @ 16 kHz (aligning it to the 20 ms grid by construction), magnitude, `sum(max(0, |X_t| - |X_{t-1}|))`, per-piece median-normalised | new |
+| `voiced` | 1 where the tracker reports voicing, else 0 | `cents_track.npy` |
+
+Downsampling 10 ms → 20 ms **takes the max of `drms` and `flux` over each pair**
+and the mean of the rest: an onset is a peak, and averaging a two-frame window
+is how you lose it.
 
 **This stream is not an ablation.** Stream A can be ablated; B is a question;
 C is load-bearing, because it is the only stream that sees 24 % of the notes.
@@ -378,9 +419,12 @@ drop it — a smaller model that ties is the better model.
 
 ## 5. NN-04 — the model
 
+Layer counts are `N`/`M`, fixed by the §5.4 learning curve — **the starting
+model is N=2, M=3**; the ceiling the data plausibly supports is N=4, M=6.
+
 ```
                          ┌──────────────────────────────────────┐
-  audio frames  ────────►│ 4 x local self-attn, window ±64 fr    │  20 ms grid
+  A+B+C frames  ────────►│ N x local self-attn, window ±64 fr    │  20 ms grid
   (cached, frozen)       │ (±1.28 s — onset evidence IS local)   │
                          └───────────────┬──────────────────────┘
                                          │
@@ -389,8 +433,8 @@ drop it — a smaller model that ties is the better model.
                          └───────────────┬──────────────────────┘
                                          │
   neume stream ─────────►┌───────────────┴──────────────────────┐
-  (NN-01 tokens)         │ 6 x decoder block:                   │
-  + iv, beats, melisma   │   causal self-attn over neumes (full) │
+  (NN-01 tokens)         │ M x decoder block:                   │
+  + iv, beats, FA cands  │   causal self-attn over neumes (full) │
   + genre/mode prefix    │   cross-attn LOCAL  -> ±150 frames    │  (3 s window,
                          │   cross-attn GLOBAL -> pooled summary │   pointer-centred)
                          └───────────────┬──────────────────────┘
@@ -431,9 +475,11 @@ it is looking for the onset for as well as a sliver of audio time in a window"*
 | melisma index / length | syllabification | which of the twelve notes on this vowel |
 | previous + target syllable | SYL-01 | the chanter's query unit |
 | mode / genre / book / incipit | directory + hymn name | **as plain text**, so an unseen genre degrades instead of failing |
-| f0 contour + Δf0 | `cents_track.npy` | a degree change marks an onset the phonetic stream cannot see |
-| RMS envelope + ΔRMS | `rms_track.npy` | envelope re-attack is the cue for a note on a continuing vowel |
-| FA anchor, if any | `forced_align` | present for ~42 % of notes; absent is itself informative |
+| FA candidate onsets in the window | `forced_align` character path | §0.2 — the decoder *selects* among these |
+| syllable-present mask bit | SYL-01 | absent syllable must not look like a real zero |
+
+f0, RMS, Δ and flux are **audio-side** and enter through stream C (§4), not
+here; they are frame-aligned time series, not per-unit features.
 
 Note what the table now says about coverage: the syllable features are
 **absent** for the 24 % of notes sung on a continuing vowel, and that is exactly
@@ -619,11 +665,19 @@ loads it in-process.
 **A stated goal of this project**, on its own timeline (§10). Recorded here
 because one dependency is cheap now and impossible to retrofit.
 
-Trained on (audio ↔ neume stream), the same weights run backwards: conditioned
-on text and a target phrase, the decoder emits neumes — compounds, qualitative
-marks, melismatic extension included, because those are simply the tokens it was
-trained to emit. Melismas falling out is not a bonus; it is what the neume
-stream *is*. §3's factored vocabulary is the whole reason this stays possible.
+**What this plan's architecture does and does not give.** The model in §5
+*consumes* neume tokens and emits only a Δt distribution; it has no neume output
+head and no text encoder, so "the same weights run backwards" is false as
+written. What carries over is the decoder stack and its learned neume-side
+representation. GEN-01 must add two things: a neume-token output head trained
+with an LM objective (NN-03c already trains exactly that, so it is not new
+work), and a text/target-phrase encoder to condition on. Budget it as a real
+increment, not a free reinterpretation.
+
+What *is* free today, and unrecoverable later, is the vocabulary: because §3
+emits the full factored neume stream — compounds, qualitative marks, duration —
+a future generative head can emit a psifiston. A decoder trained on an interval
+alphabet never can.
 
 **Style personas are blocked, and not by the model.** `corpus.json` carries only
 `path/name/dur_s/size`: no singer, no school, no date, no provenance. All 264
@@ -670,6 +724,11 @@ versus notes on a continuing vowel — because a system can look fine overall
 while failing the whole class §0.2 is about. This is a diagnostic breakdown, not
 a change of denominator.
 
+**The intermediate gates run on a silver dev fold**, built by holding out whole
+source recordings from NN-03b and scoring against their FA character-path
+anchors. It is a weaker instrument than pins — that is the price of not
+spending them — and it is why NN-05's bar (60 %) sits below NN-06's (90 %).
+
 **Development folds are silver-only.** Stream B, score-only pretraining, and the
 4 M/12 M/40 M curve must all be chosen on grouped silver folds, never on the
 gold pins. Two gold pieces cannot absorb repeated model selection —
@@ -682,7 +741,8 @@ Baselines, once REPRO-01 has produced them honestly:
 | system | ≤ 0.05 s | median | slips |
 |---|---|---|---|
 | annotator today (t03, all 76) | **30 %** | 0.714 s | 4 |
-| forced alignment | **unverified — see §0.4**; ≤ 42 % coverage regardless | cited 0.028 s, unreproducible | — |
+| FA word onsets (t03) | **4 %** | — | — |
+| FA character path, oracle pick | **62 %** (upper bound, §0.2) | — | — |
 | target | **≥ 90 % of all notes** | — | **0** |
 
 Disqualified metrics, both with the reason on record:
@@ -706,7 +766,7 @@ Synthetic data gates nothing. Only real held-out pins do.
 
 | id | work | gate |
 |---|---|---|
-| **REPRO-01** (S) | `fa_eval.py`: word→glyph mapping + FA scored on all 76 t03 pins | a number exists that a second run reproduces. **Blocks everything.** |
+| **REPRO-01** (S) | `fa_eval.py`: character- and word-level FA scored on all 76 t03 pins, mapping validated | a number exists that a second run reproduces. **Blocks NN-02 onward** |
 | **DECIDE-01** (S) | read REPRO-01 and characterise the gap: FA coverage, within-50 ms rate, misses, failure categories, and the split by evidence class | a sized brief for NN-02..NN-06 — which notes the model must own, and what it must beat on each class |
 | **NN-00** (S) | honest arithmetic baseline: `beats_seq` + one fitted tempo, same protocol | reproduced by a script, not by hand |
 | **CHECK-01** (M) | find the systematic −1/−2 in the 40 violated martyria gaps | `martyria_check.py` exits 0: violated < 8 of 57 |
@@ -714,7 +774,7 @@ Synthetic data gates nothing. Only real held-out pins do.
 | **NN-02** (M) | `features.py`, frozen feature cache + provenance (§4) | FA re-derived from cache matches REPRO-01 exactly |
 | **NN-03** (M) | `dataset.py`; lane-specific silver, provenance + `source_recording_id` on every example | no gold **source recording** in any train split — including derived cuts, overlapping excerpts and duplicates under other piece ids. Split by recording, asserted in code |
 | **NN-04** (M) | `model.py` at 4 M, hybrid attention + Δt head | forward/backward runs; contract doc written first (§5.5) |
-| **NN-05** (L) | train; learning curve 4 M / 12 M / 40 M | **≥ 60 % within 50 ms on held-out pins, slips < 2**, and no collapse on continuing-vowel notes |
+| **NN-05** (L) | train; learning curve 4 M / 12 M / 40 M | **≥ 60 % within 50 ms on the silver dev fold, slips < 2**, no collapse on continuing-vowel notes. **Gold is not touched here** — see §9 |
 | **NN-06** (M) | `decode.py`, propose/verify/backtrack — **contract first**, as §5.5: beam state and width, score equation, anchor-crossing semantics, beat tolerance, entropy threshold, rollback state, termination, and what "high confidence" numerically means. Tuned on silver dev folds only | **≥ 90 % of all notes within 50 ms, 0 slips** — the actual deliverable |
 | **ATTR-01** (S) | provenance schema at ingest; backfill 264 as `vasilikos` | nothing lands untagged |
 
@@ -753,10 +813,9 @@ Synthetic data gates nothing. Only real held-out pins do.
 
 ## 11. Non-goals
 
-- Replacing forced alignment. FA stays the onset source wherever it has
-  evidence — at most 42 % of notes (§0.2). The network's job is the rest: the
-  notes on a continuing vowel that CTC cannot see, and keeping the path from
-  desynchronising between anchors.
+- Replacing forced alignment. The CTC character path is the candidate
+  generator; the network selects among its candidates, supplies onsets where it
+  has none, and keeps the path from desynchronising between anchors (§0.2).
 - Replacing the DTW's global structure. Passage-level layout stays with the
   anchored aligner and the martyria checksum.
 - Training on machine-aligned onsets as if they were truth.
