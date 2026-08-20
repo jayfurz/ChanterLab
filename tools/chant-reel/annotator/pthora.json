@@ -1,19 +1,119 @@
 {
  "items": [
   {
-   "page": 375,
-   "line": 9,
-   "img": "pthora/p375-l09-0.png",
+   "page": 7,
+   "line": 13,
+   "img": "pthora/p007-l13-0.png",
    "parts": [
     {
      "n": 1,
-     "c": 37,
-     "what": "my table reads it as Pa",
+     "c": 2,
+     "what": "UNKNOWN — not in the atlas",
      "col": "#d62728"
     },
     {
      "n": 2,
-     "c": 49,
+     "c": 14,
+     "what": "my table reads it as Pa",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 44,
+     "what": "my table reads it as Di",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 5,
+   "line": 0,
+   "img": "pthora/p005-l00-1.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 2,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 14,
+     "what": "my table reads it as Pa",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 38,
+     "what": "scale sign: hard chromatic Pa",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 25,
+   "line": 6,
+   "img": "pthora/p025-l06-2.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 55,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 54,
+     "what": "my table reads it as Ni",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 24,
+     "what": "scale sign: diatonic Ga",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 25,
+   "line": 7,
+   "img": "pthora/p025-l07-3.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 55,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 54,
+     "what": "my table reads it as Ni",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 24,
+     "what": "scale sign: diatonic Ga",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 33,
+   "line": 9,
+   "img": "pthora/p033-l09-4.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 40,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 52,
      "what": "my table reads it as Ke",
      "col": "#1f77b4"
     },
@@ -26,178 +126,20 @@
    ]
   },
   {
-   "page": 7,
-   "line": 6,
-   "img": "pthora/p007-l06-1.png",
+   "page": 373,
+   "line": 12,
+   "img": "pthora/p373-l12-5.png",
    "parts": [
     {
      "n": 1,
-     "c": 14,
-     "what": "my table reads it as Pa",
+     "c": 40,
+     "what": "UNKNOWN — not in the atlas",
      "col": "#d62728"
     },
     {
      "n": 2,
-     "c": 44,
-     "what": "my table reads it as Di",
-     "col": "#1f77b4"
-    }
-   ]
-  },
-  {
-   "page": 7,
-   "line": 13,
-   "img": "pthora/p007-l13-2.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 14,
-     "what": "my table reads it as Pa",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 44,
-     "what": "my table reads it as Di",
-     "col": "#1f77b4"
-    }
-   ]
-  },
-  {
-   "page": 53,
-   "line": 10,
-   "img": "pthora/p053-l10-3.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 54,
-     "what": "my table reads it as Ni",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 44,
-     "what": "my table reads it as Di",
-     "col": "#1f77b4"
-    }
-   ]
-  },
-  {
-   "page": 54,
-   "line": 8,
-   "img": "pthora/p054-l08-4.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 37,
-     "what": "my table reads it as Pa",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 14,
-     "what": "my table reads it as Pa",
-     "col": "#1f77b4"
-    },
-    {
-     "n": 3,
-     "c": 15,
-     "what": "scale sign: diatonic Pa",
-     "col": "#2ca02c"
-    }
-   ]
-  },
-  {
-   "page": 56,
-   "line": 5,
-   "img": "pthora/p056-l05-5.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 54,
-     "what": "my table reads it as Ni",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 44,
-     "what": "my table reads it as Di",
-     "col": "#1f77b4"
-    }
-   ]
-  },
-  {
-   "page": 101,
-   "line": 8,
-   "img": "pthora/p101-l08-6.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 23,
-     "what": "my table reads it as Ga",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 44,
-     "what": "my table reads it as Di",
-     "col": "#1f77b4"
-    }
-   ]
-  },
-  {
-   "page": 117,
-   "line": 1,
-   "img": "pthora/p117-l01-7.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 52,
+     "c": 49,
      "what": "my table reads it as Ke",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 44,
-     "what": "my table reads it as Di",
-     "col": "#1f77b4"
-    }
-   ]
-  },
-  {
-   "page": 117,
-   "line": 8,
-   "img": "pthora/p117-l08-8.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 52,
-     "what": "my table reads it as Ke",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 44,
-     "what": "my table reads it as Di",
-     "col": "#1f77b4"
-    }
-   ]
-  },
-  {
-   "page": 129,
-   "line": 10,
-   "img": "pthora/p129-l10-9.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 37,
-     "what": "my table reads it as Pa",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 67,
-     "what": "my table reads it as Vou",
      "col": "#1f77b4"
     },
     {
@@ -209,28 +151,241 @@
    ]
   },
   {
-   "page": 129,
+   "page": 70,
    "line": 10,
-   "img": "pthora/p129-l10-10.png",
+   "img": "pthora/p070-l10-6.png",
    "parts": [
     {
      "n": 1,
-     "c": 49,
-     "what": "my table reads it as Ke",
+     "c": 45,
+     "what": "UNKNOWN — not in the atlas",
      "col": "#d62728"
     },
     {
      "n": 2,
-     "c": 44,
+     "c": 34,
      "what": "my table reads it as Di",
      "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 44,
+     "what": "my table reads it as Di",
+     "col": "#2ca02c"
     }
    ]
   },
   {
-   "page": 130,
+   "page": 150,
    "line": 4,
-   "img": "pthora/p130-l04-11.png",
+   "img": "pthora/p150-l04-7.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 45,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 52,
+     "what": "my table reads it as Ke",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 44,
+     "what": "my table reads it as Di",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 76,
+   "line": 1,
+   "img": "pthora/p076-l01-8.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 1,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 34,
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 35,
+     "what": "scale sign: diatonic Di",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 261,
+   "line": 3,
+   "img": "pthora/p261-l03-9.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 67,
+     "what": "my table reads it as Vou",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 80,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#1f77b4"
+    }
+   ]
+  },
+  {
+   "page": 289,
+   "line": 5,
+   "img": "pthora/p289-l05-10.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 67,
+     "what": "my table reads it as Vou",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 80,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#1f77b4"
+    }
+   ]
+  },
+  {
+   "page": 276,
+   "line": 3,
+   "img": "pthora/p276-l03-11.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 39,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 34,
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 35,
+     "what": "scale sign: diatonic Di",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 438,
+   "line": 4,
+   "img": "pthora/p438-l04-12.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 39,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 34,
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 35,
+     "what": "scale sign: diatonic Di",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 296,
+   "line": 10,
+   "img": "pthora/p296-l10-13.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 67,
+     "what": "my table reads it as Vou",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 81,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#1f77b4"
+    }
+   ]
+  },
+  {
+   "page": 305,
+   "line": 3,
+   "img": "pthora/p305-l03-14.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 63,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 67,
+     "what": "my table reads it as Vou",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 81,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 315,
+   "line": 10,
+   "img": "pthora/p315-l10-15.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 63,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 67,
+     "what": "my table reads it as Vou",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 81,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 392,
+   "line": 11,
+   "img": "pthora/p392-l11-16.png",
    "parts": [
     {
      "n": 1,
@@ -240,77 +395,65 @@
     },
     {
      "n": 2,
-     "c": 67,
-     "what": "my table reads it as Vou",
+     "c": 31,
+     "what": "UNKNOWN — not in the atlas",
      "col": "#1f77b4"
-    },
-    {
-     "n": 3,
-     "c": 38,
-     "what": "scale sign: hard chromatic Pa",
-     "col": "#2ca02c"
     }
    ]
   },
   {
-   "page": 132,
-   "line": 1,
-   "img": "pthora/p132-l01-12.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 51,
-     "what": "my table reads it as Di",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 67,
-     "what": "my table reads it as Vou",
-     "col": "#1f77b4"
-    },
-    {
-     "n": 3,
-     "c": 38,
-     "what": "scale sign: hard chromatic Pa",
-     "col": "#2ca02c"
-    }
-   ]
-  },
-  {
-   "page": 137,
-   "line": 1,
-   "img": "pthora/p137-l01-13.png",
-   "parts": [
-    {
-     "n": 1,
-     "c": 51,
-     "what": "my table reads it as Di",
-     "col": "#d62728"
-    },
-    {
-     "n": 2,
-     "c": 54,
-     "what": "my table reads it as Ni",
-     "col": "#1f77b4"
-    },
-    {
-     "n": 3,
-     "c": 38,
-     "what": "scale sign: hard chromatic Pa",
-     "col": "#2ca02c"
-    }
-   ]
-  },
-  {
-   "page": 147,
+   "page": 518,
    "line": 10,
-   "img": "pthora/p147-l10-14.png",
+   "img": "pthora/p518-l10-17.png",
    "parts": [
     {
      "n": 1,
-     "c": 49,
-     "what": "my table reads it as Ke",
+     "c": 70,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 26,
+     "what": "my table reads it as Zo",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 77,
+     "what": "my table reads it as Vou",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 615,
+   "line": 13,
+   "img": "pthora/p615-l13-18.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 33,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 65,
+     "what": "my table reads it as Ga",
+     "col": "#1f77b4"
+    }
+   ]
+  },
+  {
+   "page": 7,
+   "line": 6,
+   "img": "pthora/p007-l06-19.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 14,
+     "what": "my table reads it as Pa",
      "col": "#d62728"
     },
     {
@@ -322,30 +465,69 @@
    ]
   },
   {
-   "page": 149,
-   "line": 6,
-   "img": "pthora/p149-l06-15.png",
+   "page": 15,
+   "line": 1,
+   "img": "pthora/p015-l01-20.png",
    "parts": [
     {
      "n": 1,
-     "c": 51,
-     "what": "my table reads it as Di",
+     "c": 2,
+     "what": "UNKNOWN — not in the atlas",
      "col": "#d62728"
     },
     {
      "n": 2,
-     "c": 67,
-     "what": "my table reads it as Vou",
+     "c": 14,
+     "what": "my table reads it as Pa",
      "col": "#1f77b4"
     },
     {
      "n": 3,
-     "c": 38,
-     "what": "scale sign: hard chromatic Pa",
+     "c": 44,
+     "what": "my table reads it as Di",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 26,
+   "line": 0,
+   "img": "pthora/p026-l00-21.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 55,
+     "what": "UNKNOWN — not in the atlas",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 54,
+     "what": "my table reads it as Ni",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 24,
+     "what": "scale sign: diatonic Ga",
      "col": "#2ca02c"
     }
    ]
   }
  ],
- "total": 77
+ "total": 214,
+ "unknown_clusters": [
+  1,
+  2,
+  31,
+  33,
+  39,
+  40,
+  45,
+  55,
+  63,
+  70,
+  80,
+  81
+ ]
 }
