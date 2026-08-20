@@ -156,7 +156,12 @@ def degree_stream(units, legend, start=None):
         # note too displaced the whole stream by one degree, which showed up as
         # a best-rotation of -1 against the sung parallagi (cosine 0.889
         # rotated against 0.742 unrotated on gold t03's pair).
-        if u.get('mart_deg') is not None:
+        if u.get('fthora'):
+            # a fthora respells the scale from here: the note TAKES the named
+            # degree and the genus changes under it. Chanter via the atlas:
+            # "the note takes on the new degree quality in the new scale."
+            deg = u['fthora'][1]
+        elif u.get('mart_deg') is not None:
             deg = u['mart_deg']
         elif deg is not None:
             # u['iv'] is an explicit reading the chanter gave for a figure

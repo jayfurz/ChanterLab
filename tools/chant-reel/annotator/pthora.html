@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pthora — which part respells the scale?</title>
+<style>
+  :root {
+    --bg:#14171c; --panel:#1c2027; --edge:#2c323c; --fg:#d8dee6; --dim:#8a93a0;
+    --accent:#4da3ff; --ok:#6fce8f; --warn:#e0a030; --bad:#ff5252;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--fg); font:14px/1.5 system-ui,sans-serif;
+         padding:0 0 80px; -webkit-tap-highlight-color:transparent; }
+  header { position:sticky; top:0; z-index:5; background:var(--panel);
+           border-bottom:1px solid var(--edge); padding:12px 16px; }
+  h1 { font-size:17px; font-weight:600; }
+  h2 { font-size:14px; font-weight:600; margin:26px 16px 10px; color:var(--accent); }
+  p.note { color:var(--dim); margin:6px 16px; max-width:70ch; }
+  header p.note { margin:6px 0 0; }
+  button { background:#262c36; color:var(--fg); border:1px solid var(--edge);
+           border-radius:6px; padding:5px 11px; font:inherit; cursor:pointer; }
+  button:hover { background:#303845; }
+  button.primary { background:#1e4976; border-color:#2a6fb0; }
+  .cal { display:flex; flex-wrap:wrap; gap:14px; padding:0 16px; }
+  .cal figure { background:var(--panel); border:1px solid var(--edge);
+                border-radius:8px; padding:8px; }
+  .cal figcaption { color:var(--dim); font-size:12px; margin-top:4px; }
+  .grid { display:grid; gap:14px; padding:0 16px;
+          grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
+  .card { background:var(--panel); border:1px solid var(--edge); border-radius:8px;
+          padding:8px; }
+  .card img, .cal img { width:100%; height:auto; display:block; background:#fff;
+                        border-radius:4px; }
+  .meta { display:flex; justify-content:space-between; align-items:baseline;
+          color:var(--dim); font-size:12px; margin:6px 2px 8px; }
+  .choices { display:flex; gap:6px; flex-wrap:wrap; }
+  .choices button { flex:1 1 auto; font-size:12px; padding:5px 6px; }
+  .card[data-v="under"]  { border-color:var(--ok);   box-shadow:0 0 0 1px var(--ok); }
+  .card[data-v="over"]   { border-color:var(--warn); box-shadow:0 0 0 1px var(--warn); }
+  .card[data-v="other"]  { border-color:var(--bad);  box-shadow:0 0 0 1px var(--bad); }
+  .card[data-v="under"] .b-under, .card[data-v="over"] .b-over,
+  .card[data-v="other"] .b-other { background:#1e4976; border-color:#2a6fb0; }
+  footer { position:fixed; bottom:0; left:0; right:0; background:var(--panel);
+           border-top:1px solid var(--edge); padding:10px 16px; display:flex;
+           gap:12px; align-items:center; }
+  #tally { color:var(--dim); }
+  textarea { width:100%; height:160px; background:#0f1216; color:var(--fg);
+             border:1px solid var(--edge); border-radius:6px; padding:8px;
+             font:12px/1.4 ui-monospace,monospace; margin:8px 16px; display:none; }
+</style>
+
+<header>
+  <h1>Finding the pthora</h1>
+  <p class="note">
+    The machinery is built: a fthora sets the note's degree and switches the genus, exactly
+    as the atlas states it &mdash; "the note takes on the new degree quality in the new
+    scale". What I cannot tell is <strong>which printed combination signals one</strong>,
+    and I would rather ask than guess.
+  </p>
+  <p class="note">
+    Every scale sign in the book is either stacked with a martyria letter (5995) or alone on
+    a heading line with no neumes (344). None sits over a note by itself, so the atlas's
+    "over a melodic glyph" shape does not occur here in isolation.
+  </p>
+  <p class="note">
+    But your anatomy &mdash; "the greek letters on the top portion are the parallagi
+    syllable, the symbols below indicate degree and scale" &mdash; shows up in the data. The
+    two commonest stacks name the <em>same</em> degree twice (&Beta;&omicron;&upsilon; over
+    &Beta;&omicron;&upsilon; &times;377, &Delta;&iota; over &Delta;&iota; &times;150), which
+    is letter-plus-indicator agreeing. <strong>About 55 stacks disagree</strong>, and your
+    p375 example is one of them &mdash; &Pi;&alpha; on top, then &Kappa;&epsilon; with the
+    ananes sign under it. Those are my pthora candidates.
+  </p>
+</header>
+<h2>The stacks where the parts disagree</h2>
+<p class="note">First card is your p375 l9 example. For each: is this a pthora, and if so what
+does it respell to?</p>
+<div class="grid" id="g"></div>
+<textarea id="out" readonly></textarea>
+<footer><button class="primary" id="copy">Copy my rulings</button><button id="reset">Clear</button><span id="tally"></span></footer>
+<script>
+'use strict';
+const KEY='pthora-review:v1'; let V={};
+try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
+const $=id=>document.getElementById(id);
+const OPT=['pthora','plain martyria','something else'];
+fetch('pthora.json').then(r=>r.json()).then(j=>{
+  $('g').innerHTML=j.items.map(it=>{
+    const id=it.page+':'+it.line;
+    const parts=it.stack.map(s=>`c${s.c} ${s.what}`).join(' / ');
+    return `<div class="card" data-id="${id}"${V[id]?' data-v="set"':''}>
+      <img src="${it.img}" loading="lazy" alt="">
+      <div class="meta"><span>p${it.page} l${it.line}</span><span>${parts}</span></div>
+      <div class="choices">${OPT.map(o=>`<button data-set="${o}">${o}</button>`).join('')}</div>
+      <div class="meta"><span style="color:var(--dim);font-size:11px">if pthora, note the degree + scale</span>
+        <span>${V[id]||''}</span></div></div>`;}).join('');
+  const tally=()=>{$('tally').textContent=Object.keys(V).length+' of '+j.items.length+' ruled ('+j.total+' such stacks in the book)';};
+  $('g').onclick=e=>{const b=e.target.closest('button[data-set]'); if(!b)return;
+    const c=b.closest('.card'), id=c.dataset.id, v=b.dataset.set;
+    if(V[id]===v){delete V[id];c.removeAttribute('data-v');}else{V[id]=v;c.dataset.v='set';}
+    c.querySelector('.meta:last-child span:last-child').textContent=V[id]||'';
+    localStorage.setItem(KEY,JSON.stringify(V)); tally();};
+  $('copy').onclick=()=>{const t=JSON.stringify(j.items.filter(i=>V[i.page+':'+i.line])
+    .map(i=>({page:i.page,line:i.line,stack:i.stack.map(s=>s.c),ruling:V[i.page+':'+i.line]})),null,1);
+    $('out').value=t;$('out').style.display='block';navigator.clipboard&&navigator.clipboard.writeText(t);$('out').select();};
+  $('reset').onclick=()=>{if(!confirm('Clear?'))return;V={};localStorage.removeItem(KEY);
+    document.querySelectorAll('.card').forEach(c=>c.removeAttribute('data-v'));tally();};
+  tally();});
+</script>
