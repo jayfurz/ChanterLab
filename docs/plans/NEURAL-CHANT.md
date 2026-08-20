@@ -1,6 +1,10 @@
 # NEURAL-CHANT — the encoder-decoder, made implementable
 
-**Status:** ready to implement **from REPRO-01**, which is blocking — see §0.3.
+**Status:** ready to implement **REPRO-01 and DECIDE-01 only.** Everything after
+them is authorised by what those two report, and several stages additionally
+depend on open notation work (DECODE-01/KEY-01 before NN-01, CHECK-01 before
+NN-03, a chanter-reviewed SYL-01 before NN-05). This is not a green light for
+the full staged build — see §0.3.
 Numbers below were measured on 2026-08-20 with the command that produced them,
 *except* the forced-alignment baseline inherited from earlier docs, which §0.3
 shows cannot currently be reproduced and must not be quoted until it is.
@@ -20,8 +24,9 @@ A fresh session should be able to open this file and start at REPRO-01.
 
 ## 0. The target: every note onset within 50 ms
 
-The deliverable is **note onsets within 50 ms of the chanter's pins**, on all
-notes. Melisma interiors are explicitly **out of scope for this plan** and come
+The deliverable is **note onsets within 50 ms of the chanter's pins**. The
+release criterion is **≥ 90 % of eligible notes with zero slips** (§9); "every
+note" is the aspiration, 90 %/0-slips is what NN-06 is graded on. Melisma interiors are explicitly **out of scope for this plan** and come
 much later; they appear as MEL-01 in §10 so the vocabulary decision stays
 compatible with them, and nowhere else.
 
@@ -38,6 +43,24 @@ median |Δt| 0.714 s    mean 1.609    p90 4.560    max 5.837
   within 0.15 s   25/76   (33 %)
   within 0.35 s   27/76   (36 %)
 ```
+
+**The eligible denominator, since interiors are deferred.** The chanter pinned
+**every** score unit in t03, interiors included — 58 syllable-initial and 18
+melisma-interior. Excluding the interiors barely moves the headline:
+
+```
+  all 76 pins                    23/76  within 50 ms   (30 %)
+  eligible (syllable-initial)    16/58  within 50 ms   (28 %)   <- the gate
+  interior (deferred, MEL-01)     7/18  within 50 ms   (39 %)
+```
+
+Interiors scoring *better* than syllable-initial is not noise — it is more
+evidence for §0.2. An interior note sits milliseconds from its neighbours, so
+wherever the region is in sync it comes along for free.
+
+Every gold note therefore carries `syllable_initial: true|false`, the gate is
+computed over the eligible subset, and the excluded interior count is reported
+per piece. No metric in this plan may be quoted without saying which.
 
 **Read the shape, not the median.** 30 % of notes are already inside 50 ms, and
 widening the tolerance sevenfold buys only four more notes. That is not a
@@ -150,12 +173,12 @@ some of them twice. The ratio was unchanged at ~70 %, the counts were not.
 Two consequences, both important:
 
 1. **The constraint is real and cheap to enforce** — 3,886 checkpoints
-   corpus-wide, zero labelling cost. It goes into the decode (§6) as a hard
+   corpus-wide, zero labelling cost. It goes into the decode (§7) as a hard
    gate and into the data builder (NN-03) as a filter on silver.
 2. **It is currently violated in 70 % of gaps, asymmetrically.** That is a
    systematic legend gap on the "not climbing enough" side, not solver-shaped
    noise. A solver that collapses each gap independently would paper over it
-   with a different local excuse every time. **CHECK-01 (§8) fixes the rule
+   with a different local excuse every time. **CHECK-01 (staged in §10) fixes the rule
    first; the solver ships after.**
 
 A collapsed degree stream is **silver**, never gold. Same standing rule as
@@ -299,8 +322,8 @@ Gates:
   known FA output on t03: re-deriving FA onsets from cached features must
   reproduce `forced_align.py`'s timestamps to < 1 ms.
 - **fp16 must not move the answer.** Re-run the gold #2 FA evaluation from the
-  cache; median error must stay at 0.028 s. If fp16 degrades it, store fp32 and
-  pay the disk.
+  cache; it must reproduce **REPRO-01's numbers exactly**, whatever they turn
+  out to be. Do not hard-code 0.028 s here — §0.3 invalidated it.
 
 Deliverable: `tools/neural/features.py --recording <id>` and `--all`.
 Run it under an `ml` lease; it is the only stage that needs both cards.
@@ -437,8 +460,9 @@ would leave nothing to measure with.
 ### 6.2 NN-03b — silver from forced alignment (~15,800 examples)
 
 Every syllable-initial note across the 220 pieces, timed by
-`forced_align_batch.py`. This is 80 % of all notes and it is *good* silver —
-0.028 s median where it applies.
+`forced_align_batch.py`. This is 80 % of all notes. Whether it is *good* silver is precisely what
+REPRO-01 measures; until then it is silver of unknown quality, and NN-03 must
+not start before that number exists.
 
 **Lane-specific admission — melos and parallagi are not the same problem.**
 A *melos* track sings the hymn text, so FA on the canonical GLT text applies
@@ -498,7 +522,16 @@ from `ONSET-MODEL.md` §5:
    - monotonic in time
    - within the `beats_seq` tolerance
    - **does not cross an FA anchor** (§0: syllable-initial onsets are fixed)
-   - satisfies CHECK-01 at the next cadence martyria — free, label-less.
+   - satisfies CHECK-01 at the next cadence martyria — **but only because beam
+     branches may skip or repeat score units.** This needs stating plainly: a
+     martyria constrains a sum of *intervals*, which is invariant to timing, so
+     against a fixed known neume sequence every timing hypothesis yields the
+     identical checksum and it discriminates nothing. It earns its place only
+     because the failure in §0.1 *is* skip/repeat — a path that desynchronises
+     has effectively consumed the wrong number of units against the audio, and
+     that a checksum does see. Branch semantics therefore include unit
+     insertion and deletion, or CHECK-01 must be dropped from the verifier.
+     Free, label-less.
      **Report-only until Gate C.** `CHANT-MODEL-ACCURACY.md` requires the
      checksum stay advisory until clusters 26 and 29 have chanter review, so
      it does not become a confident wrong oracle; §1.1's 70 % violation rate is
@@ -577,15 +610,22 @@ was wrong and is corrected here. Report:
 |---|---|---|
 | `t03` (Greek, Ioannou) | 76 | the corpus everything else is measured on |
 | `eothinon-11` (English, Karam) | 259 | cross-script, cross-engraving transfer |
-| `s01…` (as the chanter pins them) | growing | held-out spans, chanter-cut audio |
+| `s01…` (as the chanter pins them) | growing | **final test set — untouched** |
+
+**Development folds are silver-only.** Stream B, score-only pretraining, and the
+4 M/12 M/40 M curve must all be chosen on grouped silver folds, never on the
+gold pins. Two gold pieces cannot absorb repeated model selection —
+`CHANT-MODEL-ACCURACY.md` already records that two pieces cannot support a
+defensible split — and a number tuned on them stops being an estimate of
+anything. Gold is touched **once**, for the final claim, with no fine-tuning.
 
 Baselines, once REPRO-01 has produced them honestly:
 
 | system | ≤ 0.05 s | median | slips |
 |---|---|---|---|
-| annotator today (t03) | **30 %** | 0.714 s | 4 |
+| annotator today (t03, eligible 58) | **28 %** | 0.714 s | 4 |
 | forced alignment | **unverified — see §0.3** | cited 0.028 s, unreproducible | — |
-| target | **≥ 90 %** | — | 0 |
+| target | **≥ 90 % of eligible** | — | **0** |
 
 Disqualified metrics, both with the reason on record:
 
@@ -593,6 +633,12 @@ Disqualified metrics, both with the reason on record:
   It grades the aligner against its own decode.
 - **CTC loss as a correctness signal.** The confidence gate rated mode2 15/15
   when 5 of 15 were right. Score with `name_check.py`.
+
+**Timebase manifests, fixed before scoring.** eothinon-11 needs a known 1.98 s
+offset — a stale time base once turned 63 % recall into a reported 10 %. Each
+fold carries a manifest with the audio sha256, the offset, the rate, and where
+each came from. **The transform is never fitted against model predictions**;
+that is how a scoring bug becomes an accuracy claim.
 
 Synthetic data gates nothing. Only real held-out pins do.
 
@@ -603,14 +649,15 @@ Synthetic data gates nothing. Only real held-out pins do.
 | id | work | gate |
 |---|---|---|
 | **REPRO-01** (S) | `fa_eval.py`: word→glyph mapping + FA scored on all 76 t03 pins | a number exists that a second run reproduces. **Blocks everything.** |
+| **DECIDE-01** (S) | read REPRO-01: does FA already meet the gate on eligible notes? | **stop the neural work if yes.** If no, publish coverage, within-50 ms rate, misses and failure categories, and size NN-02..NN-06 from them |
 | **NN-00** (S) | honest arithmetic baseline: `beats_seq` + one fitted tempo, same protocol | reproduced by a script, not by hand |
 | **CHECK-01** (M) | find the systematic −1/−2 in the 40 violated martyria gaps | `martyria_check.py` exits 0: violated < 8 of 57 |
 | **NN-01** (S) | `vocab.py`, factored neume tokenizer | round-trip exact on all 116,043 units |
 | **NN-02** (M) | `features.py`, frozen feature cache + provenance (§4) | FA re-derived from cache matches REPRO-01 exactly |
-| **NN-03** (M) | `dataset.py`; lane-specific silver, provenance on every example | gold never in a train split, asserted in code |
+| **NN-03** (M) | `dataset.py`; lane-specific silver, provenance + `source_recording_id` on every example | no gold **source recording** in any train split — including derived cuts, overlapping excerpts and duplicates under other piece ids. Split by recording, asserted in code |
 | **NN-04** (M) | `model.py` at 4 M, hybrid attention + Δt head | forward/backward runs; contract doc written first (§5.5) |
 | **NN-05** (L) | train; learning curve 4 M / 12 M / 40 M | **≥ 60 % within 50 ms on held-out pins, slips < 2** |
-| **NN-06** (M) | `decode.py`, propose/verify/backtrack | **≥ 90 % within 50 ms, 0 slips** — the actual deliverable |
+| **NN-06** (M) | `decode.py`, propose/verify/backtrack — **contract first**, as §5.5: beam state and width, score equation, anchor-crossing semantics, beat tolerance, entropy threshold, rollback state, termination, and what "high confidence" numerically means. Tuned on silver dev folds only | **≥ 90 % of eligible within 50 ms, 0 slips** — the actual deliverable |
 | **ATTR-01** (S) | provenance schema at ingest; backfill 264 as `vasilikos` | nothing lands untagged |
 
 **Deferred to their own plans, deliberately.** These were milestones in an
@@ -630,9 +677,16 @@ none is needed to put onsets within 50 ms:
 
 **Ordering rules that must not be broken:**
 
-- **REPRO-01 before anything.** The plan currently quotes a baseline nobody can
-  re-derive. Building on it risks discovering at NN-05 that the target was
-  already met, or never close.
+- **REPRO-01, then DECIDE-01, before anything.** The plan quotes a baseline
+  nobody can re-derive. With interiors deferred, it is genuinely possible that
+  FA already meets the gate on the eligible 58 — in which case the correct
+  outcome is to build no network at all. That has to be a decision point, not a
+  discovery at NN-05.
+- **REPRO-01 must validate the mapping, not just reproduce it.** Reproducibility
+  alone will faithfully reproduce a *wrong* word→glyph mapping. Acceptance
+  requires a chanter-checked sample of the mapping, explicit handling of
+  unmatched words, and word-initial and syllable-initial metrics reported
+  separately.
 - **Notation prerequisites before NN-01.** The tokenizer freezes how a figure is
   written down; DECODE-01 (role-driven base selection) and KEY-01 (mark position
   and geometry) are still open, and sorting marks by id would discard a
