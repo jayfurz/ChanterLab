@@ -319,6 +319,24 @@ RUNNING_ELAFRON = ({47, 41}, {20, 41})
 # whole compound anchors the degree rather than being sung, and emitting it as a
 # note both invented a note and lost the anchor.
 MODE_SIGNATURE = {'4|17ab+4be+6ab': 4}          # Δι
+# ---- the yporrhoe is TWO notes in ONE glyph -------------------------------
+# Atlas, cluster 18: "TWO notes -1 -1". It had no interval of its own, so all
+# 1100 of them contributed ZERO to the degree stream — the single largest hole
+# left in the legend. Chanter, 2026-08-19: "yes split the yporrhoe".
+#
+# Unlike the kentimata figure this is not two glyphs. It is one compact mark
+# 6.0 pt wide (an oligon is 34), so there is no sub-geometry to divide and both
+# notes carry the SAME box: the glyph simply stays lit across both. Halving a
+# 6 pt box would repeat the mistake the chanter already called out on the
+# kentimata, where the halves were not where the notes were.
+#
+# A gorgon rides on the SECOND note, so the generic beats_seq window covers the
+# pair and makes both half a beat — the standard reading of a gorgon over a
+# two-note figure. Duration marks go there too; the atlas notes the book draws
+# yporrhoe + gorgon/digorgon as separate glyphs, so those reach this normally.
+# Duration placement is INFERRED (37 units, 18|10be) and not yet chanter-ruled.
+YPORRHOE = 18
+YPORRHOE_STEP = -1
 # ---- NOT IMPLEMENTED: the pthora ------------------------------------------
 # One of the two 7|17ab+21ab+41ab+47ab figures (p375 l9) also carries a pthora,
 # which RESPELLS the scale from that note on. The chanter's worked example,
@@ -501,6 +519,20 @@ def _mk_unit(pl, mine, base, fig, part=None, sx=None, drop=()):
             # repeats across pages. Group on (pl, fig), or use 'part' — 0 opens a
             # split figure and 1 continues it — which needs no key at all.
             'fig': fig, 'part': part}
+
+
+def _split_yporrhoe(pl, mine, fig, base):
+    """The yporrhoe as its two descending notes. See YPORRHOE above."""
+    # Every mark in the group belongs to the SECOND note — the gorgon so its
+    # window covers the pair, the duration marks because that is where the
+    # figure is held. The first note takes the bare glyph and nothing else; an
+    # earlier version passed it the non-gorgon marks and so counted a klasma
+    # twice, once on each half.
+    out = [_mk_unit(pl, [base], base, fig, part=0, sx=base['x0']),
+           _mk_unit(pl, mine, base, fig, part=1, sx=base['x0'])]
+    for u in out:
+        u['iv'] = YPORRHOE_STEP
+    return out
 
 
 def _kentimata_pair(mine):
@@ -736,6 +768,10 @@ def load_units(p0, l0, p1, l1):
             for s, ex in zip(subs, extra):
                 mine = s + ex
                 base = max(s, key=lambda x: (x['x1'] - x['x0']) * (x['y1'] - x['y0']))
+                if base['cluster'] == YPORRHOE:
+                    units.extend(_split_yporrhoe(pl, mine, fig, base))
+                    fig += 1
+                    continue
                 pair = _kentimata_pair(mine)
                 if pair is None:
                     u = _mk_unit(pl, mine, base, fig)
