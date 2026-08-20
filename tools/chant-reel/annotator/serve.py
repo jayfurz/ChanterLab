@@ -146,12 +146,13 @@ def parallagi_for(piece_id):
                 except Exception:
                     anchor = None
 
+    # The opening martyria gives the pitch the hymn starts FROM; the first neume
+    # moves from it like any other, and an ison needs no special case because
+    # its interval is 0. See score_degrees.degree_stream for the chanter's
+    # ruling — taking the anchor discarded the opening neume's own interval.
     deg, out = anchor, []
-    opening = anchor is not None
     for n in notes:
-        if opening:
-            opening = False
-        elif deg is not None:
+        if deg is not None:
             # an explicit chanter reading on the note wins over the legend;
             # see score_degrees.degree_stream for why the key cannot carry it
             iv = n.get('iv')

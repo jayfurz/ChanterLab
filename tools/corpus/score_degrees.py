@@ -134,13 +134,17 @@ def degree_stream(units, legend, start=None):
     """
     keys = legend['keys']
     deg = start
-    # A martyria printed before a hymn is right-aligned to the END of the
-    # previous hymn's last line, but it announces the NEW hymn's opening pitch
-    # rather than closing the old one. Chanter: "grave mode starts with the ga
-    # martyria so it should start on ga as the beginning pitch"; "the opening
-    # one is right aligned to the end of the last hymn". So the first unit
-    # TAKES that degree instead of moving from it.
-    opening = start is not None
+    # The opening martyria gives the pitch the hymn STARTS FROM, and the first
+    # neume then moves from it like any other. Chanter, 2026-08-19, ruling
+    # against the earlier reading: "the martyria gives the first base, but the
+    # first neume tell you where to go, so it always moves. unless its an ison
+    # then it stays on the martyria. t03 is wrong."
+    #
+    # An ison needs no special case — its interval is 0, so moving from the
+    # martyria leaves the degree where it was. The rule this replaces made the
+    # first unit TAKE the anchor, which silently discarded the opening neume's
+    # own interval: on s04 the martyria says ζω and the first neume is a ypsili
+    # over an oligon (+5), so the first note is δι, and the overlay printed ζω.
     out = []
     for u in units:
         if u.get('rest'):
@@ -154,8 +158,6 @@ def degree_stream(units, legend, start=None):
         # rotated against 0.742 unrotated on gold t03's pair).
         if u.get('mart_deg') is not None:
             deg = u['mart_deg']
-        elif opening:
-            pass                       # first note of the hymn: it IS the anchor
         elif deg is not None:
             # u['iv'] is an explicit reading the chanter gave for a figure
             # whose interval the KEY cannot express — the ypsili's left/right
@@ -165,7 +167,6 @@ def degree_stream(units, legend, start=None):
                 iv = keys.get(u.get('key'), keys.get(f"{u.get('base')}|"))
             if iv is not None:
                 deg += iv
-        opening = False
         out.append(deg)
     return [d for d in out if d is not None]
 

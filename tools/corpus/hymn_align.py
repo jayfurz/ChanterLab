@@ -483,7 +483,7 @@ def _tempo(grp):
     return {0: 'plain', 1: 'fast', 2: 'faster', 3: 'recitative'}[k]
 
 
-def _mk_unit(pl, mine, base, fig, part=None, sx=None, drop=()):
+def _mk_unit(pl, mine, base, fig, part=None, sx=None, yr=None, drop=()):
     """One unit from a glyph group. `drop` removes clusters that belong to the
     figure's OTHER half (see _split_kentimata); `sx` is the shared sort x of a
     split figure, since its notes are stacked and cannot be ordered by x0."""
@@ -500,7 +500,7 @@ def _mk_unit(pl, mine, base, fig, part=None, sx=None, drop=()):
     timing = max((GORGON_ORDER[x['cluster']] for x in mine
                   if x['cluster'] in GORGON_ORDER), default=0)
     x0, x1 = min(x['x0'] for x in mine), max(x['x1'] for x in mine)
-    y0, y1 = min(x['y0'] for x in mine), max(x['y1'] for x in mine)
+    y0, y1 = yr if yr else (min(x['y0'] for x in mine), max(x['y1'] for x in mine))
     return {'pl': pl, 'x0': x0, 'x1': x1, 'y0': y0, 'y1': y1,
             'sx': x0 if sx is None else sx,
             'key': f"{base['cluster']}|{'+'.join(sorted(marks))}",
@@ -528,8 +528,16 @@ def _split_yporrhoe(pl, mine, fig, base):
     # figure is held. The first note takes the bare glyph and nothing else; an
     # earlier version passed it the non-gorgon marks and so counted a klasma
     # twice, once on each half.
-    out = [_mk_unit(pl, [base], base, fig, part=0, sx=base['x0']),
-           _mk_unit(pl, mine, base, fig, part=1, sx=base['x0'])]
+    #
+    # The two notes DESCEND, and the glyph is drawn that way, so the highlight
+    # splits it top half then bottom half. Chanter, 2026-08-19: "for yphorroe
+    # highlight top half then the bottom half". Vertical, unlike anything else
+    # here — the kentimata figure is two separate glyphs and keeps its own boxes.
+    ym = (base['y0'] + base['y1']) / 2
+    out = [_mk_unit(pl, [base], base, fig, part=0, sx=base['x0'],
+                    yr=(base['y0'], ym)),
+           _mk_unit(pl, mine, base, fig, part=1, sx=base['x0'],
+                    yr=(ym, base['y1']))]
     for u in out:
         u['iv'] = YPORRHOE_STEP
     return out
