@@ -552,7 +552,11 @@ async function loadPieceList() {
     if (!res.ok) return;
     man = await res.json();
   } catch (e) { return; }
-  const ready = (man.pieces || []).filter(p => p.status === 'ready');
+  const ready = (man.pieces || []).filter(p => p.status === 'ready').sort((a, b) => {
+    if ((a.kind === 'span') !== (b.kind === 'span')) return a.kind === 'span' ? -1 : 1;
+    if (a.kind === 'span') return (a.ordinal || 0) - (b.ordinal || 0);
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
   if (!ready.length) return;
   const sel = $('piecesel');
   const opt = (v, label) => { const o = document.createElement('option');
@@ -566,10 +570,23 @@ async function loadPieceList() {
         (p.data_rev ? ':' + p.data_rev : '')));
       if (s && s.pinned) pins = s.pinned.filter(Boolean).length;
     } catch (e) { /* none */ }
-    opt(p.id, p.id +
-      (p.movement_agreement != null ? ' · agr ' + p.movement_agreement.toFixed(2) : '') +
-      (p.coverage_pct != null ? ' · cov ' + Math.round(p.coverage_pct) + '%' : '') +
-      (pins ? ' · ✎' + pins : ''));
+    /* A span piece is one of the chanter's own cuts, so lead with its place on
+       the tape and its LANE — "make sure the 47 have Melos/paralagi as well
+       pretty clear to the user that its parallagi or melos when selecting".
+       The incipit follows, and the machine's confidence numbers only appear on
+       the hymn pieces that actually have an alignment behind them. */
+    const LANE = { melos: 'MELOS', parallagi: 'PARALLAGI' };
+    let label;
+    if (p.kind === 'span') {
+      const ord = p.ordinal != null ? String(p.ordinal).padStart(2, '0') : '--';
+      label = `s${ord}  ${(LANE[p.lane] || 'unset').padEnd(9)}  ${p.incipit || p.id}`;
+    } else {
+      label = p.id +
+        (p.movement_agreement != null ? ' · agr ' + p.movement_agreement.toFixed(2) : '') +
+        (p.coverage_pct != null ? ' · cov ' + Math.round(p.coverage_pct) + '%' : '');
+    }
+    opt(p.id, label + (p.alignment_stale ? ' · ⚠ times stale' : '')
+             + (pins ? ' · ✎' + pins : ''));
   }
   sel.style.display = '';
   sel.onchange = () =>

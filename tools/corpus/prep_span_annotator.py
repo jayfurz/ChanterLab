@@ -173,11 +173,36 @@ def beat_times(beats, t_start, t_end):
     return t
 
 
+def piece_id_for(wd, nm):
+    """The id the chanter sees in the picker.
+
+    span_names.py names a span by its incipit alone, which is right for identity
+    but useless for finding anything: the picker sorts by id, so the 47 spans
+    scattered alphabetically by Greek incipit with no way to tell a parallagi
+    from its melos. Chanter, 2026-08-19: "why dont they say
+    grave-orthros-s<#>-greek-title", and "make sure the 47 have Melos/paralagi
+    as well pretty clear to the user that its parallagi or melos when selecting".
+
+    So the id leads with the span's ORDINAL on the tape, which is liturgical
+    order, then the lane, then the incipit — sorting the picker into the order
+    he cut them, with each parallagi immediately before its melos.
+    """
+    lane = nm.get('lane')
+    lane = lane if lane in ('melos', 'parallagi') else 'unset'
+    base = nm['piece_id']
+    for suf in ('-parallagi',):
+        if base.endswith(suf):
+            base = base[:-len(suf)]
+    if base.startswith(wd + '-'):
+        base = base[len(wd) + 1:]
+    return f"{wd}-s{int(nm['ordinal']):02d}-{lane}-{base}"
+
+
 def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
               ann_data_dir, cache_dir):
     """Prep one span; returns the data/index.json record."""
     nm, cut, sc = names[span], cuts[span], score[span]
-    piece = nm['piece_id']
+    piece = piece_id_for(wd, nm)
     lane = nm.get('lane') if nm.get('lane') != 'unset' else None
     rec = {'id': piece, 'kind': 'span', 'workdir': wd, 'span': span,
            'lane': lane, 'ordinal': nm.get('ordinal'),
@@ -305,7 +330,7 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
     return rec
 
 
-def pair_map(names):
+def pair_map(wd, names):
     """span -> the other half's piece_id.
 
     Every melos is immediately preceded by its own parallagi on a continuous
@@ -322,8 +347,8 @@ def pair_map(names):
             continue
         prev = order[i - 1]
         if prev.get('lane') == 'parallagi' and base(prev['piece_id']) == base(n['piece_id']):
-            out[n['span']] = prev['piece_id']
-            out[prev['span']] = n['piece_id']
+            out[n['span']] = piece_id_for(wd, prev)
+            out[prev['span']] = piece_id_for(wd, n)
     return out
 
 
@@ -360,7 +385,7 @@ def main():
     pdf = find_pdf()
     ann_data = os.path.join(args.annotator_dir, 'data')
     os.makedirs(ann_data, exist_ok=True)
-    pair_of = pair_map(names)
+    pair_of = pair_map(wd, names)
 
     recs, n_ok = [], 0
     for s in spans:
@@ -368,7 +393,7 @@ def main():
             r = prep_span(wd, s, cuts, score, names, pair_of, tape, pdf,
                           ann_data, args.render_cache)
         except Exception as e:
-            r = {'id': names[s]['piece_id'], 'kind': 'span', 'workdir': wd,
+            r = {'id': piece_id_for(wd, names[s]), 'kind': 'span', 'workdir': wd,
                  'span': s, 'status': f'ERROR: {e}',
                  'prepped_at': time.strftime('%Y-%m-%d %H:%M')}
         recs.append(r)
