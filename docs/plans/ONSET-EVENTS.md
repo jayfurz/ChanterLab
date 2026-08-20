@@ -113,11 +113,53 @@ because there is a long apichima in the beginning. that should probably be cut
 when put into the forced alignment."* Every span already records `t_in`, the
 apichima end.
 
-Steps:
+#### Step 1 is done, and the answer is no — measured 2026-08-19
 
-1. Re-run FA on the spans with the apichima trimmed — feed `[t_in, t1]`, not
-   `[t0, t1]` — and compare `loss_per_token` before and after. Test first on the
-   spans where `t_in` is furthest from `t0`.
+The apichima trim was the chanter's hypothesis for why FA confidence is low. It
+was testable because he also supplied the missing piece: *"you can use FA on
+parallagi as long as the parallagi derived notenames are accurate"* — so the
+text for a parallagi is the **score's own degree stream**, which is what he sings
+there, and all six spans carrying a `t_in` are parallagi.
+
+Six spans, forced-aligned whole and with the apichima cut, on GPU:
+
+| cut at | improved | mean Δ score |
+|---|---|---|
+| his `t_in` mark | **2 of 6** | **−0.156** |
+| the detected sung onset | 1 of 6 | −0.534 |
+
+**Trimming does not help, and slightly hurts.** CTC absorbs leading audio as
+blank tokens, so the intonation costs it nothing; removing audio only removes
+slack, and an over-eager cut removes real singing.
+
+But the same run answered a better question. Where does FA put the FIRST degree
+on the *untrimmed* audio?
+
+| span | his `t_in` | detector | **FA** |
+|---|---|---|---|
+| t01_#5 | 13.33 | 15.32 | **15.32** |
+| t01_#46 | 12.14 | 13.77 | **13.78** |
+| t01_ | 13.00 | 20.38 ✗ | **15.26** |
+| t01_#22 | 11.47 | 19.73 ✗ | **13.97** |
+| t01_#7 | 10.60 | 15.44 ✗ | **12.44** |
+| t01_#34 | 13.20 | 15.56 | 10.86 |
+
+FA skips the intonation **by itself** in 5 of 6. On t01_#5 — the one span with
+independent confirmation, where the chanter pinned the first note and then
+judged 15.32 the better value — FA lands on **15.32 exactly**. And FA agrees with
+the register detector to 0.01 s on precisely the two spans where that detector
+was trusted (within the 3 s bound), while disagreeing on all three it rejected.
+Three independent estimators converging on the same two answers is the strongest
+evidence in this file.
+
+So the relationship is the reverse of the plan's assumption: **FA does not need
+`t_in`; `t_in` needs FA.** The mark is 2 s early on t01_#5 and looks early on
+several others, and FA is a third estimator that can correct it — which is worth
+more than the trim would have been.
+
+Remaining steps:
+
+1. ~~Trim the apichima~~ — done, rejected. Do not retry without new evidence.
 2. Extend FA output from hymn boundaries to **per-syllable onsets**.
 3. Project syllables onto units via the GLT text match (`SYL-01` in
    `ONSET-MODEL.md` §2.2 — 157/173 hymns matched, median 0.90 coverage).
