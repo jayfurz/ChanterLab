@@ -45,6 +45,38 @@
   textarea { width:100%; height:160px; background:#0f1216; color:var(--fg);
              border:1px solid var(--edge); border-radius:6px; padding:8px;
              font:12px/1.4 ui-monospace,monospace; margin:8px 16px; display:none; }
+
+  /* Collapsible header: the explanation is long and on a phone it filled the
+     screen before any glyph was visible. Collapsed by default on narrow
+     screens, open on wide ones, and the choice is remembered. */
+  header details > summary { list-style: none; cursor: pointer; display: flex;
+    align-items: center; gap: 10px; }
+  header details > summary::-webkit-details-marker { display: none; }
+  header details > summary::after { content: 'why  ▾'; margin-left: auto;
+    font-size: 12px; color: var(--dim); border: 1px solid var(--edge);
+    border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+  header details[open] > summary::after { content: 'hide  ▴'; }
+  header details > summary h1 { margin: 0; }
+  header .notes { margin-top: 8px; }
+  @media (max-width: 900px) {
+    header { padding: 8px 12px; }
+    header details > summary h1 { font-size: 15px; line-height: 1.25; }
+  }
+
+  /* Selection feedback. It used to be a 1px border tint and a dim line of text,
+     which on a phone was invisible — "make the feedback more clear if i select
+     something". The chosen button now fills, the others fade, the card gets a
+     solid accent edge and a checked badge. */
+  .choices button.sel { background: var(--accent); border-color: var(--accent);
+    color: #08131f; font-weight: 700; box-shadow: 0 0 0 2px rgba(77,163,255,.35); }
+  .card.chosen .choices button:not(.sel) { opacity: .45; }
+  .card.chosen { border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent) !important; }
+  .rulingbar { display: none; margin-top: 8px; padding: 6px 10px; border-radius: 6px;
+    background: rgba(77,163,255,.16); color: var(--fg); font-size: 13px;
+    font-weight: 600; align-items: center; gap: 8px; }
+  .card.chosen .rulingbar { display: flex; }
+  .rulingbar::before { content: '✓'; color: var(--accent); font-size: 15px; }
 </style>
 
 <style>
@@ -54,8 +86,10 @@
   .choices button { font-size:12px; }
 </style>
 <header>
-  <h1>Which boxed glyph is the pthora?</h1>
-  <p class="note">
+<details id="hdr">
+<summary><h1>Which boxed glyph is the pthora?</h1></summary>
+<div class="notes">
+<p class="note">
     Every red glyph in the martyria column is outlined and numbered separately &mdash; you
     said a pthora can sit on top of a martyria, so pointing at the stack cannot answer it.
   </p>
@@ -76,12 +110,64 @@
   </p>
   <p class="note">Tell me the box number, and what it respells to (degree + scale) if you
   can. &quot;None&quot; is just as useful, and so is correcting a label.</p>
+</div>
+</details>
 </header>
 <div class="grid" id="g"></div>
 <textarea id="out" readonly></textarea>
 <footer><button class="primary" id="copy">Copy my rulings</button><button id="reset">Clear</button><span id="tally"></span></footer>
 <script>
 'use strict';
+
+/* Reflect the current ruling on the buttons themselves, whatever each sheet
+   stores it as: some set data-v to the value, the newer ones set it to "set"
+   and print the value in the last meta cell. Runs after the sheet's own
+   handler, so it always sees the state that was just written. */
+document.addEventListener('click', function (e) {
+  var card = e.target.closest && e.target.closest('.card');
+  if (!card || !e.target.closest('.choices button')) return;
+  setTimeout(function () { syncCard(card); }, 0);
+});
+function syncCard(card) {
+  var v = card.dataset.v;
+  if (v === 'set' || v === undefined) {
+    var cells = card.querySelectorAll('.meta');
+    var last = cells.length ? cells[cells.length - 1].lastElementChild : null;
+    v = last && last.textContent.trim() ? last.textContent.trim() : (v === 'set' ? '' : v);
+  }
+  var on = !!(card.dataset.v && v);
+  card.classList.toggle('chosen', on);
+  card.querySelectorAll('.choices button').forEach(function (b) {
+    b.classList.toggle('sel', on && b.dataset.set === v);
+  });
+  var bar = card.querySelector('.rulingbar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.className = 'rulingbar';
+    card.appendChild(bar);
+  }
+  bar.textContent = on ? v : '';
+}
+document.addEventListener('DOMContentLoaded', function () {
+  setTimeout(function () { document.querySelectorAll('.card').forEach(syncCard); }, 60);
+});
+
+
+/* header starts collapsed on a phone, open on a wide screen; the chanter's own
+   choice wins once he makes one */
+(function () {
+  var d = document.getElementById('hdr');
+  if (!d) return;
+  var K = 'sheet-hdr-open';
+  var saved = null;
+  try { saved = localStorage.getItem(K); } catch (e) { saved = null; }
+  d.open = saved !== null ? saved === '1'
+                          : !window.matchMedia('(max-width: 900px)').matches;
+  d.addEventListener('toggle', function () {
+    try { localStorage.setItem(K, d.open ? '1' : '0'); } catch (e) { /* private mode */ }
+  });
+})();
+
 const KEY='pthora-box:v1'; let V={};
 try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
 const $=id=>document.getElementById(id);
@@ -112,5 +198,6 @@ fetch('pthora.json').then(r=>r.json()).then(j=>{
     $('out').value=t;$('out').style.display='block';navigator.clipboard&&navigator.clipboard.writeText(t);$('out').select();};
   $('reset').onclick=()=>{if(!confirm('Clear?'))return;V={};localStorage.removeItem(KEY);
     document.querySelectorAll('.card').forEach(c=>c.removeAttribute('data-v'));tally();};
-  tally();});
+  tally();
+  document.querySelectorAll(".card").forEach(syncCard);});
 </script>
