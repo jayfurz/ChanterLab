@@ -113,6 +113,14 @@ range begins.</p>
 <script>
 'use strict';
 
+/* Cache-bust. These sheets are regenerated in place under the same filenames,
+   so a browser that has seen an earlier version happily serves it back — the
+   chanter reported a whole cluster "doesnt even show up" when the files were
+   present and served 200. The JSON is fetched past the cache and every image
+   carries the data file's mtime. */
+function bust(u, stamp) { return u + (u.indexOf('?') < 0 ? '?' : '&') + 'v=' + stamp; }
+
+
 /* Reflect the ruling on the card itself. Driven by a MutationObserver rather
    than a click handler: each sheet has its own handler that writes the state,
    and hooking after it by event order proved unreliable — the chanter could not
@@ -189,13 +197,14 @@ const KEY='anchor-review:v1';
 let V={}; try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
 const $=id=>document.getElementById(id);
 const DEG=['Ni','Pa','Vou','Ga','Di','Ke','Zo'];
-fetch('anchors.json').then(r=>r.json()).then(j=>{
+fetch('anchors.json?v=' + Date.now()).then(r=>r.json()).then(j=>{
+  var _S = j.stamp || Date.now();
   const seen=new Set(), cands=[];
   for(const c of (j.candidates||[])){ cands.push(c); }
   $('cands').innerHTML=cands.map(c=>{
     const id='c'+c.cluster+':'+c.page+':'+c.line;
     return `<div class="card" data-id="${id}"${V[id]?` data-v="set"`:''}>
-      <img src="${c.img}" alt="" loading="lazy">
+      <img src="${bust(c.img,_S)}" alt="" loading="lazy">
       <div class="meta"><span>cluster ${c.cluster} &middot; ${c.n} in the book</span>
         <span>p${c.page} l${c.line} &middot; ${c.h}pt</span></div>
       <div class="choices">

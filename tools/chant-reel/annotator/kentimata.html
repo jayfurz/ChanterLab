@@ -113,6 +113,14 @@ right group is <code>6|17be</code> (kentimata under, 942).</p>
 <script>
 'use strict';
 
+/* Cache-bust. These sheets are regenerated in place under the same filenames,
+   so a browser that has seen an earlier version happily serves it back — the
+   chanter reported a whole cluster "doesnt even show up" when the files were
+   present and served 200. The JSON is fetched past the cache and every image
+   carries the data file's mtime. */
+function bust(u, stamp) { return u + (u.indexOf('?') < 0 ? '?' : '&') + 'v=' + stamp; }
+
+
 /* Reflect the ruling on the card itself. Driven by a MutationObserver rather
    than a click handler: each sheet has its own handler that writes the state,
    and hooking after it by event order proved unreliable — the chanter could not
@@ -199,14 +207,14 @@ function tally(items) {
     `${n}/${items.length} ruled · under ${c('under')} · over ${c('over')} · not this figure ${c('other')}`;
 }
 
-fetch('kentimata.json').then(r => r.json()).then(j => {
+fetch('kentimata.json?v=' + Date.now()).then(r => r.json()).then(j => {
   const cal = j.items.filter(r => r.group !== 'ambiguous');
   const amb = j.items.filter(r => r.group === 'ambiguous');
   $('n').textContent = amb.length;
 
   $('cal').innerHTML = cal.map(r => `
     <figure style="flex:1 1 220px;max-width:300px">
-      <img src="${r.img}" alt="">
+      <img src="${bust(r.img,_S)}" alt="">
       <figcaption>${r.group === 'cal-above' ? 'kentimata OVER' : 'kentimata UNDER'}
         · p${r.page} l${r.line} · <code>${r.key}</code></figcaption>
     </figure>`).join('');
@@ -214,7 +222,7 @@ fetch('kentimata.json').then(r => r.json()).then(j => {
   $('grid').innerHTML = amb.map(r => {
     const id = idOf(r);
     return `<div class="card" data-id="${id}"${V[id] ? ` data-v="${V[id]}"` : ''}>
-      <img src="${r.img}" alt="" loading="lazy">
+      <img src="${bust(r.img,_S)}" alt="" loading="lazy">
       <div class="meta"><span>page ${r.page}, line ${r.line}</span>
         <span>kentimata ${r.dy > 0 ? '+' : ''}${r.dy}pt</span></div>
       <div class="choices">
