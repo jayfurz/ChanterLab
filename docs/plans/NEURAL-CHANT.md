@@ -122,15 +122,17 @@ no gate may be written against one.
 
 | asset | count | where | notes |
 |---|---|---|---|
-| chanter-verified onsets | **335** | `datasets/grave-orthros-t03-gold/pins.json` (76), `datasets/eothinon-11-workdir/note_times.json` (259) | the only gold. **Two folds, never pooled** (§9) |
-| in-progress pins | 37 | `datasets/exports/grave-orthros-s01-…` | growing; reserved as final test (§9) |
+| chanter-verified onsets | **335** | `datasets/grave-orthros-t03-gold/pins.json` (76), `datasets/eothinon-11-workdir/note_times.json` (259) | the only gold. t03 tests, the rest trains (§6.1) |
+| in-progress pins | 37 | `datasets/exports/grave-orthros-s01-…` | growing; **training** data (§6.1) |
 | note units in the book | **116,043** | `score_degrees.units_for(1,0,0,999,999,10**9)` | score-only, no audio needed (§6.3) |
 | distinct unit keys | 123 | same | over 16 bases |
 | cadence martyrias | 3,886 | `u['mart_cad']` | free constraints (§1.1) |
 | audio | **37.4 h / 264 recordings** | `/mnt/data/chant-corpus/corpus.json` | all one singer (ATTR-01) |
 | annotator note slots | 19,868 | 220 pieces | 4,050 carry no fresh syllable |
 
-335 verified onsets is the binding constraint. §5.4 and §6.3 exist because of it.
+372 pinned onsets is the binding constraint, and only 76 of them are held back.
+§5.4 and §6.3 exist because of it, and §6.1 explains why the chanter's pinning
+rate is the critical path.
 
 ### 1.1 The martyria constraint — real, and currently violated
 
@@ -395,20 +397,46 @@ NN-04's gate is a committed *document*, not a forward pass:
 Three sources, three trust levels, never mixed. Every example carries
 `provenance` and `source_recording_id`.
 
-### 6.1 Gold — 335 labels, two folds, never pooled
+### 6.1 Gold — and why some of it must be trained on
 
-76 t03 pins (Greek, Ioannou vector) and 259 eothinon-11 note times (English,
-Karam EZ fonts). They share neither script nor engraving; pooling hides the
-transfer question. **Not trained on, and not used for model selection** (§9).
+76 t03 pins (Greek, Ioannou vector), 259 eothinon-11 note times (English, Karam
+EZ fonts), 37 s01 pins and growing. **372 chanter-pinned onsets today.**
+
+**The hole this plan had, and the fix.** An earlier revision reserved *all* gold
+for evaluation. That is unimplementable, and the reason is exact: the model
+exists to place notes on a continuing vowel (§0.2); those notes have **no FA
+anchor by construction**, so §6.2 silver cannot label them; and if gold is also
+withheld, **the Δt head never sees a single labelled example of the class it is
+being built to solve.** On t03 that is 18 of 76 notes with no target anywhere in
+the training set.
+
+So gold is split **by fold**, not withheld wholesale:
+
+| fold | role |
+|---|---|
+| **eothinon-11** (259) | **trains.** The only supervision covering continuing-vowel onsets |
+| **s01…** (37, growing) | **trains.** Same corpus and engraving as the target material |
+| **t03** (76) | **tests, once.** Never trained on, never selected on |
+
+This costs the cross-script transfer claim — t03 becomes the only held-out
+fold — and that is the right trade: a transfer claim about a model that could
+not learn the task is worth nothing. Hyperparameters are still chosen on the
+silver dev fold (§9), so t03 is touched exactly once, at the end.
+
+**This makes chanter pinning the critical path.** Continuing-vowel notes are the
+scarce label, and only the chanter can produce them. Pinning priority is: notes
+with no FA candidate first, then notes where candidates disagree. Every new
+pinned piece goes to training except the reserved t03.
 
 ### 6.2 Silver from forced alignment
 
 Syllable-initial notes across the 220 pieces, timed by `forced_align_batch.py`.
 Per §0.2 this is a *candidate* set, not a label set: notes on a continuing vowel
 get no FA anchor of their own, and even where an anchor exists there are ~2.4
-candidates per note. Silver therefore trains the model to *rank* candidates, and
-its quality is exactly what REPRO-01 measures. **NN-03 does not start before
-REPRO-01 reports.**
+candidates per note. Silver therefore supervises **candidate ranking on syllable-initial notes only**.
+It cannot supervise a continuing-vowel onset, because it has no anchor there —
+that supervision comes from gold (§6.1). Its quality is what REPRO-01 measures.
+**NN-03 does not start before REPRO-01 reports.**
 
 **Lane-specific admission.** A *melos* track sings the hymn text, so FA on the
 canonical GLT text applies. A *parallagi* track sings **degree names**, so FA
@@ -498,7 +526,11 @@ far more than capturing at the door, and distinct clusters need meaningful hours
 ## 9. Evaluation
 
 **Primary metric: `frac(|Δt| ≤ 0.05 s)`** over a fixed denominator of every
-pinned note — all 76 on t03, all 259 on eothinon-11. An unmatched note is a
+pinned note. **Comparison semantics, because one note sits on the edge:** errors
+are compared as `round(|Δt|, 3) <= 0.050`, inclusive, in milliseconds. On t03,
+glyph 63 has an error of `0.04999999999999716` — it currently passes by
+floating-point luck, and an undefined comparison would let a rebuild silently
+move the headline by a note. Define it once, here — all 76 on t03, all 259 on eothinon-11. An unmatched note is a
 miss. Medians are reported but never gate: §0.1 is a median of 0.714 s on an
 aligner that is dead-on for twenty consecutive notes.
 
@@ -510,8 +542,12 @@ leaves ±0.05 s and does not return within 3 notes. t03 today: 4.
 | tier | what it is | what it may decide |
 |---|---|---|
 | **silver dev fold** | whole source recordings held out of §6.2, scored against their FA character-path anchors | stream B, §6.3 ablation, the §5.4 size curve, all NN-06 thresholds |
-| **gold** | t03 (76) and eothinon-11 (259), reported **per fold, never pooled** | the final claim, **touched once** |
-| **`s01…`** | the chanter's growing pins | final test set, untouched |
+| **gold train** | eothinon-11 (259) + s01… (37, growing) | nothing — it is training data (§6.1) |
+| **gold test — t03 (76)** | the reserved fold | the final claim, **touched once** |
+
+No hyperparameter is ever chosen on gold, train or test. The gold *train* fold
+exists because the continuing-vowel class has no other supervision; the gold
+*test* fold is never fitted, selected on, or inspected until the final run.
 
 The dev fold is a weaker instrument than pins — that is the price of not
 spending them, and why NN-05's bar (60 %) sits below NN-06's (90 %). Two gold
@@ -555,8 +591,8 @@ nothing.
 | **NN-02** (M) | `features.py`, three-stream cache with provenance | FA re-derived from cache matches REPRO-01 |
 | **NN-03** (M) | `dataset.py`, lane-specific silver | no gold **source recording** in any train split — including derived cuts, overlapping excerpts and duplicates. Split by `source_recording_id` |
 | **NN-04** (M) | `model.py` at 4 M | §5.5 contract committed first |
-| **NN-05** (L) | train; curve 4 M / 12 M / 40 M | **≥ 60 % ≤50 ms on the silver dev fold, slips < 2**, no collapse on continuing-vowel notes. **Gold untouched** |
-| **NN-06** (M) | `decode.py` — contract first (§7) | **≥ 90 % ≤50 ms, 0 slips** on gold, evaluated once |
+| **NN-05** (L) | train on silver + the gold train fold; curve 4 M / 12 M / 40 M | **≥ 60 % ≤50 ms on the silver dev fold, slips < 2**, no collapse on continuing-vowel notes. **t03 untouched** |
+| **NN-06** (M) | `decode.py` — contract first (§7) | **≥ 90 % ≤50 ms, 0 slips** on t03, evaluated once |
 | **ATTR-01** (S) | provenance at ingest; backfill 264 | nothing lands untagged |
 
 **On their own timelines**, neither needed for 50 ms onsets:
@@ -590,7 +626,9 @@ nothing.
 - A model that outputs a bare number.
 - Rhythm normalisation — the chanter's deviation from the grid is the signal.
 - Synthetic audio whose *timing* comes from our own duration model.
-- Any onset entering gold without the chanter. Machine onsets are silver.
+- Any onset entering gold without the chanter. Machine onsets are silver — and
+  since gold now trains (§6.1), that rule is load-bearing in a new way: a
+  machine onset admitted to gold would be trained on as truth.
 - OCR on the Ioannou book: it is born-digital and `extract_book.py` reads the
   stream exactly. `baidu/Unlimited-OCR` (3.34 B) earns its place on **scanned**
   scores — a real need, but a different corpus from the one measured here.
