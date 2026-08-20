@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pthora — which part respells the scale?</title>
+<title>Pthora — which box is it?</title>
 <style>
   :root {
     --bg:#14171c; --panel:#1c2027; --edge:#2c323c; --fg:#d8dee6; --dim:#8a93a0;
@@ -47,50 +47,59 @@
              font:12px/1.4 ui-monospace,monospace; margin:8px 16px; display:none; }
 </style>
 
+<style>
+  .parts { display:flex; flex-wrap:wrap; gap:8px; margin:6px 2px; font-size:12px; }
+  .parts span { display:inline-flex; align-items:center; gap:5px; }
+  .sw { width:12px; height:12px; border-radius:2px; display:inline-block; }
+  .choices button { font-size:12px; }
+</style>
 <header>
-  <h1>Finding the pthora</h1>
+  <h1>Which boxed glyph is the pthora?</h1>
   <p class="note">
-    The machinery is built: a fthora sets the note's degree and switches the genus, exactly
-    as the atlas states it &mdash; "the note takes on the new degree quality in the new
-    scale". What I cannot tell is <strong>which printed combination signals one</strong>,
-    and I would rather ask than guess.
+    Each glyph in the stack is outlined and numbered separately, because you said a pthora
+    can sit on top of a martyria &mdash; so pointing at the whole stack would not tell me
+    which part respells the scale.
   </p>
   <p class="note">
-    Every scale sign in the book is either stacked with a martyria letter (5995) or alone on
-    a heading line with no neumes (344). None sits over a note by itself, so the atlas's
-    "over a melodic glyph" shape does not occur here in isolation.
+    These are the <strong>77 stacks</strong> where the parts do not simply agree: either
+    three or more reds together, or two letters naming different degrees. The ordinary
+    martyria shape &mdash; one letter over an indicator naming the same degree
+    (&Beta;&omicron;&upsilon; over &Beta;&omicron;&upsilon; &times;377,
+    &Delta;&iota; over &Delta;&iota; &times;150) &mdash; is excluded. First card is your
+    p375 l9 example.
   </p>
   <p class="note">
-    But your anatomy &mdash; "the greek letters on the top portion are the parallagi
-    syllable, the symbols below indicate degree and scale" &mdash; shows up in the data. The
-    two commonest stacks name the <em>same</em> degree twice (&Beta;&omicron;&upsilon; over
-    &Beta;&omicron;&upsilon; &times;377, &Delta;&iota; over &Delta;&iota; &times;150), which
-    is letter-plus-indicator agreeing. <strong>About 55 stacks disagree</strong>, and your
-    p375 example is one of them &mdash; &Pi;&alpha; on top, then &Kappa;&epsilon; with the
-    ananes sign under it. Those are my pthora candidates.
+    <strong>Do not trust my labels.</strong> They say what my table currently reads each
+    cluster as, and on the first card that is already visibly wrong: box 1 is a circle with
+    a slash through it &mdash; the hard-chromatic indicator you described &mdash; and my
+    table calls it &quot;Pa&quot; because you ruled what that whole sign <em>names</em>, not
+    what the glyph is.
   </p>
+  <p class="note">Tell me the box number, and what it respells to (degree + scale) if you
+  can. If none of them is a pthora, say so &mdash; that is just as useful. Correcting a
+  label is worth just as much.</p>
 </header>
-<h2>The stacks where the parts disagree</h2>
-<p class="note">First card is your p375 l9 example. For each: is this a pthora, and if so what
-does it respell to?</p>
 <div class="grid" id="g"></div>
 <textarea id="out" readonly></textarea>
 <footer><button class="primary" id="copy">Copy my rulings</button><button id="reset">Clear</button><span id="tally"></span></footer>
 <script>
 'use strict';
-const KEY='pthora-review:v1'; let V={};
+const KEY='pthora-box:v1'; let V={};
 try{V=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){V={}}
 const $=id=>document.getElementById(id);
-const OPT=['pthora','plain martyria','something else'];
 fetch('pthora.json').then(r=>r.json()).then(j=>{
   $('g').innerHTML=j.items.map(it=>{
     const id=it.page+':'+it.line;
-    const parts=it.stack.map(s=>`c${s.c} ${s.what}`).join(' / ');
+    const legend=it.parts.map(p=>
+      `<span><i class="sw" style="background:${p.col}"></i>${p.n}. c${p.c} ${p.what}</span>`).join('');
+    const btns=it.parts.map(p=>`<button data-set="box ${p.n} (c${p.c})">box ${p.n}</button>`).join('')
+      + `<button data-set="none is a pthora">none</button>`;
     return `<div class="card" data-id="${id}"${V[id]?' data-v="set"':''}>
       <img src="${it.img}" loading="lazy" alt="">
-      <div class="meta"><span>p${it.page} l${it.line}</span><span>${parts}</span></div>
-      <div class="choices">${OPT.map(o=>`<button data-set="${o}">${o}</button>`).join('')}</div>
-      <div class="meta"><span style="color:var(--dim);font-size:11px">if pthora, note the degree + scale</span>
+      <div class="meta"><span>p${it.page} l${it.line}</span><span></span></div>
+      <div class="parts">${legend}</div>
+      <div class="choices">${btns}</div>
+      <div class="meta"><span style="color:var(--dim);font-size:11px">which box respells the scale?</span>
         <span>${V[id]||''}</span></div></div>`;}).join('');
   const tally=()=>{$('tally').textContent=Object.keys(V).length+' of '+j.items.length+' ruled ('+j.total+' such stacks in the book)';};
   $('g').onclick=e=>{const b=e.target.closest('button[data-set]'); if(!b)return;
@@ -99,7 +108,9 @@ fetch('pthora.json').then(r=>r.json()).then(j=>{
     c.querySelector('.meta:last-child span:last-child').textContent=V[id]||'';
     localStorage.setItem(KEY,JSON.stringify(V)); tally();};
   $('copy').onclick=()=>{const t=JSON.stringify(j.items.filter(i=>V[i.page+':'+i.line])
-    .map(i=>({page:i.page,line:i.line,stack:i.stack.map(s=>s.c),ruling:V[i.page+':'+i.line]})),null,1);
+    .map(i=>({page:i.page,line:i.line,
+              parts:i.parts.map(p=>({box:p.n,cluster:p.c,what:p.what})),
+              ruling:V[i.page+':'+i.line]})),null,1);
     $('out').value=t;$('out').style.display='block';navigator.clipboard&&navigator.clipboard.writeText(t);$('out').select();};
   $('reset').onclick=()=>{if(!confirm('Clear?'))return;V={};localStorage.removeItem(KEY);
     document.querySelectorAll('.card').forEach(c=>c.removeAttribute('data-v'));tally();};

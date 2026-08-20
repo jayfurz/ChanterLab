@@ -3,304 +3,349 @@
   {
    "page": 375,
    "line": 9,
-   "stack": [
+   "img": "pthora/p375-l09-0.png",
+   "parts": [
     {
-     "c": 14,
-     "what": "Πα"
+     "n": 1,
+     "c": 37,
+     "what": "my table reads it as Pa",
+     "col": "#d62728"
     },
     {
-     "c": 44,
-     "what": "Δι"
+     "n": 2,
+     "c": 49,
+     "what": "my table reads it as Ke",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 50,
+     "what": "scale sign: diatonic Ke",
+     "col": "#2ca02c"
     }
-   ],
-   "x0": 118.9,
-   "x1": 130.9,
-   "y0": 632.5,
-   "y1": 654.0,
-   "img": "pthora/p375-l09-0.png"
+   ]
   },
   {
    "page": 7,
    "line": 6,
-   "stack": [
+   "img": "pthora/p007-l06-1.png",
+   "parts": [
     {
+     "n": 1,
      "c": 14,
-     "what": "Πα"
+     "what": "my table reads it as Pa",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 44,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
     }
-   ],
-   "x0": 426.6,
-   "x1": 438.6,
-   "y0": 346.5,
-   "y1": 368.0,
-   "img": "pthora/p007-l06-1.png"
+   ]
   },
   {
    "page": 7,
    "line": 13,
-   "stack": [
+   "img": "pthora/p007-l13-2.png",
+   "parts": [
     {
+     "n": 1,
      "c": 14,
-     "what": "Πα"
+     "what": "my table reads it as Pa",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 44,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
     }
-   ],
-   "x0": 361.8,
-   "x1": 373.8,
-   "y0": 746.6,
-   "y1": 768.0,
-   "img": "pthora/p007-l13-2.png"
-  },
-  {
-   "page": 49,
-   "line": 4,
-   "stack": [
-    {
-     "c": 34,
-     "what": "Δι"
-    },
-    {
-     "c": 44,
-     "what": "Δι"
-    }
-   ],
-   "x0": 349.3,
-   "x1": 361.3,
-   "y0": 344.7,
-   "y1": 368.0,
-   "img": "pthora/p049-l04-3.png"
+   ]
   },
   {
    "page": 53,
    "line": 10,
-   "stack": [
+   "img": "pthora/p053-l10-3.png",
+   "parts": [
     {
+     "n": 1,
      "c": 54,
-     "what": "Νη"
+     "what": "my table reads it as Ni",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 44,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
     }
-   ],
-   "x0": 212.4,
-   "x1": 224.4,
-   "y0": 626.1,
-   "y1": 648.5,
-   "img": "pthora/p053-l10-4.png"
+   ]
   },
   {
    "page": 54,
    "line": 8,
-   "stack": [
+   "img": "pthora/p054-l08-4.png",
+   "parts": [
     {
+     "n": 1,
      "c": 37,
-     "what": "Πα"
+     "what": "my table reads it as Pa",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 14,
-     "what": "Πα"
+     "what": "my table reads it as Pa",
+     "col": "#1f77b4"
     },
     {
+     "n": 3,
      "c": 15,
-     "what": "diatonic Pa"
+     "what": "scale sign: diatonic Pa",
+     "col": "#2ca02c"
     }
-   ],
-   "x0": 510.7,
-   "x1": 528.2,
-   "y0": 506.6,
-   "y1": 540.4,
-   "img": "pthora/p054-l08-5.png"
+   ]
   },
   {
    "page": 56,
    "line": 5,
-   "stack": [
+   "img": "pthora/p056-l05-5.png",
+   "parts": [
     {
+     "n": 1,
      "c": 54,
-     "what": "Νη"
+     "what": "my table reads it as Ni",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 44,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
     }
-   ],
-   "x0": 350.2,
-   "x1": 362.2,
-   "y0": 405.1,
-   "y1": 427.6,
-   "img": "pthora/p056-l05-6.png"
-  },
-  {
-   "page": 70,
-   "line": 10,
-   "stack": [
-    {
-     "c": 34,
-     "what": "Δι"
-    },
-    {
-     "c": 44,
-     "what": "Δι"
-    }
-   ],
-   "x0": 86.9,
-   "x1": 98.9,
-   "y0": 689.5,
-   "y1": 712.9,
-   "img": "pthora/p070-l10-7.png"
+   ]
   },
   {
    "page": 101,
    "line": 8,
-   "stack": [
+   "img": "pthora/p101-l08-6.png",
+   "parts": [
     {
+     "n": 1,
      "c": 23,
-     "what": "Γα"
+     "what": "my table reads it as Ga",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 44,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
     }
-   ],
-   "x0": 401.5,
-   "x1": 413.5,
-   "y0": 516.8,
-   "y1": 539.4,
-   "img": "pthora/p101-l08-8.png"
+   ]
   },
   {
    "page": 117,
    "line": 1,
-   "stack": [
+   "img": "pthora/p117-l01-7.png",
+   "parts": [
     {
+     "n": 1,
      "c": 52,
-     "what": "Κε"
+     "what": "my table reads it as Ke",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 44,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
     }
-   ],
-   "x0": 189.6,
-   "x1": 201.6,
-   "y0": 117.7,
-   "y1": 139.3,
-   "img": "pthora/p117-l01-9.png"
+   ]
   },
   {
    "page": 117,
    "line": 8,
-   "stack": [
+   "img": "pthora/p117-l08-8.png",
+   "parts": [
     {
+     "n": 1,
      "c": 52,
-     "what": "Κε"
+     "what": "my table reads it as Ke",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 44,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
     }
-   ],
-   "x0": 361.1,
-   "x1": 373.1,
-   "y0": 691.5,
-   "y1": 713.2,
-   "img": "pthora/p117-l08-10.png"
+   ]
   },
   {
    "page": 129,
    "line": 10,
-   "stack": [
+   "img": "pthora/p129-l10-9.png",
+   "parts": [
     {
+     "n": 1,
      "c": 37,
-     "what": "Πα"
+     "what": "my table reads it as Pa",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 67,
-     "what": "Βου"
+     "what": "my table reads it as Vou",
+     "col": "#1f77b4"
     },
     {
+     "n": 3,
      "c": 38,
-     "what": "hard chromatic"
+     "what": "scale sign: hard chromatic Pa",
+     "col": "#2ca02c"
     }
-   ],
-   "x0": 183.0,
-   "x1": 202.2,
-   "y0": 680.1,
-   "y1": 708.9,
-   "img": "pthora/p129-l10-11.png"
+   ]
   },
   {
    "page": 129,
    "line": 10,
-   "stack": [
+   "img": "pthora/p129-l10-10.png",
+   "parts": [
     {
+     "n": 1,
      "c": 49,
-     "what": "Κε"
+     "what": "my table reads it as Ke",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 44,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
     }
-   ],
-   "x0": 406.1,
-   "x1": 418.1,
-   "y0": 691.3,
-   "y1": 712.9,
-   "img": "pthora/p129-l10-12.png"
+   ]
   },
   {
    "page": 130,
    "line": 4,
-   "stack": [
+   "img": "pthora/p130-l04-11.png",
+   "parts": [
     {
+     "n": 1,
      "c": 37,
-     "what": "Πα"
+     "what": "my table reads it as Pa",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 67,
-     "what": "Βου"
+     "what": "my table reads it as Vou",
+     "col": "#1f77b4"
     },
     {
+     "n": 3,
      "c": 38,
-     "what": "hard chromatic"
+     "what": "scale sign: hard chromatic Pa",
+     "col": "#2ca02c"
     }
-   ],
-   "x0": 49.3,
-   "x1": 68.5,
-   "y0": 278.2,
-   "y1": 307.0,
-   "img": "pthora/p130-l04-13.png"
+   ]
   },
   {
    "page": 132,
    "line": 1,
-   "stack": [
+   "img": "pthora/p132-l01-12.png",
+   "parts": [
     {
+     "n": 1,
      "c": 51,
-     "what": "Δι"
+     "what": "my table reads it as Di",
+     "col": "#d62728"
     },
     {
+     "n": 2,
      "c": 67,
-     "what": "Βου"
+     "what": "my table reads it as Vou",
+     "col": "#1f77b4"
     },
     {
+     "n": 3,
      "c": 38,
-     "what": "hard chromatic"
+     "what": "scale sign: hard chromatic Pa",
+     "col": "#2ca02c"
     }
-   ],
-   "x0": 358.9,
-   "x1": 378.5,
-   "y0": 107.5,
-   "y1": 135.4,
-   "img": "pthora/p132-l01-14.png"
+   ]
+  },
+  {
+   "page": 137,
+   "line": 1,
+   "img": "pthora/p137-l01-13.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 51,
+     "what": "my table reads it as Di",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 54,
+     "what": "my table reads it as Ni",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 38,
+     "what": "scale sign: hard chromatic Pa",
+     "col": "#2ca02c"
+    }
+   ]
+  },
+  {
+   "page": 147,
+   "line": 10,
+   "img": "pthora/p147-l10-14.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 49,
+     "what": "my table reads it as Ke",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 44,
+     "what": "my table reads it as Di",
+     "col": "#1f77b4"
+    }
+   ]
+  },
+  {
+   "page": 149,
+   "line": 6,
+   "img": "pthora/p149-l06-15.png",
+   "parts": [
+    {
+     "n": 1,
+     "c": 51,
+     "what": "my table reads it as Di",
+     "col": "#d62728"
+    },
+    {
+     "n": 2,
+     "c": 67,
+     "what": "my table reads it as Vou",
+     "col": "#1f77b4"
+    },
+    {
+     "n": 3,
+     "c": 38,
+     "what": "scale sign: hard chromatic Pa",
+     "col": "#2ca02c"
+    }
+   ]
   }
  ],
- "total": 604
+ "total": 77
 }
