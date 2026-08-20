@@ -853,6 +853,7 @@ def load_units(p0, l0, p1, l1):
             lyr.append(w)
     units = []
     fig = 0                  # index in the PRE-SPLIT unit stream (see 'fig')
+    pending_open = None      # a martyria printed before the first note
     by_line = defaultdict(list)
     for g in recs:
         by_line[(g['page'], g['line'])].append(g)
@@ -899,6 +900,22 @@ def load_units(p0, l0, p1, l1):
                 # this cadence — recorded as an anchor on the previous unit
                 degs = [MARTYRIA_DEG[x['cluster']] for x in grp
                         if x['red'] and x['cluster'] in MARTYRIA_DEG]
+                if degs and not units:
+                    # A martyria with NOTHING before it — the very first thing on
+                    # the page. It cannot attach to the previous unit because
+                    # there is none, and it was being dropped on the floor.
+                    # Chanter, on s01: "the first martyria in theos kyrios that
+                    # im pinning is ga but for somereason the glyph 0 says zo" —
+                    # the Γα opening p520 line 0 was lost, so leading_anchor fell
+                    # back to the previous page's trailing Ζω.
+                    #
+                    # NO `continue` here, deliberately. This branch must not
+                    # change the control flow, because 'fig' has to keep counting
+                    # exactly as it did — it is the key the chanter's hand-marked
+                    # g0/g1 are migrated through, and an extra or missing slot
+                    # slides every index on the page. Recording it and falling
+                    # through leaves the numbering untouched.
+                    pending_open = degs[0]
                 if any(x['cluster'] in TEMPO_PARTS for x in grp):
                     # 'fig' must keep meaning "index in the stream the chanter
                     # counted against", because reindex_kentimata.py migrates his
@@ -968,23 +985,30 @@ def load_units(p0, l0, p1, l1):
             for s, ex in zip(subs, extra):
                 mine = s + ex
                 base = max(s, key=lambda x: (x['x1'] - x['x0']) * (x['y1'] - x['y0']))
+                if pending_open is not None:
+                    _pend, pending_open = pending_open, None
+                else:
+                    _pend = None
+                n_before = len(units)
                 if base['cluster'] == YPORRHOE:
                     units.extend(_split_yporrhoe(pl, mine, fig, base))
-                    fig += 1
-                    continue
-                pair = _kentimata_pair(mine)
-                if pair is None:
-                    u = _mk_unit(pl, mine, base, fig)
-                    if u['key'] in MODE_SIGNATURE:
-                        if units:
-                            units[-1]['mart_deg'] = MODE_SIGNATURE[u['key']]
-                            units[-1].setdefault('mart_cad', []).append(
-                                MODE_SIGNATURE[u['key']])
-                        fig += 1          # it held a slot in the chanter's stream
-                        continue
-                    units.append(u)
                 else:
-                    units.extend(_split_kentimata(pl, mine, fig, *pair))
+                    pair = _kentimata_pair(mine)
+                    if pair is not None:
+                        units.extend(_split_kentimata(pl, mine, fig, *pair))
+                    else:
+                        u = _mk_unit(pl, mine, base, fig)
+                        if u['key'] in MODE_SIGNATURE:
+                            if units:
+                                units[-1]['mart_deg'] = MODE_SIGNATURE[u['key']]
+                                units[-1].setdefault('mart_cad', []).append(
+                                    MODE_SIGNATURE[u['key']])
+                            pending_open = _pend    # nothing sounded; keep waiting
+                            fig += 1
+                            continue
+                        units.append(u)
+                if _pend is not None and len(units) > n_before:
+                    units[n_before]['mart_before'] = _pend   # the note it opens
                 fig += 1
     # sort on the figure's shared x, then on reading order within it
     _attach_pthoras(units, recs)

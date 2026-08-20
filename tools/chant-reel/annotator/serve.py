@@ -150,8 +150,30 @@ def parallagi_for(piece_id):
     # moves from it like any other, and an ison needs no special case because
     # its interval is 0. See score_degrees.degree_stream for the chanter's
     # ruling — taking the anchor discarded the opening neume's own interval.
+    # The chanter's own corrections, from /api/parallagi-flag. An ison and an
+    # oligon are the SAME BAR in this font, so shape-level extraction cannot
+    # tell them apart and a run of bars reads as +1 each when one of them does
+    # not move — "glyph 47 is supposed to be di.. its been wrong for a while".
+    # A correction is an absolute degree at that glyph, exactly like a martyria:
+    # it fixes the note AND everything after it, which is why one tap repairs a
+    # whole run.
+    fixes = {}
+    ff = HERE / 'data' / piece_id / 'parallagi_flags.json'
+    if ff.exists():
+        try:
+            for k, v in (json.loads(ff.read_text()).get('notes') or {}).items():
+                c = (v or {}).get('correct')
+                if c in DEG_GR:
+                    fixes[int(k)] = DEG_GR.index(c)
+        except Exception:
+            fixes = {}
+
     deg, out = anchor, []
-    for n in notes:
+    for gi, n in enumerate(notes):
+        if gi in fixes:
+            deg = fixes[gi]
+            out.append(deg % 7)
+            continue
         if n.get('fthora'):
             deg = n['fthora'][1]          # respelled; see score_degrees
         elif deg is not None:
@@ -380,8 +402,19 @@ class Handler(SimpleHTTPRequestHandler):
         if payload.get("clear"):
             notes.pop(str(gi), None)
         else:
+            # 'correct' is the degree it SHOULD be. Optional — a bare flag
+            # still just says "this is wrong" — but when present it is applied
+            # as an absolute degree from that glyph on, so one tap repairs the
+            # whole run after it. That is what the ison/oligon ambiguity needs:
+            # the two are the same bar in this font, so a mis-read one shifts
+            # everything downstream and there is no shape evidence to fix it.
+            corr = payload.get("correct")
+            if corr is not None and corr not in DEG_GR:
+                self.send_error(400, f"correct must be one of {DEG_GR}, got {corr!r}")
+                return
             notes[str(gi)] = {"gi": gi,
                               "shown": payload.get("shown"),
+                              "correct": corr,
                               "note": payload.get("note") or "",
                               "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
         state["flags"] = sorted(int(k) for k in notes)

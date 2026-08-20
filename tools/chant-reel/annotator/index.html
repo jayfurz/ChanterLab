@@ -143,7 +143,7 @@
   <button id="paraflagbtn" title="Flag a wrong parallagi (X): tap a glyph to mark the shown degree wrong; flagged glyphs turn red and the flag is saved on the server">Para⚑</button>
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
-  <button id="refitbtn" title="Redistribute all UNPINNED markers by beat weight: between pins piecewise, before the first / after the last pin spread to the audio edges. Pins never move. Pin a few, refit, pin the next few…">Refit</button>
+  <button id="refitbtn" title="Redistribute all UNPINNED markers by beat weight: between pins piecewise, and beyond the outermost pins at the tempo those pins measure (not stretched to the audio edges). Pins never move. Pin a few, refit, pin the next few…">Refit</button>
   <button id="resetbtn" title="Clear correction + pin on selected marker (R)">Reset</button>
   <button id="clearbtn" title="Discard ALL local edits">Clear</button>
 </div>
@@ -258,18 +258,38 @@ function martyriaUnits() {
 }
 /* Optimistic so a phone tap feels instant, reconciled from the response so the
    server stays the truth about what is flagged. */
+const PARA_DEG = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω'];
 async function toggleParaFlag(gi) {
   const on = !PARA_FLAGS.has(gi);
-  if (on) PARA_FLAGS.add(gi); else PARA_FLAGS.delete(gi);
-  dirtyScore = true;
   const piece = PIECE || (D && D.meta.piece_id);
   const shown = PARA && PARA.names ? PARA.names[gi] : null;
+  /* Flagging alone only says "this is wrong". Ask what it SHOULD be, because a
+     correction is worth far more: it is applied as an absolute degree from that
+     glyph on, so one answer repairs the whole run after it. That is what the
+     ison/oligon ambiguity needs — the two are the same bar in this font, so one
+     mis-read shifts everything downstream and no amount of shape evidence can
+     fix it. Empty answer = a bare flag, same as before. */
+  let correct = null;
+  if (on) {
+    const a = (window.prompt(
+      'glyph ' + gi + ' shows ' + (shown || '?') +
+      '\nwhat should it be?  ' + PARA_DEG.join(' ') +
+      '\n(blank = just flag it as wrong)', '') || '').trim().toLowerCase();
+    if (a && PARA_DEG.indexOf(a) < 0) {
+      $('savestate').textContent = 'not a degree: ' + a;
+      return;
+    }
+    correct = a || null;
+  }
+  if (on) PARA_FLAGS.add(gi); else PARA_FLAGS.delete(gi);
+  dirtyScore = true;
   try {
     const r = await fetch('/api/parallagi-flag', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ piece, gi, shown, note: '', clear: !on }) });
+      body: JSON.stringify({ piece, gi, shown, correct, note: '', clear: !on }) });
     const j = await r.json();
     if (j && Array.isArray(j.flags)) PARA_FLAGS = new Set(j.flags);
+    if (correct) await loadParallagi(piece);   // re-walk: the fix moves what follows
   } catch (e) { /* keep the optimistic state; a reload re-reads the server */ }
   dirtyScore = true;
 }
@@ -302,6 +322,14 @@ const pointers = new Map();  // active pointerId -> {x,y}
 let lpTimer = null, lpState = null;   // long-press timer + snapshot
                              // (survives the browser's touch pointercancel)
 let mag = null;              // magnifier position {x,y} while touch-dragging
+/* Where the pitch band starts, set by the timeline draw. Below it the canvas is
+   PAN/ZOOM ONLY — a drag there never grabs a marker. Chanter: "i want to make it
+   so i cant accidentally hit the pins if im trying to drag or pinch in our out
+   to zoom … i can swipe in the lower section where the pitches are but the bars
+   will still be there so i can correlate against the pitches. but i wont
+   accidentally knick a pin". Ghost mode is the exception: painting a
+   pitch-detector artifact is *supposed* to happen down there. */
+let pitchBandTop = 1e9;
 let lineW = 0, stripBandH = 0, scoreH = 0;
 const audio = document.getElementById('player');
 const scoreCv = document.getElementById('score'), scoreCtx = scoreCv.getContext('2d');
@@ -527,18 +555,58 @@ function refitUnpinned() {
     for (let i = a + 1; i < b; i++)
       corrected[i] = t(a) + (t(b) - t(a)) * (cum[i] - cum[a]) / db;
   }
-  // head: spread back to the audio start
+  /* Outside the pinned range, carry the tempo the PINS just measured rather
+     than stretching to the audio edge.
+
+     The tail used to spread the remaining markers across all the audio left
+     after the last pin. That is wrong in a way that gets worse the more you
+     pin: the fewer notes remain, the further each is flung. Chanter: "i have to
+     keep spamming fit because the pins move further than the ones past it. we
+     need to make refit recalculate the next beat bases off the distance between
+     the last two pins divided by the beats in that neume."
+
+     Which is exactly seconds-per-beat over the last pinned interval — cum[] is
+     already the beat weight from beats_seq, so a klasma or an apli is counted.
+     One pin gives no rate, so that case keeps the old edge-spread. */
+  /* The rate is the MEDIAN seconds-per-beat over the last few pinned intervals,
+     not the last one. Replayed over his own s01 pins — anchor on the first k,
+     score at the pins held out after them — the single last interval is too
+     noisy to trust, because one held note or one fast run sets the whole
+     projection:
+
+       median |err| at held-out pins, mean over k = 2..25
+         stretch to the audio edge (old)   2.38 s
+         last interval only                1.88 s
+         median of the last 3              1.27 s
+         median of the last 5              1.13 s   <- this
+         median of all intervals           1.28 s              */
+  const RATE_WINDOW = 5;
+  const paceFrom = idxs => {
+    const r = [];
+    for (let k = 1; k < idxs.length; k++) {
+      const a = idxs[k - 1], b = idxs[k];
+      if (cum[b] > cum[a] && t(b) > t(a)) r.push((t(b) - t(a)) / (cum[b] - cum[a]));
+    }
+    if (!r.length) return null;
+    const win = r.slice(-RATE_WINDOW).sort((x, y) => x - y);
+    return win[win.length >> 1];
+  };
+  const pace = paceFrom(anchors);
+  // head: back from the first pin at the measured pace
   const a0 = anchors[0];
   if (a0 > 0 && cum[a0] > 0) {
-    const spb = t(a0) / cum[a0];
-    for (let i = 0; i < a0; i++) corrected[i] = Math.max(0, cum[i] * spb);
+    const spb = pace ?? (t(a0) / cum[a0]);
+    for (let i = 0; i < a0; i++)
+      corrected[i] = Math.max(0, t(a0) - (cum[a0] - cum[i]) * spb);
   }
-  // tail: spread forward to the audio end
+  // tail: forward from the last pin at the measured pace
   const aL = anchors[anchors.length - 1];
   if (aL < n - 1 && cum[n] > cum[aL]) {
-    const spb = Math.max(0, D.meta.duration - 0.3 - t(aL)) / (cum[n] - cum[aL]);
+    const spb = pace
+                ?? (Math.max(0, D.meta.duration - 0.3 - t(aL)) / (cum[n] - cum[aL]));
+    const lim = D.meta.duration - 0.05;
     for (let i = aL + 1; i < n; i++)
-      corrected[i] = t(aL) + (cum[i] - cum[aL]) * spb;
+      corrected[i] = Math.min(lim, t(aL) + (cum[i] - cum[aL]) * spb);
   }
   for (let i = 1; i < n; i++)          // keep strictly monotone
     if (!pinned[i] && slotT(i) <= slotT(i - 1))
@@ -909,6 +977,7 @@ function drawTL() {
   const laneH = 18;
   const wfTop = laneH,
     wfH = Math.max(50, Math.min(200, Math.round((H - laneH) * 0.55)));
+  pitchBandTop = wfTop + wfH;   // everything below this is the pan/zoom zone
   const pTop = wfTop + wfH, pH = H - pTop;
   ctx.fillStyle = '#14171c'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#10131a'; ctx.fillRect(0, 0, W, laneH);
@@ -1336,7 +1405,9 @@ tlCv.addEventListener('pointerdown', e => {
              moved: false, consumed: false };
     return;
   }
-  const hit = markerNear(p.x, e.pointerType === 'touch' ? HIT_TOUCH : HIT_MOUSE);
+  const inPitchZone = p.y >= pitchBandTop;
+  const hit = inPitchZone ? -1
+            : markerNear(p.x, e.pointerType === 'touch' ? HIT_TOUCH : HIT_MOUSE);
   if (hit >= 0) {
     drag = { slot: hit, moved: false, consumed: false, ptype: e.pointerType };
     selectSlot(hit, true);
