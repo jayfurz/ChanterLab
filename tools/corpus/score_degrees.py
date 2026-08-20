@@ -92,6 +92,16 @@ def leading_anchor(p0, g0):
                     return us[i][key]
         return None
 
+    # A martyria printed BEFORE the range's first note, with nothing sounding in
+    # front of it, is that note's own opening anchor — it does not attach to a
+    # previous unit because there is none. That is the strongest evidence there
+    # is, so it wins over anything found by looking backwards.
+    try:
+        us0, _ = load_units(p0, 0, p0, 10 ** 6)
+        if 0 <= g0 < len(us0) and us0[g0].get('mart_before') is not None:
+            return us0[g0]['mart_before']
+    except Exception:
+        pass
     if g0 > 0:
         d = look(p0, g0)
         if d is not None:

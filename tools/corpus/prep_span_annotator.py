@@ -42,7 +42,7 @@ import wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hymn_align import GLYPHS, LADDERS, beats_seq
 from score_degrees import leading_anchor, units_for
-from prep_hymn_annotator import (BAND_UP, BAND_DN, DUR_NAME, LINE_BAND, ZOOM,
+from prep_hymn_annotator import (PITCH_DT, CPM, BAND_UP, BAND_DN, DUR_NAME, LINE_BAND, ZOOM,
                                  attach_words, build_strip, deg_label, deg_name,
                                  find_pdf, load_gold_seed, update_manifest)
 
@@ -157,6 +157,38 @@ def unit_degrees(units, keys, start):
             deg = deg + iv if iv is not None else None
         opening = False
         out.append(deg)
+    return out
+
+
+def pitch_track(wav):
+    """cents rel 55 Hz at 10 ms, NaN where unvoiced — the same FFT
+    autocorrelation segment_tracks.py uses, so a span's curve is comparable to a
+    hymn's."""
+    import wave as _w
+    with _w.open(wav) as w:
+        sr = w.getframerate()
+        x = np.frombuffer(w.readframes(w.getnframes()),
+                          dtype=np.int16).astype(float) / 32768.
+    hop, win = int(sr * 0.01), 2048
+    lo, hi = int(sr / 370), int(sr / 90)
+    n = max(0, (len(x) - win) // hop)
+    out = np.full(n, np.nan)
+    for i in range(n):
+        fr = x[i * hop:i * hop + win]
+        if np.sqrt((fr ** 2).mean()) < 0.008:
+            continue
+        fr = fr - fr.mean()
+        sp = np.fft.rfft(fr, 4096)
+        ac = np.fft.irfft(sp * np.conj(sp))[:win]
+        if ac[0] <= 0:
+            continue
+        ac /= ac[0]
+        pk = int(np.argmax(ac[lo:hi])) + lo
+        if not (1 <= pk < len(ac) - 1 and ac[pk] > 0.45):
+            continue
+        a, b, c = ac[pk - 1], ac[pk], ac[pk + 1]
+        out[i] = 1200 * np.log2(
+            max(sr / (pk + 0.5 * (a - c) / (a - 2 * b + c + 1e-12)), 1) / 55.)
     return out
 
 
@@ -380,11 +412,39 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
             'slot_ids': [j], 'word': word[j], 'word_start': bool(wstart[j]),
         })
 
-    # ---- degree grid, from the score-implied degrees (no observed pitch) ----
+    # ---- degree grid, and the SUNG pitch curve against it ----
+    #
+    # A span had pitch: None — the curve simply was not computed, because only
+    # prep_hymn_annotator had a cents_track to draw from and a span is cut fresh
+    # from the tape. Chanter: "i dont even see the pitch rendering." Without it
+    # there is nothing to correlate a pin against, which is most of what the
+    # band is for.
+    #
+    # A hymn converts cents to moria against summary.json's fitted Νη. A span has
+    # no summary, so Νη is fitted here the only honest way available: shift the
+    # curve so its voiced MEDIAN sits on the median degree the score expects.
+    # One parameter, no claim beyond it, and recorded as an estimate in meta.
     pos = LADDERS[GENUS]
     seen = [d for d in expected if d is not None] or [0, 7]
     step_deg = list(range(int(min(seen)) - 2, int(max(seen)) + 3))
     step_pos = [round(pos(d), 1) for d in step_deg]
+
+    pitch = None
+    ni_cents = None
+    try:
+        cents = pitch_track(os.path.join(out, 'audio.wav'))
+        v = cents[~np.isnan(cents)]
+        if len(v) > 50:
+            want = pos(int(round(float(np.median(seen)))))   # moria the score expects
+            ni_cents = float(np.median(v)) - want * CPM
+            mor = (cents - ni_cents) / CPM
+            step = max(1, round(PITCH_DT / 0.01))
+            ds = mor[::step]
+            pitch = {'dt': 0.01 * step,
+                     'moria': [None if not np.isfinite(x) else round(float(x), 1)
+                               for x in ds]}
+    except Exception as e:
+        print('  pitch track failed for %s: %s' % (piece, e))
 
     gis = list(range(len(units)))
     data_rev = hashlib.md5(json.dumps([gis, [0] * len(units)]).encode()).hexdigest()[:10]
@@ -399,6 +459,7 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
             'step_pos': step_pos, 'step_deg': step_deg,
             'step_name': [deg_name(d) for d in step_deg],
             'mor_min': min(step_pos) - 10, 'mor_max': max(step_pos) + 10,
+            'ni_cents_rel55_est': None if ni_cents is None else round(ni_cents, 1),
             'parallagi_anchor': anchor,
             't_in_rel': t_in_rel,
             'sung_onset': sung,
@@ -417,7 +478,7 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
         'anchors': [{'gi': j, 'text': word[j]} for j in gis if wstart[j]],
         'slots': {'t': times, 'gi': gis, 'sub': [0] * len(units), 'w': beats,
                   'label': [word[j] if wstart[j] else '' for j in gis]},
-        'words': [], 'pitch': None, 'ison': [], 'barlines': [], 'analytical': [],
+        'words': [], 'pitch': pitch, 'ison': [], 'barlines': [], 'analytical': [],
     }
     seed = load_gold_seed(piece, len(units))
     if seed:

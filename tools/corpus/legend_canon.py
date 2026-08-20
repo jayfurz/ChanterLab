@@ -118,6 +118,24 @@ def build():
         b = int(m.group(1))
         marks = [x for x in m.group(2).split('+') if x]
         iv = base.get(b)
+        # An ISON printed over a PETASTI: the ison is the melodic content and the
+        # petasti drops to qualitative, so the figure does not move. Chanter,
+        # 2026-08-19: "3|22ab+8be this is +0 (ison over petasti the petasti
+        # becomes qualitative only) and it has a klasma which you do pick up".
+        # 972 units in the book were reading +1.
+        #
+        # Deliberately narrow: only when nothing ELSE in the figure carries
+        # melodic quantity. 3|13ab is petasti+oligon and the atlas locks it at
+        # +2, so this is not a general "the thing above wins" rule, and
+        # 3|22ab+4be+7be+8be (1 unit, three quantities) is left to compose.
+        if b == 3:
+            isons = [x for x in marks if re.match(r'^(22|5)(ab|be)$', x)]
+            others = [x for x in marks
+                      if re.match(r'^(\d+)', x)
+                      and int(re.match(r'^(\d+)', x).group(1)) not in QUALITATIVE
+                      and not re.match(r'^(22|5)(ab|be)$', x)]
+            if isons and not others:
+                return 0, 'ison over petasti'
         # A jump MARK cannot be the melodic base. When the extraction makes one
         # the base — 28|6be is the ypsili with its oligon below, 302 units — the
         # note is the ordinary neume among the marks and the jump applies to it.
