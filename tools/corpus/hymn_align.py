@@ -120,6 +120,14 @@ MARTYRIA_ANY = set(MARTYRIA_DEG) | {15, 24, 27, 35, 38, 50, 56}
 #   on a MARTYRIA   (48)         the martyria's stated degree is replaced where
 #                                it stands; the next note still moves from it
 #
+# And WHICH note, when the figure is two: the DOWNBEAT one. Chanter: "i dont
+# usually ever see pthora applied to the kentimata btw, could be wrong but they
+# seem to only be applied on downbeats, not upbeats, and kentimata never occur
+# on a down beat." That last clause is his own earlier ruling, the reason the
+# kentimata figure is split at all — so a pthora over an oligon+kentimata
+# belongs to the oligon whichever of the two it happens to overlap more.
+PTHORA_SKIPS_UPBEAT = 17          # KENTIMATA, defined below
+#
 # For the degree stream the note case reduces to "this unit takes the pthora's
 # degree", since after moving you are on that note either way. The martyria case
 # is the one that differs: it rewrites the ANCHOR rather than a sounded note.
