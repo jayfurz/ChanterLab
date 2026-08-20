@@ -131,16 +131,36 @@ PTHORA_SKIPS_UPBEAT = 17          # KENTIMATA, defined below
 # For the degree stream the note case reduces to "this unit takes the pthora's
 # degree", since after moving you are on that note either way. The martyria case
 # is the one that differs: it rewrites the ANCHOR rather than a sounded note.
-PTHORA = {37: (None, 1),        # names Pa   (anchors.html)
-          65: (None, 3)}        # names Ga   (anchors.html)
+# Degrees here are NAMES, not indices, because an index means different things
+# in different genera. Chanter, 2026-08-19: "when i say pa hard chromatic that
+# means the 0th degree of the hard chromatic scale, remember there are 4 degrees
+# repeated every 5th, and di hard chromatic is the 3rd degree (0indexed)."
+# src/tuning/genus.rs already models it that way — HardChromatic is the cycle
+# [6, 20, 4, 12] from Pa, which is a fourth phase repeating at the fifth, so Pa
+# is phase 0 and Di phase 3, exactly as he says. A bare integer would silently
+# mean the diatonic 0-6 position instead.
+#
+# For the degree STREAM this distinction does not bite — the overlay prints the
+# parallagi syllable, and Pa is Pa in any genus — but it governs pitch, so the
+# name is stored and the genus resolves it.
+#
+# On grave diatonic, also his: "technically diatonic is all the same there isnt a
+# such thing as grave diatonic, but in practice there is.. ga is raised, and
+# usually ke is sharpened too. but its technically not a different scale."
+# genus.rs carries GraveDiatonic as its own variant for that practice; the theory
+# note belongs beside it rather than a silent second diatonic.
+DEG_NAME = ['Ni', 'Pa', 'Vou', 'Ga', 'Di', 'Ke', 'Zo']
+HARD_CHROMATIC_PHASE = {'Pa': 0, 'Vou': 1, 'Ga': 2, 'Di': 3}   # repeats at the 5th
+PTHORA = {37: (None, 'Pa'),     # names Pa   (anchors.html)
+          65: (None, 'Ga')}     # names Ga   (anchors.html)
 PTHORA_UNRULED = {2, 39, 40, 45, 63, 70}
 NOT_PTHORA = {55, 80, 81}
-SCALE_SIGN = {15: ('diatonic', 1),          # Pa
-              24: ('diatonic', 3),          # nana, normally Ga
-              35: ('diatonic', 4),          # aghia, Di
-              38: ('hard_chromatic', 1),    # hard-chromatic equivalent of 15
-              50: ('diatonic', 5),          # ananes, Ke
-              56: ('diatonic', 0)}          # aghia, Ni
+SCALE_SIGN = {15: ('diatonic', 'Pa'),
+              24: ('diatonic', 'Ga'),         # nana
+              35: ('diatonic', 'Di'),         # aghia
+              38: ('hard_chromatic', 'Pa'),   # phase 0 of the four-step cycle
+              50: ('diatonic', 'Ke'),         # ananes
+              56: ('diatonic', 'Ni')}         # aghia
 # ---- cluster 7 is TWO neumes, told apart by height ------------------------
 # The extraction merged psifiston and omalon into one cluster. The chanter found
 # it by eye while ruling the kentimata figures, 2026-08-19: "about half have
