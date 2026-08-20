@@ -1,0 +1,104 @@
+{
+ "items": [
+  {
+   "img": "gorgons/p002-19.png",
+   "page": 2,
+   "line": 3,
+   "a": "18|",
+   "b": "6|19be"
+  },
+  {
+   "img": "gorgons/p002-41.png",
+   "page": 2,
+   "line": 4,
+   "a": "18|",
+   "b": "6|19be"
+  },
+  {
+   "img": "gorgons/p002-92.png",
+   "page": 2,
+   "line": 7,
+   "a": "18|",
+   "b": "6|19be"
+  },
+  {
+   "img": "gorgons/p050-143.png",
+   "page": 50,
+   "line": 9,
+   "a": "18|",
+   "b": "4|"
+  },
+  {
+   "img": "gorgons/p053-31.png",
+   "page": 53,
+   "line": 1,
+   "a": "18|",
+   "b": "17|"
+  },
+  {
+   "img": "gorgons/p053-134.png",
+   "page": 53,
+   "line": 8,
+   "a": "18|",
+   "b": "17|"
+  },
+  {
+   "img": "gorgons/p054-143.png",
+   "page": 54,
+   "line": 9,
+   "a": "18|",
+   "b": "17|"
+  },
+  {
+   "img": "gorgons/p065-152.png",
+   "page": 65,
+   "line": 8,
+   "a": "6|8ab",
+   "b": "17|"
+  },
+  {
+   "img": "gorgons/p140-146.png",
+   "page": 140,
+   "line": 9,
+   "a": "4|10be",
+   "b": "17|"
+  },
+  {
+   "img": "gorgons/p215-37.png",
+   "page": 215,
+   "line": 2,
+   "a": "4|10be",
+   "b": "6|19be"
+  },
+  {
+   "img": "gorgons/p216-50.png",
+   "page": 216,
+   "line": 3,
+   "a": "4|10be",
+   "b": "6|"
+  },
+  {
+   "img": "gorgons/p221-83.png",
+   "page": 221,
+   "line": 4,
+   "a": "6|10be+10be",
+   "b": "5|"
+  },
+  {
+   "img": "gorgons/p225-177.png",
+   "page": 225,
+   "line": 10,
+   "a": "4|10be",
+   "b": "5|"
+  },
+  {
+   "img": "gorgons/p234-119.png",
+   "page": 234,
+   "line": 7,
+   "a": "18|",
+   "b": "4|"
+  }
+ ],
+ "total": 637,
+ "dominant": 596
+}
