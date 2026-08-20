@@ -392,13 +392,31 @@ def beats_seq(units):
     """
     b = [beats_written(u) for u in units]
     n = len(b)
+    # A note is shortened by AT MOST ONE gorgon. Chanter, 2026-08-19: "no notes
+    # should ever be shortened twice. gorgons do not stack. if you think two
+    # gorgons are applying themselves to a single note that is wrong and the
+    # gorgon is being interpreted wrong or the logic is incorrect."
+    #
+    # A gorgon's window is k+1 symbols starting one BEFORE the sign, so a note
+    # carrying its own gorgon that is also followed by one fell inside two
+    # windows and lost its share twice — 622 notes ended at the MIN_BEAT floor
+    # that way, which is the floor admitting the logic was wrong rather than
+    # protecting against anything. Each note now takes only the LARGEST
+    # deduction that reaches it. That keeps the klasma reading intact (a
+    # 2-beat note under a gorgon is 1½, not ½) while making a run of gorgons
+    # come out as the even run of short notes it is meant to be.
+    ded = [0.0] * n
     for j, u in enumerate(units):
         k = u.get('timing', 0)
-        if k:                       # gorgon k=1, digorgon k=2, trigorgon k=3
-            ded = k / (k + 1.0)     # ½, ⅔, ¾
-            for i in range(j - 1, j + k):        # k+1 symbols, starting one before
-                if 0 <= i < n:
-                    b[i] -= ded
+        if not k:                   # gorgon k=1, digorgon k=2, trigorgon k=3
+            continue
+        d = k / (k + 1.0)           # ½, ⅔, ¾
+        for i in range(j - 1, j + k):        # k+1 symbols, starting one before
+            if 0 <= i < n:
+                ded[i] = max(ded[i], d)
+    for i in range(n):
+        b[i] -= ded[i]
+    for j, u in enumerate(units):
         if u.get('argon'):
             b[j] += 1.0
             for i in (j - 1, j - 2):
