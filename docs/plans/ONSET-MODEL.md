@@ -7,6 +7,14 @@ early onsets however slight."*
 
 ---
 
+> **Read `ONSET-EVENTS.md` first (2026-08-19).** Measuring the current pipeline
+> against gold #1 found that the residual this plan targets — precision within a
+> locked passage — is the *second* problem. The first is that the event detector
+> emits 32 % more events than there are notes while missing a quarter of the real
+> onsets, so a third of them have nothing to be precise about, and machine-aligned
+> pairs inherit a 57 % spurious rate as training labels. That changes what this
+> model should be trained on and when it should be sized.
+
 ## 1. Why arithmetic cannot finish this job
 
 The duration model landed today is now correct against the book: apli/dipli/
