@@ -151,9 +151,34 @@ PTHORA_SKIPS_UPBEAT = 17          # KENTIMATA, defined below
 # note belongs beside it rather than a silent second diatonic.
 DEG_NAME = ['Ni', 'Pa', 'Vou', 'Ga', 'Di', 'Ke', 'Zo']
 HARD_CHROMATIC_PHASE = {'Pa': 0, 'Vou': 1, 'Ga': 2, 'Di': 3}   # repeats at the 5th
-PTHORA = {37: (None, 'Pa'),     # names Pa   (anchors.html)
-          65: (None, 'Ga')}     # names Ga   (anchors.html)
-PTHORA_UNRULED = {2, 39, 40, 45, 63, 70}
+# All eight ruled on pthdeg.html, 2026-08-19, three examples each and consistent
+# within every cluster.
+PTHORA = {2:  ('diatonic', 'Pa'),
+          37: ('hard_chromatic', 'Pa'),
+          39: ('hard_chromatic', 'Di'),      # phase 3 of the four-step cycle
+          40: ('diatonic', 'Ke'),
+          45: ('diatonic', 'Di'),
+          63: ('diatonic', 'Vou'),
+          65: ('diatonic', 'Ni'),
+          70: ('grave_diatonic', 'Zo')}
+# 65 looked like a contradiction — ruled Ga on anchors.html and Ni on
+# pthdeg.html — and it is not. He resolved it: "sometimes we see that pthora on
+# ga for the triphonos where it basically makes ga a ni. but the martyria stays
+# a ga if thats the case."
+#
+# Both readings hold at once. The NOTE becomes Ni; the martyria printed at that
+# spot still shows Ga, because the notation is not rewritten — the reader applies
+# the pthora. Which is why he answered Ga when shown the printed sign on
+# anchors.html and Ni when asked what it respells to. MARTYRIA_DEG keeps Ga for
+# what the glyph names as a martyria, and degree_stream already prefers a fthora
+# over a mart_deg on the same unit, which is exactly this rule.
+#
+# The vocabulary underneath, also his: "'makes it a ga' is like us saying its
+# phase 3 of the diatonic scale where normally phase 0 is the ni (goin intervals
+# 12-10-8-12-12-10-8)". A degree name IS a phase of the running genus — Ni 0,
+# Pa 1, Vou 2, Ga 3, Di 4, Ke 5, Zo 6 — which is why these tables store names
+# and genus.rs stores the interval cycle each name indexes into.
+PTHORA_UNRULED = set()
 NOT_PTHORA = {55, 80, 81}
 SCALE_SIGN = {15: ('diatonic', 'Pa'),
               24: ('diatonic', 'Ga'),         # nana
@@ -453,6 +478,8 @@ YPORRHOE_STEP = -1
 # Clusters that carry melodic quantity (atlas: every cluster with a non-null
 # interval, plus the jump marks).
 MELODIC_CLUSTERS = {3, 4, 5, 6, 17, 20, 22, 41, 48, 83, 16, 28, 47}
+NEUME_BAND = 22.0           # pt from a line's note centres; past this a red
+                            # glyph is a heading, not part of the music
 MART_OPEN_GAP = 40.0        # pt: past this a martyria is right-aligned, i.e.
                             # the next hymn's opening sign, NOT a cadence check
 MIN_BEAT = 0.125            # floor: stacked deductions must not go negative
@@ -772,6 +799,41 @@ def _split_kentimata(pl, mine, fig, oli, ken, carrier=None, iv=None):
     return out
 
 
+def _attach_pthoras(units, recs):
+    """Hang each pthora on the unit it sits over. See PTHORA for the rules.
+
+    A pthora on a MARTYRIA is left alone here: it rewrites an anchor, not a
+    sounded note, and the anchor is resolved by leading_anchor() outside this
+    function. Only the note case is attached.
+    """
+    if not units:
+        return
+    import statistics as _st
+    by_line = defaultdict(list)
+    for u in units:
+        if not u.get('rest'):
+            by_line[u['pl']].append(u)
+    for g in recs:
+        if not g['red'] or g['cluster'] not in PTHORA:
+            continue
+        us = by_line.get((g['page'], g['line']))
+        if not us:
+            continue
+        cy = _st.median([(u['y0'] + u['y1']) / 2 for u in us])
+        if abs((g['y0'] + g['y1']) / 2 - cy) > NEUME_BAND:
+            continue                      # a heading, not part of the music
+        hits = [u for u in us
+                if min(u['x1'], g['x1']) - max(u['x0'], g['x0']) > 1]
+        if not hits:
+            continue                      # on a martyria, or on nothing
+        u = max(hits, key=lambda u: min(u['x1'], g['x1']) - max(u['x0'], g['x0']))
+        if u['base'] == PTHORA_SKIPS_UPBEAT:      # never the upbeat half
+            sib = [q for q in us if q.get('fig') == u.get('fig') and q is not u]
+            if sib:
+                u = sib[0]
+        u['fthora'] = PTHORA[g['cluster']]
+
+
 def load_units(p0, l0, p1, l1):
     """units for the hymn slice [(p0,l0) .. (p1,l1))"""
     recs, lyr = [], []
@@ -925,6 +987,7 @@ def load_units(p0, l0, p1, l1):
                     units.extend(_split_kentimata(pl, mine, fig, *pair))
                 fig += 1
     # sort on the figure's shared x, then on reading order within it
+    _attach_pthoras(units, recs)
     units.sort(key=lambda u: (u['pl'], u.get('sx', u['x0']),
                               u['part'] if u.get('part') is not None else 0))
     return units, lyr
