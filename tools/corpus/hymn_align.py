@@ -876,10 +876,21 @@ SYNEXES_GAP_FRAC = 0.72     # of the page's median note-to-note x-gap
 # (0.724-0.745, the largest gap anywhere between 0.58 and 0.80). It is the most
 # defensible line his ruling supports, not a line the data draws by itself.
 #
-# THIS IS THE WEAK POINT OF THE RULE. 101 pairs sit in the 0.65 bin, more than
-# any other, and nobody has ruled one. If the true boundary is nearer 0.60 than
-# 0.72 then roughly a third of what this admits is wrong. Get one mid-range
-# figure ruled before trusting the count.
+# BRACKETED FROM BOTH SIDES, 2026-08-21. The mid-range figure was then ruled --
+# p560 line 11 at ratio 0.66, chanter: "the mid range is a running elafrom" --
+# which pins the boundary between 0.66 and 0.74 and confirms 0.72 rather than
+# merely permitting it:
+#
+#     0.58  RUNNING      s04 glyphs 66, 76
+#     0.66  RUNNING      p560 line 11        <- must be admitted
+#     ----  cut 0.72
+#     0.74  NOT running  p522 line 2         <- must be excluded
+#
+# 184 of the 270 pairs sit at or below the ruled-running 0.66 and 37 at or above
+# the ruled-not-running 0.74, so 82% of the population is now decided by a
+# ruling rather than by the threshold. The residual uncertainty is 49 pairs in
+# the unruled 0.66-0.72 band; moving the cut anywhere inside the bracket only
+# ever reassigns those.
 ELAPHRON_BASES = (20,)
 APOSTROPHOS_BASES = (4,)
 
