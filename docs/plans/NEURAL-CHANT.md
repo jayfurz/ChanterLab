@@ -42,7 +42,12 @@ median |Δt| 0.714 s    mean 1.609    p90 4.560    max 5.837
   within 0.35 s   27/76   (36 %)
 
   bias (signed mean)  +0.566 s     jitter (signed stdev)  2.333 s
+  slips 2      asymmetric -200/+100 ms  32.9 %
 ```
+
+All of the above come from `tools/corpus/onset_eval.py`, which writes the
+per-note signed error vector to `baseline_errors.json` so a later run is diffed
+rather than re-asserted. It corrected an earlier hand-count of 4 slips to **2**.
 
 Loosening the gate from 50 ms to 150 ms buys **two notes**. That is the point:
 the threshold change alters what is measured, not how hard the problem is, and
@@ -131,17 +136,17 @@ no gate may be written against one.
 
 | asset | count | where | notes |
 |---|---|---|---|
-| chanter-verified onsets | **335** | `datasets/grave-orthros-t03-gold/pins.json` (76), `datasets/eothinon-11-workdir/note_times.json` (259) | the only gold. t03 tests, the rest trains (§6.1) |
-| in-progress pins | 37 | `datasets/exports/grave-orthros-s01-…` | growing; **training** data (§6.1) |
+| chanter-timed onset labels | **335** | `datasets/grave-orthros-t03-gold/pins.json` (76 pins), `datasets/eothinon-11-workdir/note_times.json` (259 times, **0 pins**) | gold; both **train**. t03 is a known benchmark (§6.1) |
+| s01 pins | 37 of 99 | `datasets/exports/grave-orthros-s01-…` | gold; the **SEALED TEST** fold, versioned `s01@<date>` (§6.1) |
 | note units in the book | **116,043** | `score_degrees.units_for(1,0,0,999,999,10**9)` | score-only, no audio needed (§6.3) |
 | distinct unit keys | 123 | same | over 16 bases |
 | cadence martyrias | 3,886 | `u['mart_cad']` | free constraints (§1.1) |
 | audio | **37.4 h / 264 recordings** | `/mnt/data/chant-corpus/corpus.json` | all one singer (ATTR-01) |
 | annotator note slots | 19,868 | 220 pieces | 4,050 carry no fresh syllable |
 
-372 pinned onsets is the binding constraint, and only 76 of them are held back.
-§5.4 and §6.3 exist because of it, and §6.1 explains why the chanter's pinning
-rate is the critical path.
+372 chanter-timed onset labels is the binding constraint — 335 train, 37 (→99)
+are sealed. §5.4 and §6.3 exist because of it, and §6.1 explains why the
+chanter's pinning rate is the critical path for both folds.
 
 ### 1.1 The martyria constraint — real, and currently violated
 
@@ -372,9 +377,17 @@ chanter *departs* from the grid, and that departure is signal, not noise.
 
 Δt from the previous confirmed onset, quantised to **20 ms bins over [0, 4 s]**
 = 200 bins plus overflow. Softmax over 201. Cross-entropy with label smoothing
-onto ±1 bins, because pins carry their own jitter — PIN-REPEAT-01 (§10) will say
-how much, and the smoothing width should be set from that number rather than
-guessed.
+onto ±1 bins, because pins carry their own jitter — PIN-REPEAT-01 (§10) sets the
+width and **blocks this section's contract**.
+
+Gold and silver targets are not interchangeable and must not be pooled blindly.
+Each example carries its `provenance`, and the loss takes a per-source weight;
+silver targets on syllable-initial notes are plentiful and approximate, gold
+targets are scarce and authoritative. The weights are chosen on the silver dev
+fold like any other hyperparameter. Continuing-vowel examples exist **only** in
+gold, so a scheme that down-weights gold to near zero silently removes the
+class the model is for — assert a minimum gold contribution in the training
+loop.
 
 Point regression is disqualified: the model must be able to say *"0.31 s, or
 possibly 0.62 s if a note was skipped"* and let §7 arbitrate. A regressor
@@ -408,36 +421,50 @@ NN-04's gate is a committed *document*, not a forward pass:
 Three sources, three trust levels, never mixed. Every example carries
 `provenance` and `source_recording_id`.
 
-### 6.1 Gold — and why some of it must be trained on
+### 6.1 Gold — folds, and which one is sealed
 
-76 t03 pins (Greek, Ioannou vector), 259 eothinon-11 note times (English, Karam
-EZ fonts), 37 s01 pins and growing. **372 chanter-pinned onsets today.**
+**372 chanter-timed onset labels.** Terminology matters here: only t03 (76) and
+s01 (37) are *pins*; eothinon-11's 259 are onset times and slot claims, and its
+own README records "0 pins". Call the total **timed onset labels**, not pins.
 
-**The hole this plan had, and the fix.** An earlier revision reserved *all* gold
-for evaluation. That is unimplementable, and the reason is exact: the model
-exists to place notes on a continuing vowel (§0.2); those notes have **no FA
-anchor by construction**, so §6.2 silver cannot label them; and if gold is also
-withheld, **the Δt head never sees a single labelled example of the class it is
-being built to solve.** On t03 that is 18 of 76 notes with no target anywhere in
-the training set.
+**Why gold must train at all.** The model exists to place notes sung on a
+continuing vowel (§0.2). Those notes have **no FA anchor by construction**, so
+§6.2 silver cannot label them. An earlier revision reserved all gold for
+evaluation, which left 18 of 76 t03 notes with no target anywhere in training —
+the model would have been trained only on notes forced alignment can already
+time, then asked to place the ones it cannot.
 
-So gold is split **by fold**, not withheld wholesale:
+**Fold assignment, decided 2026-08-20:**
 
-| fold | role |
-|---|---|
-| **eothinon-11** (259) | **trains.** The only supervision covering continuing-vowel onsets |
-| **s01…** (37, growing) | **trains.** Same corpus and engraving as the target material |
-| **t03** (76) | **tests, once.** Never trained on, never selected on |
+| fold | labels | role |
+|---|---|---|
+| **eothinon-11** | 259 | **trains** |
+| **t03** | 76 | **trains**, and is a *known benchmark* — see below |
+| **s01** | 37 → 99 when complete | **SEALED TEST.** Never trained on, never inspected |
 
-This costs the cross-script transfer claim — t03 becomes the only held-out
-fold — and that is the right trade: a transfer claim about a model that could
-not learn the task is worth nothing. Hyperparameters are still chosen on the
-silver dev fold (§9), so t03 is touched exactly once, at the end.
+**t03 is a known benchmark, not a sealed test, and the plan must stop
+pretending otherwise.** It has already been scored repeatedly during planning:
+§0.1's baseline, the drift signature, the bias and jitter figures and the slip
+count are all derived from inspecting it. No wording fixes that. It is therefore
+training data plus a *comparison* number against prior work — never evidence of
+generalisation.
 
-**This makes chanter pinning the critical path.** Continuing-vowel notes are the
-scarce label, and only the chanter can produce them. Pinning priority is: notes
-with no FA candidate first, then notes where candidates disagree. Every new
-pinned piece goes to training except the reserved t03.
+**s01 is sealed whole, not in part.** It is a single audio cut, so training on
+some of its notes and testing on the rest would put the same recording, tempo
+and voice on both sides of the split. A source recording is wholly train or
+wholly test; §10's leakage rule says so.
+
+**The sealed fold is versioned.** s01 is still being pinned, so a test number
+must name the snapshot it was computed against: `s01@<ISO date>`, recorded with
+the pin-file sha256 in the result. When s01 grows, the snapshot is re-cut and
+the version bumped. A number reported against an unnamed snapshot is not
+reproducible.
+
+**Chanter pinning is the critical path**, for both folds: continuing-vowel notes
+are the scarce training label, and s01's completion is what makes the test set
+whole. Pinning priority is notes with no FA candidate first, then notes where
+candidates disagree. Of the 47 chanter-cut spans, 46 remain unallocated —
+future pieces can extend either fold, but never both from one recording.
 
 ### 6.2 Silver from forced alignment
 
@@ -478,8 +505,8 @@ Be honest about scale: ~500 k factored tokens teaches local n-gram structure and
 cadence formulae, not a deep model of style. That suffices, because the onset
 labels then only have to train the cross-attention and the Δt head.
 
-Stage: neume-LM pretrain → warm-start → train alignment on silver → evaluate on
-gold once. Report the ablation *without* 6.3 so the claim is measured.
+Stage: neume-LM pretrain → warm-start → train alignment on silver **plus the
+gold-train folds** (§6.1) → evaluate on the sealed fold once. Report the ablation *without* 6.3 so the claim is measured.
 
 ---
 
@@ -543,8 +570,11 @@ person can use, not from what is technically impressive.
 
 **Bounded by the material.** Inter-onset intervals from the chanter's own pins
 (t03 + s01, 111 intervals): median **0.533 s**, p10 0.448 s, **shortest 0.287 s**.
-At ±150 ms the indicator is still unambiguously on the correct note; at ±300 ms
-the error would span half of 70 % of notes, which is where follow-along breaks.
+At ±150 ms the indicator is on the correct note for all but the very shortest
+intervals — with a 287 ms minimum IOI, adjacent ±150 ms windows overlap by
+13 ms, so a handful of notes are genuinely ambiguous and the gate is "almost
+always unambiguous", not "always". At ±300 ms the error spans half of 70 % of
+notes, which is where follow-along breaks outright.
 The real failure is pointing at the *wrong* note, not being slightly off the
 right one.
 
@@ -558,6 +588,8 @@ of tens of milliseconds, so the "true" onset is itself fuzzy and a hand-placed
 pin carries its own scatter. Gating there would partly measure pinning noise.
 **PIN-REPEAT-01** (§10) establishes the actual floor; until it reports, no gate
 tighter than 150 ms is defensible.
+
+**Sign convention: `Δt = prediction − gold`. Negative is early.**
 
 **Primary metric: `frac(|Δt| ≤ 0.15 s)`** over a fixed denominator of every
 pinned note — all 76 on t03. **Comparison semantics:** `round(|Δt|, 3) <= 0.150`,
@@ -576,26 +608,39 @@ signed standard deviation is jitter. Bias is one global number to subtract and
 perceptually harmless if it is a lead; jitter is what destroys the illusion.
 
 > **Do not apply a global offset before slips are controlled.** Measured on t03:
-> subtracting the signed mean takes the 50 ms rate from **30 % to 7 %**, because
+> subtracting the signed mean takes the 50 ms rate from **30.3 % to 6.6 %**
+> (and the 150 ms gate from 32.9 % to 10.5 %), because
 > the +0.566 s "bias" is not a systematic lead — it is the mean of a distribution
 > with 2.333 s of slip-driven jitter, and subtracting it wrecks the notes that
 > were already right. Bias correction is meaningful only on slip-free regions.
 
+**One scorer, one contract.** `tools/corpus/onset_eval.py` is the only scorer.
+REPRO-01, NN-00, NN-05 and NN-06 all report through it, and every result carries
+the full set — symmetric gate, 100 ms tier, 50 ms diagnostic, asymmetric window,
+bias, jitter, slip count, and the per-note signed error vector. A result missing
+any of these does not satisfy its gate.
+
 **Secondary and equally binding: slip count** — maximal runs where signed drift
-leaves the gate and does not return within 3 notes. t03 today: 4. **Zero is the
+leaves the gate and does not return within 3 notes. t03 today: **2**. **Zero is the
 hard requirement**, and it does not relax with the threshold.
 
-**Two-tier data discipline, one rule.**
+**Three tiers, one rule per tier.**
 
 | tier | what it is | what it may decide |
 |---|---|---|
-| **silver dev fold** | whole source recordings held out of §6.2, scored against their FA character-path anchors | stream B, §6.3 ablation, the §5.4 size curve, all NN-06 thresholds |
-| **gold train** | eothinon-11 (259) + s01… (37, growing) | nothing — it is training data (§6.1) |
-| **gold test — t03 (76)** | the reserved fold | the final claim, **touched once** |
+| **silver dev** | whole source recordings held out of §6.2, scored on FA character-path anchors | stream B, §6.3 ablation, the §5.4 size curve, all NN-06 thresholds |
+| **gold train** | eothinon-11 (259) + t03 (76) | nothing. Training data — but see the diagnostic below |
+| **sealed test** | **s01**, whole piece, versioned `s01@<date>` | the final claim, **touched once** |
 
-No hyperparameter is ever chosen on gold, train or test. The gold *train* fold
-exists because the continuing-vowel class has no other supervision; the gold
-*test* fold is never fitted, selected on, or inspected until the final run.
+**Continuing-vowel performance is monitored on t03, not on the sealed fold.**
+This is the one thing a burnt benchmark is good for. t03 is trained on, so its
+score is a fit diagnostic and never evidence — but it is the only piece whose
+continuing-vowel notes are both labelled *and* already inspected, so watching it
+costs nothing that has not already been spent. NN-05's "no collapse on
+continuing-vowel notes" gate reads against t03 with that caveat attached.
+
+No hyperparameter is chosen on the sealed fold, and nothing is inspected there
+until the final run.
 
 The dev fold is a weaker instrument than pins — that is the price of not
 spending them, and why NN-05's bar (60 %) sits below NN-06's (90 %). Two gold
@@ -620,7 +665,7 @@ nothing.
 
 | system | ≤ 0.15 s (gate) | ≤ 0.10 s | ≤ 0.05 s | notes |
 |---|---|---|---|---|
-| annotator today, t03 | **33 %** | 33 % | 30 % | 4 slips; bias +0.566 s, jitter 2.333 s |
+| annotator today, t03 | **32.9 %** | 32.9 % | 30.3 % | **2 slips**; bias +0.566 s, jitter 2.333 s |
 | FA word onsets, t03 | — | — | 4 % | the stored output |
 | FA character path, oracle | — | 82 % | 61 % | **upper bound**, ~2.4 candidates/note |
 | target | **≥ 90 %** | report | report | **0 slips** |
@@ -631,26 +676,27 @@ nothing.
 
 | id | work | gate |
 |---|---|---|
-| **REPRO-01** (S) | `fa_eval.py`: character- and word-level FA scored on all 76 t03 pins, mapping validated not merely reproduced | a number a second run reproduces. **Blocks NN-02 onward** |
-| **DECIDE-01** (S) | characterise the gap: coverage, ≤50 ms rate, misses, failure classes, split by evidence class | a sized brief naming which notes the model must own |
-| **NN-00** (S) | arithmetic baseline: `beats_seq` + one fitted tempo | reproduced by a script |
+| **REPRO-01** (S) | `fa_eval.py`: character- and word-level FA scored on t03 (a known benchmark, §6.1), mapping validated not merely reproduced | a number a second run reproduces. **Blocks NN-02 onward** |
+| **DECIDE-01** (S) | characterise the gap on t03: coverage, **≤150 ms rate primary** with 100/50 ms reported, misses, failure classes, split by evidence class | a sized brief naming which notes the model must own |
+| **PIN-REPEAT-01** (S) | the chanter re-pins **20 notes of t03** (a gold-train piece — never s01) **blind**; report signed differences, their stdev, p95 |Δ|, and outliers kept not trimmed | an annotation floor exists. **Blocks NN-04**: it sets the §5.3 label-smoothing width, and no gate tighter than it is defensible (§9.1) |
+| **NN-00** (S) | arithmetic baseline: `beats_seq` + one fitted tempo, via `onset_eval.py` | reproduced by a script |
 | **CHECK-01** (M) | find the systematic −1/−2 in the 40 violated gaps | `martyria_check.py` exits 0: violated < 8 of 57 |
 | **NN-01** (S) | `vocab.py` — **after DECODE-01/KEY-01 settle mark order** (§3) | round-trip exact on 116,043 units; dropped distinctions recorded |
 | **NN-02** (M) | `features.py`, three-stream cache with provenance | FA re-derived from cache matches REPRO-01 |
-| **NN-03** (M) | `dataset.py`, lane-specific silver | no gold **source recording** in any train split — including derived cuts, overlapping excerpts and duplicates. Split by `source_recording_id` |
+| **NN-03** (M) | `dataset.py`, lane-specific silver | **no source recording crosses roles.** No s01-derived audio — cuts, overlapping excerpts, duplicates under other piece ids — enters training or dev. Split by `source_recording_id` |
 | **NN-04** (M) | `model.py` at 4 M | §5.5 contract committed first |
-| **NN-05** (L) | train on silver + the gold train fold; curve 4 M / 12 M / 40 M | **≥ 60 % ≤150 ms on the silver dev fold, slips < 2**, no collapse on continuing-vowel notes. **t03 untouched** |
-| **NN-06** (M) | `decode.py` — contract first (§7) | **≥ 90 % ≤150 ms, 0 slips** on t03, evaluated once |
-| **PIN-REPEAT-01** (S) | the chanter re-pins ~20 notes of an already-pinned piece **blind**; report the spread against his first pass | an annotation floor exists. **No gate tighter than this number is defensible** (§9.1) |
+| **NN-05** (L) | train on silver + the gold train fold; curve 4 M / 12 M / 40 M | **≥ 60 % ≤150 ms on the silver dev fold, slips < 2**; continuing-vowel notes monitored on t03 as a fit diagnostic (§9). **s01 untouched** |
+| **NN-06** (M) | `decode.py` — contract first (§7) | **≥ 90 % ≤150 ms, 0 slips** on the sealed `s01@<date>` fold, evaluated once |
 | **ATTR-01** (S) | provenance at ingest; backfill 264 | nothing lands untagged |
 
-**On their own timelines**, neither needed for 50 ms onsets:
+**On their own timelines**, neither needed for the 150 ms follow-along gate:
 
 - **GEN-01** — generation. §8: needs a text encoder; the vocabulary and neume
   head land here. Style personas additionally blocked on ATTR-01.
 - **NN-07** — the `inclusionAI/Ling-3.0-tiny` verifier (7.89 B MoE, 131 k ctx),
-  on GPU 1 in bf16. Ships if NN-06 misses its gate and the failures are ones a
-  language model could catch. It needs no onset labels, which is why it scales
+  on GPU 1 in bf16. **Triggered by silver-dev and t03 failures, never by the
+  sealed fold** — selecting it from s01 results would turn the test set into a
+  dev set and forfeit the one-touch claim. It needs no onset labels, which is why it scales
   when labels do not.
 
 **Ordering rules:**
