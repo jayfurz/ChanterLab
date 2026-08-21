@@ -912,6 +912,25 @@ def _attach_pthoras(units, recs):
 # which NEURAL-CHANT.md section 1.1 holds REPORT-ONLY until Gate C; and once the
 # martyria decides an instance it can no longer independently validate it, so
 # the 32/58 would stop being evidence for anything. Both are the chanter's call.
+# KENTIMA ON TOP vs KENTIMA UNDERNEATH -- one key, two figures, and the key
+# cannot tell them apart. Chanter, 2026-08-21, on s10 glyphs 25 and 53: "this
+# glyph with oligon kentima on the bottom is +2 only. should go to ga." His
+# earlier ruling on gold t03 gi=63 was "+3", and both are 7|16ab+6ab.
+#
+# The geometry separates them cleanly. Bounding-box height of every instance in
+# the book, in 0.1 pt bins:
+#
+#     12.7-12.9  103 instances     <- s10 gi 25 and 53 sit here: +2
+#     18.7-18.9   20 instances     <- t03 gi 63 sits here:       +3
+#     22-30       11 instances        something else again, left alone
+#
+# A kentima above the oligon adds its own height to the box; tucked beneath it
+# does not. So the split is a measurement, not a guess -- and it is the reason
+# CHECK-01's fix was too broad: it set EVERY 7|16ab+6ab to +3 from gi=63 alone,
+# when the majority are the +2 form.
+KENTIMA_SPLIT = {'7|16ab+6ab': (15.0, 2, 3)}    # key -> (height cut, low, high)
+
+
 SYNEXES_STEP = -1           # not the -2 a standalone elaphron takes; pair nets -2
 SYNEXES_GAP_FRAC = 0.72     # of the page's median note-to-note x-gap
 # 0.80 -> 0.72 on 2026-08-21. Chanter, shown p522 line 2 at ratio 0.74: "it's
@@ -951,6 +970,23 @@ SYNEXES_GAP_FRAC = 0.72     # of the page's median note-to-note x-gap
 # ever reassigns those.
 ELAPHRON_BASES = (20,)
 APOSTROPHOS_BASES = (4,)
+
+
+def _mark_kentima_height(units):
+    """Set iv per instance where a key covers two figures at different heights."""
+    for u in units:
+        spec = KENTIMA_SPLIT.get(u.get('key'))
+        if not spec or u.get('iv') is not None:
+            continue
+        if u.get('y0') is None or u.get('y1') is None:
+            continue
+        cut, lo, hi = spec
+        h = u['y1'] - u['y0']
+        if h > 21.0:            # the 22-30 pt tail is a third figure; no ruling
+            continue
+        u['iv'] = hi if h >= cut else lo
+        u['kentima_high'] = h >= cut
+    return units
 
 
 def _mark_synexes_elaphron(units):
@@ -1182,7 +1218,7 @@ def load_units(p0, l0, p1, l1):
     _attach_pthoras(units, recs)
     units.sort(key=lambda u: (u['pl'], u.get('sx', u['x0']),
                               u['part'] if u.get('part') is not None else 0))
-    return _mark_synexes_elaphron(units), lyr
+    return _mark_synexes_elaphron(_mark_kentima_height(units)), lyr
 
 def load_units_h(h):
     """units + lyrics for a hymns.json row. Optional g0/g1 (annotator glyph

@@ -140,7 +140,13 @@ def load(piece_dir, gold_file, hymn):
     D = json.load(open(os.path.join(piece_dir, 'annotator_data.json')))
     n = len(D['slots']['gi'])
     raw = json.load(open(gold_file))
-    g = {int(k): float(v) for k, v in (raw.items() if isinstance(raw, dict) else raw)}
+    if isinstance(raw, dict) and 'onsets' in raw:
+        # quick_onset.place() output: model onsets, in time order, one per note.
+        g = {i: float(t) for i, t in enumerate(raw['onsets'])}
+    elif isinstance(raw, dict):
+        g = {int(k): float(v) for k, v in raw.items()}
+    else:
+        g = {int(k): float(v) for k, v in raw}
     M = mel(audio(os.path.join(piece_dir, 'audio.wav')))
     y = degrees(hymn, n)
     X, Y, dropped = [], [], []
@@ -155,6 +161,60 @@ def load(piece_dir, gold_file, hymn):
               % (len(dropped), ', '.join('gi=%d %s(%+d)' % (i, deg_name(d), d)
                                          for i, d in dropped)))
     return np.stack(X), np.array(Y), os.path.basename(piece_dir)[14:44]
+
+
+def predict(net, piece_dir, onsets_file, dev, hymn=None):
+    """Degree per note for a piece, from its audio and a set of onsets.
+
+    The onsets can be the chanter's or the onset model's. Where a score exists
+    the prediction is compared against it, and a DISAGREEMENT IS THE POINT: a
+    parallagi sings its answer out loud, so a confident mismatch is evidence
+    about the score, not only about the model. On s06 this heard γα where the
+    score said βου, and the chanter confirmed γα -- the score was wrong.
+
+    It cannot tell a wrong onset from a wrong degree. If the onsets came from
+    the model rather than from him, a note misplaced by one articulation reads
+    as a misclassification here, so low agreement means "look at this piece",
+    not "the score is wrong".
+    """
+    D = json.load(open(os.path.join(piece_dir, 'annotator_data.json')))
+    n = len(D['slots']['gi'])
+    raw = json.load(open(onsets_file))
+    if isinstance(raw, dict) and 'onsets' in raw:
+        ts = list(raw['onsets'])
+    elif isinstance(raw, dict):
+        ts = [float(raw[k]) for k in sorted(raw, key=int)]
+    else:
+        ts = [float(t) for _, t in raw]
+    M = mel(audio(os.path.join(piece_dir, 'audio.wav')))
+    X = []
+    for k, t0 in enumerate(ts):
+        t1 = ts[k + 1] if k + 1 < len(ts) else t0 + 0.6
+        X.append(cut(M, t0, t1))
+    x = torch.from_numpy(np.stack(X)).to(dev)
+    with torch.inference_mode():
+        p = torch.softmax(net(x), 1)
+    conf, idx = p.max(1)
+    pred = [int(i) + DEG_LO for i in idx.cpu().numpy()]
+    conf = [float(c) for c in conf.cpu().numpy()]
+    row = {'piece_id': os.path.basename(piece_dir.rstrip('/')),
+           'n_notes': n, 'n_onsets': len(ts),
+           'degrees': pred, 'names': [deg_name(d) for d in pred],
+           'confidence': [round(c, 3) for c in conf],
+           'mean_confidence': round(float(np.mean(conf)), 3)}
+    if hymn:
+        try:
+            want = degrees(hymn, n)
+            if len(want) == len(pred):
+                agree = sum(1 for a, b in zip(want, pred) if a == b)
+                row['score_agreement'] = round(agree / len(want), 3)
+                row['disagreements'] = [
+                    {'note': i, 'score': deg_name(want[i]), 'heard': deg_name(pred[i]),
+                     'conf': round(conf[i], 3)}
+                    for i in range(len(want)) if want[i] != pred[i]]
+        except Exception as e:
+            row['score_error'] = str(e)
+    return row
 
 
 def run(train, test, epochs, lr, dev, tag):
@@ -182,7 +242,7 @@ def run(train, test, epochs, lr, dev, tag):
     acc = float((pr == Yte).float().mean()); tacc = float((tr == Ytr).float().mean())
     print('  %-34s train %5.1f%%   %s %5.1f%%  (n=%d)'
           % (tag, 100 * tacc, 'TEST', 100 * acc, len(Yte)))
-    return pr.cpu().numpy(), Yte.cpu().numpy(), acc
+    return pr.cpu().numpy(), Yte.cpu().numpy(), acc, net
 
 
 def main():
@@ -193,9 +253,15 @@ def main():
     ap.add_argument('--epochs', type=int, default=400)
     ap.add_argument('--lr', type=float, default=6e-4)
     ap.add_argument('--loo', action='store_true', help='leave one hymn out')
+    ap.add_argument('--out-degrees')
     ap.add_argument('--errors', action='store_true',
                     help='list every note where the model and the score disagree')
     ap.add_argument('--device', default='cuda')
+    ap.add_argument('--save', help='write trained weights here')
+    ap.add_argument('--load', help='use these weights instead of training')
+    ap.add_argument('--infer', action='append', metavar='DIR:ONSETS',
+                    help='piece dir and an onsets json, colon separated; '
+                         'repeatable. Predicts the degree of every note.')
     a = ap.parse_args()
     dev = torch.device(a.device if torch.cuda.is_available() else 'cpu')
     data = [load(p, g, h) for p, g, h in zip(a.piece, a.gold, a.hymn)]
@@ -216,7 +282,7 @@ def main():
             acc = _last[2]
             accs.append(acc)
             if a.errors:
-                pr, gt, _ = _last
+                pr, gt = _last[0], _last[1]
                 nm_ = data[i][2]
                 bad = [(k, gt[k], pr[k]) for k in range(len(gt)) if gt[k] != pr[k]]
                 print('      %d disagreement(s) with the score on %s:' % (len(bad), nm_))
@@ -227,7 +293,10 @@ def main():
               % (100 * np.mean(accs), 100 * base))
     else:
         print('TRAINED AND SCORED ON EVERYTHING -- memorisation, not skill:')
-        pr, gt, _ = run(data, data, a.epochs, a.lr, dev, 'all three')
+        pr, gt, _, net = run(data, data, a.epochs, a.lr, dev, 'all three')
+        if a.save:
+            torch.save(net.state_dict(), a.save)
+            print('-> weights', a.save)
         cm = np.zeros((NCLS, NCLS), int)
         for p, t in zip(pr, gt):
             cm[t][p] += 1
@@ -237,6 +306,21 @@ def main():
         for i in seen:
             print('  %-6s ' % deg_name(i + DEG_LO)
                   + ' '.join('%5d' % cm[i][j] for j in seen))
+    if a.infer:
+        net = Clf().to(dev)
+        net.load_state_dict(torch.load(a.load, map_location=dev))
+        net.eval()
+        print('\nDEGREE PER NOTE (weights %s):' % a.load)
+        rows = []
+        for spec in a.infer:
+            pd, of = spec.rsplit(':', 1)
+            r = predict(net, pd, of, dev)
+            rows.append(r)
+            print('  %-46s %3d notes  mean confidence %.2f'
+                  % (r['piece_id'][:46], r['n_onsets'], r['mean_confidence']))
+        if a.out_degrees:
+            json.dump(rows, open(a.out_degrees, 'w'), ensure_ascii=False, indent=1)
+            print('->', a.out_degrees)
     return 0
 
 

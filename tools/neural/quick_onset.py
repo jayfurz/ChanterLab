@@ -45,7 +45,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-SR, HOP, NMEL = 22050, 220, 80          # 9.98 ms frames
+SR, HOP, NMEL = 22050, 220, 80
+EXPORTS = ('/mnt/data/code/byzorgan-web-worktrees/chant-annotator/'
+           'datasets/exports')          # 9.98 ms frames
 SIGMA_FR = 2.0                          # target bump width, ~20 ms
 
 
@@ -145,6 +147,14 @@ def main():
                     help='train on all but the LAST piece and score that one')
     ap.add_argument('--device', default='cuda')
     ap.add_argument('--out')
+    ap.add_argument('--save', help='write trained weights here')
+    ap.add_argument('--load', help='use these weights instead of training')
+    ap.add_argument('--infer-dir', action='append',
+                    help='annotator piece dir to place onsets for; repeatable')
+    ap.add_argument('--write-seed', action='store_true',
+                    help="write each inferred piece's onsets into its export "
+                         "dir as slots_corrected.json, so the annotator opens "
+                         "on them")
     a = ap.parse_args()
     assert len(a.piece) == len(a.pins)
     dev = torch.device(a.device if torch.cuda.is_available() else 'cpu')
@@ -167,6 +177,10 @@ def main():
     print('\ntrain on %d piece(s), score %d' % (len(train), len(test)))
 
     net = Net().to(dev)
+    if a.load:
+        net.load_state_dict(torch.load(a.load, map_location=dev))
+        a.epochs = 0
+        print('loaded weights from', a.load)
     npar = sum(p.numel() for p in net.parameters())
     print('%.2f M parameters' % (npar / 1e6))
     opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=1e-4)
@@ -188,6 +202,9 @@ def main():
         if (e + 1) % max(1, a.epochs // 10) == 0:
             print('  epoch %4d  loss %.4f' % (e + 1, tot / len(X)))
 
+    if a.save:
+        torch.save(net.state_dict(), a.save)
+        print('-> weights', a.save)
     net.eval()
     out = {}
     for d in test:
@@ -208,7 +225,51 @@ def main():
             f = a.out if len(test) == 1 else '%s.%s.json' % (a.out, d['name'])
             json.dump({str(g): round(t, 4) for g, t in onsets.items()}, open(f, 'w'), indent=1)
             print('->', f)
+
+    for pd in (a.infer_dir or []):
+        place(net, pd, dev, a.out, a.write_seed)
     return 0
+
+
+def place(net, piece_dir, dev, outbase=None, write_seed=False):
+    """Onsets for a piece the model has never seen.
+
+    The score supplies the note COUNT and nothing else -- the network never sees
+    which notes they are, so it cannot tell that it has skipped one. Held out on
+    s06 it found every onset (recall 1.000 at 50 ms) while only 69% landed on the
+    right glyph, because a single inserted or dropped peak shifts every index
+    after it. So these are candidate onsets to correct, not an answer: the count
+    is right by construction and the ALIGNMENT is what needs an eye.
+    """
+    name = os.path.basename(piece_dir.rstrip('/'))
+    D = json.load(open(os.path.join(piece_dir, 'annotator_data.json')))
+    n = len(D['slots']['gi'])
+    x = features(audio(os.path.join(piece_dir, 'audio.wav')))
+    with torch.inference_mode():
+        p = torch.sigmoid(net(torch.from_numpy(x).unsqueeze(0).to(dev)))[0]
+    prob = p.detach().cpu().numpy()
+    fr = pick(prob, n)
+    ts = [f * HOP / SR for f in fr]
+    conf = float(np.mean([prob[f] for f in fr])) if fr else 0.0
+    iois = np.diff(ts)
+    print('  %-46s %3d notes  %3d onsets  conf %.2f  median IOI %.3f s'
+          % (name[:46], n, len(ts), conf, float(np.median(iois)) if len(iois) else -1))
+    rec = {'piece_id': name, 'n_notes': n,
+           'onsets': [round(t, 4) for t in ts],
+           'mean_peak_confidence': round(conf, 4)}
+    if outbase:
+        f = '%s.%s.json' % (outbase.replace('.json', ''), name[:44])
+        json.dump(rec, open(f, 'w'), indent=1)
+    if write_seed and len(ts) == n:
+        ed = os.path.join(EXPORTS, name)
+        os.makedirs(ed, exist_ok=True)
+        json.dump({'piece_id': name, 't': [round(t, 4) for t in ts],
+                   'gi': list(D['slots']['gi']), 'sub': list(D['slots']['sub']),
+                   'machine_t': list(D['slots']['t']),
+                   'edited': [True] * n, 'pinned': [False] * n,
+                   'source': 'quick_onset.py -- MODEL OUTPUT, not chanter work'},
+                  open(os.path.join(ed, 'slots_corrected.json'), 'w'), indent=1)
+    return rec
 
 
 if __name__ == '__main__':
