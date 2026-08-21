@@ -2,8 +2,9 @@
 
 - **[NEURAL-CHANT.md](NEURAL-CHANT.md)** — *the implementable half of the neural
   plan.* Vocabulary, feature cache, hybrid-attention encoder-decoder, decode,
-  staging, gates. Self-contained: a fresh session starts at NN-01. Read
-  [`ONSET-MODEL.md`](ONSET-MODEL.md) §4 for the design reasoning it assumes.
+  staging, gates. **A fresh session starts at REPRO-01** (§10) — not at NN-01,
+  which waits on DECODE-01/KEY-01. Read [`ONSET-MODEL.md`](ONSET-MODEL.md) §4
+  for the design reasoning it assumes.
 
 - **[FA-ONSETS.md](FA-ONSETS.md)** — *next up, self-contained.* Forced-alignment
   onsets so the annotator's markers land on the notes. Written to be handed to a
