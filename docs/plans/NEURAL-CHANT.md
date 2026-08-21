@@ -1,8 +1,9 @@
 # NEURAL-CHANT — the onset encoder-decoder, made implementable
 
-**Goal: every note onset within 50 ms of the chanter's pins.** Each note is one
-timeline event; none are excluded. Release criterion: **≥ 90 % within 50 ms with
-zero slips** (§9).
+**Goal: a visual indicator a singer can follow, like captions.** Each note is
+one timeline event; none are excluded. Release criterion: **≥ 90 % within
+150 ms, zero slips** (§9). 100 ms is the quality tier; 50 ms is a research
+diagnostic, not a gate — see §9.1 for why the threshold is what it is.
 
 **The encoder-decoder is a decision, not a hypothesis.** Forced alignment does
 not produce note onsets — it produces *candidates*, at roughly 2.4 per note, and
@@ -35,10 +36,17 @@ The annotator's current slot times against those pins:
 ```
 median |Δt| 0.714 s    mean 1.609    p90 4.560    max 5.837
 
-  within 0.05 s   23/76   (30 %)   <- the target threshold
-  within 0.15 s   25/76   (33 %)
+  within 0.05 s   23/76   (30 %)   diagnostic
+  within 0.10 s   25/76   (33 %)   quality tier
+  within 0.15 s   25/76   (33 %)   <- the gate
   within 0.35 s   27/76   (36 %)
+
+  bias (signed mean)  +0.566 s     jitter (signed stdev)  2.333 s
 ```
+
+Loosening the gate from 50 ms to 150 ms buys **two notes**. That is the point:
+the threshold change alters what is measured, not how hard the problem is, and
+slips dominate at every tolerance.
 
 Widening the tolerance sevenfold buys four notes. Read the shape instead —
 `.` within 50 ms, `o` within 500 ms, `X` worse:
@@ -98,10 +106,11 @@ provably deaf.
 
 - **§7's propose/verify/backtrack decode is the primary contribution**, not a
   post-process. The Δt head exists to feed it.
-- The 20 ms grid is 2.5× finer than the target, so **frame rate is not the
-  bottleneck**; quantisation costs ±10 ms of a 50 ms budget.
-- **Slip count is a first-class gate** (§9). A model that halves median error
-  while slipping as often has not delivered.
+- The 20 ms grid is 7.5× finer than the 150 ms gate, so **frame rate is not
+  remotely the bottleneck**; quantisation costs ±10 ms of a 150 ms budget.
+- **Slip count is the binding gate** (§9), and it does not relax with the
+  threshold. Loosening 50 → 150 ms moves the t03 baseline by two notes; slips
+  are the whole distance to the target.
 
 ### 0.4 REPRO-01 — the inherited baseline is unusable
 
@@ -363,7 +372,9 @@ chanter *departs* from the grid, and that departure is signal, not noise.
 
 Δt from the previous confirmed onset, quantised to **20 ms bins over [0, 4 s]**
 = 200 bins plus overflow. Softmax over 201. Cross-entropy with label smoothing
-onto ±1 bins, because pins carry their own jitter.
+onto ±1 bins, because pins carry their own jitter — PIN-REPEAT-01 (§10) will say
+how much, and the smoothing width should be set from that number rather than
+guessed.
 
 Point regression is disqualified: the model must be able to say *"0.31 s, or
 possibly 0.62 s if a note was skipped"* and let §7 arbitrate. A regressor
@@ -525,17 +536,54 @@ far more than capturing at the door, and distinct clusters need meaningful hours
 
 ## 9. Evaluation
 
-**Primary metric: `frac(|Δt| ≤ 0.05 s)`** over a fixed denominator of every
-pinned note. **Comparison semantics, because one note sits on the edge:** errors
-are compared as `round(|Δt|, 3) <= 0.050`, inclusive, in milliseconds. On t03,
-glyph 63 has an error of `0.04999999999999716` — it currently passes by
-floating-point luck, and an undefined comparison would let a rebuild silently
-move the headline by a note. Define it once, here — all 76 on t03, all 259 on eothinon-11. An unmatched note is a
-miss. Medians are reported but never gate: §0.1 is a median of 0.714 s on an
-aligner that is dead-on for twenty consecutive notes.
+### 9.1 Why 150 ms, and what else to report
+
+The deliverable is a follow-along indicator, so the threshold comes from what a
+person can use, not from what is technically impressive.
+
+**Bounded by the material.** Inter-onset intervals from the chanter's own pins
+(t03 + s01, 111 intervals): median **0.533 s**, p10 0.448 s, **shortest 0.287 s**.
+At ±150 ms the indicator is still unambiguously on the correct note; at ±300 ms
+the error would span half of 70 % of notes, which is where follow-along breaks.
+The real failure is pointing at the *wrong* note, not being slightly off the
+right one.
+
+**Inside the perceptual window.** Audio-visual synchrony work puts detection of
+video lagging audio near 125 ms and video leading near 45 ms — but that is
+lip-sync, where the brain binds two views of one causal event tightly. A
+highlight tracking music is looser; karaoke runs 100–200 ms off and reads fine.
+
+**50 ms is likely below annotation repeatability.** A sung onset has a rise time
+of tens of milliseconds, so the "true" onset is itself fuzzy and a hand-placed
+pin carries its own scatter. Gating there would partly measure pinning noise.
+**PIN-REPEAT-01** (§10) establishes the actual floor; until it reports, no gate
+tighter than 150 ms is defensible.
+
+**Primary metric: `frac(|Δt| ≤ 0.15 s)`** over a fixed denominator of every
+pinned note — all 76 on t03. **Comparison semantics:** `round(|Δt|, 3) <= 0.150`,
+inclusive, in milliseconds. Define it once, because thresholds have edges: t03
+glyph 63 sits at `0.04999999999999716` against the old 50 ms gate and passed by
+floating-point luck. Report `≤ 0.10 s` alongside as the quality tier and
+`≤ 0.05 s` as a diagnostic.
+
+**Asymmetric window, reported separately: `−0.200 s ≤ Δt ≤ +0.100 s`.** Early is
+better than late for a follow-along — a highlight arriving just before the note
+leads the singer in, one arriving after reads as broken. Karaoke leads
+deliberately.
+
+**Bias and jitter, reported separately from `|Δt|`.** Signed mean is bias;
+signed standard deviation is jitter. Bias is one global number to subtract and
+perceptually harmless if it is a lead; jitter is what destroys the illusion.
+
+> **Do not apply a global offset before slips are controlled.** Measured on t03:
+> subtracting the signed mean takes the 50 ms rate from **30 % to 7 %**, because
+> the +0.566 s "bias" is not a systematic lead — it is the mean of a distribution
+> with 2.333 s of slip-driven jitter, and subtracting it wrecks the notes that
+> were already right. Bias correction is meaningful only on slip-free regions.
 
 **Secondary and equally binding: slip count** — maximal runs where signed drift
-leaves ±0.05 s and does not return within 3 notes. t03 today: 4.
+leaves the gate and does not return within 3 notes. t03 today: 4. **Zero is the
+hard requirement**, and it does not relax with the threshold.
 
 **Two-tier data discipline, one rule.**
 
@@ -570,12 +618,12 @@ nothing.
 
 **Baselines** (all from REPRO-01 except the first two, measured here):
 
-| system | ≤ 0.05 s | notes |
-|---|---|---|
-| annotator today, t03 | 30 % | 4 slips |
-| FA word onsets, t03 | 4 % | the stored output |
-| FA character path, oracle pick | 61 % | **upper bound**, ~2.4 candidates/note |
-| target | **≥ 90 %** | **0 slips** |
+| system | ≤ 0.15 s (gate) | ≤ 0.10 s | ≤ 0.05 s | notes |
+|---|---|---|---|---|
+| annotator today, t03 | **33 %** | 33 % | 30 % | 4 slips; bias +0.566 s, jitter 2.333 s |
+| FA word onsets, t03 | — | — | 4 % | the stored output |
+| FA character path, oracle | — | 82 % | 61 % | **upper bound**, ~2.4 candidates/note |
+| target | **≥ 90 %** | report | report | **0 slips** |
 
 ---
 
@@ -591,8 +639,9 @@ nothing.
 | **NN-02** (M) | `features.py`, three-stream cache with provenance | FA re-derived from cache matches REPRO-01 |
 | **NN-03** (M) | `dataset.py`, lane-specific silver | no gold **source recording** in any train split — including derived cuts, overlapping excerpts and duplicates. Split by `source_recording_id` |
 | **NN-04** (M) | `model.py` at 4 M | §5.5 contract committed first |
-| **NN-05** (L) | train on silver + the gold train fold; curve 4 M / 12 M / 40 M | **≥ 60 % ≤50 ms on the silver dev fold, slips < 2**, no collapse on continuing-vowel notes. **t03 untouched** |
-| **NN-06** (M) | `decode.py` — contract first (§7) | **≥ 90 % ≤50 ms, 0 slips** on t03, evaluated once |
+| **NN-05** (L) | train on silver + the gold train fold; curve 4 M / 12 M / 40 M | **≥ 60 % ≤150 ms on the silver dev fold, slips < 2**, no collapse on continuing-vowel notes. **t03 untouched** |
+| **NN-06** (M) | `decode.py` — contract first (§7) | **≥ 90 % ≤150 ms, 0 slips** on t03, evaluated once |
+| **PIN-REPEAT-01** (S) | the chanter re-pins ~20 notes of an already-pinned piece **blind**; report the spread against his first pass | an annotation floor exists. **No gate tighter than this number is defensible** (§9.1) |
 | **ATTR-01** (S) | provenance at ingest; backfill 264 | nothing lands untagged |
 
 **On their own timelines**, neither needed for 50 ms onsets:
