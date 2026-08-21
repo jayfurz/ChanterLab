@@ -24,6 +24,28 @@ identity rather than anything fitted to audio. That is what this builds.
 (`legend_merged.json` must not be used: it is the ROTATED original seed --
 6|->0, 4|->+1, 5|->-1 -- which the atlas provenance explicitly overrides.)
 
+2026-08-20, CHECK-01. Two composition rules were wrong, both found by the
+single-key sweep in martyria_check.py --contingency and both then justified
+from the atlas rather than from the sweep:
+
+  * the kentima (cluster 16) was composing one step too high, because the
+    atlas states the COMPOUND total and the code added it on top of the base.
+  * a QUALITATIVE base was never promoted to the melodic neume among its marks,
+    so the psifiston figures were being written out by hand in FIGURES -- and
+    two of those hand entries had dropped their kentima.
+
+    108 keys -> 124.  44 changed: 16 gained an interval, 28 changed value.
+    2,715 of 113,832 note units in the book change interval (2.4%).
+    martyria gaps satisfied  17/57 -> 32/58.
+    Agreement with the chanter's own per-glyph rulings on gold t03 is 9/9
+    before and 9/9 after (score_units.interval_chanter and
+    chanter_notes.chanter_interval_applied).
+
+    Still short of the CHECK-01 gate (violated < 8; 26 remain). What is left is
+    not one-sided any more -- 15 low against 11 high, where it was 33 against 7
+    -- and 23 of the 26 sit inside the ison/oligon ambiguity budget, so there is
+    no evidence here for a third rule.
+
 Usage:  legend_canon.py --compare --workdir grave-orthros
 """
 import argparse
@@ -33,6 +55,9 @@ import re
 
 ATLAS = '/mnt/data/chant-corpus/scores/atlas_chanter.json'
 OUT = '/mnt/data/chant-corpus/scores/legend_canon.json'
+# Bump on every rule change. Stamped into OUT so a legend written by an older
+# checkout is identifiable rather than silently authoritative.
+RULES_REV = 2          # 2 = CHECK-01 kentima + qualitative-base rules, 2026-08-20
 
 # Marks that carry no melodic quantity. They may still carry duration
 # (klasma, dots) or tie notes (omalon, eteron), but they never move the pitch.
@@ -56,10 +81,19 @@ FIGURES = {
     # elaphron at -2, which is just the plain elaphron value (cluster 20). Needed
     # as a standalone key because _split_kentimata now emits it as its own note.
     '47|': -2,   # elaphron + kentimata over carrier oligon
-    '7|6ab': 1,           # psifiston qualitative, oligon above is the note
-    '7|16ab+6ab': 1,
+    # Psifiston qualitative, the oligon above is the note. Kept as an assertion
+    # only: the qualitative-base rule below composes both of these to +1 on its
+    # own. The sibling entries '7|16ab+6ab' and '7|16ab+6ab+8ab' were ALSO
+    # locked at +1 here, and that was wrong -- they were copies of this ruling
+    # that silently dropped the kentima, which the atlas calls a quantitative
+    # marker that is never zero. Composed they are +3 (oligon +1, kentima
+    # top-middle +2), which is what the chanter's own uncompiled note on gold
+    # t03 gi=63 says this very figure is. Removing the two locks, on top of the
+    # other two rules, moved 11 martyria gaps (21 -> 32 satisfied). An earlier
+    # comment said 8; that was the contingency sweep's headroom (25 minus the
+    # 17 baseline), a different quantity.
+    '7|6ab': 1,
     '7|6ab+8ab': 1,
-    '7|16ab+6ab+8ab': 1,
 }
 
 
@@ -151,6 +185,24 @@ def build():
                 b = int(notes[0].group(1))
             else:
                 return None, f'jump mark {b} with no note to attach to'
+        # A QUALITATIVE mark cannot be the melodic base either. The extraction
+        # makes the psifiston the base of 7|6ab, 7|28ab+6ab and 22 other keys,
+        # and the atlas rules that case directly: "in 7|6ab figures the bar
+        # above (cluster 6, oligon) is the melodic note (+1)". That is the same
+        # promotion the jump-mark branch above does, so do it the same way
+        # instead of listing each psifiston figure in FIGURES by hand -- which
+        # is how '7|16ab+6ab' came to be locked at +1 with its kentima dropped.
+        # Composition is additive, so which melodic mark is promoted does not
+        # change the sum. Checks out against hymn_align.CHANTER_LOCK
+        # '7|17ab+21ab+22ab' = 1: kentimata +1 promoted, carrier oligon
+        # qualitative, ison +0. 16 keys gain an interval they had none for.
+        if iv is None and b in QUALITATIVE:
+            notes = [m2 for m2 in (re.match(r'^(\d+)(ab|be)$', x) for x in marks)
+                     if m2 and base.get(int(m2.group(1))) is not None]
+            if notes:
+                iv = base[int(notes[0].group(1))]
+                marks = [x for x in marks if x != notes[0].group(0)]
+                b = int(notes[0].group(1))
         if iv is None:
             if b in QUALITATIVE:
                 return None, 'qualitative base'
@@ -163,8 +215,21 @@ def build():
             c, pos = int(mm.group(1)), mm.group(2)
             if c in QUALITATIVE:
                 continue
-            if c == 16:            # kentima
-                add += 2 if pos == 'be' else 3
+            if c == 16:
+                # The kentima's OWN quantity, not the compound total. The atlas
+                # states the totals -- "below or to the RIGHT of an oligon ->
+                # compound = +2 jump. On top in the MIDDLE of an oligon or
+                # petasti -> +3 jump" -- and hymn_align.CHANTER_LOCK writes the
+                # same three figures down as 6|16be +2, 6|16ab +3, 3|16ab +3.
+                # Those are the figure's value with the carrier's own +1 already
+                # inside, so composing on top of the base has to add one less.
+                # Adding 2/3 made 6|16ab +4 and 6|16be +3, contradicting the
+                # atlas twice, and it is why '3|16ab' needed a FIGURES lock at
+                # all: composition gave +4 where the atlas says +3. With 1/2 the
+                # lock becomes redundant rather than corrective, and the
+                # chanter's own t03 note on 3|16ab+8be -- "a petasti compound
+                # with a kentima meaning go up three" -- composes to +3.
+                add += 1 if pos == 'be' else 2
             elif c == 17:
                 # NOT the general oligon+kentimata figure. That figure is two
                 # notes of +1 read bottom to top (chanter, 2026-08-19) and
@@ -244,11 +309,19 @@ def main():
                 print('    %5d  %-22s learned %+d  canon %+d  (%s)'
                       % (n, k, l, c, w))
     if a.write:
+        # RULES_REV is stamped into the artefact so a stale writer is detectable.
+        # OUT is shared and lives outside any checkout, and at least one other
+        # checkout of this repo still holds the pre-CHECK-01 rules and writes to
+        # the same path -- running its legend_canon.py --write would silently
+        # revert 2,715 note units with nothing to show for it. Bump RULES_REV
+        # with every rule change, and check it before trusting a degree stream.
         json.dump({'keys': canon, 'source': 'atlas_chanter.json',
+                   'rules_rev': RULES_REV,
                    'note': 'derived from chanter-verified cluster identities, '
                            'NOT fitted to audio'},
                   open(OUT, 'w'), indent=1, ensure_ascii=False)
-        print(f'\n-> {OUT}  ({len(canon)} keys)')
+        print(f'\n-> {OUT}  ({len(canon)} keys, rules_rev {RULES_REV})')
+        print('   rollback point: %s.pre-check01-108key.bak (108 keys)' % OUT)
 
 
 if __name__ == '__main__':
