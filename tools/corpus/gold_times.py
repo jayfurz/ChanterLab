@@ -20,14 +20,24 @@ consequences, and the second is worse than the first:
     every evaluation of that piece in this repo before today silently excluded
     exactly those 15.
 
-THE "DONE" MARKER is `edited` all true in slots_corrected.json, with `pinned`
-true on the dragged subset. When every slot is edited the chanter has been
-through the whole hymn and all note events are correct.
+THERE IS NO MACHINE-READABLE "DONE" MARKER, and the obvious candidate is a
+trap. `edited` in slots_corrected.json is written as
+`corrected.map(c => c != null)` (annotator index.html:1331), so it is true for
+every slot REFIT has touched -- and refit writes every unpinned marker in the
+piece. It therefore reads all-true on any hymn refit has run over, whether or
+not anyone has looked at it. An earlier version of this file treated all-true as
+"complete" and pulled t03, s03 and s05 into a training set on that basis; the
+chanter had only ever vouched for s02, s04 and s06.
 
-Completed as of 2026-08-21 (593 events):
-    s01  99   SEALED test fold -- never train on it
-    s02  76     s03  76     s04  85     s05  85     s06  97
-    t03  75   but see below
+So COMPLETE is a list, and it grows only when he says a hymn is done:
+
+    s02  76     s04  85     s06  97        declared complete 2026-08-21
+    s01  99     SEALED test fold -- never train on it
+
+Everything else is partial: its unpinned slots are refit output, which is a
+machine guess and not a label. For those, pins.json remains the only gold, and
+it is the dragged subset -- fewer labels, and biased toward the notes the seed
+got wrong.
 
 t03 IS AN EXCEPTION. Its export is the stale 75-unit, pre-split version and is
 offset by about 0.25 s; the real gold is datasets/grave-orthros-t03-gold/
@@ -51,10 +61,14 @@ T03_GOLD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 SEALED = ('s01',)
 
 
-def is_done(sc):
-    n = len(sc.get('gi', []))
-    return n > 0 and sum(1 for x in sc.get('edited', [])) == n \
-        and all(sc.get('edited', []))
+# Declared complete by the chanter. Add a hymn here ONLY when he says so.
+COMPLETE = ('s02-parallagi', 's04-parallagi', 's06-parallagi')
+
+
+def is_done(piece_name):
+    """Complete means the chanter said so. See the docstring for why `edited`
+    cannot be used for this."""
+    return any(k in piece_name for k in COMPLETE)
 
 
 def load(piece_dir):
@@ -67,7 +81,7 @@ def load(piece_dir):
     if not os.path.exists(f):
         return None
     sc = json.load(open(f))
-    if not is_done(sc):
+    if not is_done(b):
         return None
     return {int(g): float(t) for g, t in zip(sc['gi'], sc['t'])}
 
@@ -82,7 +96,7 @@ def survey():
         n = len(sc.get('gi', []))
         rows.append({'piece': os.path.basename(d), 'n': n,
                      'pinned': sum(1 for x in sc.get('pinned', []) if x),
-                     'done': is_done(sc),
+                     'done': is_done(os.path.basename(d)),
                      'sealed': any(s in os.path.basename(d) for s in SEALED)})
     return rows
 
@@ -99,17 +113,17 @@ def main():
         for r in survey():
             tag = ('SEALED' if r['sealed'] else 'done' if r['done'] else 'partial')
             print('  %-46s %5d %6d  %s' % (r['piece'][14:58], r['n'], r['pinned'], tag))
-            if r['done']:
-                tot += r['n']
-                if not r['sealed']:
-                    trainable += r['n']
-        print('\n  %d gold note events in completed hymns, %d of them trainable'
-              % (tot, trainable))
+            if r['done'] and not r['sealed']:
+                tot += r['n']; trainable += r['n']
+        print('\n  %d gold note events in hymns the chanter has declared complete'
+              % tot)
+        print('  (a "partial" hymn has only its pins; its other slots are refit '
+              'output, not labels)')
         return 0
     if a.piece:
         g = load(a.piece)
         if g is None:
-            sys.exit('not complete -- edited is not true on every slot')
+            sys.exit('not declared complete by the chanter -- see COMPLETE in this file')
         print('%d gold note events' % len(g))
         if a.out:
             json.dump([[k, round(v, 4)] for k, v in sorted(g.items())],
