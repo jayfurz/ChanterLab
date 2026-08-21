@@ -210,6 +210,30 @@ def degree_stream(units, legend, start=None):
             # take the job; when one is, the right-aligned one is the next
             # hymn's. When it is the only martyria there, it is this hymn's.
             deg = u['mart_cad'][0]
+        elif u.get('mart_open') is not None and u.get('mart_deg') == u.get('mart_open'):
+            # OPENING-ONLY: right-aligned, and it belongs to the NEXT hymn. Do
+            # not re-anchor -- the contour carries straight through it, and this
+            # hymn simply has no checksum at its end.
+            #
+            # Chanter, 2026-08-21, on s02: "it says Eteron z zo which is already
+            # giving a martyria for the next hymn. this particular hymn does not
+            # have a checksum martyria."
+            #
+            # This branch was written, then REVERTED, then restored. The revert
+            # was my error: s02's last unit carries only mart_open 6, and when
+            # skipping it made the hymn end on βου instead of ζω I read that as
+            # a regression and narrowed the rule to units carrying both kinds.
+            # It was not a regression. s02 has no cadence martyria at all, so
+            # there was never a ζω of its own to land on -- the number I was
+            # "preserving" was the next hymn's opening pitch leaking backwards.
+            # A hymn with no checksum has no checksum; that is an honest result
+            # and not something to anchor away.
+            #
+            # p520 line 10 is the case: the last note ends at x 412.6, then a
+            # 97 pt gap, then cluster 89 (Zo) at 509.9, red, right-aligned. The
+            # gap is what identifies it, and it is the same MART_OPEN_GAP test
+            # hymn_align already applies. 128 units in the book are opening-only.
+            pass
         elif u.get('mart_deg') is not None:
             deg = u['mart_deg']
         elif deg is not None:
