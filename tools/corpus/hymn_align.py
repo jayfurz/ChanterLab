@@ -858,7 +858,28 @@ def _attach_pthoras(units, recs):
 # spacing AND an apostrophos before it, which on s04 selects exactly the two
 # glyphs he named and nothing else.
 SYNEXES_STEP = -1           # not the -2 a standalone elaphron takes
-SYNEXES_GAP_FRAC = 0.80     # of the page's median note-to-note x-gap
+SYNEXES_GAP_FRAC = 0.72     # of the page's median note-to-note x-gap
+# 0.80 -> 0.72 on 2026-08-21. Chanter, shown p522 line 2 at ratio 0.74: "it's
+# too far apart", and then, asked whether distance alone is enough: "spacing
+# alone does disqualify."
+#
+# There is no natural break to snap to. Every bare-apostrophos-to-elaphron pair
+# in the book, binned at 0.05, runs continuously:
+#
+#     0.50   1        0.65  101        0.80   3
+#     0.55  52        0.70   34        0.85   3
+#     0.60  50        0.75  30
+#
+# The figures he ruled RUNNING sit at 0.58, 0.58 (and the still-open C at 0.56);
+# the one he ruled NOT running sits at 0.74. So the cut belongs below 0.74, and
+# 0.72 is the low edge of the widest empty band in the contested region
+# (0.724-0.745, the largest gap anywhere between 0.58 and 0.80). It is the most
+# defensible line his ruling supports, not a line the data draws by itself.
+#
+# THIS IS THE WEAK POINT OF THE RULE. 101 pairs sit in the 0.65 bin, more than
+# any other, and nobody has ruled one. If the true boundary is nearer 0.60 than
+# 0.72 then roughly a third of what this admits is wrong. Get one mid-range
+# figure ruled before trusting the count.
 ELAPHRON_BASES = (20,)
 APOSTROPHOS_BASES = (4,)
 
@@ -887,6 +908,19 @@ def _mark_synexes_elaphron(units):
         if tuple(cur.get('pl', (0, 0))) != tuple(prev.get('pl', (1, 1))):
             continue
         if cur.get('x0', 0) - prev.get('x0', 0) >= SYNEXES_GAP_FRAC * med:
+            continue
+        if prev.get('klasma') or prev.get('dots'):
+            # A klasma on the apostrophos disqualifies the figure. Chanter,
+            # 2026-08-21, shown p522 line 2 (4|8ab then 20|, ratio 0.74): "d is
+            # not a running elafron. it's too far apart and the klasma on the
+            # apostrophos is a dead goveaway."
+            #
+            # It is also the only reading that makes musical sense: the running
+            # elaphron shortens that apostrophos to half a beat (it is the note
+            # that behaves as though gorgon'd), and a klasma lengthens it. One
+            # note cannot be both held and hurried.
+            #
+            # 10 of the 281 detections look like this.
             continue
         if cur.get('iv') is None:           # never overwrite a chanter reading
             cur['iv'] = SYNEXES_STEP
