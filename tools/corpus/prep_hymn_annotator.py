@@ -37,6 +37,8 @@ from hymn_align import GLYPHS, LADDERS, load_units_h, beats_seq
 DUR_NAME = {1: 'apli', 2: 'dipli', 3: 'tripli'}
 
 CORPUS = '/mnt/data/chant-corpus'
+EXPORTS = ('/mnt/data/code/byzorgan-web-worktrees/chant-annotator/'
+           'datasets/exports')
 CPM = 1200.0 / 72.0            # cents per moria
 # absolute scale degree -> parallagi syllable (Νη=0 … Ζω=6, wrapping by octave);
 # the chanter reads solfege, not degree integers
@@ -75,7 +77,26 @@ def load_gold_seed(piece, n_units):
     gdir = os.path.join(REPO, 'datasets', piece + '-gold')
     pf = os.path.join(gdir, 'pins.json')
     if not os.path.exists(pf):
-        return None
+        # No frozen gold. For a span piece there never is one -- its curated
+        # work lives in the EXPORTS directory the annotator writes to, and
+        # nothing was loading it back. Chanter, 2026-08-21: "when i open s02 i
+        # dont see my exported pins. its still the original ones but i know
+        # yesterday i exported s02."
+        #
+        # He was right and the cause was a regeneration. Re-prepping a piece
+        # changes data_rev, which by design orphans stale localStorage edits so
+        # they cannot land on the wrong slots -- but with no seed to fall back
+        # on it hands back a blank piece. His export was safe on disk the whole
+        # time; the annotator simply had no path from the export back to the
+        # screen. Seeding from it closes that loop, so a regeneration costs a
+        # reload rather than the work.
+        #
+        # The frozen gold still wins where it exists: t03's export is the stale
+        # 75-unit pre-split copy and must never seed anything.
+        gdir = os.path.join(EXPORTS, piece)
+        pf = os.path.join(gdir, 'pins.json')
+        if not os.path.exists(pf):
+            return None
     pins = [p for p in json.load(open(pf)) if isinstance(p, (list, tuple))]
     keep = [p for p in pins if 0 <= p[0] < n_units]
     if len(keep) != len(pins):

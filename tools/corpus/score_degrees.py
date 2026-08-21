@@ -136,6 +136,15 @@ def units_for(p0, l0, g0, p1, l1, g1):
     return out
 
 
+def _iv(u, keys):
+    """The unit's melodic step: the chanter's explicit reading if he gave one,
+    otherwise the legend's for this key."""
+    v = u.get('iv')
+    if v is None:
+        v = keys.get(u['key'], keys.get('%s|' % u['base']))
+    return v or 0
+
+
 def degree_stream(units, legend, start=None):
     """Absolute degrees implied by the neumes.
 
@@ -245,7 +254,18 @@ def degree_stream(units, legend, start=None):
             # 97 pt gap, then cluster 89 (Zo) at 509.9, red, right-aligned. The
             # gap is what identifies it, and it is the same MART_OPEN_GAP test
             # hymn_align already applies. 128 units in the book are opening-only.
-            pass
+            #
+            # IT STILL MOVES. This branch used to `pass`, which skipped the
+            # unit's own interval as well as the re-anchor, so the note simply
+            # did not advance. Chanter caught it on s02: "note 75 in s02 is
+            # ga.. something is wrong here". Unit 75 is 6|10be+10be with iv +1
+            # and unit 74 sits on βου(2), so it must land on γα(3) -- and the
+            # stream printed βου. The parallagi classifier heard γα there too,
+            # independently, from the audio.
+            #
+            # Not re-anchoring means only that: do not take the martyria's
+            # degree. The note is still a note and still moves by its interval.
+            deg += _iv(u, keys)
         elif u.get('mart_deg') is not None:
             deg = u['mart_deg']
         elif deg is not None:

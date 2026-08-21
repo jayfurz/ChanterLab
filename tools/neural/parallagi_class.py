@@ -193,6 +193,8 @@ def main():
     ap.add_argument('--epochs', type=int, default=400)
     ap.add_argument('--lr', type=float, default=6e-4)
     ap.add_argument('--loo', action='store_true', help='leave one hymn out')
+    ap.add_argument('--errors', action='store_true',
+                    help='list every note where the model and the score disagree')
     ap.add_argument('--device', default='cuda')
     a = ap.parse_args()
     dev = torch.device(a.device if torch.cuda.is_available() else 'cpu')
@@ -209,9 +211,18 @@ def main():
         print('LEAVE-ONE-HYMN-OUT -- the honest number:')
         accs = []
         for i in range(len(data)):
-            _, _, acc = run([d for j, d in enumerate(data) if j != i], [data[i]],
-                            a.epochs, a.lr, dev, 'hold out ' + data[i][2])
+            _last = run([d for j, d in enumerate(data) if j != i], [data[i]],
+                        a.epochs, a.lr, dev, 'hold out ' + data[i][2])
+            acc = _last[2]
             accs.append(acc)
+            if a.errors:
+                pr, gt, _ = _last
+                nm_ = data[i][2]
+                bad = [(k, gt[k], pr[k]) for k in range(len(gt)) if gt[k] != pr[k]]
+                print('      %d disagreement(s) with the score on %s:' % (len(bad), nm_))
+                for k, t, p_ in bad:
+                    print('        note %-3d score says %-6s model hears %-6s'
+                          % (k, deg_name(int(t) + DEG_LO), deg_name(int(p_) + DEG_LO)))
         print('\n  mean held-out accuracy %.1f%%  vs %.1f%% baseline'
               % (100 * np.mean(accs), 100 * base))
     else:
