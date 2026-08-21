@@ -67,6 +67,31 @@ MARTYRIA_DEG = {34: 4, 14: 1, 26: 6, 23: 3, 52: 5, 67: 2,
 # Neither 26 nor 27 is in the chanter's atlas, so both were unreviewed; this is
 # the first evidence for either, and it confirms the 26=Ζω anchor the aligner had
 # been carrying on trust.
+# OCTAVE, which MARTYRIA_DEG cannot express -- it maps a cluster to 0..6 and
+# discards the register. Chanter on s04, 2026-08-21: "s04 starts on martyria low
+# zo. the first note is a jump to di(4), it goes up as high as high ni and again
+# goes back to low zo (-1)." The code gave anchor Zo(+6), first note δι'(+11),
+# max νη''(+14), last ζω(+6) -- every one of his four checkpoints out by exactly
+# -7, so the contour was right and only the register was wrong.
+#
+# The distinction IS in the notation, and the glyph store shows it plainly.
+# Clusters 26 and 89 both map to Zo, and they are not the same mark:
+#
+#     cluster 26   66 occurrences   median width  8.1 pt
+#     cluster 89    5 occurrences   median width 20.1 pt
+#
+# 89 is a compound -- the Zo letter plus a register marker about 12 pt wide --
+# and all five of its occurrences are red and sit far right, in the opening
+# position that announces the next hymn's base. It is the one the chanter
+# pointed at from the other side when he said s02's ending "says Eteron z zo
+# which is already giving a martyria for the next hymn".
+#
+# Only cluster 89 is entered here, because it is the only one demonstrated. If
+# a low Δι or a low Κε turns up it will be a different compound and will need
+# its own ruling; guessing the rest of the table from one example would be
+# inventing notation.
+MARTYRIA_OCT = {89: -1}     # cluster -> octaves relative to MARTYRIA_DEG
+
 MARTYRIA_ANY = set(MARTYRIA_DEG) | {15, 24, 27, 35, 38, 50, 56}
 # ---- fthora / pthora ------------------------------------------------------
 # A fthora RESPELLS the scale from the note it governs. Atlas, cluster 15, and
@@ -1040,7 +1065,8 @@ def load_units(p0, l0, p1, l1):
                     continue
                 # martyria letters state the ABSOLUTE degree of the melody at
                 # this cadence — recorded as an anchor on the previous unit
-                degs = [MARTYRIA_DEG[x['cluster']] for x in grp
+                degs = [MARTYRIA_DEG[x['cluster']]
+                        + 7 * MARTYRIA_OCT.get(x['cluster'], 0) for x in grp
                         if x['red'] and x['cluster'] in MARTYRIA_DEG]
                 if degs and not units:
                     # A martyria with NOTHING before it — the very first thing on

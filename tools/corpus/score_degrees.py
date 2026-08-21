@@ -209,7 +209,19 @@ def degree_stream(units, legend, start=None):
             # whether an inline cadence martyria is present on the same unit to
             # take the job; when one is, the right-aligned one is the next
             # hymn's. When it is the only martyria there, it is this hymn's.
-            deg = u['mart_cad'][0]
+            # A martyria names a LETTER; the octave is understood from where
+            # the melody has got to. Snapping to the absolute 0..6 value throws
+            # that away and can drop the stream an octave mid-hymn. Chanter on
+            # s04: it "goes back to low zo (-1)" -- the contour reaches -1, the
+            # printed martyria says ζω, and both are right. Re-anchor to the
+            # nearest degree carrying that letter instead.
+            #
+            # This only ever moves by whole octaves, so it cannot paper over a
+            # wrong interval: if the contour is off by a step the martyria still
+            # disagrees and martyria_check still counts it.
+            m = u['mart_cad'][0]
+            deg = m if deg is None else min(
+                (m + 7 * k for k in range(-3, 4)), key=lambda v: abs(v - deg))
         elif u.get('mart_open') is not None and u.get('mart_deg') == u.get('mart_open'):
             # OPENING-ONLY: right-aligned, and it belongs to the NEXT hymn. Do
             # not re-anchor -- the contour carries straight through it, and this
