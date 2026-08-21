@@ -106,8 +106,18 @@
   "note_empty": false,
   "machine_key": "3|22ab+8be",
   "machine_beats": 1.0,
-  "chanter_interval_applied": null,
-  "pending_transcription": true
+  "chanter_interval_applied": 0,
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "iv": 0,
+    "beats": 2.0
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  },
  {
   "gi": 22,
@@ -177,7 +187,16 @@
   "machine_key": "3|8be",
   "machine_beats": 1.0,
   "chanter_interval_applied": null,
-  "pending_transcription": true
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "beats": 2.0
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  },
  {
   "gi": 48,
@@ -186,8 +205,17 @@
   "note_empty": false,
   "machine_key": "7|6ab",
   "machine_beats": 1.0,
-  "chanter_interval_applied": null,
-  "pending_transcription": true
+  "chanter_interval_applied": 1,
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "iv": 1
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  },
  {
   "gi": 50,
@@ -197,7 +225,16 @@
   "machine_key": "4|8ab",
   "machine_beats": 1.0,
   "chanter_interval_applied": null,
-  "pending_transcription": true
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "beats": 2.0
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  },
  {
   "gi": 61,
@@ -207,7 +244,16 @@
   "machine_key": "6|8ab",
   "machine_beats": 1.0,
   "chanter_interval_applied": null,
-  "pending_transcription": true
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "beats": 2.0
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  },
  {
   "gi": 63,
@@ -216,8 +262,17 @@
   "note_empty": false,
   "machine_key": "7|16ab+6ab",
   "machine_beats": 1.0,
-  "chanter_interval_applied": null,
-  "pending_transcription": true
+  "chanter_interval_applied": 3,
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "iv": 3
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  },
  {
   "gi": 66,
@@ -227,7 +282,16 @@
   "machine_key": "3|8be",
   "machine_beats": 1.0,
   "chanter_interval_applied": null,
-  "pending_transcription": true
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "beats": 2.0
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  },
  {
   "gi": 71,
@@ -236,8 +300,17 @@
   "note_empty": false,
   "machine_key": "7|6ab",
   "machine_beats": 1.0,
-  "chanter_interval_applied": null,
-  "pending_transcription": true
+  "chanter_interval_applied": 1,
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "iv": 1
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  },
  {
   "gi": 75,
@@ -247,6 +320,15 @@
   "machine_key": "6|10be+10be",
   "machine_beats": 1.0,
   "chanter_interval_applied": null,
-  "pending_transcription": true
+  "pending_transcription": false,
+  "compiled": {
+   "on": "2026-08-21",
+   "by": "tools/corpus/chanter_rulings.py",
+   "claim": {
+    "beats": 3.0
+   },
+   "status": "satisfied by current code; no change was required",
+   "note": "machine_beats beside this ruling is STALE -- it was recorded before the klasma/dipli duration rules were fixed, which is why this looked outstanding"
+  }
  }
 ]
