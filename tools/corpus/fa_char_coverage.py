@@ -12,14 +12,27 @@ Measured on t03 (2026-08-20), 33 words / 179 aligned characters:
     distinct character-level onsets in the CTC path      179
     gold pins with SOME character onset within 0.05 s   46/76  (61%)
     gold pins with SOME character onset within 0.10 s   62/76  (82%)
-    gold pins with SOME word onset within 0.05 s         3/76  ( 4%)
+    gold pins with SOME word onset within 0.05 s         3/76  ( 4%)  <- STALE
 
 (An earlier run reported 211/47/62% because it counted the 32 "|" word
 separators as character onsets. They are not sung characters.)
 
+THE WORD ROW IS A STALE TIMEBASE. WITHDRAWN 2026-08-20. The character rows are
+computed here, in-process, against the current audio, and they stand. The word
+row is read out of the STORED forced_align artefact (see load_stored_words
+below), which for t03 was written 19 Aug 00:14 while its audio was recut at
+20:14 -- every word onset in it is shifted a median +0.239 s. Re-aligned on the
+current audio the same measurement gives 20/76 (26%) at 0.05 s, not 3/76 (4%).
+That 4% reached NEURAL-CHANT.md 0.2 as "forced alignment is nearly useless",
+which was wrong. This script now refuses to print the word row from an artefact
+older than its audio. See tools/corpus/fa_eval.py for the full accounting.
+
 Two things follow, and the second matters more.
 
-  * The stored word-level output is nearly useless as a note-onset source: 4%.
+  * The word-level output is a WEAK onset source, not a useless one, and it is
+    weak for a structural reason: a word onset times the first note of its word
+    and says nothing about the rest. Scored per glyph it is 26.3% within 150 ms
+    against the character path's 55.3% (fa_eval.py).
   * The character path already holds evidence for 61% of notes at 50 ms.
 
 But 179 candidates for 76 notes is ~2.4 per note, so this is an ORACLE number:
@@ -29,7 +42,7 @@ bound on what any FA-derived anchor set could give, never as an achieved score.
 
 Usage: fa_char_coverage.py
 """
-import json, sys, unicodedata, re, subprocess
+import json, sys, unicodedata, re, subprocess, os, time
 import numpy as np, torch, torchaudio.functional as F
 from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 M='jonatasgrosman/wav2vec2-large-xlsr-53-greek'
@@ -73,7 +86,21 @@ print('\nof the 76 gold pins, how many have SOME character onset within:')
 for tol in (0.05,0.10,0.15):
     c=sum(1 for p in pins if any(abs(o-p)<=tol for o in onsets))
     print('   %.2f s : %2d/76  (%3.0f%%)'%(tol,c,100*c/76))
-w0=[w['t0'] for w in d['words']]
-for tol in (0.05,0.10,0.15):
-    c=sum(1 for p in pins if any(abs(o-p)<=tol for o in w0))
-    print('   word-level, %.2f s : %2d/76  (%3.0f%%)'%(tol,c,100*c/76))
+# The word row comes from the STORED artefact, not from the pass above. If that
+# artefact predates the audio it describes, its onsets are shifted and the row is
+# a measurement of the recut, not of the aligner -- which is how "4%" got into
+# NEURAL-CHANT.md 0.2. Refuse rather than print a misleading number.
+FA_PATH='/mnt/data/chant-corpus/texts/forced_align/grave-orthros__t03_.json'
+if os.path.getmtime(audio) > os.path.getmtime(FA_PATH):
+    print('\n   word-level: WITHHELD. %s was written %s but its audio was recut'
+          ' %s.\n   Its word onsets describe an audio file that no longer exists.'
+          '\n   Re-run: forced_align.py --audio %s --text-file <glt_text> --json %s'
+          % (FA_PATH,
+             time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(FA_PATH))),
+             time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(audio))),
+             audio, FA_PATH))
+else:
+    w0=[w['t0'] for w in d['words']]
+    for tol in (0.05,0.10,0.15):
+        c=sum(1 for p in pins if any(abs(o-p)<=tol for o in w0))
+        print('   word-level, %.2f s : %2d/76  (%3.0f%%)'%(tol,c,100*c/76))

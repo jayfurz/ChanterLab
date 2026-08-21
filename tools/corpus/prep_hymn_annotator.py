@@ -146,10 +146,77 @@ def hymn_lines(h):
     return out
 
 
-def build_strip(pdf, lines, cache_dir, out_png):
+def hymn_x_clip(units):
+    """(page,line) -> x range in pt that actually belongs to THIS hymn.
+
+    A band is cropped to the full page width, so the last line of a span also
+    draws whatever is printed to the right of the final cadence martyria. In
+    this book that is the NEXT hymn's opening martyria, flung out to the margin,
+    plus its red title. Chanter on s04: "the martyria ends at zo but then the
+    score goes on ... where it says glory both now in greek and then there is a
+    ga martyria. the issue was it cut the score too long."
+
+    Measured, p521 line 4: the notes end at x1 159.6, the Zo CADENCE martyria
+    sits at 160.8-178.8, then a 332 pt gap, then the Ga OPENING martyria at
+    510.6-523.4. Both are red, both attach to the same unit (mart_all [6, 3]),
+    and only the first is a claim about this hymn.
+
+    They separate on the same bimodal x-gap that hymn_align already uses to tell
+    a cadence martyria from an opening one (MART_OPEN_GAP, 40 pt: 679 martyrias
+    inline within 20 pt, 254 flung out at 80 pt or more). So the cut is not a
+    new threshold -- it is the existing chanter-derived one, applied to the
+    picture instead of to the degrees.
+
+    Only the first and last lines are clipped; interior lines are wholly inside
+    the hymn by construction.
+    """
+    from hymn_align import MART_OPEN_GAP
+    if not units:
+        return {}
+    first, last = units[0], units[-1]
+    clip = {}
+    pl0, pl1 = tuple(first['pl']), tuple(last['pl'])
+    clip[pl0] = [first['x0'] - 2.0, None]
+    xs = sorted(_line_glyph_spans(*pl1))
+    keep = last['x1']
+    for x0, x1 in xs:                       # walk right from the last note
+        if x0 <= keep + 1:
+            keep = max(keep, x1)
+            continue
+        if x0 - keep >= MART_OPEN_GAP:      # flung to the margin: next hymn
+            break
+        keep = max(keep, x1)                # inline: still this hymn
+    lo = clip.get(pl1, [None, None])[0]
+    clip[pl1] = [lo, keep + 2.0]
+    return clip
+
+
+def _line_glyph_spans(page, line):
+    """(x0, x1) of every glyph printed on a page line, from the glyph store."""
+    import glob as _glob
+    from hymn_align import GLYPHS
+    f = os.path.join(GLYPHS, 'page%03d.json' % page)
+    if not os.path.exists(f):
+        hits = _glob.glob(os.path.join(GLYPHS, '*%d*' % page))
+        if not hits:
+            return []
+        f = hits[0]
+    rows = json.load(open(f))
+    rows = rows if isinstance(rows, list) else rows.get('glyphs', [])
+    return [(r['x0'], r['x1']) for r in rows if r.get('line') == line]
+
+
+def build_strip(pdf, lines, cache_dir, out_png, clip=None):
     """Stack one LINE_BAND-tall band per hymn line; content centered.
+
+    `clip` is {(page,line): [x0_pt or None, x1_pt or None]} -- content outside
+    that range is painted white rather than cropped away, so every strip x
+    coordinate still equals page x and the annotator's unit boxes keep working.
+    See hymn_x_clip().
+
     Returns (strip_w, strip_h, line_centers, {(page,line): band_top_pt})."""
-    from PIL import Image
+    from PIL import Image, ImageDraw
+    clip = clip or {}
     pages = {}
     for p, _ in lines:
         if p not in pages:
@@ -167,6 +234,16 @@ def build_strip(pdf, lines, cache_dir, out_png):
         band = im.crop((0, int(round(max(0, top_px))),
                         im.width, int(round(max(0, top_px))) + LINE_BAND))
         strip.paste(band, (0, i * LINE_BAND))
+        cx = clip.get((p, li))
+        if cx:
+            d = ImageDraw.Draw(strip)
+            if cx[0] is not None:
+                d.rectangle([0, i * LINE_BAND,
+                             max(0, int(cx[0] * ZOOM)), (i + 1) * LINE_BAND - 1],
+                            fill='white')
+            if cx[1] is not None:
+                d.rectangle([int(cx[1] * ZOOM), i * LINE_BAND,
+                             strip_w, (i + 1) * LINE_BAND - 1], fill='white')
         tops[(p, li)] = max(0, top_px) / ZOOM     # band top in pt
         centers.append(i * LINE_BAND + BAND_UP)
     strip.save(out_png)
@@ -293,7 +370,7 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
         lines = [pl for pl in lines if pl in occ]
     line_ix = {pl: i for i, pl in enumerate(lines)}
     strip_w, strip_h, centers, tops = build_strip(
-        pdf, lines, cache_dir, os.path.join(out, 'strip.png'))
+        pdf, lines, cache_dir, os.path.join(out, 'strip.png'), clip=hymn_x_clip(units))
     notes = []
     for j, u in enumerate(units):
         pl = tuple(u['pl'])

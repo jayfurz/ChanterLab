@@ -20,10 +20,14 @@ early onsets however slight."*
 > cache, tensor shapes, module layout, staging and gates. Two measurements made
 > there change how this plan should be read:
 >
-> * **Forced alignment already solves 80 % of the notes at 0.028 s.** The
->   baseline to beat is FA, not the DTW's 0.485 s. The network's actual
->   deliverable is the **20 % of notes inside melismas**, where CTC gives one
->   timestamp for a whole vowel and only the neume sequence knows what comes next.
+> * **~~Forced alignment already solves 80 % of the notes at 0.028 s.~~**
+>   **Withdrawn 2026-08-20.** Measured per glyph over all 76 t03 pins by
+>   `tools/corpus/fa_eval.py`, the FA character path places **55.3 %** within
+>   150 ms and the word path 26.3 %; the 0.028 s figure is a word-to-nearest-pin
+>   statistic over 32 words (NEURAL-CHANT.md §0.4). The baseline to beat is FA's
+>   **55.3 %**, and the deliverable is not "the 20 % inside melismas" but the
+>   **44 notes that need a candidate selected and the 9 with no candidate at any
+>   tolerance** — see DECIDE-01-BRIEF.md.
 > * **The decoder can be pretrained on 116,043 score-only units with no audio
 >   and no labels**, so the 335 verified onsets only have to train the
 >   cross-attention and the Δt head. That is what makes §4.1's size affordable.
@@ -258,10 +262,12 @@ different jobs**. Conflating them is how a project ends up trying to regress a
 
 **Why wav2vec2-XLSR-Greek is the encoder, on evidence rather than taste:**
 
-- **It already delivers the target.** CTC forced alignment on this encoder gives
-  **0.028 s** median onset error against the chanter's 76 pins, where the DTW
-  path gives 0.485 s. The model this plan proposes must beat 0.028 s to be worth
-  building; anything that starts from a weaker encoder starts behind.
+- **It carries the strongest onset evidence available.** CTC forced alignment on
+  this encoder places **55.3 % of t03's notes within 150 ms** (character path,
+  56 of 76 placed), against the DTW path's 32.9 %; its oracle ceiling is 88.2 %.
+  The model must beat **55.3 %** to be worth building, and must reach 90 % —
+  which is above the oracle, so selecting among FA candidates cannot get there
+  on its own. **Corrected 2026-08-20 (NEURAL-CHANT.md §0.4, `tools/corpus/fa_eval.py`):** 0.028 s is a *word-onset-to-nearest-pin* statistic over a denominator of **32 words**, not an onset accuracy over 76 notes. It reproduces (0.0345 s on the current audio) but it may not be read as "FA times the notes". Per glyph over all 76 pins: FA character path **55.3 %** within 150 ms, word path 26.3 %, oracle ceiling 88.2 %, DTW annotator 32.9 %.
 - **20 ms frames**, from a conv stride product of 320 at 16 kHz — exactly the
   resolution §4 assumes, with no resampling of features.
 - **It brings a Greek character vocabulary (41 tokens).** That is not incidental:
@@ -296,13 +302,21 @@ decides its slot rather than its quality.
 
 **MiniMax-Music3's `condition_encoder` runs at 40 ms frames.** Its config:
 `input_hop_length 960` at `input_sampling_rate 24000` — 25 Hz. The architecture
-in §4 assumes 20 ms, and forced alignment on the current encoder already lands
-at **0.028 s**, so a single frame of this encoder is 1.4× the error we are
-trying to measure. You cannot resolve a 28 ms onset on a 40 ms grid without
-interpolating inside a frame, which is inventing the precision rather than
-measuring it. It is also a *condition* encoder feeding an RVQ codec — trained
-for reconstruction and for conditioning generation, not for transient
-discrimination, and codecs discard exactly the attack detail an onset is.
+in §4 assumes 20 ms. **The frame-rate argument here was re-derived 2026-08-20
+and weakens:** it rested on FA "already landing at 0.028 s", which is a
+32-word statistic. The FA character path's median error over the glyphs it
+places is **0.061 s**, so a 40 ms frame is 0.66× that error, not 1.4×. A 40 ms
+grid is therefore not disqualified by resolution. Stream B stays an open,
+ablatable question on other grounds: it is a *condition* encoder feeding an RVQ
+codec — trained for reconstruction and for conditioning generation, not for
+transient discrimination, and codecs discard exactly the attack detail an onset
+is. That is what NEURAL-CHANT.md §4 already says.
+
+(Do not re-derive the resolution bar from the current baseline's median error
+either: 0.061 s is what today's system achieves, not what the gate demands, and
+sizing a frame against it would ratchet down as the system improves. The bar
+that does not move is §9's — 150 ms gate, 50 ms diagnostic — against which a
+40 ms frame costs ±20 ms of quantisation.)
 
 That is an argument about **slot, not quality**. It is a strong candidate for the
 music-pretrained second stream §4.1 already called for: harmonic and timbral
@@ -472,7 +486,8 @@ Baseline to beat, r4: median |Δt| 0.485 s, 25 of 52 matched pins within 0.15 s,
 found the event layer emits 32 % more events than there are notes while missing a
 quarter of the real onsets — so machine-aligned pairs carry a 57 % spurious rate
 as labels. And forced alignment on the same encoder this plan would freeze
-already gets 0.028 s. Both point the same way: **ONS-01 (forced alignment as the
+already places 55.3 % of notes within 150 ms (see above; the 0.028 s this
+sentence used to cite is a 32-word statistic). Both point the same way: **ONS-01 (forced alignment as the
 onset source) runs before ONSET-01**, and ONSET-01 is then sized against what FA
 leaves wrong rather than against the DTW's 0.485 s. It may be a much smaller job
 than this document assumes, which is the good outcome.

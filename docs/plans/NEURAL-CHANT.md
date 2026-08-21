@@ -7,7 +7,7 @@ diagnostic, not a gate — see §9.1 for why the threshold is what it is.
 
 **The encoder-decoder is a decision, not a hypothesis.** Forced alignment does
 not produce note onsets — it produces *candidates*, at roughly 2.4 per note, and
-4 % accuracy if its word-level output is taken as-is (§0.2). Something has to
+26 % accuracy if its word-level output is taken as-is (§0.2). Something has to
 select among them and supply the rest. Generation (§8) is the stated later goal,
 which is why §3 fixes the vocabulary as the full neume stream now.
 
@@ -99,8 +99,22 @@ t03: 33 words, 179 aligned characters
   gold pins with SOME WORD onset within 0.05 s         3/76  ( 4 %)
 ```
 
-1. **The stored word output is nearly useless as an onset source — 4 %.**
-   Whatever the inherited 0.028 s measured, it was not this.
+**The 4 % row was a stale time base, and is withdrawn.** REPRO-01 established
+(2026-08-20) that the stored artefact for t03 was written 19 Aug 00:14 and its
+audio was recut at 20:14 the same day, shifting 28 of its 32 word onsets by
++0.23…+0.26 s. Re-aligned on the current audio by `forced_align.py` unchanged,
+the same measurement gives **20/76 (26 %) at 0.05 s**, and 31/76 (41 %) at
+0.15 s. Both `fa_eval.py` and `fa_char_coverage.py` now refuse to report a word
+row from an FA artefact older than its audio. The character-path rows above are
+unaffected — they are computed in-process against the current audio.
+
+1. **The word output is a weak onset source — 26.3 % at 150 ms per glyph,
+   against the character path's 55.3 %** (`fa_eval.py`, denominator 76; the
+   other percentages in this section are *coverage*, "is there any word onset
+   near this pin", which is a different and more generous question). It is weak
+   because only 23 of the 76 glyphs are word-initial, so the word path has
+   nothing of its own to say about the other 53 — not because forced alignment
+   is imprecise: §0.4.
 2. **The character path holds evidence for 61 % of notes at 50 ms.**
 
 **(2) is an oracle number.** 179 candidates for 76 notes is ~2.4 per note: the
@@ -124,18 +138,50 @@ provably deaf.
   threshold. Loosening 50 → 150 ms moves the t03 baseline by two notes; slips
   are the whole distance to the target.
 
-### 0.4 REPRO-01 — the inherited baseline is unusable
+### 0.4 REPRO-01 — the inherited baseline is a word statistic, not an onset score
 
-`forced_align.py`, `FA-ONSETS.md` and `ONSET-MODEL.md` all cite **0.028 s median
-against the 76 t03 pins**. It cannot be reproduced from this repository: the
-stored result holds 32 word onsets against 76 per-glyph pins, **no word→glyph
-mapping is stored**, and no script computes the figure. Reconstructing the
-mapping from per-glyph syllable labels fails — 18 glyphs carry no label and
-glyph 0 lost its first syllable, so the match walks off by up to 35 s.
+**Resolved 2026-08-20 by `tools/corpus/fa_eval.py`. The earlier claim here — that
+0.028 s "cannot be reproduced" — was wrong, and is withdrawn.**
 
-**The baseline is unverified in both directions.** REPRO-01 (§10) produces a
-real one. Until it lands, no inherited number may be quoted as a baseline, and
-no gate may be written against one.
+`forced_align.py`, `FA-ONSETS.md` and `ONSET-MODEL.md` cite **0.028 s median
+against the 76 t03 pins**. Re-aligning t03 on the current audio and measuring
+each of the 32 word onsets against its *nearest* pin reproduces it:
+
+```
+                        median |err|   <=0.15 s   <=0.35 s   max
+  fresh forced_align       0.0345 s      96.9 %     100 %    0.205 s
+  inherited citation       0.028  s      91   %     100 %      -
+  stored artefact          0.2395 s      15.6 %     100 %    0.292 s   <- stale timebase
+```
+
+Same statistic, same shape, 6 ms apart. It is meaningful and not an artefact of
+pin density: with 76 pins over 46.4 s (mean gap 0.619 s) a uniformly random time
+lands within 150 ms **48.5 %** of the time, and rigid shifts of 0.3–2.0 s give a
+median **46.9 %** — against the real 96.9 %, with `P(rate ≥ 96.9 %) < 5e-5` over
+3 × 20,000 draws. Read the *median* of the shift null, not its range: one
+unlucky shift reaches 81.2 % simply by landing back on the beat.
+
+**The error was never the number. It was the denominator.** 0.028 s is the
+distance from a *word onset* to *whichever of 76 pins happens to be nearest*,
+over a denominator of **32 words**. It is not, and never was, a per-glyph onset
+score over 76 notes. Read as the latter it says forced alignment has nearly
+solved the problem; read correctly it says only that when FA fires, it fires
+accurately — only **23 of the 76 glyphs are word-initial**, so a word onset
+times the first note of its word and is silent about the other 53.
+
+The per-glyph forced-alignment baseline, measured over the full 76:
+
+```
+  character path (char_first)   55.3 %  <=150 ms   32.9 %  <=50 ms   56/76 placed
+  word path      (recovered)    26.3 %             13.2 %            56/76 placed
+  ORACLE, nearest char to pin   88.2 %             60.5 %            76/76
+```
+
+So the correct disposition of the inherited citation is **relabel, not strike**:
+it may be quoted as "FA word onsets sit a median 0.034 s from a real note
+onset", and may never be quoted as an onset accuracy or as "FA solves 80 % of
+the notes". The stale-timebase hazard it also exposed is the more dangerous
+one, because it is silent: see §9's timebase manifests.
 
 ---
 
@@ -162,7 +208,7 @@ the legend's intervals must sum to the degree difference. `martyria_check.py`:
 
 ```
 57 gaps between consecutive cadence martyrias
-  17 satisfied     40 VIOLATED (70 %)
+  17 satisfied     40 VIOLATED (70 %)     <- before CHECK-01; now 26 of 58 (45 %)
   33 "sum too LOW"  (an ison should be an oligon) -- 31 have room
    7 "sum too HIGH" (an oligon should be an ison) --  6 have room
 ```
@@ -177,7 +223,21 @@ C.** That covers the decode (§7) and the silver filter (§6.2) alike — log wh
 it *would* have rejected, reject nothing. **Gate C** is defined in
 `CHANT-MODEL-ACCURACY.md` §1233: the chanter has reviewed `MARTYRIA_DEG` cluster
 26 and red cluster 29, and the checksum is validated against the baseless
-martyria groups. A rule violated in 70 % of gaps must not gate anything.
+martyria groups. A rule violated in 45 % of gaps must not gate anything.
+
+**CHECK-01 partially landed, 2026-08-20.** Two composition-rule fixes in
+`legend_canon.py` — the kentima was composed one step too high, and a
+qualitative base never promoted its melodic mark — take the gaps from 40 of 57
+violated (70 %) to **26 of 58 (45 %)**, and the diagnostic asymmetry that opened
+this section is gone: 33 low / 7 high becomes 15 low / 11 high. Both rules are
+grounded in the chanter's atlas, and the decisive evidence is independent of the
+checksum they were fixing: agreement with `hymn_align.CHANTER_LOCK`, the
+chanter's own locked intervals, goes from **19 of 22 to 22 of 22**, and
+agreement with his 9 per-glyph t03 rulings holds at 9/9 before and after.
+**The gate (< 8 of 57) is still not met**, and 23 of the 26 residual violations
+sit inside the ison/oligon ambiguity budget, so there is no evidence for a third
+rule — closing them needs chanter rulings, not more inference. §10's ordering
+rule stands: NN-03 remains blocked.
 
 ---
 
@@ -631,6 +691,21 @@ any of these does not satisfy its gate.
 leaves the gate and does not return within 3 notes. t03 today: **2**. **Zero is the
 hard requirement**, and it does not relax with the threshold.
 
+> `onset_eval.slips()` did not implement that sentence until 2026-08-20: it
+> counted *every* excursion, so one scattered miss scored a slip and `0 slips`
+> silently meant `100 % within 150 ms` — making NN-06's "≥ 90 % **and** 0 slips"
+> unsatisfiable at 90 % by construction. It now counts **maximal out-of-gate
+> runs longer than 3 notes**: drift that leaves the gate and does not return.
+> t03's published 2 is unchanged (its runs are glyphs 3–47 and 70–75, so 45 and
+> 6 notes — the second clears the cutoff by 2 notes, not by many). Isolated
+> jitter no longer reads as a lost-sync event, which is the distinction the
+> metric exists to draw. A first repair attempt ended each run at the next 3
+> *consecutive* in-gate notes and measured the whole span; that swallowed the
+> in-gate notes, so `out,in,in,out` scored a slip while `out,out,out` scored
+> none, and it still fired on pure jitter for ~47 % of 90 %-in-gate signals.
+> The rule above is monotone in run length and leaves such a signal clean
+> 99.8 % of the time.
+
 **Three tiers, one rule per tier.**
 
 | tier | what it is | what it may decide |
@@ -670,12 +745,29 @@ nothing.
 
 **Baselines** (all from REPRO-01 except the first two, measured here):
 
+Every row is **t03, which is training data and a burnt benchmark** (§6.1):
+comparison numbers against prior work, never evidence of generalisation. Rates
+are over all 76 pins. Medians quoted elsewhere for the DTW aligner (0.485 s) are
+over the 52 units it matched; over all 76 its median is 0.714 s. Do not mix the
+two.
+
 | system | ≤ 0.15 s (gate) | ≤ 0.10 s | ≤ 0.05 s | notes |
 |---|---|---|---|---|
 | annotator today, t03 | **32.9 %** | 32.9 % | 30.3 % | **2 slips**; bias +0.566 s, jitter 2.333 s |
-| FA word onsets, t03 | — | — | 4 % | the stored output |
-| FA character path, oracle | — | 82 % | 61 % | **upper bound**, ~2.4 candidates/note |
+| FA word onsets → glyphs, t03 | 26.3 % | 23.7 % | 13.2 % | `fa_eval.py`; 56/76 placed. The old 4 % row was a stale timebase (§0.4) |
+| **FA character path → glyphs, t03** | **55.3 %** | 52.6 % | 32.9 % | `fa_eval.py`; 56/76 placed, 1 slip. **The number a model must beat** — but see the caveat below |
+| NN-00 arithmetic, oracle-fitted tempo | 43.4 % | 34.2 % | 15.8 % | `nn00_baseline.py`; 2 params fitted on the 76 pins it scores |
+| NN-00 arithmetic, no pin at all | 3.9 % | 1.3 % | 0.0 % | same; t0 and tempo from the audio alone |
+| FA character path, oracle | 88.2 % | 81.6 % | 60.5 % | **upper bound**, ~2.4 candidates/note. **Below the 90 % gate** |
 | target | **≥ 90 %** | report | report | **0 slips** |
+
+**`char_first` is not a pure forced-alignment number.** It needs a glyph→syllable
+mapping, and that mapping comes from the annotator's slot labels, which
+`prep_hymn_annotator.py` assigns by matching PDF lyric x-spans to unit x-spans —
+machine output, not chanter-verified. Its 20 unplaceable glyphs are where that
+mapping fails, not where CTC failed. So 55.3 % is the right bar for a model that
+will consume the same labels (SYL-01 is gated chanter-review before NN-05, §10),
+and it is *not* a statement about forced alignment standing alone.
 
 ---
 
@@ -713,7 +805,8 @@ nothing.
   told from one that works.
 - **DECODE-01 / KEY-01 before NN-01.** The tokenizer freezes how a figure is
   written down; mark order is theirs to settle (§3).
-- **CHECK-01 before NN-03.** 70 % of gaps disagree with the printed music today.
+- **CHECK-01 before NN-03.** 45 % of gaps still disagree with the printed music
+  after CHECK-01's rule fixes (§1.1), down from 70 %. Not met; NN-03 stays shut.
 - **SYL-01 chanter-reviewed before NN-05** — and t03's labels are already known
   incomplete (§0.4).
 

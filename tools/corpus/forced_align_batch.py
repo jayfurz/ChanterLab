@@ -3,7 +3,10 @@
 
 Chanter's strategy: feed the audio and the KNOWN text and read off timestamps,
 rather than asking a model to guess what is being sung. Validated on gold #2 at
-0.028 s median error against 76 chanter pins — 17x better than the DTW aligner.
+55.3% of t03's notes within 150 ms (FA character path, tools/corpus/fa_eval.py)
+against the DTW aligner's 32.9%. The "0.028 s against 76 chanter pins, 17x
+better" this line used to claim is a word-onset-to-nearest-pin statistic over 32
+words -- it reproduces, but it is not an onset accuracy. NEURAL-CHANT.md 0.4.
 
 The same machinery also answers WHICH hymn a recording is. Score every candidate
 text by CTC likelihood, -log P(text | audio), and take the best. Measured on
