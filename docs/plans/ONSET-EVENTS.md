@@ -97,11 +97,20 @@ forced alignment of the **known text** against the audio, and
 
 | | onset error vs 76 chanter pins |
 |---|---|
-| DTW over detected events | 0.485 s |
-| **CTC forced alignment** | **0.028 s** |
+| DTW over detected events | 0.714 s median over all 76 pins, 32.9 % within 150 ms (0.485 s is over the 52 it matched) |
+| **CTC forced alignment**, character path over all 76 glyphs | **55.3 %** within 150 ms, median 0.061 s |
+| ~~CTC forced alignment~~ | ~~**0.028 s**~~ — a 32-word nearest-pin statistic, not an onset accuracy (NEURAL-CHANT.md §0.4) |
 
-That is 17× better, and it is better for the reason this whole plan is about: a
-syllable onset **is** the articulation, so forced alignment locates the thing
+That is a real improvement but not the 17× once claimed, and it is better for
+the reason this whole plan is about.
+
+> **t03 is training data and a burnt benchmark** (NEURAL-CHANT.md §6.1): every
+> figure in the row(s) above is a comparison number against prior work, never
+> evidence of generalisation. Rates are over all 76 pins; the DTW aligner's
+> often-quoted 0.485 s median is over the 52 units it matched, and over all 76
+> it is 0.714 s.
+
+It is better because a syllable onset **is** the articulation, so forced alignment locates the thing
 the chanter pins rather than inferring it from where pitch settles. It needs no
 event detector at all.
 

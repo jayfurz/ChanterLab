@@ -32,8 +32,16 @@ Measured, do not re-derive:
 
 | | |
 |---|---|
-| CTC forced alignment vs the chanter's 76 t03 pins | **0.028 s** median |
-| the DTW aligner, same pins | 0.485 s |
+| CTC forced alignment, 32 word onsets vs the NEAREST of the 76 t03 pins | **0.0345 s** median (re-measured 2026-08-20; the old **0.028 s** row mislabelled this as "vs the 76 pins") |
+| CTC forced alignment, character path carried to all 76 glyphs | **55.3 %** within 150 ms, median 0.061 s over the 56 it places |
+| the DTW aligner, all 76 pins | 0.714 s median, 32.9 % within 150 ms (the often-quoted 0.485 s is over the 52 units it matched — a different denominator) |
+
+> **t03 is training data and a burnt benchmark** (NEURAL-CHANT.md §6.1): every
+> figure in the row(s) above is a comparison number against prior work, never
+> evidence of generalisation. Rates are over all 76 pins; the DTW aligner's
+> often-quoted 0.485 s median is over the 52 units it matched, and over all 76
+> it is 0.714 s.
+
 | event detector: events emitted for 259 real notes | **342 (+32 %)** |
 | event detector recall at 50 ms | 63 % |
 | aligner coverage, median over 173 hymns | 64.0 % — the same number, and not a coincidence |

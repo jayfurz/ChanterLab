@@ -16,7 +16,14 @@ both Vespers and Orthros.*
 | score slices starting exactly on a drop cap | 93/173 (54 %) | **110/173 (64 %)** |
 | tracks force-aligned to canonical text | 0 | **173/173**, 14 workdirs, 8 modes, both services |
 | audio tracks ending mid-sound ("clipped") | 126/157 (80 %) | **52/157 (33 %)** |
-| onset accuracy vs the 76 chanter pins | 0.485 s (DTW) | **0.028 s** (forced alignment) |
+| onset accuracy vs the 76 chanter pins | 0.714 s / 32.9 % at 150 ms (DTW; the often-quoted 0.485 s is over the 52 it matched) | **55.3 % at 150 ms** (forced alignment, character path, 56/76 placed). The **0.028 s** once cited here is a 32-word nearest-pin statistic — NEURAL-CHANT.md §0.4 |
+
+> **t03 is training data and a burnt benchmark** (NEURAL-CHANT.md §6.1): every
+> figure in the row(s) above is a comparison number against prior work, never
+> evidence of generalisation. Rates are over all 76 pins; the DTW aligner's
+> often-quoted 0.485 s median is over the 52 units it matched, and over all 76
+> it is 0.714 s.
+
 
 Neither half is finished, and both are now blocked on the *same* thing.
 
