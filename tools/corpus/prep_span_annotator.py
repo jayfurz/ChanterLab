@@ -44,7 +44,7 @@ from hymn_align import GLYPHS, LADDERS, beats_seq
 from score_degrees import leading_anchor, units_for
 from prep_hymn_annotator import (PITCH_DT, CPM, BAND_UP, BAND_DN, DUR_NAME, LINE_BAND, ZOOM,
                                  attach_words, build_strip, deg_label, deg_name,
-                                 find_pdf, load_gold_seed, update_manifest)
+                                 find_pdf, load_gold_seed, update_manifest, hymn_x_clip)
 
 CORPUS = '/mnt/data/chant-corpus'
 TEXTS = f'{CORPUS}/texts'
@@ -340,7 +340,7 @@ def prep_span(wd, span, cuts, score, names, pair_of, tape, pdf,
     lines = lines_for_units(units)
     line_ix = {pl: i for i, pl in enumerate(lines)}
     strip_w, strip_h, centers, tops = build_strip(
-        pdf, lines, cache_dir, os.path.join(out, 'strip.png'))
+        pdf, lines, cache_dir, os.path.join(out, 'strip.png'), clip=hymn_x_clip(units))
     notes = []
     for u in units:
         pl = tuple(u['pl'])

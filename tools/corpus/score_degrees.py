@@ -179,6 +179,37 @@ def degree_stream(units, legend, start=None):
             from hymn_align import DEG_NAME
             nm = u['fthora'][1]
             deg = DEG_NAME.index(nm) if isinstance(nm, str) else nm
+        elif u.get('mart_cad'):
+            # A CADENCE martyria names the note just sung: it re-anchors.
+            #
+            # Prefer it over mart_deg, which is not always the same thing. Where
+            # a line carries both kinds, hymn_align sets mart_deg to the LAST
+            # one in printed order -- deliberately, because leading_anchor()
+            # needs the right-aligned OPENING martyria to start the next hymn.
+            # Inside this stream that is the wrong number: the opening martyria
+            # announces the next hymn's starting pitch and, in hymn_align's own
+            # words, "says nothing about the note it is printed beside".
+            #
+            # s04 is the case that exposed it. p521 line 4 ends with the Zo
+            # cadence martyria at x 160.8 and the Ga opening martyria at 510.6,
+            # both attached to the last unit (mart_all [6, 3], mart_cad [6],
+            # mart_deg 3). The stream re-anchored on Ga, so the hymn ended on
+            # γα no matter what the intervals said. Chanter: it "is supposed to
+            # end on the low zo ... something really bad happened there".
+            #
+            # This changes ONLY the 7 units in the book that carry both kinds.
+            # An earlier attempt at this fix also skipped the 128 units whose
+            # only martyria is right-aligned, on the theory that a right-aligned
+            # one always belongs to the next hymn. That is wrong, and s02 is the
+            # counter-example: its last unit carries mart_open 6 and no cadence
+            # martyria, and Zo is genuinely where that hymn ends -- skipping it
+            # ended the hymn on βου. The chanter already said so: right-aligned
+            # martyrias are "SOMETIMES just a sign for the opening of the next
+            # hymn". Sometimes, not always. What actually disambiguates is
+            # whether an inline cadence martyria is present on the same unit to
+            # take the job; when one is, the right-aligned one is the next
+            # hymn's. When it is the only martyria there, it is this hymn's.
+            deg = u['mart_cad'][0]
         elif u.get('mart_deg') is not None:
             deg = u['mart_deg']
         elif deg is not None:

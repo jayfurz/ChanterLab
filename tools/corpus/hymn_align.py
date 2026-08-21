@@ -535,6 +535,8 @@ def beats_seq(units):
     own = [False] * n
     for j, u in enumerate(units):
         k = u.get('timing', 0)
+        if not k and u.get('synexes_gorgon'):
+            k = 1                   # implied by a running elaphron, not printed
         if not k:                   # gorgon k=1, digorgon k=2, trigorgon k=3
             continue
         d = k / (k + 1.0)           # ½, ⅔, ¾
@@ -834,6 +836,68 @@ def _attach_pthoras(units, recs):
         u['fthora'] = PTHORA[g['cluster']]
 
 
+# --- synexes elaphron (συνεχής ἐλαφρόν) -------------------------------------
+# Chanter, 2026-08-20, on s04 glyphs 66 and 76: "20| is the elafron in the
+# synexes elafron. thats only 1. cant you see that it is closer to the
+# apostrophos before it than it usually is to other notes? that makes it a
+# running elafron. which technically makes the apostrophos before it act like
+# that has a gorgon making the note before that apostrophos also 1/2 a beat."
+#
+# Two consequences, and the second is a DURATION rule, not a pitch one:
+#   * the elaphron steps ONE degree, not the two a standalone elaphron steps;
+#   * the apostrophos before it behaves as though it carried a gorgon. The
+#     gorgon window is k+1 symbols starting one BEFORE the sign, so that
+#     apostrophos and the note before it each drop to half a beat -- exactly
+#     what he describes, with no new arithmetic.
+#
+# It is recognised by SPACING, which is his own stated evidence. Measured on
+# s04: the median gap between consecutive notes on a line is 32.3 pt, and both
+# running elaphrons sit 18.8 pt after their apostrophos. Nothing else in the
+# hymn is close -- the two plain elaphrons there are at 29.5 and 36.1 pt, and
+# neither follows an apostrophos. The test is therefore BOTH conditions, tight
+# spacing AND an apostrophos before it, which on s04 selects exactly the two
+# glyphs he named and nothing else.
+SYNEXES_STEP = -1           # not the -2 a standalone elaphron takes
+SYNEXES_GAP_FRAC = 0.80     # of the page's median note-to-note x-gap
+ELAPHRON_BASES = (20,)
+APOSTROPHOS_BASES = (4,)
+
+
+def _mark_synexes_elaphron(units):
+    """Flag running elaphrons in place: set the elaphron's iv, gorgon its
+    predecessor. Sequence-level, because it is defined by a neighbour gap."""
+    notes = [u for u in units if not u.get('rest')]
+    gaps = []
+    for a, b in zip(notes, notes[1:]):
+        if tuple(a.get('pl', (0, 0))) != tuple(b.get('pl', (0, 0))):
+            continue
+        g = b.get('x0', 0) - a.get('x0', 0)
+        if g > 0:
+            gaps.append(g)
+    if len(gaps) < 4:
+        return units
+    gaps.sort()
+    med = gaps[len(gaps) // 2]
+    for i in range(1, len(notes)):
+        cur, prev = notes[i], notes[i - 1]
+        if cur.get('base') not in ELAPHRON_BASES:
+            continue
+        if prev.get('base') not in APOSTROPHOS_BASES:
+            continue
+        if tuple(cur.get('pl', (0, 0))) != tuple(prev.get('pl', (1, 1))):
+            continue
+        if cur.get('x0', 0) - prev.get('x0', 0) >= SYNEXES_GAP_FRAC * med:
+            continue
+        if cur.get('iv') is None:           # never overwrite a chanter reading
+            cur['iv'] = SYNEXES_STEP
+        cur['synexes'] = True
+        # A separate flag, NOT timing=1: `timing` means a gorgon is PRINTED, and
+        # it feeds the tempo token in the neume vocabulary. Nothing is printed
+        # here -- the shortening is implied by the figure.
+        prev['synexes_gorgon'] = True
+    return units
+
+
 def load_units(p0, l0, p1, l1):
     """units for the hymn slice [(p0,l0) .. (p1,l1))"""
     recs, lyr = [], []
@@ -1014,7 +1078,7 @@ def load_units(p0, l0, p1, l1):
     _attach_pthoras(units, recs)
     units.sort(key=lambda u: (u['pl'], u.get('sx', u['x0']),
                               u['part'] if u.get('part') is not None else 0))
-    return units, lyr
+    return _mark_synexes_elaphron(units), lyr
 
 def load_units_h(h):
     """units + lyrics for a hymns.json row. Optional g0/g1 (annotator glyph
