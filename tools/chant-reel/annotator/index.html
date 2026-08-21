@@ -465,22 +465,41 @@ function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     localStorage.setItem(lsKey(),
-      JSON.stringify({ corrected, pinned, flags, ghosts, anaT }));
+      JSON.stringify({ corrected, pinned, flags, ghosts, anaT,
+                       savedAt: Date.now() / 1000 }));
     $('savestate').textContent = 'autosaved ' + new Date().toLocaleTimeString();
     updateCounts();
   }, 250);
 }
 function restore() {
+  /* THE EXPORT WINS WHEN IT IS NEWER, and it has to.
+
+     data_rev is md5 over the glyph indices and unit count, so it does NOT
+     change when a piece gains a seed. A browser that had already cached a blank
+     local state for this revision would restore that blank state and never look
+     at the seed -- which is exactly what the chanter hit: "i cant see the
+     exports. it still has the old unedited one", twice, after the seed was
+     already sitting in the data file.
+
+     Pressing Export is the deliberate act; the autosave is a working cache. So
+     compare stamps and take the later one. A local state with no stamp predates
+     this fix and therefore loses to any export. */
+  let s = null;
   try {
-    const s = JSON.parse(localStorage.getItem(lsKey()));
-    if (s && s.corrected && s.corrected.length === nS()) {
-      corrected = s.corrected; pinned = s.pinned; flags = s.flags || {};
-      ghosts = s.ghosts || [];
-      anaT = s.anaT || null;
-      $('savestate').textContent = 'restored local edits';
-      return;
-    }
-  } catch (e) { /* fall through to the seed */ }
+    s = JSON.parse(localStorage.getItem(lsKey()));
+  } catch (e) { s = null; }
+  const usable = s && s.corrected && s.corrected.length === nS();
+  const exportedAt = (D.seed && D.seed.exported_at) || 0;
+  if (usable && (s.savedAt || 0) >= exportedAt) {
+    corrected = s.corrected; pinned = s.pinned; flags = s.flags || {};
+    ghosts = s.ghosts || [];
+    anaT = s.anaT || null;
+    $('savestate').textContent = 'restored local edits';
+    return;
+  }
+  if (usable) {
+    $('savestate').textContent = 'loaded your exported work (newer than local edits)';
+  }
   seedFromGold();
 }
 /* No local edits for this slot revision — but the piece may ship curated

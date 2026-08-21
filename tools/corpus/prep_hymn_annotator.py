@@ -102,7 +102,11 @@ def load_gold_seed(piece, n_units):
     if len(keep) != len(pins):
         print(f'  WARNING {piece}: {len(pins) - len(keep)} gold pins fall outside '
               f'the current {n_units}-unit stream — re-index the gold')
-    seed = {'pins': keep, 'source': os.path.relpath(gdir, REPO)}
+    seed = {'pins': keep, 'source': os.path.relpath(gdir, REPO),
+            # When the chanter last pressed Export. The annotator compares this
+            # against its own autosave stamp and takes whichever is newer -- see
+            # restore() in index.html for why that comparison has to exist.
+            'exported_at': os.path.getmtime(pf)}
     nf = os.path.join(gdir, 'chanter_notes.json')
     if os.path.exists(nf):
         seed['flags'] = [{'gi': n['gi'], 'note': n['note']}
