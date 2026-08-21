@@ -857,7 +857,37 @@ def _attach_pthoras(units, recs):
 # neither follows an apostrophos. The test is therefore BOTH conditions, tight
 # spacing AND an apostrophos before it, which on s04 selects exactly the two
 # glyphs he named and nothing else.
-SYNEXES_STEP = -1           # not the -2 a standalone elaphron takes
+# THE ATLAS ALREADY DOCUMENTED THIS FIGURE, and it was not read before the rule
+# was written. atlas_chanter.json figures.syneches_elaphron:
+#
+#   "the 'byzantine third': apostrofos CLOSE before an elaphron = syneches/
+#    running elaphron ... the chanter walks down a third quickly: apostrofos+
+#    gorgon+apostrofos, two step-downs (-1,-1), NET -2. Timing: implied gorgon
+#    over the FIRST apostrofos halves the PRECEDING note (1/2 beat) and the
+#    first apostrofos (1/2 beat); second apostrofos regular 1 beat (klasma ->
+#    2). DISAMBIGUATION: a score may legitimately have apostrofos THEN elaphron
+#    as separate neumes = -1 then -2, NET -3 -- the ONLY tell is the distance
+#    between them ... use the MARTYRIA AS CHECKSUM: the cumulative degree at
+#    each martyria must equal its stated letter -- decode ambiguous proximity
+#    both ways and keep the reading that satisfies the martyriai"
+#
+# What is implemented here agrees with it exactly: the pair nets -2 against a
+# separate reading's -3, and the beats come out 1/2, 1/2, 1. Verified on s04
+# glyphs 64-66.
+#
+# What is NOT implemented is the last sentence, and it is the part that matters.
+# The chanter's own disambiguation is PER INSTANCE, arbitrated by the martyria,
+# not a global threshold -- proximity is the tell only where the martyria does
+# not speak. Measured: of the 26 gaps still violated, 10 would close by flipping
+# some of their running elaphrons back to separate, including all 8 that this
+# rule broke. The other 16 have negative deltas or contain no running elaphron
+# at all, so they are a different fault.
+#
+# Not done here for two reasons. It is a constraint solver over the checksum,
+# which NEURAL-CHANT.md section 1.1 holds REPORT-ONLY until Gate C; and once the
+# martyria decides an instance it can no longer independently validate it, so
+# the 32/58 would stop being evidence for anything. Both are the chanter's call.
+SYNEXES_STEP = -1           # not the -2 a standalone elaphron takes; pair nets -2
 SYNEXES_GAP_FRAC = 0.72     # of the page's median note-to-note x-gap
 # 0.80 -> 0.72 on 2026-08-21. Chanter, shown p522 line 2 at ratio 0.74: "it's
 # too far apart", and then, asked whether distance alone is enough: "spacing
@@ -881,10 +911,13 @@ SYNEXES_GAP_FRAC = 0.72     # of the page's median note-to-note x-gap
 # which pins the boundary between 0.66 and 0.74 and confirms 0.72 rather than
 # merely permitting it:
 #
+#     0.56  RUNNING      p523 line 10
 #     0.58  RUNNING      s04 glyphs 66, 76
 #     0.66  RUNNING      p560 line 11        <- must be admitted
 #     ----  cut 0.72
 #     0.74  NOT running  p522 line 2         <- must be excluded
+#
+# Five instances ruled, every one of them consistent with this cut.
 #
 # 184 of the 270 pairs sit at or below the ruled-running 0.66 and 37 at or above
 # the ruled-not-running 0.74, so 82% of the population is now decided by a
