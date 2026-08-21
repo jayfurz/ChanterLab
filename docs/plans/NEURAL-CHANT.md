@@ -18,7 +18,14 @@ executable half: vocabulary, features, tensors, contracts, gates.
 Every number below was measured, with the script that produced it named. Where a
 number is inherited and unverified it is marked so and may not be used.
 
-*Consolidated rewrite 2026-08-20, superseding four rounds of patching.*
+**Start here.** Run `tools/corpus/onset_eval.py` and `martyria_check.py` to see
+the current state reproduce, then begin at **REPRO-01** (§10). Do not start at
+NN-01: the tokenizer waits on DECODE-01/KEY-01 (§3). What is ready to run today
+is REPRO-01, DECIDE-01, NN-00, PIN-REPEAT-01 and CHECK-01 — the model build is
+gated behind them and behind notation work that is not finished.
+
+*Consolidated rewrite 2026-08-20, superseding four rounds of patching. Five
+audits applied; the last round of fixes has not itself been re-audited.*
 
 ---
 
