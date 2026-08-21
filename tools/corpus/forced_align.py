@@ -24,23 +24,53 @@ Usage:
   forced_align.py --audio a.wav --text "ΚΑΤΕΛΥΣΑΣ ..."   [--json out.json]
   forced_align.py --workdir DIR --hymn NAME --text-from-glt
 
-VALIDATED against gold #2 (t03, 76 chanter pins, canonical text from GLT):
+MEASURED against gold #2 (t03), and READ THE DENOMINATOR (re-measured
+2026-08-20 by tools/corpus/fa_eval.py on the current audio):
 
-    forced alignment   median |err| 0.028 s   91% within 0.15 s   100% within 0.35 s
-    DTW aligner        median |err| 0.485 s   48% within 0.15 s
+    each of the 32 WORD onsets to its NEAREST of the 76 pins
+                       median |err| 0.0345 s  96.9% within 0.15 s  100% within 0.35 s
 
-A 17x improvement in median onset error, measured against the chanter's own
-pins. The three worst cases (0.25-0.32 s) are a word the model split differently
-and the final melisma; nothing is off by more than 0.35 s.
+This is the figure earlier drafts quoted as "0.028 s median against the 76 t03
+pins". It reproduces. What does not survive is the label: the denominator is 32
+words, not 76 notes, and "nearest pin" is chosen after the fact. It says that
+WHEN forced alignment fires it fires accurately. It does not say how many notes
+it times, and it must never be quoted as an onset accuracy.
 
-This changes the architecture rather than just improving a number:
-  * word onsets at ~28 ms are HARD ANCHORS for the note-level DTW, which is what
-    ALIGN-02 wanted the chanter's manual pins for — now derivable from text.
+Scored properly -- every word onset carried to the glyphs it implies, over all
+76 pins, through tools/corpus/onset_eval.py:
+
+    FA word path  -> glyphs   26.3% within 0.15 s   13.2% within 0.05 s
+    FA char path  -> glyphs   55.3% within 0.15 s   32.9% within 0.05 s
+    ORACLE, nearest char      88.2% within 0.15 s   60.5% within 0.05 s
+    DTW aligner (annotator)   32.9% within 0.15 s   30.3% within 0.05 s
+
+t03 is TRAINING data and a burnt benchmark (NEURAL-CHANT.md 6.1). Every row is a
+comparison number against prior work, never evidence of generalisation.
+
+So forced alignment beats the DTW aligner on the character path and is WORSE
+than it on the word path -- a real improvement, but not the 17x one, and only
+via the characters. Only 23 of the 76 glyphs are word-initial, so the word path
+has nothing of its own to say about the other 53. See NEURAL-CHANT.md 0.4.
+
+Denominators, because mixing them is the error this whole correction is about:
+every rate above is over all 76 pins, from onset_eval.py. The DTW aligner's
+often-quoted "0.485 s median" is over the 52 units it matched; over all 76 its
+median is 0.714 s.
+
+TIMEBASE WARNING. The stored artefacts under texts/forced_align/ carry no audio
+checksum, and t03's predated a recut of its own audio by 20 hours -- every word
+onset was shifted a median +0.239 s, which scored as 1.3% and was recorded in
+the plan as "forced alignment is nearly useless, 4%". Nothing in the artefact
+said so; the text still matched. Re-run this script whenever the audio moves,
+and see fa_eval.py's --allow-stale-fa guard.
+
+What still holds, and is the reason this approach is right:
+  * word onsets ARE accurate where they exist, so they are hard anchors for the
+    note-level DTW -- what ALIGN-02 wanted the chanter's manual pins for.
   * the same alignment gives syllable timing for SYL-01 and training labels for
     the onset model, without the chanter pinning anything.
-  * CTC score identifies WHICH hymn a recording is: the right text aligns well,
-    a wrong one does not. That is a far better matcher than string similarity
-    over a fragmented lyric layer, and it fixes hymn boundaries too.
+  * CTC score identifies WHICH hymn a recording is -- but score it with
+    name_check.py, never with the loss (see CTC-loss-is-not-correctness).
 """
 import argparse
 import json
@@ -64,14 +94,30 @@ def to_vocab(text, vocab):
     return words
 
 
+_MODEL_CACHE = {}
+
+
+def _load(device):
+    """Processor and model for a device, loaded once per process.
+
+    align() used to load both on every call. That is invisible for one track and
+    costs 424 weight loads over a 160-track batch (realign_fa.py), so it is
+    cached here rather than at each call site.
+    """
+    if device not in _MODEL_CACHE:
+        from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+        proc = Wav2Vec2Processor.from_pretrained(MODEL)
+        model = Wav2Vec2ForCTC.from_pretrained(MODEL).to(device).eval()
+        _MODEL_CACHE[device] = (proc, model)
+    return _MODEL_CACHE[device]
+
+
 def align(audio_path, text, device='cpu'):
     import torch
     import torchaudio
     import torchaudio.functional as F
-    from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
-    proc = Wav2Vec2Processor.from_pretrained(MODEL)
-    model = Wav2Vec2ForCTC.from_pretrained(MODEL).to(device).eval()
+    proc, model = _load(device)
     vocab = proc.tokenizer.get_vocab()
 
     # read via ffmpeg: torchaudio 2.11 routes load() through torchcodec, which

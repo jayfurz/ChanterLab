@@ -11,7 +11,9 @@ Measured: only 54% of hymns begin exactly on a drop cap.
 Earlier attempts fitted boundaries against GLT string similarity or against
 audio duration, and both were too weak to move a boundary safely. Forced
 alignment changes that: CTC has now decided, acoustically, WHICH canonical text
-this recording sings (validated on gold #2 at 0.028 s onset error). So the test
+this recording sings (validated on gold #2: FA word onsets sit a median 0.0345 s
+from a real note onset -- a 32-word statistic, NOT an onset accuracy; see
+NEURAL-CHANT.md 0.4). So the test
 becomes concrete —
 
     does each LINE of the score slice appear in the text the singer actually sang?
