@@ -143,7 +143,7 @@
   <button id="paraflagbtn" title="Flag a wrong parallagi (X): tap a glyph to mark the shown degree wrong; flagged glyphs turn red and the flag is saved on the server">Para⚑</button>
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
-  <button id="refitbtn" title="Redistribute all UNPINNED markers by beat weight: between pins piecewise, and beyond the outermost pins at the tempo those pins measure (not stretched to the audio edges). Pins never move. Pin a few, refit, pin the next few…">Refit</button>
+  <button id="refitbtn" title="Redistribute UNPINNED markers by beat weight: between pins piecewise, and beyond the outermost pins at the tempo those pins measure (not stretched to the audio edges). Pins never move. SELECT A NOTE FIRST and refit touches only the markers AFTER it, projecting from that note — everything at or before it is left alone. Pin a few, refit, pin the next few…">Refit</button>
   <button id="resetbtn" title="Clear correction + pin on selected marker (R)">Reset</button>
   <button id="clearbtn" title="Discard ALL local edits">Clear</button>
 </div>
@@ -543,6 +543,25 @@ function refitUnpinned() {
     $('savestate').textContent = 'refit needs at least one pin';
     return;
   }
+  /* A selection is a FLOOR, not just a pin filter. Chanter: "fix the refit so
+     it only refits the notes AFTER the one i have selected."
+
+     Dropping the pins past the selection was only half of it. The passes below
+     also rewrote markers BEFORE the selection -- the head pass rewrites
+     everything ahead of the first pin, and the between-pins pass rewrites every
+     unpinned marker between any two pins, including ones the chanter had
+     already placed by ear and left unpinned. So selecting a note to say "I have
+     checked this far" still moved work behind it.
+
+     `lo` is that floor: no marker at an index <= lo is written by any pass. */
+  const lo = sel >= 0 ? sel : -1;
+  /* With a floor, the projection has to START at the floor, not at the last pin
+     before it. Otherwise the markers just after the selection are placed by
+     extrapolating from a pin that may be far behind, and they jump away from
+     the note the chanter is looking at. The PACE still comes from the pins --
+     that is the measurement his rule is about -- but the ORIGIN is the boundary
+     he chose. */
+  const origin = (lo >= 0 && lo > anchors[anchors.length - 1]) ? lo : null;
   const w = (D.slots.w && D.slots.w.length === n) ? D.slots.w : new Array(n).fill(1);
   const cum = new Array(n + 1); cum[0] = 0;
   for (let i = 0; i < n; i++) cum[i + 1] = cum[i] + (w[i] > 0 ? w[i] : 1);
@@ -553,7 +572,7 @@ function refitUnpinned() {
     const db = cum[b] - cum[a];
     if (db <= 0 || t(b) <= t(a)) continue;
     for (let i = a + 1; i < b; i++)
-      corrected[i] = t(a) + (t(b) - t(a)) * (cum[i] - cum[a]) / db;
+      if (i > lo) corrected[i] = t(a) + (t(b) - t(a)) * (cum[i] - cum[a]) / db;
   }
   /* Outside the pinned range, carry the tempo the PINS just measured rather
      than stretching to the audio edge.
@@ -594,25 +613,32 @@ function refitUnpinned() {
   const pace = paceFrom(anchors);
   // head: back from the first pin at the measured pace
   const a0 = anchors[0];
-  if (a0 > 0 && cum[a0] > 0) {
+  if (a0 > 0 && cum[a0] > 0 && a0 - 1 > lo) {
     const spb = pace ?? (t(a0) / cum[a0]);
     for (let i = 0; i < a0; i++)
-      corrected[i] = Math.max(0, t(a0) - (cum[a0] - cum[i]) * spb);
+      if (i > lo) corrected[i] = Math.max(0, t(a0) - (cum[a0] - cum[i]) * spb);
   }
   // tail: forward from the last pin at the measured pace
-  const aL = anchors[anchors.length - 1];
+  const aL = origin ?? anchors[anchors.length - 1];
   if (aL < n - 1 && cum[n] > cum[aL]) {
     const spb = pace
                 ?? (Math.max(0, D.meta.duration - 0.3 - t(aL)) / (cum[n] - cum[aL]));
     const lim = D.meta.duration - 0.05;
     for (let i = aL + 1; i < n; i++)
-      corrected[i] = Math.min(lim, t(aL) + (cum[i] - cum[aL]) * spb);
+      if (i > lo) corrected[i] = Math.min(lim, t(aL) + (cum[i] - cum[aL]) * spb);
   }
-  for (let i = 1; i < n; i++)          // keep strictly monotone
+  // Monotonicity is also bounded by the floor: nudging marker lo+1 is fine, but
+  // marker lo must not move, so start the walk after it.
+  for (let i = Math.max(1, lo + 2); i < n; i++)
     if (!pinned[i] && slotT(i) <= slotT(i - 1))
       corrected[i] = slotT(i - 1) + 0.01;
+  const nRefit = lo >= 0
+    ? (n - 1 - lo) - anchors.filter(i => i > lo).length
+    : n - anchors.length;
   $('savestate').textContent =
-    `refit ${n - anchors.length} markers from ${anchors.length} pins` +
+    (lo >= 0
+      ? `refit ${nRefit} markers after #${lo} from ${anchors.length} pins`
+      : `refit ${nRefit} markers from ${anchors.length} pins`) +
     (dropped ? ` (dropped ${dropped} stacked/out-of-range pins)` : '');
   save(); dirtyTL = true; dirtyScore = true;
 }
