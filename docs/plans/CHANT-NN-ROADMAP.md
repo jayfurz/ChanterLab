@@ -259,6 +259,34 @@ Scored against it:
   edges are boundary conditions of the DTW, not of the music: open-ended
   alignment at the start and end (subsequence DTW with free ends) is the
   first thing to try before any model.
+
+**S4b-05 DONE 2026-08-23 — free-ended DTW: tried, mostly refuted.**
+`parallagi_template.py --free [--free-s W]`, scored on the real gold:
+
+  | | s03 | s05 |
+  |---|---|---|
+  | anchored mel (reference) | 84.2 %, 1 slip | 85.9 %, 1 slip |
+  | unbounded free ends | 84.2 % | **62.4 %**, bias +1.0 s |
+  | free within 2 s | 84.2 %, 1 slip | **87.1 %**, 1 slip |
+  | free within 4 s / 6 s | 84.2 % | 83.5 % / 72.9 %, 2 slips |
+
+  Unbounded free ends fail for a mechanical reason: the cumulative cost
+  rewards the *shortest* path, so the template compresses into a few
+  seconds of melos. Bounded to 2 s it repairs exactly one thing — s05's
+  opening (gi 0: −1.8 s → +0.19 s) — and nothing else. What remains, by
+  note, is the same shape in both pieces: a **mid-piece run** (s03 gi
+  54–59 at −0.2…−0.76 s; s05 gi 56–58 at +0.5 s) and s05's **ending**
+  (gi 81–84, −1.2…−2.0 s, too long for a 2 s window and too costly to free
+  further). The mid-piece run sits at the same place in two renditions of
+  the same hymn, which says it is a property of the music there — a
+  melisma, many notes on one vowel, where timbre has nothing to lock to
+  and pitch is the only channel with information. That is precisely where
+  `multi` should have helped and did not, because a fixed global weighting
+  cannot know *where* to trust which channel. Conclusion: the DTW is at its
+  ceiling (~85 %, 1 slip per piece) and the remaining slips are the
+  learned model's job — S4b-02, with the first design requirement now
+  concrete: per-frame channel weighting that leans on pitch inside
+  melismas and on timbre at syllable changes.
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);

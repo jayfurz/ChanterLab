@@ -109,14 +109,29 @@ def contour_from(y):
     return c, ok
 
 
-def dtw_path(A, B, band=None):
-    """DTW on frame-feature matrices with a Sakoe-Chiba band; returns the path."""
+def dtw_path(A, B, band=None, free=False):
+    """DTW on frame-feature matrices with a Sakoe-Chiba band; returns the path.
+
+    free=True: subsequence DTW. The template (A, the parallagi from its sung
+    start) must be consumed whole, but it may begin anywhere in B (the melos)
+    and end anywhere -- D[0, j] = 0 for every j, and the path ends at the
+    cheapest cell of the last row. Measured need: on s05 the anchored DTW
+    pinned the parallagi's first note to the melos's first frame (-1.8 s) and
+    dragged its last notes through the final melisma (-2.0 s); both are the
+    corners of an anchored alignment, not the music.
+    """
     A = np.atleast_2d(A.T).T if A.ndim == 1 else A
     B = np.atleast_2d(B.T).T if B.ndim == 1 else B
     n, m = len(A), len(B)
     band = band or max(n, m)
     D = np.full((n + 1, m + 1), np.inf, dtype=np.float32)
     D[0, 0] = 0.0
+    if free:
+        # Bounded, or the free end rewards the SHORTEST path: with no window
+        # the alignment compresses the whole template into a few seconds of
+        # melos (measured: bias +1.0 s on s05, +4.8 s on s03 at band 20 s).
+        w = int(free) if free is not True else m
+        D[0, :min(w, m) + 1] = 0.0
     for i in range(1, n + 1):
         jc = int(i * m / n)
         lo, hi = max(1, jc - band), min(m, jc + band)
@@ -124,7 +139,13 @@ def dtw_path(A, B, band=None):
         row, prev = D[i], D[i - 1]
         for j in range(lo, hi + 1):
             row[j] = d[j - lo] + min(prev[j], row[j - 1], prev[j - 1])
-    i, j, path = n, m, []
+    if free:
+        w = int(free) if free is not True else m
+        j = m - w + int(np.argmin(D[n, max(1, m - w):m + 1])) if w < m else int(np.argmin(D[n]))
+        j = max(j, 1)
+    else:
+        j = m
+    i, path = n, []
     while i > 0 and j > 0:
         path.append((i - 1, j - 1))
         k = np.argmin((D[i - 1, j - 1], D[i - 1, j], D[i, j - 1]))
@@ -156,6 +177,9 @@ def main():
     ap.add_argument('--mel-pins', required=True)
     ap.add_argument('--band-s', type=float, default=8.0, help='DTW band, seconds')
     ap.add_argument('--cost', default='mel', choices=('pitch', 'mel', 'multi'))
+    ap.add_argument('--free', action='store_true', help='free start and end on the melos side')
+    ap.add_argument('--free-s', type=float, default=0.0,
+                    help='bound the free start/end to this many seconds at each edge (0 = unbounded)')
     ap.add_argument('--out', help='prefix for the two prediction files')
     a = ap.parse_args()
 
@@ -179,7 +203,8 @@ def main():
     stretch = {g: sm + max(t - sp, 0.0) * dm / dp for g, t in po.items()}
 
     # DTW on pitch contour, parallagi onsets carried across the path
-    path = dtw_path(cp, cm, band=int(a.band_s * SR / HOP))
+    fr = (int(a.free_s * SR / HOP) if a.free_s else True) if a.free else False
+    path = dtw_path(cp, cm, band=int(a.band_s * SR / HOP), free=fr)
     first = {}
     for i, j in path:
         first.setdefault(i, j)
@@ -193,7 +218,7 @@ def main():
         dtw[g] = sm + j * HOP / SR
 
     out = a.out or os.path.join(os.path.dirname(a.mel_pins), 'template')
-    for nm, pred in (('stretch', stretch), ('dtw_' + a.cost, dtw)):
+    for nm, pred in (('stretch', stretch), ('dtw_' + a.cost + (('_free%g' % a.free_s) if a.free else ''), dtw)):
         f = '%s_%s.json' % (out, nm)
         json.dump({str(g): round(t, 4) for g, t in sorted(pred.items())}, open(f, 'w'), indent=1)
         print('->', f)
