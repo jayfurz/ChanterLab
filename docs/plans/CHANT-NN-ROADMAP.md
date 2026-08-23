@@ -287,6 +287,33 @@ Scored against it:
   learned model's job — S4b-02, with the first design requirement now
   concrete: per-frame channel weighting that leans on pitch inside
   melismas and on timbre at syllable changes.
+
+**S4b-02 DONE 2026-08-23 — the melos onset model meets the release gate,
+held out.** `tools/neural/melos_onset_net.py`. The model is the *cost*,
+not the alignment: a 0.10 M-parameter conv encoder embeds every 10 ms frame
+(40 mel + cents + onset strength, ±100 ms context) of either rendition; the
+DTW match cost is the embedding distance; the same monotonic DTW (band 8 s,
+melos free within 2 s) carries the parallagi onsets across. Trained by
+InfoNCE on frame *correspondences* derived from the two gold onset sets
+(~4.6 k positive pairs per piece; hard negatives = melos frames of other
+notes within ±6 s), so 161 notes are enough. Held out by piece:
+
+  | held out (trained on the other pair) | ≤150 ms | ≤100 ms | ≤50 ms | bias | slips |
+  |---|---|---|---|---|---|
+  | **s03** | **92.1 %** | 92.1 % | 81.6 % | −0.005 s | **0** |
+  | **s05** | **94.1 %** | 90.6 % | 76.5 % | −0.028 s | **0** |
+  | mel DTW, for comparison | 84.2 / 87.1 % | | | | 1 / 1 |
+  | forced alignment (t03) | 55.3 % | | | | |
+
+  NEURAL-CHANT.md §9's release criterion — ≥ 90 % within 150 ms, zero
+  slips — is met on both held-out pieces. Residuals: s03's melisma run
+  57–59 is now −0.3…−0.76 s (a short run, under the slip length) and s05's
+  last three notes −0.4…−0.85 s. What is *not* shown: generalisation across
+  hymns — s03 and s05 are two renditions of the same hymn, so the held-out
+  piece shares its melody with the training piece. The next gold melos
+  from a different hymn is the real test, and the seed for it should come
+  from this model (`models/melos_cost_s03s05.pt`, trained on both),
+  checked for zero slips before it is handed over.
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);
