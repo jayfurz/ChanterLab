@@ -214,8 +214,20 @@ includes `s03-melos`. Scored against it (`onset_eval.py`):
   is exactly the re-synchronisation failure the model exists to fix, and
   (3) the draft's −0.105 s bias confirms his own diagnosis of the old melos
   pins. The pitch-transfer row is independent of his editing (75 %).
-  Next: seed s05 the same way (its mel transfer was already 85 % against the
-  draft); with two trusted melos the S4b-02 model has a held-out pair.
+  **s05 seeded the same way and REVERTED** — chanter: *"s05 is all wrong
+  revert it."* So the 84.6 % the mel transfer scored on s05 against the
+  *untrusted draft* meant nothing, which is exactly what the draft ruling
+  said it would mean, and the s03 success does not generalise by itself. The
+  tell was visible before he opened it: note 0 landed at 0.05 s, i.e. the
+  parallagi's first note mapped to the file's first frame — s05 has no
+  recorded sung onset in its meta, and the DTW had no apichima trim on the
+  melos side. Whether the rest was a single anchoring error or a real
+  failure to lock is unknown until s05 has gold; the draft is restored and
+  the seed retained only as `history/` evidence. Do not seed another melos
+  from the transfer without (a) a sung-onset estimate on the melos side and
+  (b) a lock check a human can read (the pitch-vs-mel agreement, or the
+  slip count against the draft, which is valid for *slips* even when the
+  draft is early).
 
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
