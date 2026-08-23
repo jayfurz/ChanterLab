@@ -544,3 +544,78 @@ chant-annotator worktree's `annotator/data`, hymn = `meta.source.span`):
 
 A vLLM worker was holding 22 GB of the GPU during these runs; `lane_features`
 had to go to `--device cpu`.
+
+---
+
+## 6. Where we are — the nets, 2026-08-23
+
+Eleven melos seeded from the model (s09 s11 s13 s15 s17 s19 s25 s29 s31 s41
+s43, lock check in each `seed_provenance.json`); s03/s05 already gold.
+
+| net | file / weights | job | measured |
+|---|---|---|---|
+| Peak onset detector | `quick_onset.py` / `quick_onset_s020406_e200.pt` (3.2 M) | one articulation per note on a parallagi | recall 1.000 @50 ms held out; intro-masked since bc32cee |
+| Degree classifier | `parallagi_class.py` / `parallagi_class_s020406.pt` (13 M) | which of 15 degrees each parallagi note sings | **98.1 %** leave-one-hymn-out |
+| Melos cost encoder | `melos_onset_net.py` / `melos_cost_s03s05*.pt` (0.1 M ×3) | frame embedding whose distance is the parallagi↔melos DTW cost | **92 / 94 %** in gate, 0 slips, held out cross-melody |
+| Piece cutter | `piece_bounds.py` / `piece_bounds_grave_e4000.pt` (6 M) | start/end of pieces on an hour tape | F1 0.989 self-fit; 47/48 IoU ≥ 0.9 vs gold |
+| Lane detector | `lane_features.py` / `lane_feat.joblib` (logistic on 31 dims) | parallagi or melos | 84.8 % held-out cross-mode |
+| (identification) | `degree_match_clf.py` — no net of its own | which hymn a parallagi is | 21/23, rank 1 (peaks + classifier + DTW) |
+
+### On a MoE with a router
+
+Not yet, and mostly not ever in the literal sense. A mixture-of-experts is
+one input, several interchangeable experts, a learned router picking among
+them. These six are not interchangeable — they answer different questions at
+different granularities, and the pipeline already has its router: the lane
+detector routes spans, the pairing routes identity, the lock check routes
+seeds. Gluing them behind a learned router would add a component that can
+fail without adding a capability.
+
+What IS worth unifying is the **front end**: four of the six consume the
+same log-mel frames, and the melos cost encoder's embedding is already a
+general similarity space for this voice. The realistic consolidation, when
+the corpus is bigger, is one shared frame encoder with task heads (onset,
+degree, lane, boundary, match-cost) trained multi-task — call it CHANT-NN-1.
+Prerequisite is data breadth (a second mode, ideally a second singer), not
+architecture. Until then the cascade of small nets is the strength, not the
+debt: each stage is measurable, and every one of this week's failures was
+found because a stage could be scored alone.
+
+### s47 (doxology) after the truncation fix
+
+Chanter: "doxology melos does follow parallagi always. just truncated."
+Truncating the template in FRAMES (not only the onset list) took it 17 % →
+30 %, monotonic, run 79 — still far from a seed. The first 396 parallagi
+notes span 188 s where the melos sings 223 s (ratio 1.18, the largest in
+the corpus), and disagreement starts around gi 45. Open; next lever is a
+wider band for high-ratio pairs.
+
+## 7. OCR for scanned books (image-MCR)
+
+The born-digital pipeline (vector glyphs → 94 shape clusters → legend) reads
+the Ioannou Anastasimatarion; scans have no text layer, so a raster front
+end is the missing piece. What exists: `tools/mcr/` already trains glyph
+CNNs (`train_cnn.py`, `extract_vector_glyphs.py`, `em_legend.py`); the
+scanned liturgy anthology is identified (`E8B593F3AAED0BC6.pdf`); EZ-font
+PDFs cover the born-digital end. The cheap, high-yield route: render the
+673-page vector book to images and train detection+classification on it —
+unlimited perfectly-labelled raster training data from a book we already
+have ground truth for, then domain-shift (blur, skew, bleed, paper texture)
+toward real scans. That reuses the whole legend/decoder stack downstream of
+the glyph layer. Tracked under 70-expansion (raster OMR); the synthetic-
+from-vector idea is the concrete first step.
+
+## 8. Melodos (melodos.com) as a synthesis oracle
+
+Chanter has Melodos on an old laptop; it plays back synthesized renditions
+of Byzantine scores. If it can export (or record) that audio, it is a
+**synthesis oracle**: score in, audio out, with onsets and degrees right by
+construction. Uses, in value order: (1) unlimited labelled training audio
+for the onset and degree nets in modes and genera the tape corpus lacks;
+(2) a reference rendition to align a scanned score against (the parallagi-
+template trick, with a synthetic parallagi, for any hymn with no recorded
+parallagi); (3) a check on our own beat/duration model — Melodos's timing
+embodies someone else's reading of the same notation. Questions for the
+chanter: can it batch-export audio or MIDI, what score format does it read
+(its own? PSALTIKA? BZQ?), and can its score files be gotten off the laptop
+— its file format may itself be a parseable score source.

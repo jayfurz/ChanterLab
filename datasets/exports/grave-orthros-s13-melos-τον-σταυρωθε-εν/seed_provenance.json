@@ -1,0 +1,13 @@
+{
+ "seeded_at": "20260823-131236",
+ "method": "melos_onset_net learned-cost transfer from paired parallagi (peak onsets)",
+ "lock_check": {
+  "n": 64,
+  "melos_sung_start": 0.0,
+  "n_models": 3,
+  "agree_150": 1.0,
+  "longest_disagreement_run": 0,
+  "monotonic": true,
+  "disagree_gi": []
+ }
+}

@@ -253,8 +253,17 @@ def infer_pair(net, par_dir, par_onsets, mel_dir, dev):
     from parallagi_template import channels
     po = load_onsets(par_onsets)
     n_mel = len(json.load(open(os.path.join(mel_dir, 'annotator_data.json')))['slots']['gi'])
-    if len(po) > n_mel:                     # s46/s47: the tape ran out mid-melos
-        po = {g: po[g] for g in sorted(po)[:n_mel]}
+    trunc_s = None
+    if len(po) > n_mel:
+        # The tape ran out mid-melos (the doxology). Chanter: "doxology melos
+        # does follow parallagi always. just truncated." So the melos is the
+        # FIRST n_mel notes of the parallagi -- and the template handed to the
+        # DTW must be truncated too, in FRAMES, not only the onset list:
+        # aligning the full 400 s template against a 222 s melos put the true
+        # path far off the diagonal, outside the band (measured: 17 %).
+        keys = sorted(po)
+        trunc_s = po[keys[n_mel - 1]] + (po[keys[n_mel]] - po[keys[n_mel - 1]] if n_mel < len(keys) else 0.6)
+        po = {g: po[g] for g in keys[:n_mel]}
     # No detector-based melos trim: the held-pitch detector fires on an
     # ordinary held note (s05: 18.0 s where the gold starts at 1.9 s). And no
     # wide free window: every wide window compresses (s05 held-out 94 % -> 1 %).
@@ -264,6 +273,8 @@ def infer_pair(net, par_dir, par_onsets, mel_dir, dev):
     d = {'par_dir': par_dir, 'mel_dir': mel_dir, 'po': po, 'sm': 0.0,
          'Xp': frames(os.path.join(par_dir, 'audio.wav')),
          'Xm': frames(os.path.join(mel_dir, 'audio.wav'))}
+    if trunc_s is not None:
+        d['Xp'] = d['Xp'][:int(trunc_s * SR / HOP)]
     nets = net if isinstance(net, list) else [net]
     for _ in range(15):
         pred = align(nets[0], d, dev)
