@@ -195,6 +195,28 @@ pins.
   chanter the mel-transfer onsets for s03 as a seed to review (S4b-03); the
   model (S4b-02) now only has to buy the last 10–15 % and the remaining slip.
 
+**S4b-03 DONE 2026-08-23 — s03 is the first trusted melos gold (76 notes).**
+Seeded with the mel transfer; chanter: *"there was one section where it was
+noticeably one note early but fixed itself. I've corrected that and fine
+tuned the onsets. mark this export all gold."* `gold_times.COMPLETE` now
+includes `s03-melos`. Scored against it (`onset_eval.py`):
+
+  | prediction | ≤150 ms | ≤50 ms | bias | slips |
+  |---|---|---|---|---|
+  | **mel transfer (the seed)** | **84.2 %** | 72.4 % | −0.03 s | 1 |
+  | pitch transfer | 75.0 % | 67.1 % | −0.06 s | 1 |
+  | his earlier draft (49 of 76 placed) | 46.1 % | 21.1 % | **−0.105 s** | 1 |
+
+  Read the seed row with care: he started from it, so agreement where he
+  did not drag is partly acceptance, not independent measurement. The
+  independent facts are (1) he moved 12 of 76 notes (16 %), (2) one section
+  was a full note early and self-corrected — the one remaining slip, which
+  is exactly the re-synchronisation failure the model exists to fix, and
+  (3) the draft's −0.105 s bias confirms his own diagnosis of the old melos
+  pins. The pitch-transfer row is independent of his editing (75 %).
+  Next: seed s05 the same way (its mel transfer was already 85 % against the
+  draft); with two trusted melos the S4b-02 model has a held-out pair.
+
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);
