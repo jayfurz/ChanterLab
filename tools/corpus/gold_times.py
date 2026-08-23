@@ -62,7 +62,8 @@ SEALED = ('s01',)
 
 
 # Declared complete by the chanter. Add a hymn here ONLY when he says so.
-COMPLETE = ('s02-parallagi', 's04-parallagi', 's06-parallagi')
+COMPLETE = ('s02-parallagi', 's04-parallagi', 's06-parallagi',
+            's03-melos')    # 2026-08-23: re-pinned from the mel-transfer seed, "mark this export all gold"
 
 # MELOS PINS ARE NOT TRUSTED. Chanter, 2026-08-23: "we cant really trust s03
 # or s05 because i might not have perfectly done the onsets when i did it
@@ -72,7 +73,7 @@ COMPLETE = ('s02-parallagi', 's04-parallagi', 's06-parallagi')
 # never tune, lock, or gate a melos onset model against them. They may be used
 # to notice a slip (seconds), not to judge precision (150 ms). The trusted
 # labels are the three parallagi above, which were pinned against the peaks.
-UNTRUSTED = ('s03-melos', 's05-melos')
+UNTRUSTED = ('s05-melos',)          # s03 was re-pinned and declared gold 2026-08-23
 
 
 def is_done(piece_name):
