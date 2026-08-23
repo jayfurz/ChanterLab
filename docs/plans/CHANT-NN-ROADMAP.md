@@ -651,3 +651,42 @@ Wine is a possible route to run it on the Linux box, but the payoff (manual,
 un-scriptable playback) does not justify it. Recommendation: use Melodos as
 a **reference-audio source the chanter records**, not as a pipeline
 component; the toc.json is the only part that enters the pipeline directly.
+
+## 9. The closed loop — slip_check.py (2026-08-23)
+
+Owner: *"a closed loop feedback system to make sure things are correct. for
+example if we have slip we would be able to find it and compare."* Built:
+`tools/corpus/slip_check.py`. The loop closes because the verifier never sees
+the alignment it judges: the alignment claims note *i* starts at *t_i*, the
+score says note *i* is degree *d_i*, and the pitch tracker reads what degree
+actually sounds at *t_i*. Right alignment → agreement at the gold rate
+(measured 0.91/0.87 on s03/s05 with the chanter's onsets). Slip → every note
+after it is compared to the wrong score degree and a sliding window shows
+agreement collapsing FROM THE SLIP POINT — detection and location at once.
+One trap found and fixed: base estimation has near-symmetric optima, so heard
+degrees can be globally rotated (11 correct pieces scored ~0.01, below
+chance); agreement is now taken under the best global rotation, which a slip
+cannot fake because a slip is local.
+
+Calibration: gold onsets CLEAN on both; the mel-DTW's two real bad runs on
+s05 flagged at gi 54–61 and 76–84 (truth 56–58, 81–84). Known limit: the
+0.3 s wobble on s03 (54–59) is NOT caught — it detects desyncs, not
+imprecision — and it cannot distinguish a slipped alignment from a wrong
+score or genus in the same window (all three deserve review anyway).
+
+Verdicts on the 11 seeds (`melos_preds_grave-orthros/slip_report_20260823.txt`,
+per-piece regions in `slipcheck.<piece>.json`):
+
+    CLEAN        s11 0.97   s15 0.91
+    near-clean   s13 0.86 (gi 54–63)   s09 0.74 (gi 71–92)
+    review       s17 0.66  s41 0.62  s31 0.61  s25 0.58  s19 0.46  s29 0.41  s43 0.34
+
+**Why this catches what the ensemble lock could not:** the three ensemble
+models share the same peak-derived PARALLAGI onsets, so an index error there
+fools all three identically — the lock check's blind spot. The closed loop
+uses pitch, which shares nothing with the transfer chain. The low scorers are
+therefore most likely parallagi-side index errors (intro peaks on pieces
+without a t_in mark) or chromatic/genus mismatches — both worth finding
+before the chanter opens those pieces. Sensible order now: chanter does s11
+and s15 first (verified clean two independent ways); the review pile waits
+for a parallagi-onset audit against the degree classifier's confidence.
