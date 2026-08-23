@@ -158,9 +158,22 @@ classify each note and overfit it on that."*
   the octave anchor drifts across 278 s, the contour does not.
   Weights: `/mnt/data/chant-corpus/models/{quick_onset_s020406_e200,
   parallagi_class_s020406}.pt`; sequences and log beside them.
-- **S3-02** Propagate: melos identity := identity of preceding parallagi.
-  Parallagi spans leave the text-identification pool entirely (they were
-  poisoning it — half the audio "is not text at all").
+- **S3-02 DONE 2026-08-22.** `tools/corpus/propagate_identity.py`: each
+  melos inherits the score range of the classifier-identified parallagi
+  before it, scored by unit-set IoU against the chanter's own melos range.
+  **21/23 melos (18/20 held out) inherit the right parallagi and a range as
+  good as the chanter's pair**; 20/23 at IoU ≥ 0.9 (the doxology melos is
+  0.53 against *both* — the tape ran out, PARALLAGI-PAIRING.md). Text route
+  on the same tape: 20 %. Output: `texts/identity_grave-orthros.json`.
+  Two things the margins say: the chanter's melos range equals the parallagi
+  range in 22/23 pairs, so inheritance is exact, not approximate; and the
+  four short apostichon parallagi (`#22 #24 #26 #28`) sit at DTW margin
+  0.03–0.04 against each other — a near-tie cluster, where `#24` is the one
+  miss. Everything else has margin ≥ 0.15. A margin gate at ~0.1 would route
+  exactly that cluster to review.
+  Still to do: parallagi spans leave the text-identification pool
+  (`hymn_align`/RESEP) — that is pipeline wiring on the *machine* cuts, which
+  first need S1-03's neural cutter so the pairing holds there.
 - **S3-03** Score bounds: with identity fixed, `boundary_from_fa.py` +
   drop-cap + right-aligned-martyria rules get a correct hymn to bound. Measure
   with the 110/173 drop-cap figure and the clipped-track count.
