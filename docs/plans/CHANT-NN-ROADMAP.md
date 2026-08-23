@@ -229,6 +229,29 @@ includes `s03-melos`. Scored against it (`onset_eval.py`):
   slip count against the draft, which is valid for *slips* even when the
   draft is early).
 
+**S4b-04 DONE 2026-08-23 — s05 is gold too (85 notes), re-pinned by the
+chanter from his own draft: *"this is now the golden one — lots of changes
+had to happen."* `gold_times.COMPLETE` has both melos; `UNTRUSTED` is empty.
+Scored against it:
+
+  | prediction | ≤150 ms | ≤50 ms | bias | jitter | slips |
+  |---|---|---|---|---|---|
+  | mel transfer (the reverted seed) | 85.9 % | 62.4 % | −0.09 s | 0.41 s | 1 |
+  | pitch transfer | 8.2 % | 7.1 % | −1.97 s | | 3 |
+  | his draft (65 of 85 placed) | 74.1 % | 56.5 % | −0.03 s | 0.05 s | 0 |
+
+  Two lessons, both worth more than the number. (1) His s05 draft was
+  *not* early — bias −0.03 s, jitter 0.05 s, median 0 on the notes he had
+  placed. The early-drag problem was s03's, not a property of every melos
+  draft. (2) The seed was in gate on 86 % of notes and he still called it
+  "all wrong": the 14 % out of gate form one contiguous slipped section
+  (jitter 0.41 s, 1 slip), and to a chanter following along, a section
+  that is one note early is the *whole piece* being wrong. A seed is
+  judged by its worst run, not its mean. That is the release criterion
+  NEURAL-CHANT.md already states — **zero slips** — and it is now backed by
+  the chanter's reaction, not just a number. So the S4b-02 model's target
+  is the slip, and the seed policy is: never hand over a seed with a slip.
+
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);
