@@ -228,3 +228,24 @@ but genuinely lacks the discriminative structure, consistent with the identity
 check. And a trained model should take tonic-relative pitch as a FEATURE while
 learning the base implicitly, rather than depending on an explicit estimate
 that is demonstrably unstable on half the data.
+
+## 2026-08-22 — Stage 2 + Stage 3 gate: PASSED
+
+`tools/neural/parallagi_class.py` (15-class, two-octave, per-onset CNN on
+mel) is the Stage 2 recogniser: **98.1 % leave-one-hymn-out** over 258
+chanter-onset notes on s02/s04/s06.
+
+`tools/corpus/degree_match_clf.py` re-runs the Stage 3 test with it, using
+`quick_onset.py` peaks (threshold, no score count) for the onsets and the
+unchanged DTW matcher:
+
+    classifier sequence, mod-7 + rotation   21/23   median rank 1   (held out 18/20)
+    classifier sequence, absolute           20/23   median rank 1   (held out 17/20)
+    pitch quantiser (above)                  1/21   median rank 11
+    ASR                                      2/23   median rank ~9
+    identity ceiling                        20/21
+
+The prediction in "What that combination means" held: the matcher needed an
+ordered sequence, and a model trained per note supplies one. Misses are
+`t01_#24` (rank 2 behind a contour-twin, `#28`) and `t01_#32` (onset
+under-detection: 121 of 145). Stage 4 (wav2vec2 fine-tune) is not needed.

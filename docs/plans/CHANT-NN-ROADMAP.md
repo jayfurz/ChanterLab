@@ -15,7 +15,8 @@ was not re-run, it is marked **(runtime)**.
 the audio cutter and the parallagi onset model" — undersells it.** Measured
 2026-08-22: the parallagi degree classifier is at 98 % held-out, and the neural
 piece cutter fits its one tape at F1 0.99. What is genuinely broken is hymn
-identification (stage 3); lane transfer (stage 2) is at 85 % with the hand-feature model.
+identification (stage 3) — and by the end of the day that too was measured at
+**21/23** with the classifier sequence (§S3-01), against 2/23 before.
 
 ---
 
@@ -60,6 +61,7 @@ the same thing — the pairing.
 | 2 | Pairing | PARALLAGI-PAIRING.md, `piece_bounds.py --lanes` | **Proven structural prior**: 23/23 melos preceded by its parallagi, 0 orphans. Acts as a checksum on stages 1–2 | — |
 | 3 | Identify | CTC loss gate + `name_check.py` | **Broken, measured why.** Loss gate says 81 %; free-label truth is **20 %** end-to-end; candidate selection itself ~53 %; margins 0.03–0.48/tok | RESEP-IDENTIFICATION.md |
 | 3 | Identify via degrees | `degree_pitch.py`, `degree_match.py` | Stage-1 gate passed (histogram cosine 0.73 vs ASR 0.47, residual 20 cents); stage-3 gate **failed** (1/21, chance). Matcher proven fine (identity 20/21) — the recogniser is the whole gap | DEGREE-CLASSIFIER.md |
+| 3 | Identify via classifier | `degree_match_clf.py` (onsets + `parallagi_class` + same DTW) | **Working.** | **21/23** all, **18/20** held out, median rank 1 (2026-08-22) |
 | 3 | Score bounds | `boundary_from_fa.py`, `dropcap_*`, `martyria_check.py` | Partial. 110/173 slices start on a drop cap (64 %) | PIECE-RESEPARATION.md |
 | 3 | Score → units | `hymn_align.py` decoder, `beats_seq`, legend/atlas | **Working and chanter-audited** (DECODE-01, DUR-01, KEY-01 largely landed) | 76/76 t03 units correct count |
 | 4 | Onsets (FA) | `forced_align.py`, `fa_eval.py`, `onset_eval.py` | Baseline. Character path 55.3 % within 150 ms, 56/76 placed | t03 (burnt) |
@@ -136,10 +138,26 @@ classify each note and overfit it on that."*
 
 ### S3 — identify the hymn and cut the score
 
-- **S3-01** Re-run the 2/23 test with S5's sequence in place of
-  `degree_pitch.py`'s quantised stream. This is the single number that decides
-  whether degree-based identification works. Matcher is proven; recogniser is
-  the variable.
+- **S3-01 DONE 2026-08-22 — it works.** `tools/corpus/degree_match_clf.py`:
+  peak onsets (threshold 0.5, no count from the score) → degree classifier →
+  the same DTW as `degree_match.py`, over all 23 gold parallagi spans, whole
+  span, no 60 s limit.
+
+  | metric | all 23 | held out (excl. s02/s04/s06) |
+  |---|---|---|
+  | mod-7 + rotation (degree_match's metric) | **21/23**, median rank 1 | **18/20** |
+  | absolute two-octave, no rotation | 20/23 | 17/20 |
+  | ASR baseline | 2/23, rank ~9 | |
+  | pitch quantiser | 1/21, rank 11 | |
+
+  The two misses: `t01_#24` ranks 2 behind `t01_#28` (two short apostichon
+  verses with near-identical contours — 72 vs 70 onsets); `t01_#32` (121
+  onsets for 145 notated, classifier confidence 0.57, the lowest of the
+  short spans) — an onset under-detection, not a degree problem. The long
+  `t01_` span (482/485 onsets) is rank 1 on mod-7 and rank 15 absolute:
+  the octave anchor drifts across 278 s, the contour does not.
+  Weights: `/mnt/data/chant-corpus/models/{quick_onset_s020406_e200,
+  parallagi_class_s020406}.pt`; sequences and log beside them.
 - **S3-02** Propagate: melos identity := identity of preceding parallagi.
   Parallagi spans leave the text-identification pool entirely (they were
   poisoning it — half the audio "is not text at all").
