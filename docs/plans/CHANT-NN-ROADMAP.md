@@ -711,3 +711,17 @@ phthora read as diatonic — exactly the class of find the degree classifier
 made on s06. Those unit ranges are the chanter's review queue, written into
 each seed's `seed_provenance.json`. Still open: s18 and s42 (need better
 first/last anchors), s21 (antiphons), s47 (long doxology).
+
+### The shared ritardando prior (2026-08-23)
+
+Chanter, after fixing only the last two notes of the s17 seed (+0.32/+0.81 s):
+*"hard to find peaks and it slows down — but perhaps the ending is also able
+to be discerned because of how the other pieces slow down?"* Measured over
+all 8 gold onset sets: the last five IOIs stretch to a median
+**1.17 / 2.01 / 1.49 / 1.96 / 2.25** × the piece's tempo, openings at
+0.9–1.0 — end-specific, consistent across both lanes and seven melodies.
+Folded into `onset_match.py`'s beat prior (`--no-rit` to disable). A/B on
+the gold parallagi, two end pins only, `onset_eval`:
+
+    s02  100.0 % → 100.0 %          s04  96.5 % → 98.8 %
+    s06  95.9 %, 1 slip → **99.0 %, 0 slips**  (the documented 92–95 failure)

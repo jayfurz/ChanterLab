@@ -282,6 +282,8 @@ def main():
     ap.add_argument('--report', action='store_true')
     ap.add_argument('--hymn', help='scorecut hymn id, e.g. t01_#7, to enable pitch')
     ap.add_argument('--iters', type=int, default=3)
+    ap.add_argument('--no-rit', action='store_true',
+                    help='disable the shared closing-ritardando prior')
     ap.add_argument('--smooth', type=int, default=5,
                     help='notes in the tempo median. Small, because the closing '
                          'ritardando slows a lot and a wide window lags it')
@@ -298,6 +300,22 @@ def main():
     D = json.load(open(a.data))
     n = len(D['slots']['gi'])
     beats = np.array(D['slots'].get('w') or [1.0] * n, dtype=float)
+    # THE RITARDANDO IS SHARED. Chanter, 2026-08-23, on why endings resist
+    # pinning: "hard to find peaks and it slows down -- but perhaps the ending
+    # is also able to be discerned because of how the other pieces slow down?"
+    # Measured over the 8 gold onset sets (s02-s06, t03, s11/s15/s17; both
+    # lanes, seven melodies), the last five IOIs stretch to a median
+    #     1.17  2.01  1.49  1.96  2.25   (x the piece's median IOI)
+    # while openings sit at 0.9-1.0 -- end-specific and consistent. The one
+    # failure this file already documented, s06 notes 92-95 late by up to
+    # +1.85 s, is exactly this shape, and so were the only two notes the
+    # chanter moved on the s17 seed (+0.32/+0.81 s, the last two). Fold the
+    # profile into the written durations so the beat prior expects the
+    # slowdown instead of fighting it.
+    RIT = [1.17, 2.01, 1.49, 1.96, 2.25]
+    if not a.no_rit and n > len(RIT) + 4:
+        for k, r in enumerate(RIT):
+            beats[n - len(RIT) + k] *= r
     audio = os.path.join(os.path.dirname(os.path.abspath(a.data)), 'audio.wav')
     y = load_audio(audio)
     env = onset_envelope(y)
