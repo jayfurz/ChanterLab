@@ -308,12 +308,16 @@ notes within ±6 s), so 161 notes are enough. Held out by piece:
   NEURAL-CHANT.md §9's release criterion — ≥ 90 % within 150 ms, zero
   slips — is met on both held-out pieces. Residuals: s03's melisma run
   57–59 is now −0.3…−0.76 s (a short run, under the slip length) and s05's
-  last three notes −0.4…−0.85 s. What is *not* shown: generalisation across
-  hymns — s03 and s05 are two renditions of the same hymn, so the held-out
-  piece shares its melody with the training piece. The next gold melos
-  from a different hymn is the real test, and the seed for it should come
-  from this model (`models/melos_cost_s03s05.pt`, trained on both),
-  checked for zero slips before it is handed over.
+  last three notes −0.4…−0.85 s. **The held-out test is cross-melody.**
+  Chanter, 2026-08-23: s03 and s05 *"have different melodies. same words
+  but drastically different grave mode melodies."* So what the model
+  learned on one melody transferred to another it had never heard, with
+  only the text (and the mode, singer and tape) in common — the
+  generalisation that matters for the corpus. Still untested: a different
+  mode, and a different singer. The next seed should come from
+  `models/melos_cost_s03s05.pt` (trained on both), checked for zero slips
+  before it is handed over; s07 (ωςτηςημων, paired with the complete s06)
+  is the natural candidate.
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);
