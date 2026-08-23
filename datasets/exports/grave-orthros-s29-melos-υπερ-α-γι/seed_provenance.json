@@ -1,6 +1,6 @@
 {
- "seeded_at": "20260823-144211",
- "method": "transfer from onset_match-repaired parallagi peaks",
+ "seeded_at": "20260823-165455",
+ "method": "round 2: rit-aware onset_match parallagi -> transfer",
  "lock_check": {
   "n": 73,
   "melos_sung_start": 0.0,
@@ -18,7 +18,7 @@
  "slip_check": {
   "n": 73,
   "rotation": 3,
-  "overall_agreement": 0.603,
+  "overall_agreement": 0.616,
   "expected_when_correct": 0.89,
   "suspected_slips": [
    {
@@ -87,21 +87,21 @@
    0.0,
    0.11,
    0.11,
+   0.11,
+   0.11,
    0.22,
-   0.33,
-   0.33,
    0.33,
    0.44,
    0.44,
+   0.56,
    0.44,
+   0.44,
+   0.44,
+   0.56,
+   0.5,
+   0.43,
    0.33,
-   0.33,
-   0.22,
-   0.22,
-   0.25,
-   0.29,
-   0.17,
-   0.2
+   0.4
   ]
  }
 }

@@ -725,3 +725,21 @@ the gold parallagi, two end pins only, `onset_eval`:
 
     s02  100.0 % → 100.0 %          s04  96.5 % → 98.8 %
     s06  95.9 %, 1 slip → **99.0 %, 0 slips**  (the documented 92–95 failure)
+
+### Loop round 2, ritardando-aware (2026-08-23)
+
+Parallagi re-placed with the rit prior: s30 0.85→**0.96 CLEAN**, s24 0.82,
+s40 0.78, s28 0.63; s18/s42's no-pin (voiced-extent) entry fails outright
+(0.21/0.25) — they wait for two chanter end-pins each. Melos re-transferred
+and verified: **s31 0.93 CLEAN** (joins s11/s15/s17), s25 0.84, s41 0.78,
+s29 0.62; all four re-seeded (round-2 provenance).
+
+**The surviving low regions are all mirrored across BOTH renditions and
+survived a repaired alignment** — the strongest score-suspect evidence yet:
+
+    s24/s25  gi 49–60      s40/s41  gi ~43–59      s28/s29  gi 34–72 (large)
+
+s30/s31's earlier mirror dissolved when the alignment improved, so a mirror
+alone is not proof — but a mirror that survives re-alignment at 0.9+
+elsewhere is. These three unit ranges go to the chanter: wrong passage,
+or a phthora the diatonic quantiser cannot follow.

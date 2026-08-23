@@ -59,19 +59,19 @@
   24.5,
   24.95,
   25.85,
+  26.24,
   26.63,
-  27.37,
+  27.04,
+  27.45,
   27.95,
-  28.56,
+  28.31,
+  28.79,
   29.17,
+  29.44,
   29.77,
-  30.28,
-  30.72,
+  30.38,
   30.86,
-  31.15,
-  31.85,
-  32.11,
-  32.44,
+  31.41,
   32.99
  ],
  "gi": [
@@ -444,5 +444,5 @@
   true,
   true
  ],
- "source": "melos_onset_net + onset_match-fixed parallagi -- SEED; slip_check 0.82, suspect regions [{'gi0': 58, 'gi1': 71, 't0': 26.6, 't1': 33.0}]"
+ "source": "round-2 SEED (rit-aware onset_match parallagi); slip_check 0.93, suspect []"
 }
