@@ -132,6 +132,8 @@ def run_tape(path, bnet, clf, dev, cut, compare, gold, outroot):
     stem = os.path.splitext(os.path.basename(path))[0]
     outdir = os.path.join(outroot, stem)
     os.makedirs(outdir, exist_ok=True)
+    for f in glob.glob(os.path.join(outdir, '[0-9][0-9][0-9]_*.*')):
+        os.remove(f)                    # a re-run must not leave stale pieces
     spans, quiet, dur = bounds(bnet, path, dev)
     lab = lanes(clf, path, spans, dev)
     words = load_words(os.path.join(TRANSCRIPTS, stem + '.json'))

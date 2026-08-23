@@ -136,6 +136,43 @@ classify each note and overfit it on that."*
   notes) are where the enc-dec of NEURAL-CHANT.md earns its cost; do not start
   NN-01 until S4-01 is scored and PIN-REPEAT-01 is done.
 
+### S4b — parallagi-informed melos onsets (owner's question, 2026-08-23)
+
+*"Since we are able to map parallagi, can we create a parallagi-informed onset
+and mapping neural net for the melos pieces?"* Yes, and the pairing makes it
+the best-conditioned onset problem in the project: the parallagi is a sung
+**template** of the melos — same notes, same singer, same tape, length ratio
+≈1.02 — with every onset (peak model, recall 1.0) and every degree (98 %)
+already known. The melos's onsets do not need finding against a score it has
+never heard; they need *transferring* from a rendition where they are right.
+
+**S4b-01 DONE — no-learning baseline, so a model has a number to beat.**
+`tools/neural/parallagi_template.py`: pitch-contour DTW between the two
+renditions (from each piece's sung start, skipping the apichima), parallagi
+gold onsets carried across the path; scored by `onset_eval.py` on the melos
+pins.
+
+  | pair | stretch (prior only) | **DTW transfer** | FA baseline (t03) |
+  |---|---|---|---|
+  | s02 → s03 (49 pins) | 14.3 % | **59.2 %** in gate, median 0.116 s, bias +0.06 s, 1 slip | 55.3 % |
+  | s04 → s05 (65 pins) | 13.8 % | 6.2 %, bias −2.2 s, 3 slips | |
+
+  One pair locks and beats forced alignment out of the box; the other slips
+  and never recovers — the exact bimodality ONSET-MODEL.md §1 describes. That
+  is the job for the model: not precision, *re-synchronisation*.
+
+**S4b-02 — the model.** Cross-attention from parallagi note embeddings to
+melos frames: queries = one per parallagi note (mel patch at its onset +
+classified degree + duration), keys/values = melos mel frames (+ F0 cents);
+output = a time distribution per note over the melos, decoded monotonically.
+This sidesteps NEURAL-CHANT's tokenizer blocker entirely — the "score" is the
+parallagi audio, already in the right vocabulary — and the 116 k score-only
+units are not needed for pretraining. Labels: the s03/s05 pins (114) now,
+every completed melos later; hold out whole pieces. Gate: `onset_eval` ≥ 90 %
+within 150 ms, zero slips, on a pair the model never saw. Cheap first step
+before a net: make the DTW cost multi-channel (mel + cents + onset-strength)
+and see whether s05 locks — if it does, the model's job shrinks to precision.
+
 ### S3 — identify the hymn and cut the score
 
 - **S3-01 DONE 2026-08-22 — it works.** `tools/corpus/degree_match_clf.py`:
@@ -209,10 +246,33 @@ classify each note and overfit it on that."*
   genus* (chromatic). That is the highest-value 30 minutes of labelling in the
   whole project: it unblocks S1 generalisation, S2 transfer, and S5's second
   genus at once.
-- **S1-03** Replace the heuristic cutter in the reseparation pipeline with
-  `piece_bounds` + the pairing checksum, then re-run PIECE-RESEPARATION's
-  scoreboard. Abrupt boundaries stay "reported, not predicted" until examples
-  exist.
+- **S1-03 DONE 2026-08-23 (cutter); adoption pending.**
+  `tools/corpus/separate_pieces_nn.py` = `piece_bounds` spans +
+  `lane_features` lanes, emitting `separate_pieces.py`'s exact `pieces.json`
+  schema into a parallel `pieces_nn/<tape>/` root (so `slice_transcript.py`
+  and everything downstream run unchanged; verified). Grave orthros vs the
+  chanter's 47 spans:
+
+  | | heuristic `separate_pieces` | neural |
+  |---|---|---|
+  | spans at IoU ≥ 0.9 vs gold | 5/48 | **47/48**, median IoU 0.998 |
+  | pairing checksum (equal counts, alternation) | 23 par / 25 mel, breaks | **holds**, 24/24 |
+  | lane right on matched chant spans | — | 46/48 |
+  | boundaries flagged not-in-silence | — | 5 (review list) |
+
+  The one fix that mattered: `piece_bounds` paired each start with the *first
+  end after it*, so one spurious start (1.8 s, the tape intro) stole the next
+  span's end and shifted every span by one — 0/47 before, 47/48 after. Fixed
+  in both scripts. Weights: `models/piece_bounds_grave_e4000.pt`,
+  `models/lane_feat.joblib` (fit on all 79 labelled spans).
+  **Adoption** (`--adopt <tape>`) copies into `pieces/<tape>/`, keeps the old
+  `pieces.json` as `.heuristic`, and leaves old wavs in place so `hymns.json`
+  keeps resolving. It is deliberately a separate step: re-running
+  `slice_transcript → locate_tracks → hymn_to_workdir → hymn_align` on a
+  re-cut tape changes every timebase under it, and the gold datasets must be
+  re-frozen afterwards (PIECE-RESEPARATION.md §5). Every tape beyond grave
+  orthros is out-of-domain for the bounds model — read each tape's checksum
+  and not-in-silence count before adopting it.
 
 ---
 
