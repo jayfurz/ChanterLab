@@ -690,3 +690,24 @@ without a t_in mark) or chromatic/genus mismatches — both worth finding
 before the chanter opens those pieces. Sensible order now: chanter does s11
 and s15 first (verified clean two independent ways); the review pile waits
 for a parallagi-onset audit against the degree classifier's confidence.
+
+### The loop, driven once round (2026-08-23, after the chanter verified s11/s15 "spot on")
+
+The review pile's slip regions matched their PARALLAGI's regions
+note-for-note — the transfers were faithfully carrying wrong parallagi peak
+onsets (the ensemble's shared blind spot). `onset_match.py` (peaks + beats +
+pitch Viterbi) re-placed the seven parallagi: five improved
+(s16 0.67→0.90 CLEAN, s30 →0.85, s40 →0.82, s24 →0.77, s28 →0.60), two got
+worse (s18, s42 — their first/last pins come from slipped peaks; they need a
+different entry point). Re-transferring the five melos and closing the loop
+again: **s17 0.66→0.91 CLEAN**, s31 0.82, s25/s41 0.78, s29 0.60; all five
+re-seeded with provenance carrying their slip regions.
+
+**Triangulation, the loop's second gift:** the residual regions now MIRROR
+between parallagi and melos (s30 59–71 ↔ s31 58–71; s40 28–40 ↔ s41 27–39;
+s24 ≈ s25). Two independent renditions disagreeing with the score at the
+same units is evidence about the SCORE — a wrong passage or a chromatic
+phthora read as diatonic — exactly the class of find the degree classifier
+made on s06. Those unit ranges are the chanter's review queue, written into
+each seed's `seed_provenance.json`. Still open: s18 and s42 (need better
+first/last anchors), s21 (antiphons), s47 (long doxology).
