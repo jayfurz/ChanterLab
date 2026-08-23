@@ -251,7 +251,14 @@ Scored against it:
   NEURAL-CHANT.md already states — **zero slips** — and it is now backed by
   the chanter's reaction, not just a number. So the S4b-02 model's target
   is the slip, and the seed policy is: never hand over a seed with a slip.
-
+  Where the s05 seed was out of gate (gi, Δt): the **opening** 0–1 at
+  −1.8 / −0.5 s (no melos sung-onset, the parallagi's first note mapped to
+  frame 0 — the tell noted above); a **mid-piece group** 56–58 at +0.5 s;
+  and the **ending** 80–84 running −0.2 → −2.0 s early, the DTW dragging
+  the parallagi's last notes ahead through the melos's final melisma. Both
+  edges are boundary conditions of the DTW, not of the music: open-ended
+  alignment at the start and end (subsequence DTW with free ends) is the
+  first thing to try before any model.
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);
