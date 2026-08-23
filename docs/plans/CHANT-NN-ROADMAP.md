@@ -161,6 +161,20 @@ pins.
   and never recovers — the exact bimodality ONSET-MODEL.md §1 describes. That
   is the job for the model: not precision, *re-synchronisation*.
 
+  **Chanter ruling, 2026-08-23 — the melos pins are not trusted.** *"we cant
+  really trust s03 or s05 … i might have made a lot of the onsets too early.
+  s02 s04 s06 are actually pretty close to perfect because i used the
+  peakiness of the waveform rendering as a guide."* So the table above is a
+  lower bound against a draft label set with a probable early bias (s03's
+  +0.06 s DTW bias is consistent with that). Use s03/s05 only to detect
+  slips (seconds), never to judge precision or to train. `gold_times.py`
+  carries the same flag as `UNTRUSTED`. Consequences for S4b-02: there are
+  currently **zero** trusted melos onset labels. The labels have to come from
+  the chanter re-pinning a melos the same way he did the parallagi (peaks as
+  the guide — which is what `onset_match.py` seeds), or from the template
+  transfer itself where it locks, reviewed by him. Build the multi-channel
+  DTW first; it needs no labels to be judged on slips.
+
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);

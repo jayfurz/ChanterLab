@@ -64,6 +64,16 @@ SEALED = ('s01',)
 # Declared complete by the chanter. Add a hymn here ONLY when he says so.
 COMPLETE = ('s02-parallagi', 's04-parallagi', 's06-parallagi')
 
+# MELOS PINS ARE NOT TRUSTED. Chanter, 2026-08-23: "we cant really trust s03
+# or s05 because i might not have perfectly done the onsets when i did it
+# manually. s02 s04 s06 are actually pretty close to perfect because i used the
+# peakiness of the waveform rendering as a guide ... i think i might have made
+# a lot of the onsets too early." So s03/s05 pins are a biased-early draft:
+# never tune, lock, or gate a melos onset model against them. They may be used
+# to notice a slip (seconds), not to judge precision (150 ms). The trusted
+# labels are the three parallagi above, which were pinned against the peaks.
+UNTRUSTED = ('s03-melos', 's05-melos')
+
 
 def is_done(piece_name):
     """Complete means the chanter said so. See the docstring for why `edited`
