@@ -175,6 +175,26 @@ pins.
   transfer itself where it locks, reviewed by him. Build the multi-channel
   DTW first; it needs no labels to be judged on slips.
 
+**S4b-01b DONE 2026-08-23 — s05 locks. The cost that does it is timbre.**
+`parallagi_template.py --cost {pitch,mel,multi}`:
+
+  | cost | s02 → s03 | s04 → s05 |
+  |---|---|---|
+  | pitch | 59.2 %, 1 slip, bias +0.06 s | 6.2 %, 3 slips, bias −2.23 s |
+  | **mel** (40 log-mel, per-band standardised) | 63.3 %, median 0.108 s, bias +0.10 s | **84.6 %, median 0.041 s, 1 slip, bias −0.04 s** |
+  | multi (mel + standardised pitch + onset strength) | 59.2 %, 1 slip | 60.0 %, 3 slips |
+
+  Why: a melisma is many pitches on one vowel, so the contour cannot say
+  which syllable the melos is in — the vowel can. Adding pitch back *hurts*
+  on both pairs; `mel` is now the default. With no learning at all the
+  transfer is at 85 % on s05, already above every scored onset system in
+  this repo (FA 55.3 %). s03 sits lower with a **+0.10 s bias** (predictions
+  later than pins) and 81.6 % if that bias is removed — which is the
+  signature the chanter predicted for his early-dragged melos pins, so s03's
+  63 % is as likely a label problem as a transfer problem. Next: give the
+  chanter the mel-transfer onsets for s03 as a seed to review (S4b-03); the
+  model (S4b-02) now only has to buy the last 10–15 % and the remaining slip.
+
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);
