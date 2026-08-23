@@ -248,6 +248,16 @@ def place(net, piece_dir, dev, outbase=None, write_seed=False):
     with torch.inference_mode():
         p = torch.sigmoid(net(torch.from_numpy(x).unsqueeze(0).to(dev)))[0]
     prob = p.detach().cpu().numpy()
+    # No onset can precede the piece's sung start: pick() takes the k strongest
+    # peaks over the WHOLE file, so peaks inside an apichima or opening silence
+    # consume note indexes and shift every note after them (s46: 12 intro peaks
+    # -> the melos transfer collapsed). The chanter's t_in mark wins over the
+    # detector unless they agree within 3 s -- prep_span_annotator's own rule.
+    meta = D.get('meta', {})
+    t_in, det = meta.get('t_in_rel'), meta.get('sung_onset')
+    sp = det if (t_in and det and abs(det - t_in) <= 3.0) else (t_in or det or 0.0)
+    if sp:
+        prob[:int(sp * SR / HOP)] = 0.0
     fr = pick(prob, n)
     ts = [f * HOP / SR for f in fr]
     conf = float(np.mean([prob[f] for f in fr])) if fr else 0.0

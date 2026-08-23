@@ -339,7 +339,34 @@ longest run 3 while the truth is 92 / 94 % in gate, zero slips — so
   | s17, s29, s43 | 95–98 % | 2 | | | |
   | s25, s31 | 96 % | 3 | | **review first (7)**: s39 90 % run 5; s27, s37 run 6; s33 run 9; s45 run 11 | real disagreement runs mid-piece; likely a slip each |
 
-  What was tried for the apichima pieces and refuted, all on gold: a wide
+  **The apichima diagnosis was WRONG — chanter: "none of those have an
+  apichima. but in general all the pieces are cut to start on a little
+  silence so having the first note onset at 0.00 is always wrong."** The
+  real defects, found once that ruling forced a second look, were all on
+  the PARALLAGI side of those pairs, and all are fixed:
+
+  1. `sung_start()` preferred the detector's `sung_onset` over the
+     chanter's `t_in` mark — prep_span_annotator had already ruled the
+     detector wrong by up to 8 s on exactly these spans (s06, s22). Now
+     the mark wins unless the detector agrees within 3 s.
+  2. `quick_onset.place()` picked its k peaks over the whole file, so
+     peaks inside the intro consumed note indexes and shifted every note
+     after them (s46: 12 intro peaks). Now the probability is zeroed
+     before the sung start.
+  3. The chanter's silence rule is a check: `first_onset >= 0.2 s` or the
+     piece is not a seed.
+
+  After the fixes (`lock_report_20260823b.txt`): **s07 91.8 %, run 4,
+  monotonic** (from 51 %, non-monotonic — one drag from seed-ready);
+  s21 88.5 %, run 19, now monotonic — the run sits where the melos
+  carries verses the parallagi lacks, so it still needs cutting into
+  antiphons; s35 73 %, run 3, monotonic; s23 74 %, its disagreement is
+  the opening 13 notes; s47 (the truncated doxology) 17 % — its melos
+  and the parallagi's first 396 notes may simply not correspond
+  note-for-note, which is a structure question for the chanter, not an
+  alignment one. The 11 seed-ready pieces are unchanged.
+
+  What was tried under the (wrong) apichima theory and refuted, all on gold: a wide
   free-start window (any width — compresses, s05 94 % → 1 %), symmetric
   step weights (−7 / −18 points), the `prep_span_annotator` held-pitch
   detector on the melos side (fires on an ordinary held note: s05 → 18.0 s

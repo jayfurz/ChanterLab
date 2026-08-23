@@ -75,8 +75,19 @@ def frames(path):
 
 
 def sung_start(d):
+    """Where the parallagi's notes start: the CHANTER'S mark, not the detector.
+
+    meta carries both. prep_span_annotator already rules on their disagreement
+    (s06: detected 15.44 vs mark 10.60, "too far to trust -- kept the mark"),
+    and blindly preferring sung_onset here trimmed four templates 4-8 s late --
+    which presented as the s07/s23/s35/s47 openings finding no match. The
+    detector is used only when it agrees with the mark to within 3 s.
+    """
     m = json.load(open(os.path.join(d, 'annotator_data.json')))['meta']
-    return float(m.get('sung_onset') or m.get('t_in_rel') or 0.0)
+    t_in = m.get('t_in_rel'); det = m.get('sung_onset')
+    if t_in and det and abs(det - t_in) <= 3.0:
+        return float(det)
+    return float(t_in or det or 0.0)
 
 
 def melos_sung_start(mel_dir, par_dir):
@@ -279,7 +290,11 @@ def infer_pair(net, par_dir, par_onsets, mel_dir, dev):
     # spacing sanity: a transferred onset must not run backwards or pile up
     ts = [pred[g] for g in gs]
     mono = all(b > a for a, b in zip(ts, ts[1:]))
+    # Chanter, 2026-08-23: every piece is cut to start on a little silence,
+    # so a first onset at ~0.00 is always wrong.
+    first_ok = min(pred[g] for g in gs) >= 0.2
     return pred, {'n': len(gs), 'melos_sung_start': round(sm, 2), 'n_models': len(preds),
+                  'first_onset': round(min(pred[g] for g in gs), 2), 'first_onset_ok': first_ok,
                   'agree_150': round(1 - sum(dis) / len(gs), 3),
                   'longest_disagreement_run': best, 'monotonic': mono,
                   'disagree_gi': [g for g, x in zip(gs, dis) if x]}
@@ -335,10 +350,10 @@ def main():
                        % os.path.basename(a.load[0]), 'onsets': {str(g): round(t, 4) for g, t in sorted(pred.items())},
                        'lock_check': chk}, open(f, 'w'), indent=1, ensure_ascii=False)
             chk['piece'] = name[13:17]; report.append(chk)
-            print('%-5s %4d notes  sung %5.1fs  agree %5.1f%%  longest run %2d  %s%s' % (
-                chk['piece'], chk['n'], chk['melos_sung_start'], 100 * chk['agree_150'], chk['longest_disagreement_run'],
+            print('%-5s %4d notes  first %5.2fs  agree %5.1f%%  longest run %2d  %s%s' % (
+                chk['piece'], chk['n'], chk['first_onset'], 100 * chk['agree_150'], chk['longest_disagreement_run'],
                 'monotonic' if chk['monotonic'] else 'NOT MONOTONIC',
-                '' if chk['longest_disagreement_run'] < 3 and chk['monotonic'] else '   <- not a seed'), flush=True)
+                '' if chk['longest_disagreement_run'] < 3 and chk['monotonic'] and chk['first_onset_ok'] else '   <- not a seed'), flush=True)
         json.dump(report, open(a.out + '.lock_report.json', 'w'), indent=1)
         return 0
     data = [load_pair(s) for s in a.pair]
