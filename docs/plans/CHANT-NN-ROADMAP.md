@@ -619,3 +619,35 @@ embodies someone else's reading of the same notation. Questions for the
 chanter: can it batch-export audio or MIDI, what score format does it read
 (its own? PSALTIKA? BZQ?), and can its score files be gotten off the laptop
 — its file format may itself be a parseable score source.
+
+### .mel format, cracked open 2026-08-23
+
+The chanter uploaded the Ioannou Anastasimatarion as 32 `.mel` files
+(`ΑΝΑΣΤΑΣΙΜΑΤΑΡΙΟΝ-ΙΩΑΝΝΟΥ-ΠΡΩΤΟΨΑΛΤΟΥ.zip`, extracted to
+`/mnt/data/chant-corpus/melodos/`). A `.mel` is a **.NET BinaryFormatter
+(MS-NRBF) stream** (parsed with the `nrbf` package in the venv), then an
+encrypted body. Three parts:
+1. an `ArrayList` whose `str_periexomenou_new` records give a full readable
+   **table of contents** — hymn title (`kimeno`), a `thesi` byte offset, and
+   `tipos`/`ierarxisi` (section type/level). Saved to
+   `melodos/anastasimatarion/toc.json`. This alone is a clean liturgical
+   index of the whole Anastasimatarion with per-section incipits, useful as
+   canonical-text structure independent of GLT.
+2. a `System.IO.MemoryStream` holding a 182×256 **cover GIF**, nothing more.
+3. an **~80 KB encrypted body** carrying the actual neumes: entropy 8.00
+   bits/byte and byte-identical for the first 48 bytes across different
+   files → a fixed-key cipher. Not crackable without the key, and not worth
+   trying. So `.mel` does NOT hand us the scores.
+
+### Can we run Melodos?
+
+Melodos is **Windows-only, closed, and paid** (free trial). No documented
+audio/MIDI export; it *synchronises* to MP3/WAV/WMA rather than emitting
+them. So it is not a batch synthesis oracle we can script. What is still
+usable, all chanter-driven on the Windows laptop: play a hymn and record
+the system audio (the synthesis-oracle use), or screenshot its rendered
+score for the raster-OMR training set. Neither needs the `.mel` internals.
+Wine is a possible route to run it on the Linux box, but the payoff (manual,
+un-scriptable playback) does not justify it. Recommendation: use Melodos as
+a **reference-audio source the chanter records**, not as a pipeline
+component; the toc.json is the only part that enters the pipeline directly.
