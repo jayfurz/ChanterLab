@@ -308,6 +308,20 @@ and see whether s05 locks — if it does, the model's job shrinks to precision.
   orthros is out-of-domain for the bounds model — read each tape's checksum
   and not-in-silence count before adopting it.
 
+  **All 16 other hour tapes cut 2026-08-23 (`pieces_nn/_summary_20260823.json`):
+  none passes the checksum; none adopted.** Every one skews the same way —
+  parallagi under-called (Prosomia 7 par / 31 mel, 27 breaks; mode 3 vespers
+  5 / 20; mode 1 vespers 6 / 18). Span counts are plausible (27–49 per hour
+  tape, 1–7 rough boundaries), so the bounds model is transferring at least
+  roughly and the **lane detector is the part that does not** — the same
+  parallagi→melos direction the 0.43 rule failed in, now from a model fit on
+  two recordings. Two cheap fixes, in order: (a) S2-01a — the pairing
+  checksum as a per-tape self-supervised recalibration of the lane threshold
+  (a tape *must* come out equal and alternating); (b) S2-01b — lane from the
+  degree classifier's mean confidence over a span's peak onsets, which is
+  mode-invariant by construction. Measure both on the grave tape (known) and
+  on mode 2 vespers (named files) before re-cutting.
+
 ---
 
 ## 4. What to do with the uncommitted files right now
