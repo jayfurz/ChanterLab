@@ -37,7 +37,8 @@ goes in when a second scored corpus does.
 
 Usage:
   lane_features.py --eval-transfer
-  lane_features.py --dump feats.json
+  lane_features.py --train-all --save lane_feat.joblib   # for separate_pieces_nn
+
 """
 import argparse
 import collections
@@ -177,8 +178,17 @@ def main():
     ap.add_argument('--eval-transfer', action='store_true')
     ap.add_argument('--ablate', action='store_true')
     ap.add_argument('--device', default='cuda')
+    ap.add_argument('--train-all', action='store_true',
+                    help='fit on every labelled span (grave + mode 2) and --save')
+    ap.add_argument('--save', help='joblib path for the fitted pipeline')
     a = ap.parse_args()
     data = load_sets(a.device)
+    if a.train_all:
+        import joblib
+        clf = fit_eval(data, data, 'train all -> resubstitution (not a test)')
+        joblib.dump(clf, a.save)
+        print('->', a.save)
+        return 0
     print('%d spans: %s' % (len(data), dict(collections.Counter((d[0], d[1]) for d in data))))
     print('feature: %d modulation bins + 4 peakiness + 3 degree = %d dims'
           % (NMOD, len(data[0][2])))

@@ -294,13 +294,15 @@ def cut_tape(net, path, dev, outbase=None, lanes=False):
     fs = HOP / SR
     ps = [f * fs for f in pick(P[0])]
     pe = [f * fs for f in pick(P[1])]
-    # pair each start with the first end after it
-    spans, k = [], 0
-    for st in ps:
-        while k < len(pe) and pe[k] <= st:
-            k += 1
-        if k < len(pe):
-            spans.append((st, pe[k])); k += 1
+    # pair each start with the LAST end before the next start. First-end-after
+    # is wrong: one spurious start steals the next span's end and every span
+    # after it shifts by one (0/47 -> 47/47 at IoU 0.9 on the gold tape).
+    # A start with no end of its own ends just before the next start.
+    spans = []
+    for i, st in enumerate(ps):
+        nxt = ps[i + 1] if i + 1 < len(ps) else len(y) / SR
+        ends = [e for e in pe if st < e < nxt]
+        spans.append((st, ends[-1] if ends else max(st + 1.0, nxt - 0.5)))
     # boundary quality, from the audio: how quiet is it just outside the cut?
     sr2, w = SR, int(0.05 * SR)
     e = np.sqrt(np.convolve(y * y, np.ones(w) / w, 'same'))
