@@ -6,6 +6,8 @@
   which waits on DECODE-01/KEY-01. Read [`ONSET-MODEL.md`](ONSET-MODEL.md) §4
   for the design reasoning it assumes.
 
+- **[CHANT-NN-ROADMAP.md](CHANT-NN-ROADMAP.md)** — *start here for the NN pipeline.* Tape → pieces → lane → identity/score → onsets → degree per onset; inventory of every tool with its measured number (2026-08-22), and the staged plan with gates.
+
 - **[FA-ONSETS.md](FA-ONSETS.md)** — *next up, self-contained.* Forced-alignment
   onsets so the annotator's markers land on the notes. Written to be handed to a
   session with no context. Ground truth: 76 + 259 + the new 30 pins on s01.
