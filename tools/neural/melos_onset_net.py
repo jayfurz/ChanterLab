@@ -79,6 +79,25 @@ def sung_start(d):
     return float(m.get('sung_onset') or m.get('t_in_rel') or 0.0)
 
 
+def melos_sung_start(mel_dir, par_dir):
+    """Where the melos's singing starts, past its own apichima.
+
+    A melos has no chanter t_in mark, but its parallagi does, and the two
+    renditions open the same way -- so the parallagi's mark (plus slack)
+    bounds the search for the held pitch, and prep_span_annotator's detector
+    does the rest. Returns 0 when there is no held opening. This replaced a
+    wide free-start DTW window, which compressed the alignment (s05 held-out
+    fell from 94 % to 1 %): the apichima must be TRIMMED, not freed.
+    """
+    from prep_span_annotator import sung_onset
+    pm = json.load(open(os.path.join(par_dir, 'annotator_data.json')))['meta']
+    t_in = pm.get('t_in_rel')
+    if not t_in:
+        return 0.0
+    t = sung_onset(os.path.join(mel_dir, 'audio.wav'), float(t_in) + 8.0)
+    return float(t or 0.0)
+
+
 class Encoder(nn.Module):
     """Frame -> 64-d unit embedding, from a [DIM, 2*CTX+1] patch."""
     def __init__(self, dim=DIM, ch=96, out=64):
@@ -180,13 +199,24 @@ def train(net, data, epochs, dev, lr=1e-3, bs=192, neg_s=6.0, tau=0.07):
     return net
 
 
-def align(net, d, dev, band_s=8.0, free_s=2.0):
+GEOM = {'band_s': 8.0, 'free_s': 2.0, 'free_start_s': 2.0, 'weighted': False}
+
+
+def align(net, d, dev, band_s=None, free_s=None, free_start_s=None, weighted=None):
+    band_s = GEOM['band_s'] if band_s is None else band_s
+    free_s = GEOM['free_s'] if free_s is None else free_s
+    free_start_s = GEOM['free_start_s'] if free_start_s is None else free_start_s
+    weighted = GEOM['weighted'] if weighted is None else weighted
     """Learned-cost DTW, parallagi onsets carried across. Same geometry as
     parallagi_template: parallagi from its sung start, melos free within 2 s."""
     sp = sung_start(d['par_dir']); fp0 = int(sp * SR / HOP)
+    sm = d.get('sm', 0.0); fm0 = int(sm * SR / HOP)
     Ep = embed(net, d['Xp'], dev)[fp0:]
-    Em = embed(net, d['Xm'], dev)
-    path = dtw_path(Ep, Em, band=int(band_s * SR / HOP), free=int(free_s * SR / HOP))
+    Em = embed(net, d['Xm'], dev)[fm0:]
+    # Both free windows stay SMALL (2 s). A wide window is the shortest-path
+    # trap: fewer cells is always cheaper, so the alignment compresses.
+    path = dtw_path(Ep, Em, band=int(band_s * SR / HOP),
+                    free=(int(free_start_s * SR / HOP), int(free_s * SR / HOP)), weighted=weighted)
     first = {}
     for i, j in path:
         first.setdefault(i, j)
@@ -196,8 +226,63 @@ def align(net, d, dev, band_s=8.0, free_s=2.0):
         j = first.get(i)
         if j is None:
             k = min(first, key=lambda x: abs(x - i)); j = first[k]
-        pred[g] = j * HOP / SR
+        pred[g] = sm + j * HOP / SR
     return pred
+
+
+def infer_pair(net, par_dir, par_onsets, mel_dir, dev):
+    """Predictions for a pair with no gold, plus a lock check a human can read.
+
+    The check: align the same pair a second way -- the hand-built mel cost
+    (parallagi_template.py) -- and compare note by note. Two independent
+    alignments agreeing within 150 ms is evidence of a lock; a RUN of
+    disagreement is the shape of a slip. It cannot prove the notes are right,
+    but it can say where not to trust them, which is what a seed needs.
+    """
+    from parallagi_template import channels
+    po = load_onsets(par_onsets)
+    n_mel = len(json.load(open(os.path.join(mel_dir, 'annotator_data.json')))['slots']['gi'])
+    if len(po) > n_mel:                     # s46/s47: the tape ran out mid-melos
+        po = {g: po[g] for g in sorted(po)[:n_mel]}
+    # No detector-based melos trim: the held-pitch detector fires on an
+    # ordinary held note (s05: 18.0 s where the gold starts at 1.9 s). And no
+    # wide free window: every wide window compresses (s05 held-out 94 % -> 1 %).
+    # Instead the DTW says when a trim is needed: if the melos opens with an
+    # intro the first onsets PILE at the 2 s window edge. Slide the melos
+    # start forward 2 s and re-align while that pile persists.
+    d = {'par_dir': par_dir, 'mel_dir': mel_dir, 'po': po, 'sm': 0.0,
+         'Xp': frames(os.path.join(par_dir, 'audio.wav')),
+         'Xm': frames(os.path.join(mel_dir, 'audio.wav'))}
+    nets = net if isinstance(net, list) else [net]
+    for _ in range(15):
+        pred = align(nets[0], d, dev)
+        head = [pred[g] for g in sorted(pred)[:6]]
+        edge = d['sm'] + GEOM['free_start_s']
+        piled = sum(1 for t in head if abs(t - edge) < 0.06) >= 3
+        if not piled:
+            break
+        d['sm'] += GEOM['free_start_s']
+    preds = [pred] + [align(n_, d, dev) for n_ in nets[1:]]
+    sm = d['sm']
+    pred = preds[0]                      # the all-data model is the answer
+    # The lock check: three differently-trained encoders (two held-out folds
+    # and the all-data model) aligning the same pair. Where all agree within
+    # 150 ms the alignment is locked; a RUN of disagreement is the shape of a
+    # slip. (Agreement with the hand-built mel DTW was tried first and
+    # measured the mel DTW's errors, not the model's.)
+    gs = sorted(pred)
+    dis = [max(abs(p_[g] - pred[g]) for p_ in preds[1:]) > 0.15 if len(preds) > 1 else False
+           for g in gs]
+    run, best = 0, 0
+    for x in dis:
+        run = run + 1 if x else 0; best = max(best, run)
+    # spacing sanity: a transferred onset must not run backwards or pile up
+    ts = [pred[g] for g in gs]
+    mono = all(b > a for a, b in zip(ts, ts[1:]))
+    return pred, {'n': len(gs), 'melos_sung_start': round(sm, 2), 'n_models': len(preds),
+                  'agree_150': round(1 - sum(dis) / len(gs), 3),
+                  'longest_disagreement_run': best, 'monotonic': mono,
+                  'disagree_gi': [g for g, x in zip(gs, dis) if x]}
 
 
 def score(pred, gold_file, label, out):
@@ -214,7 +299,7 @@ def score(pred, gold_file, label, out):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument('--pair', action='append', required=True,
+    ap.add_argument('--pair', action='append', default=[],
                     help='par_dir:par_gold:mel_dir:mel_gold')
     ap.add_argument('--xval', action='store_true', help='train on all but one pair, score it; every fold')
     ap.add_argument('--train-all', action='store_true')
@@ -222,11 +307,48 @@ def main():
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--device', default='cuda')
     ap.add_argument('--save')
+    ap.add_argument('--load', action='append', help='encoder weights; skips training. Repeat for an ensemble lock check (first = the answer)')
+    ap.add_argument('--infer', action='append', metavar='PAR_DIR:PAR_ONSETS:MEL_DIR',
+                    help='predict a pair with no gold; writes <out>.<melos>.json and a lock check')
     ap.add_argument('--out', default='melos_net')
+    ap.add_argument('--eval-heldout', action='store_true',
+                    help='score each --pair with the --load model of the same index (no training)')
+    ap.add_argument('--free-start-s', type=float); ap.add_argument('--free-s', type=float)
+    ap.add_argument('--weighted', action='store_true')
     a = ap.parse_args()
+    if a.free_start_s is not None: GEOM['free_start_s'] = a.free_start_s
+    if a.free_s is not None: GEOM['free_s'] = a.free_s
+    if a.weighted: GEOM['weighted'] = True
     dev = torch.device(a.device if torch.cuda.is_available() else 'cpu')
     torch.manual_seed(a.seed); np.random.seed(a.seed)
+    if a.load and a.infer:
+        net = []
+        for w in a.load:
+            n_ = Encoder().to(dev); n_.load_state_dict(torch.load(w, map_location=dev)); n_.eval(); net.append(n_)
+        report = []
+        for spec in a.infer:
+            pd, pg, md = spec.split(':')
+            name = os.path.basename(md.rstrip('/'))
+            pred, chk = infer_pair(net, pd, pg, md, dev)
+            f = '%s.%s.json' % (a.out, name[:44])
+            json.dump({'piece_id': name, 'source': 'melos_onset_net.py %s -- MODEL OUTPUT, not chanter work'
+                       % os.path.basename(a.load[0]), 'onsets': {str(g): round(t, 4) for g, t in sorted(pred.items())},
+                       'lock_check': chk}, open(f, 'w'), indent=1, ensure_ascii=False)
+            chk['piece'] = name[13:17]; report.append(chk)
+            print('%-5s %4d notes  sung %5.1fs  agree %5.1f%%  longest run %2d  %s%s' % (
+                chk['piece'], chk['n'], chk['melos_sung_start'], 100 * chk['agree_150'], chk['longest_disagreement_run'],
+                'monotonic' if chk['monotonic'] else 'NOT MONOTONIC',
+                '' if chk['longest_disagreement_run'] < 3 and chk['monotonic'] else '   <- not a seed'), flush=True)
+        json.dump(report, open(a.out + '.lock_report.json', 'w'), indent=1)
+        return 0
     data = [load_pair(s) for s in a.pair]
+    if a.eval_heldout:
+        assert len(a.load) == len(data), 'one --load per --pair, same order'
+        for w, d in zip(a.load, data):
+            n_ = Encoder().to(dev); n_.load_state_dict(torch.load(w, map_location=dev)); n_.eval()
+            print('\n%s  <- %s  geom %s' % (d['name'], os.path.basename(w), GEOM))
+            score(align(n_, d, dev), d['mel_gold'], 'heldout', '%s_%s.json' % (a.out, d['name'][:3]))
+        return 0
     for d in data:
         print('%-28s parallagi %5d frames  melos %5d frames  %3d notes  %5d frame pairs'
               % (d['name'], len(d['Xp']), len(d['Xm']), len(d['po']), len(d['pairs'])))
@@ -239,6 +361,8 @@ def main():
                 print('need >= 2 pairs for --xval'); return 1
             print('\nHOLD OUT %s  (train on %s)' % (held['name'], ', '.join(d['name'] for d in tr)))
             net = train(Encoder().to(dev), tr, a.epochs, dev)
+            if a.save:
+                torch.save(net.state_dict(), a.save.replace('.pt', '') + '.heldout_%s.pt' % held['name'][:3])
             pred = align(net, held, dev)
             score(pred, held['mel_gold'], 'learned_cost', '%s_%s.json' % (a.out, held['name'][:3]))
     if a.train_all:

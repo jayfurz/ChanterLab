@@ -318,6 +318,35 @@ notes within ±6 s), so 161 notes are enough. Held out by piece:
   `models/melos_cost_s03s05.pt` (trained on both), checked for zero slips
   before it is handed over; s07 (ωςτηςημων, paired with the complete s06)
   is the natural candidate.
+
+**S4b-06 DONE 2026-08-23 — the model run on all 23 melos of the grave tape.**
+Peak onsets for the 20 parallagi without gold (conf 0.92–0.98, counts match
+the score), then `melos_onset_net.py --load ×3 --infer` for every pair.
+Predictions: `models/melos_preds_grave-orthros/pred.<melos>.json`; report:
+`lock_report_20260823.txt`. The lock check is **ensemble agreement** — the
+all-data model and the two held-out fold models aligning the same pair;
+where all three agree within 150 ms the alignment is locked, and a run of
+disagreement is the shape of a slip. (Agreement with the hand-built mel
+DTW was tried first and measured the mel DTW's errors, not the model's.)
+Calibration: on the two gold pieces the ensemble agrees 92 / 95 % with
+longest run 3 while the truth is 92 / 94 % in gate, zero slips — so
+"agree ≥ 95 %, longest run ≤ 3, monotonic" is the seed-ready bar.
+
+  | seed-ready (11) | agree | run | | needs a melos start mark (5) | why |
+  |---|---|---|---|---|---|
+  | s09, s13, s15 | 100 % | 0 | | s07, s23, s35, s47 | the melos opens with an apichima like its parallagi's (14–20 s); the model finds no match for the opening notes and they pile at the window |
+  | s19, s11, s41 | 98–99 % | 1 | | s21 (486 notes, 278 s) | the anavathmoi: jumps of 4–6 s every ~40 notes — the melos has material the parallagi does not (verses between antiphons); needs cutting into antiphons first |
+  | s17, s29, s43 | 95–98 % | 2 | | | |
+  | s25, s31 | 96 % | 3 | | **review first (7)**: s39 90 % run 5; s27, s37 run 6; s33 run 9; s45 run 11 | real disagreement runs mid-piece; likely a slip each |
+
+  What was tried for the apichima pieces and refuted, all on gold: a wide
+  free-start window (any width — compresses, s05 94 % → 1 %), symmetric
+  step weights (−7 / −18 points), the `prep_span_annotator` held-pitch
+  detector on the melos side (fires on an ordinary held note: s05 → 18.0 s
+  where the gold starts at 1.9 s), and a sliding 2 s trim driven by the
+  pile (harmless, insufficient). The reliable source for a melos's sung
+  start is the same as the parallagi's: a `t_in` mark from the chanter,
+  which the cutter already records for parallagi spans. Ask for four marks.
 **S4b-02 — the model.** Cross-attention from parallagi note embeddings to
 melos frames: queries = one per parallagi note (mel patch at its onset +
 classified degree + duration), keys/values = melos mel frames (+ F0 cents);

@@ -109,7 +109,7 @@ def contour_from(y):
     return c, ok
 
 
-def dtw_path(A, B, band=None, free=False):
+def dtw_path(A, B, band=None, free=False, weighted=False):
     """DTW on frame-feature matrices with a Sakoe-Chiba band; returns the path.
 
     free=True: subsequence DTW. The template (A, the parallagi from its sung
@@ -130,17 +130,31 @@ def dtw_path(A, B, band=None, free=False):
         # Bounded, or the free end rewards the SHORTEST path: with no window
         # the alignment compresses the whole template into a few seconds of
         # melos (measured: bias +1.0 s on s05, +4.8 s on s03 at band 20 s).
-        w = int(free) if free is not True else m
-        D[0, :min(w, m) + 1] = 0.0
+        # free may be an int (same window both ends) or (start, end) frames:
+        # a melos that opens with a long apichima needs a wide free START,
+        # which is safe because the template must still be consumed whole.
+        ws, we = (free if isinstance(free, tuple) else (free, free))
+        ws = m if ws is True else int(ws); we = m if we is True else int(we)
+        D[0, :min(ws, m) + 1] = 0.0
+    ws_extra = (ws if free else 0)
     for i in range(1, n + 1):
         jc = int(i * m / n)
-        lo, hi = max(1, jc - band), min(m, jc + band)
+        lo, hi = max(1, jc - band), min(m, jc + band + ws_extra)
         d = np.sqrt(((B[lo - 1:hi] - A[i - 1]) ** 2).sum(1))     # one row of costs
         row, prev = D[i], D[i - 1]
-        for j in range(lo, hi + 1):
-            row[j] = d[j - lo] + min(prev[j], row[j - 1], prev[j - 1])
+        if weighted:
+            # symmetric step weights: a diagonal step pays 2d, a horizontal or
+            # vertical step pays d. The path cost is then ~ sum over n+m
+            # steps whatever its shape, so a free start/end no longer rewards
+            # the SHORTEST path -- the compression that wrecked wide windows.
+            for j in range(lo, hi + 1):
+                dj = d[j - lo]
+                row[j] = min(prev[j] + dj, row[j - 1] + dj, prev[j - 1] + 2 * dj)
+        else:
+            for j in range(lo, hi + 1):
+                row[j] = d[j - lo] + min(prev[j], row[j - 1], prev[j - 1])
     if free:
-        w = int(free) if free is not True else m
+        w = we
         j = m - w + int(np.argmin(D[n, max(1, m - w):m + 1])) if w < m else int(np.argmin(D[n]))
         j = max(j, 1)
     else:
@@ -180,6 +194,8 @@ def main():
     ap.add_argument('--free', action='store_true', help='free start and end on the melos side')
     ap.add_argument('--free-s', type=float, default=0.0,
                     help='bound the free start/end to this many seconds at each edge (0 = unbounded)')
+    ap.add_argument('--free-start-s', type=float, help='override the free START window (e.g. 25 for an apichima)')
+    ap.add_argument('--weighted', action='store_true', help='symmetric step weights (diagonal 2d)')
     ap.add_argument('--out', help='prefix for the two prediction files')
     a = ap.parse_args()
 
@@ -204,7 +220,9 @@ def main():
 
     # DTW on pitch contour, parallagi onsets carried across the path
     fr = (int(a.free_s * SR / HOP) if a.free_s else True) if a.free else False
-    path = dtw_path(cp, cm, band=int(a.band_s * SR / HOP), free=fr)
+    if a.free and a.free_start_s:
+        fr = (int(a.free_start_s * SR / HOP), fr)
+    path = dtw_path(cp, cm, band=int(a.band_s * SR / HOP), free=fr, weighted=a.weighted)
     first = {}
     for i, j in path:
         first.setdefault(i, j)
