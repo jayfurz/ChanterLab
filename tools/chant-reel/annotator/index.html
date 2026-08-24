@@ -861,7 +861,11 @@ async function boot() {
   restore(); updateCounts();
   view = { t0: 0, t1: D.meta.duration };
   $('dur').textContent = ' / ' + fmtT(D.meta.duration);
-  audio.src = DATA_DIR + D.meta.audio;
+  // ?v= defeats stale media caches: a browser that fetched this file while
+  // an align batch was still writing it keeps the truncated copy forever
+  // (chanter 2026-08-24: playback stopped at 3:34 of a 4:43 piece).
+  audio.src = DATA_DIR + D.meta.audio + '?v=' +
+    encodeURIComponent(`${D.meta.data_rev || ''}-${D.meta.duration}`);
   setupParAudio();
   {
     const s = D.meta.source || {};
@@ -929,7 +933,9 @@ function toggleParAudio() {
   audio.pause();
   audioLane = audioLane === 'mel' ? 'par' : 'mel';
   $('paraudiobtn').classList.toggle('on', audioLane === 'par');
-  audio.src = audioLane === 'par' ? parAudioUrl : DATA_DIR + D.meta.audio;
+  audio.src = audioLane === 'par' ? parAudioUrl
+    : DATA_DIR + D.meta.audio + '?v=' +
+      encodeURIComponent(`${D.meta.data_rev || ''}-${D.meta.duration}`);
   audio.load();
   decodePeaks();
   $('selinfo').textContent = audioLane === 'par'
@@ -945,7 +951,9 @@ async function decodePeaks() {
   $('loadmsg').textContent = 'decoding audio…';
   try {
     const ab = await (await fetch(audioLane === 'par' && parAudioUrl
-      ? parAudioUrl : DATA_DIR + D.meta.audio)).arrayBuffer();
+      ? parAudioUrl
+      : DATA_DIR + D.meta.audio + '?v=' +
+        encodeURIComponent(`${D.meta.data_rev || ''}-${D.meta.duration}`))).arrayBuffer();
     const ac = new (window.AudioContext || window.webkitAudioContext)();
     const buf = await ac.decodeAudioData(ab);
     const ch0 = buf.getChannelData(0);
