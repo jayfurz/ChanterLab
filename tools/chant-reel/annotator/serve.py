@@ -65,7 +65,7 @@ CUTTER_PREFIXES = ('/score', '/cut', '/tape/', '/page/', '/api/tapes',
 # The cutter owns '/api/degree-flag'; these two are the annotator's own and
 # must be answered here, so they are checked before the proxy test.
 LOCAL_PREFIXES = ('/api/parallagi', '/api/parallagi-flag',
-                  '/api/parallagi-flags')
+                  '/api/parallagi-flags', '/api/piece-peaks')
 
 
 def _is_cutter(path):
@@ -211,6 +211,56 @@ def read_parallagi_flags(piece_id):
     return {'piece': piece_id, 'flags': [], 'notes': {}}
 
 
+_QO = {}
+
+
+def piece_peaks(pid):
+    """Neural onset peaks for a piece's audio, cached beside it.
+
+    The chanter taps onsets by ear (~±100 ms); the quick_onset net localises
+    the acoustic attack far tighter, so 'Align to peaks' snaps tapped markers
+    onto the nearest detected peak. Same recipe as mode_ident.peaks_and_degrees:
+    sigmoid maxima >= 0.5, greedy 18-frame minimum separation.
+    """
+    d = HERE / 'data' / pid
+    wav = d / 'audio.wav'
+    if not wav.exists():
+        for alt in ('audio.m4a', 'audio.mp3'):
+            if (d / alt).exists():
+                wav = d / alt
+                break
+    if not wav.exists():
+        return None
+    cache = d / 'piece_peaks.json'
+    if cache.exists() and cache.stat().st_mtime >= wav.stat().st_mtime:
+        return json.load(open(cache))
+    import sys as _sys
+    _sys.path.insert(0, str(HERE.parent.parent / 'neural'))
+    import numpy as np
+    import torch
+    import quick_onset as QO
+    if 'net' not in _QO:
+        net = QO.Net()
+        net.load_state_dict(torch.load(
+            '/mnt/data/chant-corpus/models/quick_onset_s020406_e200.pt',
+            map_location='cpu'))
+        net.eval()
+        _QO['net'] = net
+    y = QO.audio(str(wav))
+    with torch.inference_mode():
+        prob = torch.sigmoid(_QO['net'](
+            torch.from_numpy(QO.features(y)).unsqueeze(0)))[0].numpy()
+    idx = np.where((prob[1:-1] >= prob[:-2]) & (prob[1:-1] > prob[2:])
+                   & (prob[1:-1] >= 0.5))[0] + 1
+    fr = []
+    for i in idx[np.argsort(-prob[idx])]:
+        if all(abs(int(i) - j) >= 18 for j in fr):
+            fr.append(int(i))
+    out = {'onsets': [round(f * QO.HOP / QO.SR, 3) for f in sorted(fr)]}
+    json.dump(out, open(cache, 'w'))
+    return out
+
+
 class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # HTML must never be heuristically cached: UI fixes ship many times a
@@ -277,6 +327,18 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = self.path.split('?')[0]
+        if route == '/api/piece-peaks':
+            pid = self._query_piece()
+            if pid is None:
+                return
+            try:
+                d = piece_peaks(pid)
+            except Exception as e:
+                return self._json({'error': str(e)[:150]}, 500)
+            if d is None:
+                return self._json({'error': 'no audio'}, 404)
+            self._json(d)
+            return
         if route == '/api/parallagi':
             pid = self._query_piece()
             if pid is not None:

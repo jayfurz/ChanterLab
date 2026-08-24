@@ -145,6 +145,12 @@
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
   <button id="tapbtn" title="Tap mode (T): play the audio and hit SPACE at every note onset — each tap pins the next marker to that moment (first tap starts playback if paused; starts from the selected note, else the first). Then Refit spreads anything you did not tap. Space goes back to play/pause when tap mode is off.">Tap</button>
+  <button id="alignbtn" title="Automatic alignment passes (undoable with ctrl+Z)">Align ▾</button>
+  <div id="alignmenu" style="display:none;position:fixed;z-index:99;background:#1c2027;
+    border:1px solid #d8a24a;border-radius:10px;padding:6px;min-width:230px">
+    <button id="alignpeaks" style="display:block;width:100%;text-align:left;margin:3px 0">Align to peaks — snap every marker to the nearest detected onset (±0.30s)</button>
+    <button id="aligncancel" style="display:block;width:100%;text-align:left;margin:3px 0">cancel</button>
+  </div>
   <button id="refitbtn" title="Redistribute UNPINNED markers by beat weight: between pins piecewise, and beyond the outermost pins at the tempo those pins measure (not stretched to the audio edges). Pins never move. SELECT A NOTE FIRST and refit touches only the markers AFTER it, projecting from that note — everything at or before it is left alone. Pin a few, refit, pin the next few…">Refit</button>
   <button id="resetbtn" title="Clear correction + pin on selected marker (R)">Reset</button>
   <button id="clearbtn" title="Discard ALL local edits">Clear</button>
@@ -546,7 +552,71 @@ function updateCounts() {
    Pins never move; refit writes plain corrections (amber, not exported as
    ground truth), so the workflow is: pin a few -> Refit -> the next markers
    land near the truth -> pin the next few -> Refit ... */
+/* undo/redo: snapshots of the whole marker state around every mutation —
+   taps, drags, nudges, pins, refit, align passes, reset, clear. */
+const UST = [], RST = [];
+const snapState = () => JSON.stringify({ c: corrected, p: pinned });
+function pushU(label) {
+  UST.push({ label, s: snapState() });
+  if (UST.length > 200) UST.shift();
+  RST.length = 0;
+}
+function restoreState(s) {
+  const d = JSON.parse(s);
+  corrected = d.c; pinned = d.p;
+  save(); dirtyTL = dirtyScore = true; updateCounts();
+  if (sel >= 0) selectSlot(sel, false);
+}
+function undoEdit() {
+  const u = UST.pop();
+  if (!u) { $('selinfo').textContent = 'nothing to undo'; return; }
+  RST.push({ label: u.label, s: snapState() });
+  restoreState(u.s);
+  $('selinfo').textContent = 'undid: ' + u.label;
+}
+function redoEdit() {
+  const r = RST.pop();
+  if (!r) { $('selinfo').textContent = 'nothing to redo'; return; }
+  UST.push({ label: r.label, s: snapState() });
+  restoreState(r.s);
+  $('selinfo').textContent = 'redid: ' + r.label;
+}
+
+/* Align passes ---------------------------------------------------------- */
+const PEAK_TOL = 0.30;   // s: a marker only snaps to a peak this close
+async function alignPeaks() {
+  $('selinfo').textContent = 'detecting onsets…';
+  let peaks;
+  try {
+    const r = await fetch('/api/piece-peaks?piece=' +
+      encodeURIComponent(PIECE || D.meta.piece_id));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+    peaks = d.onsets;
+  } catch (e) { $('selinfo').textContent = 'peak detection failed: ' + e.message; return; }
+  pushU('align to peaks');
+  let moved = 0, floor = -1;
+  for (let i = 0; i < nS(); i++) {
+    const t = slotT(i);
+    let best = null, bd = PEAK_TOL;
+    for (const pk of peaks) {
+      if (pk <= floor) continue;
+      if (pk > t + PEAK_TOL) break;
+      const d2 = Math.abs(pk - t);
+      if (d2 <= bd) { bd = d2; best = pk; }
+    }
+    if (best != null) {
+      if (Math.abs(best - t) > 0.001) { corrected[i] = Math.round(best * 1000) / 1000; moved++; }
+      floor = best;               // monotonic: no two markers share a peak
+    } else floor = Math.max(floor, t);
+  }
+  save(); dirtyTL = dirtyScore = true; updateCounts();
+  $('selinfo').textContent = `align to peaks: ${moved} of ${nS()} markers snapped ` +
+    `(${peaks.length} peaks heard) — ctrl+Z undoes`;
+}
+
 function refitUnpinned() {
+  pushU('refit');
   const n = nS();
   // 1. drop drag-clamp debris: a pin sitting < 60 ms after the previous pin
   //    was stacked there by the monotone clamp while shoving markers, never
@@ -1460,6 +1530,7 @@ function doTap() {
   const t = Math.round(audio.currentTime * 1000) / 1000;
   if (t <= lastTap) return;              // key bounce / repeat
   lastTap = t;
+  pushU('tap slot ' + tapIdx);
   tapUndo.push({ i: tapIdx, corr: corrected[tapIdx], pin: pinned[tapIdx] });
   corrected[tapIdx] = t;
   pinned[tapIdx] = true;
@@ -1486,11 +1557,13 @@ function tapUndoLast() {
 }
 function nudgeSel(dir) {
   if (sel < 0) { seekTo(playheadT() + dir*2); return; }
+  pushU('nudge slot ' + sel);
   setSlotTime(sel, slotT(sel) + dir*NUDGE);
   pinned[sel] = true; save(); selectSlot(sel, false);
 }
 function togglePinSel() {
   if (sel < 0 || editLocked()) return;
+  pushU('pin toggle slot ' + sel);
   pinned[sel] = !pinned[sel]; save(); selectSlot(sel, false);
 }
 function toggleLoopSel() {
@@ -1637,6 +1710,7 @@ tlCv.addEventListener('pointerdown', e => {
   const hit = inPitchZone ? -1
             : markerNear(p.x, e.pointerType === 'touch' ? HIT_TOUCH : HIT_MOUSE);
   if (hit >= 0) {
+    pushU('drag slot ' + hit);
     drag = { slot: hit, moved: false, consumed: false, ptype: e.pointerType };
     selectSlot(hit, true);
     if (e.pointerType === 'touch') startLP(hit);  // long-press = toggle pin
@@ -1824,6 +1898,9 @@ function togglePlay() {
 window.addEventListener('keydown', e => {
   const tag = e.target.tagName;
   if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault(); return e.shiftKey ? redoEdit() : undoEdit();
+  }
   if (e.code === 'Space') { e.preventDefault();
     if (tapMode) doTap(); else togglePlay(); }
   else if (tapMode && e.key === 'Backspace') { e.preventDefault(); tapUndoLast(); }
@@ -1910,10 +1987,26 @@ $('loopbtn').onclick = toggleLoopSel;
 $('pinbtn').onclick = togglePinSel;
 $('detclose').onclick = () => selectSlot(-1);
 $('refitbtn').onclick = refitUnpinned;
+$('alignbtn').onclick = e => {
+  const m = $('alignmenu');
+  const r = e.target.getBoundingClientRect();
+  m.style.left = Math.min(r.left, innerWidth - 260) + 'px';
+  m.style.top = (r.bottom + 4) + 'px';
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+};
+$('alignpeaks').onclick = () => { $('alignmenu').style.display = 'none'; alignPeaks(); };
+$('aligncancel').onclick = () => { $('alignmenu').style.display = 'none'; };
+document.addEventListener('pointerdown', e => {
+  const m = $('alignmenu');
+  if (m.style.display !== 'none' && !m.contains(e.target) && e.target.id !== 'alignbtn')
+    m.style.display = 'none';
+}, true);
 $('resetbtn').onclick = () => {
-  if (sel >= 0) { corrected[sel] = null; pinned[sel] = false; save(); selectSlot(sel, false); } };
+  if (sel >= 0) { pushU('reset slot ' + sel);
+    corrected[sel] = null; pinned[sel] = false; save(); selectSlot(sel, false); } };
 $('clearbtn').onclick = () => {
   if (!confirm('Discard ALL local corrections, pins, flags and ghost regions?')) return;
+  pushU('clear all');
   corrected = new Array(nS()).fill(null);
   pinned = new Array(nS()).fill(false);
   flags = {}; ghosts = []; anaT = null; save(); selectSlot(-1); dirtyTL = dirtyScore = true;
