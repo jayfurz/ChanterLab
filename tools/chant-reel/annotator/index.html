@@ -203,7 +203,9 @@ const PIECE = (() => { const p = new URLSearchParams(location.search).get('piece
   return p && /^(?!\.+$)[A-Za-z0-9._\u0370-\u03ff\u1f00-\u1fff-]{1,80}$/.test(p)
     ? p : null; })();
 const DATA_DIR   = PIECE ? 'data/' + PIECE + '/' : 'data/';
-const RIB_BASE   = 0.62;   // score ribbon scale (strip px -> CSS px), desktop
+const RIB_BASE   = 0.55;   // score ribbon scale (strip px -> CSS px), desktop
+                           // (0.62 -> 0.55 2026-08-24: chanter wants the whole
+                           // band incl. lyrics comfortably in view)
 const RIB_MIN = 0.45, RIB_MAX = 1.15;  // narrow-screen fit-to-height bounds
 let ribScale = RIB_BASE;
 /* per-piece geometry/grid; meta.band_up/band_dn/step_pos/mor_* override */

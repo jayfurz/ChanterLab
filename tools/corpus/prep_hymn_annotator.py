@@ -54,7 +54,10 @@ def deg_name(d):
 def deg_label(d):
     return f'{deg_name(d)} ({int(d)})'
 ZOOM = 6                       # render scale (pt -> px); 432 dpi
-BAND_UP, BAND_DN = 144, 144    # strip band split around each line center (px)
+# BAND_DN raised 144 -> 200 (2026-08-24): lyrics hang below the neume line
+# and the 144px lower crop cut them off on dense lines (measured: thousands
+# of ink pixels in the last 8 rows of mode1 strips).
+BAND_UP, BAND_DN = 144, 200    # strip band split around each line center (px)
 LINE_BAND = BAND_UP + BAND_DN
 PITCH_SRC_DT = 0.01            # s per cents_track sample
 PITCH_DT = 0.02                # s per downsampled pitch sample in the JSON
