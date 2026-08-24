@@ -919,7 +919,10 @@ async function setupParAudio() {
     .split('/').pop()) + '/' + encodeURIComponent(s.hymn);
   try {
     const r = await fetch(url, { headers: { Range: 'bytes=0-1' } });
-    if (r.ok || r.status === 206) { parAudioUrl = url;
+    if (r.ok || r.status === 206) {
+      // session-fresh version key: the served file is recut whenever the
+      // chanter's #par span changes, and stale media caches are forever
+      parAudioUrl = url + '?v=' + Date.now();
       $('paraudiobtn').style.display = ''; }
   } catch (e) { /* stays hidden */ }
 }
