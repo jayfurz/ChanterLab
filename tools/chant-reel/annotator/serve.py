@@ -212,8 +212,17 @@ def parallagi_for(piece_id):
                                     if v is None:
                                         jj = next((i for i, x in enumerate(fds)
                                                    if x is not None), None)
+                                        base0 = None
                                         if jj is not None:
                                             base0 = _backwalk(fus, fds, jj)
+                                        else:
+                                            # the whole versicle prints no
+                                            # martyria: its opening anchor is
+                                            # the previous hymn's right-aligned
+                                            # one, which leading_anchor finds
+                                            base0 = leading_anchor(
+                                                row['p0'], row.get('g0') or 0)
+                                        if base0 is not None:
                                             v = base0
                                             for k in range(0, i0 + 1):
                                                 v += _iv(fus[k])
