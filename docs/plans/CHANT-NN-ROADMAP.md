@@ -834,3 +834,23 @@ alternatives if s01 gold is wanted sooner: the chanter finishes his draft
 by hand (58 notes left), or a Melodos-recorded rendition becomes a
 synthetic template for the transfer (§8). NO SEED was written: the rule is
 never hand over a seed with a slip, and both candidates slip wall to wall.
+
+## 13. Mode 2, first contact with the chanter (2026-08-23)
+
+Two findings from his first look, both fixed:
+
+**The workdir audio was wrong on 14 of 15 hymns.** He caught two by ear
+(christos-o-sotir served a parallagi fragment; kyrie-ekekraxa served the Θου
+Κύριε verses), and a duration sweep confirmed the rest — stale recut
+fragments from the resep era, some absurd (a 376 s segment for a 114 s hymn).
+His per-hymn chanter-named files are content ground truth by construction, so
+every workdir melos audio was restored from its source (originals kept as
+.pre-restore-20260823, derived tracks staled) and all 15 annotator pieces
+re-prepped. Any non-grave workdir may carry the same rot; the sweep is one
+loop of ffprobe and should run corpus-wide before anyone reviews those modes.
+
+**The chromatic ear now has a hard number.** He transcribed the opening of
+the christos-o-sotir parallagi (δι κε ζω ζω νη' ζω κε δι κε ζω νη' ζω κε δι);
+the diatonic-trained classifier heard **3/14** (opens ζω for δι). That is the
+mode-2 identification failure in miniature, and the first 14 labelled
+chromatic notes of the eventual mode-2 training set.
