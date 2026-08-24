@@ -347,7 +347,9 @@ async function select(i, scroll, keepAudio) {
 }
 
 /* playback ------------------------------------------------------------- */
-function stop() { A.pause(); stopAt = null; hiGi = -1; $('#pp').textContent = 'Play'; }
+let followPage = null;   // last page follow scrolled for; null after play/pause
+function stop() { A.pause(); stopAt = null; hiGi = -1; followPage = null;
+  $('#pp').textContent = 'Play'; }
 async function playPause() {
   if (!A.paused) return stop(), repaintAll();
   if (tapeMode && TP) {
@@ -411,11 +413,15 @@ A.ontimeupdate = () => {
     const cur = gi >= 0 && det.units[gi] ? det.units[gi].p : null;
     if (prev != null && prev !== cur) paint(prev);
     if (cur != null) { paint(cur);
-      if (follow) {
+      // follow scrolls only when playback CROSSES onto a new page — never on
+      // the first highlight after play/pause, so the space bar just toggles
+      // audio without yanking the view to the sounding note.
+      if (follow && followPage != null && cur !== followPage) {
         const el = PG[cur]?.el, r = el?.getBoundingClientRect();
         if (r && (r.top < 0 || r.bottom > innerHeight))
           el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      } }
+      }
+      followPage = cur; }
   }
 };
 A.onended = async () => {
