@@ -40,7 +40,12 @@ MORIA_CENT = 1200.0 / 72.0
 # editing code.
 GENERA = {
     'diatonic':  [12, 10, 8, 12, 12, 10, 8],
-    'chromatic': [8, 14, 8, 12, 8, 14, 8],
+    'chromatic': [8, 14, 8, 12, 8, 14, 8],          # soft chromatic (from Ni)
+    'soft_chromatic': [8, 14, 8, 12, 8, 14, 8],     # workdir genus name
+    # Hard chromatic is a 6-20-4-12 cycle FROM PA (BYZANTINE_SCALES_REFERENCE
+    # §3.2) and does not repeat at Ni, so a Ni-based 7-vector is necessarily
+    # an approximation: this is the Pa cycle folded to Ni (sums 72).
+    'hard_chromatic': [4, 6, 20, 4, 12, 6, 20],
     'enharmonic': [12, 12, 6, 12, 12, 12, 6],
 }
 

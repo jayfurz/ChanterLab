@@ -34,6 +34,7 @@ sys.path.insert(0, os.path.join(HERE, '..', 'neural'))
 import quick_onset as QO                    # noqa: E402
 import parallagi_class as PC                # noqa: E402
 from degree_match import dtw_cost           # noqa: E402
+from degree_pitch import GENERA              # noqa: E402
 from score_degrees import degree_stream, leading_anchor, units_for  # noqa: E402
 
 LEGEND = '/mnt/data/chant-corpus/scores/legend_canon.json'
@@ -50,6 +51,42 @@ def norm(s):
           'φ': 'f', 'χ': 'ch', 'ψ': 'ps', 'ω': 'o'}
     s = ''.join(tr.get(c, c) for c in s)
     return re.sub(r'[^a-z]', '', s)
+
+
+def quantiser_degrees(path, ts, genus):
+    """Per-onset degrees from pitch alone, with the mode's own step sizes.
+
+    Measured on the chanter-transcribed chromatic fragment: 11/14 (first ten
+    perfect) against the diatonic-trained classifier's 7/14, whose misses were
+    all one shrunken-chromatic-step short. Chanter: "it should be mode
+    invariant. they are the same syllables just slightly different intervals"
+    -- the intervals are exactly what this reader gets right.
+    """
+    import subprocess
+    from degree_pitch import SR as PSR, degrees_cents, estimate_base, f0_track
+    raw = subprocess.run(['ffmpeg', '-v', 'quiet', '-i', path, '-f', 'f32le',
+                          '-ac', '1', '-ar', str(PSR), '-'],
+                         stdout=subprocess.PIPE).stdout
+    x = np.frombuffer(raw, dtype=np.float32)
+    f0, ok = f0_track(x)
+    if ok.sum() < 50:
+        return []
+    med = np.median(f0[ok])
+    dc = degrees_cents(genus)
+    off, _ = estimate_base(1200 * np.log2(f0[ok] / med), dc)
+    full = np.full(len(f0), np.nan)
+    full[ok] = 1200 * np.log2(f0[ok] / med)
+    out = []
+    for k, t0 in enumerate(ts):
+        t1 = ts[k + 1] if k + 1 < len(ts) else t0 + 0.5
+        seg = full[int(t0 * PSR / 160):int(t1 * PSR / 160)]
+        seg = seg[~np.isnan(seg)]
+        if len(seg) < 3:
+            out.append(0); continue
+        rel = (np.median(seg) - off) % 1200
+        d = np.abs(rel - np.array(dc))
+        out.append(int(np.argmin(np.minimum(d, 1200 - d))))
+    return out
 
 
 def peaks_and_degrees(onet, cnet, path, dev, thresh=0.5):
@@ -78,6 +115,7 @@ def main():
     ap.add_argument('--workdir', required=True)
     ap.add_argument('--device', default='cpu')
     ap.add_argument('--json')
+    ap.add_argument('--ear', default='classifier', choices=('classifier', 'quantiser'))
     a = ap.parse_args()
     dev = torch.device(a.device if torch.cuda.is_available() else 'cpu')
     onet = QO.Net().to(dev)
@@ -124,6 +162,13 @@ def main():
     for f in par_files:
         nm = os.path.basename(f)
         ts, degs = peaks_and_degrees(onet, cnet, f, dev)
+        if a.ear == 'quantiser' and ts:
+            # per-hymn genus varies inside a mode workdir (mode 2 carries both
+            # soft and hard chromatic rows); the FILE's genus is unknown before
+            # identification, so use the workdir's majority genus for hearing.
+            import collections
+            genus = collections.Counter(h.get('genus') for h in hymns if h.get('genus')).most_common(1)[0][0]
+            degs = quantiser_degrees(f, ts, genus)
         if not degs:
             print('%-58s too few peaks' % nm[:58]); continue
         sc = sorted((dtw_cost(mod(degs), cand[c]) for c in cand), )

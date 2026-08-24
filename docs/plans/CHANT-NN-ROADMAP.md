@@ -869,3 +869,18 @@ actually heard:
   quantiser stream before asking for any new labels. The clean two
   independent-readers-agreeing check (classifier ≡ quantiser, note for note,
   on file 09) is also what exposed the wrong-audio mixup.
+
+### Mode 2 identification with the quantiser ear (2026-08-23)
+
+`mode_ident --ear quantiser` (genus-aware; `soft_chromatic`/`hard_chromatic`
+added to GENERA, hard as the Pa-cycle 6-20-4-12 folded to Ni): **3/7 formal,
+~5 correct reading the table by hand** (en-to-stavro and others my
+transliteration matcher missed), up from the classifier's 2/7. The
+`theos-kyrios` attractor still takes 7 of 15 files. With the ear now
+measurably decent on chromatic (11/14 on the chanter's transcription), the
+prime suspect moves to the CANDIDATE side: mode-2 ranges are line-level from
+the machine (adjacent hymns share lines, so streams carry each other's
+material — the same over-slicing grave solved with the chanter's
+glyph-level scorecuts), and four files' truths are not in the candidate
+pool at all. Next lever: glyph-level candidate trims (drop-cap starts,
+martyria ends) for mode 2's fifteen ranges — score-side work, no audio.
