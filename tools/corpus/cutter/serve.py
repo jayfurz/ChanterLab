@@ -506,7 +506,7 @@ def book():
                 'end': seg_boxes[-1]['end'] if seg_boxes else box(us[-1]),
                 'piece': pc['id'] if pc else None,
                 'audio': _piece_audio(pc['id']) if pc else None,
-                'par': bool(parallagi_audio(r)),
+                'par': bool(parallagi_audio(r, wd)),
                 't0': c.get('t0'), 't1': c.get('t1'),
                 'label': c.get('label'), 'lane': c.get('lane'),
             })
@@ -575,7 +575,7 @@ def book_hymn(wd, name):
         except Exception:
             c = {}
     tape = f'/tape/{wd}' if wd in tapes() else None
-    pa = parallagi_audio(r)
+    pa = parallagi_audio(r, wd)
     return {'wd': wd, 'name': name, 'units': units, 'slots': slots,
             'piece': pc['id'] if pc else None, 'audio': audio,
             'par_audio': f'/paudio/{wd}/{name}' if pa else None,
@@ -592,7 +592,7 @@ def _range_units(rng):
     return us, us[lo:hi + 1]
 
 
-def parallagi_audio(r):
+def parallagi_audio(r, wd=None):
     """The row's parallagi recording, resolved the way the corpus stores it:
     a prepared parallagi_dir (audio_16k.wav), a parallagi_track filename next
     to the melos, or the raw folder's (ΠΑΡΑΛΛΑΓΗ) file that PRECEDES the melos
@@ -625,6 +625,30 @@ def parallagi_audio(r):
                 return os.path.join(base, names[j])
             if 'ΜΕΛΟΣ' in up or 'MELOS' in up:
                 break                     # ran into the previous hymn
+    # Last resort: the chanter's own '#par' tape cut. Cut once, cache next to
+    # the peaks — this is how book-cut hymns without legacy parallagi files
+    # (most of mode 1 vespers) get their parallagi served at all.
+    if wd:
+        cf = f'{TEXTS}/cuts_{wd}.json'
+        t = tapes().get(wd)
+        if t and os.path.exists(cf):
+            try:
+                c = {x['hymn']: x for x in
+                     json.load(open(cf))['cuts']}.get(r['name'] + '#par')
+            except Exception:
+                c = None
+            if c and c.get('t0') is not None:
+                out_dir = f'{TEXTS}/paudio_cache'
+                os.makedirs(out_dir, exist_ok=True)
+                out = f"{out_dir}/{wd}__{r['name']}.wav"
+                if not os.path.exists(out) or \
+                        os.path.getmtime(out) < os.path.getmtime(cf):
+                    t0 = max(float(c['t0']), float(c.get('t_in') or c['t0']))
+                    subprocess.run(['ffmpeg', '-v', 'quiet', '-y',
+                                    '-i', t['tape'], '-ss', str(t0),
+                                    '-to', str(c['t1']), out], check=False)
+                if os.path.exists(out):
+                    return out
     return None
 
 
@@ -1032,7 +1056,7 @@ class H(BaseHTTPRequestHandler):
             rows = json.load(open(hj))
             rows = rows if isinstance(rows, list) else rows.get('hymns', [])
             r = next((x for x in rows if x['name'] == parts[1]), None)
-            pa = parallagi_audio(r) if r else None
+            pa = parallagi_audio(r, parts[0]) if r else None
             if not pa:
                 return self._send(404, '{"error":"no parallagi audio"}')
             return self.stream_file(pa)

@@ -212,6 +212,15 @@ def read_parallagi_flags(piece_id):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # HTML must never be heuristically cached: UI fixes ship many times a
+        # day and a stale index.html hides them (chanter 2026-08-24: a new
+        # toolbar button was invisible until a hard reload).
+        p = self.path.split('?')[0]
+        if p.endswith('.html') or p.endswith('/') or p == '':
+            self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
+
     def _proxy(self, method):
         """Forward one request to the cutter, streaming the body back.
 
