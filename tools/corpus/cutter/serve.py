@@ -547,6 +547,89 @@ def book_hymn(wd, name):
             'tape': tape, 't0': c.get('t0'), 't1': c.get('t1')}
 
 
+
+def book_units(pno):
+    """Tap/drag targets for one page: every unit box in page space."""
+    from hymn_align import load_units
+    us, _ = load_units(pno, 0, pno, 10 ** 6)
+    return [{'i': i, 'l': u['pl'][1],
+             'x0': round(u['x0'], 1), 'y0': round(u['y0'], 1),
+             'x1': round(u['x1'], 1), 'y1': round(u['y1'], 1)}
+            for i, u in enumerate(us)]
+
+
+def book_span_save(payload):
+    """Move one hymn's start or end to a tapped unit, editing hymns.json.
+
+    g0/g1 are indices into the row's OWN (p0,l0)..(p1,l1) unit stream, so both
+    are recomputed here rather than trusted from the client: moving the start
+    shifts every index after it, and the end must survive that shift. The old
+    end unit is resolved to its printed identity (page, line, x0) first and
+    found again in the new stream.
+    """
+    from hymn_align import load_units, load_units_h
+    wd, name = payload.get('workdir'), payload.get('hymn')
+    which = payload.get('which')
+    page, i = payload.get('page'), payload.get('i')
+    if not WD_RE.match(wd or '') or which not in ('start', 'end') \
+            or not isinstance(page, int) or not isinstance(i, int):
+        return None, 'bad request'
+    hj = f'{WORKDIRS}/{wd}/hymns.json'
+    if not os.path.exists(hj):
+        return None, 'unknown workdir'
+    rows = json.load(open(hj))
+    rows = rows if isinstance(rows, list) else rows.get('hymns', [])
+    r = next((x for x in rows if x['name'] == name), None)
+    if r is None:
+        return None, 'unknown hymn'
+    us_p, _ = load_units(page, 0, page, 10 ** 6)
+    if not (0 <= i < len(us_p)):
+        return None, 'unit out of range'
+    u = us_p[i]
+    ident = lambda x: (x['pl'][0], x['pl'][1], round(x['x0'], 1))
+    # the boundary NOT being moved, by printed identity, before any mutation
+    try:
+        cur, _ = load_units_h(r)
+    except Exception:
+        cur = []
+    keep = None
+    if cur:
+        keep = ident(cur[-1]) if which == 'start' else ident(cur[0])
+    old = {k: r.get(k) for k in ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')}
+    if which == 'start':
+        r['p0'], r['l0'] = page, u['pl'][1]
+    else:
+        r['p1'], r['l1'] = page, u['pl'][1] + 1
+    # rebuild both g indices against the new stream
+    try:
+        stream, _ = load_units(r['p0'], r['l0'], r['p1'], r['l1'])
+    except Exception:
+        stream = []
+    ids = [ident(x) for x in stream]
+    tgt = ident(u)
+    lo = ids.index(tgt) if tgt in ids else None
+    ko = ids.index(keep) if keep in ids else None
+    g0 = (lo if which == 'start' else ko)
+    g1 = (ko if which == 'start' else lo)
+    if g0 is None or g1 is None or g0 > g1:
+        for k, v in old.items():
+            if v is None:
+                r.pop(k, None)
+            else:
+                r[k] = v
+        return None, 'start would land after end (or unit not in range)'
+    r['g0'], r['g1'] = g0, g1
+    stamp = time.strftime('%Y%m%d-%H%M%S')
+    shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
+    json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
+    open(hj, 'a').write('\n')
+    box = lambda x: {'p': x['pl'][0], 'l': x['pl'][1],
+                     'x0': round(x['x0'], 1), 'y0': round(x['y0'], 1),
+                     'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
+    return {'name': name, 'wd': wd,
+            'start': box(stream[g0]), 'end': box(stream[g1])}, None
+
+
 class H(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
 
@@ -593,6 +676,17 @@ class H(BaseHTTPRequestHandler):
             f = os.path.join(HERE, 'book.html')
             return self._send(200, open(f, 'rb').read(),
                               'text/html; charset=utf-8')
+        if p == '/api/book/units':
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            try:
+                pno = int((q.get('page') or ['x'])[0])
+            except ValueError:
+                return self._send(400, '{"error":"bad page"}')
+            try:
+                return self._send(200, json.dumps(book_units(pno)))
+            except Exception as e:
+                return self._send(500, json.dumps({'error': str(e)[:120]}))
         if p == '/api/book':
             return self._send(200, json.dumps(book(), ensure_ascii=False))
         if p == '/api/book/hymn':
@@ -781,6 +875,21 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split('?')[0]
+        if path == '/api/book/span':
+            try:
+                n = int(self.headers.get('Content-Length', 0))
+                if not 0 < n <= MAX_BODY:
+                    raise ValueError('bad length')
+                payload = json.loads(self.rfile.read(n))
+            except Exception as e:
+                return self._send(400, json.dumps({'error': str(e)[:120]}))
+            try:
+                d, err = book_span_save(payload)
+            except Exception as e:
+                return self._send(500, json.dumps({'error': str(e)[:120]}))
+            if err:
+                return self._send(400, json.dumps({'error': err}))
+            return self._send(200, json.dumps(d, ensure_ascii=False))
         if path == '/api/scorecuts':
             return self.save_scorecuts()
         if path == '/api/span':
