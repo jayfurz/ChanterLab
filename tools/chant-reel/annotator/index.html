@@ -2079,7 +2079,15 @@ function frame() {
     playingSlot = ps; dirtyScore = true; dirtyTL = true;
   }
   if (!audio.paused && $('follow').checked) {
-    const sx = smoothScoreX(t);
+    let sx = null;
+    if (tapMode) {
+      // while tapping, the existing marker times are exactly what's being
+      // REPLACED — gliding along them is misleading. Hold the cursor on the
+      // note that is waiting to be tapped instead.
+      if (tapIdx < nS()) sx = glyphRX(D.slots.gi[tapIdx])[0];
+    } else {
+      sx = smoothScoreX(t);
+    }
     if (sx != null) {
       scoreCursorX = sx;
       const target = Math.max(0, sx - wrap.clientWidth * 0.4);
