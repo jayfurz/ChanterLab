@@ -1562,7 +1562,8 @@ function tapArm(i) {
   // the beat again — resuming mid-hymn after losing track is the whole point
   const lead = Math.max(0, slotT(tapIdx) - TAP_LEAD);
   seekTo(lead);
-  lastTap = lead;                        // taps before the run-up point are ignored
+  lastTap = -1;                          // the chanter may re-seek anywhere:
+                                         // only taps MADE in this run bound later ones
   $('selinfo').textContent = (audio.paused
     ? `TAP armed at slot ${tapIdx} (player set ${TAP_LEAD}s before it) — SPACE starts playback, then tap every onset`
     : `TAP re-armed at slot ${tapIdx} — playing from ${TAP_LEAD}s before it`);
@@ -1575,8 +1576,15 @@ function doTap() {
   if (audio.paused) { togglePlay();
     $('selinfo').textContent = `playing — tap slot ${tapIdx} on its onset`; return; }
   if (tapIdx >= nS()) { toggleTapMode(); return; }
+  const now = performance.now();
+  if (now - (doTap._wall || 0) < 130) return;   // key repeat/bounce
+  doTap._wall = now;
   const t = Math.round(audio.currentTime * 1000) / 1000;
-  if (t <= lastTap) return;              // key bounce / repeat
+  if (lastTap >= 0 && t <= lastTap + 0.02) {
+    $('selinfo').textContent = `tap at ${t.toFixed(2)}s ignored — not after your ` +
+      `previous tap (${lastTap.toFixed(2)}s); seek forward, or Backspace to redo`;
+    return;
+  }
   lastTap = t;
   pushU('tap slot ' + tapIdx);
   tapUndo.push({ i: tapIdx, corr: corrected[tapIdx], pin: pinned[tapIdx] });
