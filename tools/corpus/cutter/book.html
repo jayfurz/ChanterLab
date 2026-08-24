@@ -66,6 +66,11 @@ body.tape #laneM,body.tape #laneP{display:none}
   border-radius:10px;padding:6px;display:none;min-width:150px}
 #wmenu button{display:block;width:100%;margin:3px 0;text-align:left}
 #wmenu .t{font-size:12px;color:var(--dim);padding:2px 4px}
+#armbar{display:none;position:fixed;top:56px;left:50%;transform:translateX(-50%);
+  z-index:15;background:var(--gold);color:#1a1512;font-weight:600;
+  border-radius:10px;padding:9px 14px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+#armbar button{margin-left:10px;background:#1a1512;color:var(--gold);
+  border:none;padding:4px 10px}
 #wavep{display:none;background:#0d0b0a;border-top:1px solid var(--line);
   position:relative;height:96px;touch-action:none}
 body.tape #wavep{display:block}
@@ -89,6 +94,7 @@ body.tape .taperow{display:flex}
 <audio id="a" preload="none" playsinline webkit-playsinline></audio>
 <nav id="tocp"></nav>
 <div id="wmenu"></div>
+<div id="armbar"><span></span><button>cancel</button></div>
 <div id="scrub"><div class="track"></div><div class="thumb"></div><div class="tip"></div></div>
 <main id="pages"></main>
 
@@ -488,16 +494,19 @@ async function placeNew(pno, px, py) {
   if (!best || bd > 3600) return msg('tap closer to a neume');
   if (!armNew.start) {
     armNew.start = { page: pno, i: best.i };
+    armBar(`${armNew.name}: start set at p${pno} — now tap its LAST unit`);
     msg(`${armNew.name}: start set at p${pno} — now tap its LAST unit`);
     return;
   }
+  armBar(null);
   const body = { workdir: armNew.wd, hymn: armNew.name,
     start: armNew.start, end: { page: pno, i: best.i } };
-  if (tapeMode && TP && TP.wd === armNew.wd) {
+  const wasScoreOnly = armNew.scoreOnly;
+  if (!wasScoreOnly && tapeMode && TP && TP.wd === armNew.wd) {
     const s = TP.spans[armNew.name];
     if (s && s.t0 != null) { body.t0 = s.t0; body.t1 = s.t1; }
   }
-  armNew = null;
+  armNew = null; armBar(null);
   msg('creating span…');
   try {
     const r = await fetch('/api/book/new', { method: 'POST',
@@ -506,6 +515,9 @@ async function placeNew(pno, px, py) {
     const out = await r.json();
     if (!r.ok) throw new Error(out.error || r.status);
     out.wd = body.workdir;
+    if (wasScoreOnly && TP && TP.spans[out.name]) {
+      out.t0 = TP.spans[out.name].t0; out.t1 = TP.spans[out.name].t1;
+    }
     B.hymns.push(out);
     B.hymns.sort((a, b) => (a.start.p - b.start.p) || (a.start.l - b.start.l)
       || (a.start.x0 - b.start.x0));
@@ -520,10 +532,16 @@ async function placeNew(pno, px, py) {
   } catch (e) { msg('create failed: ' + e.message); }
   repaintAll();
 }
+function armBar(text) {
+  const b = $('#armbar');
+  if (!text) { b.style.display = 'none'; return; }
+  b.querySelector('span').textContent = text;
+  b.style.display = 'block';
+}
 function startNewSpan() {
   if (armNew) {                          // second press cancels the placement
-    delete TP?.spans?.[armNew.name];
-    armNew = null; needWave = true;
+    if (!armNew.scoreOnly) delete TP?.spans?.[armNew.name];
+    armNew = null; needWave = true; armBar(null);
     return msg('+ span cancelled');
   }
   const wd = tapeMode && TP ? TP.wd : sel >= 0 ? B.hymns[sel].wd : null;
@@ -540,6 +558,7 @@ function startNewSpan() {
                'parallagi once a melos span exists), then Save cuts.');
   }
   armNew = { wd, name, start: null };
+  armBar(`${name}: tap its FIRST unit on the score`);
   msg(`${name} (${wd}): tap its FIRST unit in the book` +
       (tapeMode ? ' — start@play/end@play now mark THIS hymn\'s tape span' : ''));
 }
@@ -783,6 +802,12 @@ function openWaveMenu(name, cx, cy) {
     delete TP.spans[name];
     TP.dirty = true; needWave = true; msg(`${base}: span is now parallagi (unsaved)`);
   });
+  if (!B.hymns.some(h => h.wd === TP.wd && h.name === base))
+    add('▤ place score span (tap first + last unit)', () => {
+      armNew = { wd: TP.wd, name: base, start: null, scoreOnly: true };
+      armBar(`${base}: tap its FIRST unit on the score`);
+      msg(`${base}: scroll the book and tap its FIRST unit`);
+    });
   add('✕ delete this span', () => {
     delete TP.spans[name];
     TP.dirty = true; needWave = true; msg(`${base}: span deleted (unsaved — Save cuts to persist)`);
@@ -1021,6 +1046,9 @@ async function boot() {
   $('#follow').onclick = () => { follow = !follow; $('#follow').classList.toggle('on', follow); };
   initWave();
   $('#newspan').onclick = startNewSpan;
+  $('#armbar button').onclick = () => { if (armNew && !armNew.scoreOnly)
+      delete TP?.spans?.[armNew.name];
+    armNew = null; needWave = true; armBar(null); msg('+ span cancelled'); };
   const setLane = l => {
     lane = l;
     $('#laneM').classList.toggle('on', l === 'melos');
