@@ -135,6 +135,9 @@
 <div id="hdr">
   <h1>Chant Annotator</h1>
   <select id="piecesel" style="display:none" title="Switch piece (edits autosave per piece)"></select>
+  <a id="booklink" href="/book" style="display:none;color:#9c9086;text-decoration:none;
+    font-size:13px;border:1px solid #3a4250;border-radius:8px;padding:6px 10px"
+    title="open this hymn in the Anastasimatarion book view (B)">book</a>
   <button id="fitbtn" title="Zoom to full piece (Home)">Fit</button>
   <label class="chk"><input type="checkbox" id="follow" checked> follow</label>
   <button id="ghostbtn" title="Mark pitch-ghost regions (G): drag on the pitch band to paint one, tap a region to remove it">Ghost</button>
@@ -188,7 +191,7 @@
   <span id="counts"></span>
   <span id="savestate"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
-    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · 0 playhead to start · T tap onsets · V parallagi audio · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
+    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · 0 playhead to start · B book · T tap onsets · V parallagi audio · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
 </div>
 <div id="transport">
   <button id="playbtn" class="primary" title="play/pause (space)">▶</button>
@@ -860,6 +863,16 @@ async function boot() {
   $('dur').textContent = ' / ' + fmtT(D.meta.duration);
   audio.src = DATA_DIR + D.meta.audio;
   setupParAudio();
+  {
+    const s = D.meta.source || {};
+    const bl = $('booklink');
+    if (s.workdir && s.hymn) {
+      const wd = s.workdir.replace(/\/+$/, '').split('/').pop();
+      const hymn = s.hymn.replace(/-par$/, '');   // -par pieces map to the row
+      bl.href = `/book?wd=${encodeURIComponent(wd)}&hymn=${encodeURIComponent(hymn)}`;
+    }
+    bl.style.display = '';
+  }
 
   img = new Image();
   img.onload = () => { setupScore(); dirtyScore = true; };
@@ -1930,6 +1943,7 @@ window.addEventListener('keydown', e => {
   else if (e.key === 's' || e.key === 'S') cycleSpeed();
   else if (e.key === 't' || e.key === 'T') toggleTapMode();
   else if (e.key === 'v' || e.key === 'V') toggleParAudio();
+  else if (e.key === 'b' || e.key === 'B') location.href = $('booklink').href;
 });
 $('playbtn').onclick = togglePlay;
 $('tapbtn').onclick = toggleTapMode;
