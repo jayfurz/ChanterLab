@@ -121,6 +121,8 @@ body.tape .taperow{display:flex}
   <div class="row">
     <button id="edit" disabled>Edit spans</button>
     <button id="newspan" title="map a hymn that has no span yet: name it, then tap its first and last unit in the book">+ span</button>
+    <button id="undo" disabled title="undo (ctrl+z)">&#8630;</button>
+    <button id="redo" disabled title="redo (ctrl+shift+z)">&#8631;</button>
     <button id="fix" disabled>Fix onsets (annotator)</button>
   </div>
   <div id="msg"></div>
@@ -428,6 +430,46 @@ A.onended = async () => {
   stop(); repaintAll();
 };
 
+/* undo / redo ---------------------------------------------------------- */
+const UNDO = [], REDO = [];
+function updUR() { $('#undo').disabled = !UNDO.length; $('#redo').disabled = !REDO.length; }
+function pushUndo(e) { UNDO.push(e); if (UNDO.length > 100) UNDO.shift();
+  REDO.length = 0; updUR(); }
+async function doUndo() { const e = UNDO.pop(); updUR(); if (!e) return;
+  try { await e.undo(); REDO.push(e); msg('undid: ' + e.label); }
+  catch (err) { msg('undo failed: ' + err.message); } updUR(); }
+async function doRedo() { const e = REDO.pop(); updUR(); if (!e) return;
+  try { await e.redo(); UNDO.push(e); msg('redid: ' + e.label); }
+  catch (err) { msg('redo failed: ' + err.message); } updUR(); }
+/* tape edits are local state: snapshot spans before, commit after */
+function tapeSnap(label) {
+  if (!TP) return () => {};
+  const wd0 = TP.wd, before = JSON.stringify(TP.spans);
+  return () => {
+    if (!TP || TP.wd !== wd0) return;
+    const after = JSON.stringify(TP.spans);
+    if (after === before) return;
+    const apply = state => async () => {
+      if (!TP || TP.wd !== wd0) throw new Error('that tape is no longer open');
+      TP.spans = JSON.parse(state); TP.dirty = true; needWave = true;
+    };
+    pushUndo({ label, undo: apply(before), redo: apply(after) });
+  };
+}
+/* score-marker moves are server state: undo re-posts the previous unit */
+async function postSpanBox(h, which, box) {
+  const us = await unitsFor(box.p);
+  const u = us.find(u => u.l === box.l && Math.abs(u.x0 - box.x0) < 0.6);
+  if (!u) throw new Error('previous unit not found on p' + box.p);
+  const res = await fetch('/api/book/span', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workdir: h.wd, hymn: h.name, which,
+                           page: box.p, i: u.i }) });
+  const out = await res.json();
+  if (!res.ok) throw new Error(out.error || res.status);
+  h.start = out.start; h.end = out.end; repaintAll();
+}
+
 /* new spans ------------------------------------------------------------ */
 async function placeNew(pno, px, py) {
   const pt = toPt(pno, px, py); if (!pt) return;
@@ -522,6 +564,7 @@ window.addEventListener('pointerup', async () => {
   const d = drag; drag = null;
   if (!d.preview) { repaintAll(); msg(''); return; }
   const h = B.hymns[sel];
+  const prev = { ...h[d.which] };
   msg('saving…');
   try {
     const res = await fetch('/api/book/span', { method: 'POST',
@@ -531,6 +574,10 @@ window.addEventListener('pointerup', async () => {
     const out = await res.json();
     if (!res.ok) throw new Error(out.error || res.status);
     h.start = out.start; h.end = out.end;
+    const next = { ...out[d.which] };
+    pushUndo({ label: `${d.which} of ${h.name}`,
+      undo: () => postSpanBox(h, d.which, prev),
+      redo: () => postSpanBox(h, d.which, next) });
     msg(`${d.which} of ${h.name} → p${out[d.which].p} line ${out[d.which].l + 1} — saved`);
   } catch (e) { msg('save failed: ' + e.message); }
   repaintAll();
@@ -685,7 +732,8 @@ function openWaveMenu(name, cx, cy) {
   const par = spanIsPar(name, s), base = spanBase(name);
   M.innerHTML = `<div class="t">${base}${par ? ' · parallagi' : ' · melos'}</div>`;
   const add = (label, fn) => { const b = document.createElement('button');
-    b.textContent = label; b.onclick = () => { M.style.display = 'none'; fn(); };
+    b.textContent = label; b.onclick = () => { M.style.display = 'none';
+      const c = tapeSnap(label); fn(); c(); };
     M.append(b); };
   if (par) add('→ mark as MELOS', () => {
     if (TP.spans[base]) return msg(`${base} already has a melos span`);
@@ -745,7 +793,8 @@ function initWave() {
       else if (s.t_in != null && Math.abs(t2x(s.t_in, W) - x) < tol)
         wdrag = { kind: 'edge', name, edge: 't_in' };
       if (wdrag.kind === 'edge') {
-        const i = B.hymns.findIndex(h => h.wd === TP.wd && h.name === name);
+        wdrag.commit = tapeSnap(`${wdrag.edge} of ${name}`);
+        const i = B.hymns.findIndex(h => h.wd === TP.wd && h.name === spanBase(name));
         if (i >= 0 && i !== sel) select(i, false, true);
         break;
       }
@@ -795,6 +844,7 @@ function initWave() {
     clearTimeout(press);
     pts.delete(e.pointerId);
     if (!wdrag) return;
+    if (wdrag.kind === 'edge' && wdrag.commit) wdrag.commit();
     if (wdrag.kind === 'pan' && !wdrag.moved && TP)
       A.currentTime = x2t(px(e), cv.width);
     if (wdrag.kind === 'pinch' || pts.size === 0) wdrag = null;
@@ -962,15 +1012,19 @@ async function boot() {
     } else { stop(); TP = null; A.removeAttribute('src'); A.load(); msg(''); }
   };
   $('#tstart').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
+    const c = tapeSnap('start mark');
     s.t0 = +A.currentTime.toFixed(2); if (s.t1 == null || s.t1 <= s.t0) s.t1 = s.t0 + 30;
-    normalizeSpan(s); TP.dirty = true; needWave = true; msg('start set (unsaved)'); };
+    normalizeSpan(s); c(); TP.dirty = true; needWave = true; msg('start set (unsaved)'); };
   $('#tend').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
+    const c = tapeSnap('end mark');
     s.t1 = +A.currentTime.toFixed(2); if (s.t0 == null || s.t0 >= s.t1) s.t0 = Math.max(0, s.t1 - 30);
-    normalizeSpan(s); TP.dirty = true; needWave = true; msg('end set (unsaved)'); };
+    normalizeSpan(s); c(); TP.dirty = true; needWave = true; msg('end set (unsaved)'); };
   $('#tapx').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
+    const c = tapeSnap('apichima mark');
     s.t_in = s.t_in == null ? +A.currentTime.toFixed(2) : null;
-    TP.dirty = true; needWave = true;
+    c(); TP.dirty = true; needWave = true;
     msg(s.t_in == null ? 'apichima mark cleared (unsaved)' : 'apichima end marked (unsaved)'); };
+  $('#undo').onclick = doUndo; $('#redo').onclick = doRedo;
   $('#tzi').onclick = () => { const D = tpDur(); if (!TP || !D) return;
     const [v0, v1] = TP.view, m = (v0 + v1) / 2,
     w = Math.max(2, (v1 - v0) / 1.6); TP.view = [Math.max(0, m - w / 2), Math.min(D, m + w / 2)]; needWave = true; };
@@ -995,6 +1049,9 @@ async function boot() {
     location.href = `/?piece=${encodeURIComponent(h.piece)}`; };
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'SELECT') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault(); return e.shiftKey ? doRedo() : doUndo();
+    }
     if (e.code === 'Space') { e.preventDefault(); playPause(); }
     if (e.key === 'ArrowLeft' || e.key === 'j') $('#prev').click();
     if (e.key === 'ArrowRight' || e.key === 'k') $('#next').click();
