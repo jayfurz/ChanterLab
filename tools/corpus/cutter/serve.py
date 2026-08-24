@@ -477,6 +477,17 @@ def book():
                 cp = cuts[r['name'] + '#par']
                 c = dict(c, t0=cp.get('t0'), t1=cp.get('t1'),
                          lane='parallagi', label=cp.get('label'))
+            seg_boxes = None
+            if r.get('segments'):
+                seg_boxes = []
+                for s in r['segments']:
+                    try:
+                        _, kept = _range_units(s)
+                        seg_boxes.append({'start': box(kept[0]),
+                                          'end': box(kept[-1])})
+                    except Exception:
+                        seg_boxes = None
+                        break
             par_boxes = {}
             ps = r.get('par_score')
             if ps:
@@ -489,7 +500,9 @@ def book():
                     par_boxes = {}
             hymns.append({**par_boxes,
                 'wd': wd, 'name': r['name'], 'genus': r.get('genus'),
-                'start': box(us[0]), 'end': box(us[-1]),
+                'segs': seg_boxes,
+                'start': seg_boxes[0]['start'] if seg_boxes else box(us[0]),
+                'end': seg_boxes[-1]['end'] if seg_boxes else box(us[-1]),
                 'piece': pc['id'] if pc else None,
                 'audio': _piece_audio(pc['id']) if pc else None,
                 'par': bool(parallagi_audio(r)),
@@ -610,6 +623,73 @@ def parallagi_audio(r):
             if 'ΜΕΛΟΣ' in up or 'MELOS' in up:
                 break                     # ran into the previous hymn
     return None
+
+
+def book_segment(payload):
+    """Add (or clear) an extra score segment on a hymn — the performance can
+    include lines printed ELSEWHERE, e.g. a shared Doxa/Kai nyn that the book
+    prints once and later hymns merely refer to. r['segments'] is the ordered
+    list of ranges actually sung; the main p0..g1 stays the hymn's own printed
+    text so aligners and lyric tools are unaffected."""
+    from hymn_align import load_units
+    wd, name = payload.get('workdir'), payload.get('hymn')
+    if not WD_RE.match(wd or ''):
+        return None, 'bad workdir'
+    hj = f'{WORKDIRS}/{wd}/hymns.json'
+    if not os.path.exists(hj):
+        return None, 'unknown workdir'
+    rows = json.load(open(hj))
+    rows = rows if isinstance(rows, list) else rows.get('hymns', [])
+    r = next((x for x in rows if x['name'] == name), None)
+    if r is None:
+        return None, 'unknown hymn'
+    main = {k: r.get(k) for k in ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')}
+    stamp = time.strftime('%Y%m%d-%H%M%S')
+    if payload.get('where') == 'clear':
+        r.pop('segments', None)
+        shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
+        _write_json(hj, rows)
+        return {'wd': wd, 'name': name, 'segments': None}, None
+    st, en = payload.get('start') or {}, payload.get('end') or {}
+    try:
+        us0, _ = load_units(int(st['page']), 0, int(st['page']), 10 ** 6)
+        us1, _ = load_units(int(en['page']), 0, int(en['page']), 10 ** 6)
+        u0, u1 = us0[int(st['i'])], us1[int(en['i'])]
+    except Exception as e:
+        return None, 'bad start/end unit: %s' % str(e)[:80]
+    rng = {'p0': int(st['page']), 'l0': u0['pl'][1],
+           'p1': int(en['page']), 'l1': u1['pl'][1] + 1}
+    try:
+        stream, _ = load_units(rng['p0'], rng['l0'], rng['p1'], rng['l1'])
+    except Exception:
+        stream = []
+    ident = lambda x: (x['pl'][0], x['pl'][1], round(x['x0'], 1))
+    ids = [ident(x) for x in stream]
+    try:
+        rng['g0'], rng['g1'] = ids.index(ident(u0)), ids.index(ident(u1))
+    except ValueError:
+        return None, 'start/end do not form a readable range'
+    if rng['g0'] > rng['g1']:
+        return None, 'start lands after end'
+    segs = r.get('segments') or [dict(main)]
+    if payload.get('where') == 'before':
+        segs.insert(0, rng)
+    else:
+        segs.append(rng)
+    r['segments'] = segs
+    shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
+    _write_json(hj, rows)
+    box = lambda x: {'p': x['pl'][0], 'l': x['pl'][1],
+                     'x0': round(x['x0'], 1), 'y0': round(x['y0'], 1),
+                     'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
+    out = []
+    for s in segs:
+        try:
+            _, kept = _range_units(s)
+            out.append({'start': box(kept[0]), 'end': box(kept[-1])})
+        except Exception:
+            out.append(None)
+    return {'wd': wd, 'name': name, 'segments': out}, None
 
 
 def book_units(pno):
@@ -1108,6 +1188,18 @@ class H(BaseHTTPRequestHandler):
                     raise ValueError('bad length')
                 with _WRITE_LOCK:
                     d, err = book_new_span(json.loads(self.rfile.read(n)))
+            except Exception as e:
+                return self._send(400, json.dumps({'error': str(e)[:150]}))
+            if err:
+                return self._send(400, json.dumps({'error': err}))
+            return self._send(200, json.dumps(d, ensure_ascii=False))
+        if path == '/api/book/segment':
+            try:
+                n = int(self.headers.get('Content-Length', 0))
+                if not 0 < n <= MAX_BODY:
+                    raise ValueError('bad length')
+                with _WRITE_LOCK:
+                    d, err = book_segment(json.loads(self.rfile.read(n)))
             except Exception as e:
                 return self._send(400, json.dumps({'error': str(e)[:150]}))
             if err:

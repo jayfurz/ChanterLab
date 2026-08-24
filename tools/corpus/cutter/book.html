@@ -127,6 +127,7 @@ body.tape .taperow{display:flex}
   <div class="row">
     <button id="edit" disabled>Edit spans</button>
     <button id="newspan" title="map a hymn that has no span yet: name it, then tap its first and last unit in the book">+ span</button>
+    <button id="newseg" disabled title="add a DISJUNCT score segment to the selected hymn — lines printed elsewhere that the performance includes (e.g. a shared Doxa/Kai nyn the book prints once)">+ seg</button>
     <button id="undo" disabled title="undo (ctrl+z)">&#8630;</button>
     <button id="redo" disabled title="redo (ctrl+shift+z)">&#8631;</button>
     <button id="fix" disabled>Fix onsets (annotator)</button>
@@ -270,6 +271,20 @@ function paint(pno) {
         cx.lineWidth = isSel ? 5 : 2.5; cx.strokeRect(...r);
       }
     }
+    // disjunct segments: mark the interior joints so the jump is visible
+    (h.segs || []).forEach((sg, k) => {
+      if (!sg) return;
+      const marks = [];
+      if (k > 0 && sg.start.p === pno) marks.push(sg.start);
+      if (k < h.segs.length - 1 && sg.end.p === pno) marks.push(sg.end);
+      marks.forEach(b => { const r = markBox(pno, b, 5); if (!r) return;
+        cx.setLineDash([4, 4]);
+        cx.strokeStyle = isSel ? '#d8a24a' : '#b0955f';
+        cx.lineWidth = 3; cx.strokeRect(...r); cx.setLineDash([]);
+        cx.fillStyle = '#b0955f';
+        cx.font = Math.round(g.cv.width / 75) + 'px system-ui';
+        cx.fillText('seg ' + (k + 1), r[0], Math.max(r[1] - 3, 11)); });
+    });
     // the parallagi's own score range, when it differs from the melos
     if (h.par_start && h.par_start.p === pno) {
       const r = markBox(pno, h.par_start, 7); if (r) {
@@ -354,6 +369,7 @@ async function select(i, scroll, keepAudio) {
     h.audio ? 'var(--green)' : h.t0 != null ? 'var(--gold)' : '#777'}"></span>` +
     `${h.wd} · ${h.label || h.name}` + (h.genus ? ` · ${h.genus}` : '');
   $('#edit').disabled = false;
+  $('#newseg').disabled = false;
   $('#fix').disabled = !h.piece;
   if (!tapeMode) $('#pp').disabled = !(h.audio || (h.t0 != null) || h.par);
   $('#laneP').disabled = !tapeMode && !h.par;
@@ -535,6 +551,28 @@ async function placeNew(pno, px, py) {
     return;
   }
   armBar(null);
+  if (armNew.segment) {
+    const body = { workdir: armNew.wd, hymn: armNew.name, where: armNew.where,
+      start: armNew.start, end: { page: pno, i: best.i } };
+    armNew = null; armBar(null);
+    msg('adding segment…');
+    try {
+      const r = await fetch('/api/book/segment', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) });
+      const out = await r.json();
+      if (!r.ok) throw new Error(out.error || r.status);
+      const ex = B.hymns.find(h => h.wd === body.workdir && h.name === out.name);
+      if (ex && out.segments) {
+        ex.segs = out.segments;
+        ex.start = out.segments[0].start;
+        ex.end = out.segments[out.segments.length - 1].end;
+      }
+      repaintAll();
+      msg(`${out.name}: now ${out.segments.length} score segments`);
+    } catch (e) { msg('segment failed: ' + e.message); }
+    return;
+  }
   const body = { workdir: armNew.wd, hymn: armNew.name,
     start: armNew.start, end: { page: pno, i: best.i } };
   if (armNew.par) body.par = true;
@@ -585,6 +623,15 @@ function armBar(text) {
   if (!text) { b.style.display = 'none'; return; }
   b.querySelector('span').textContent = text;
   b.style.display = 'block';
+}
+function startNewSeg() {
+  if (sel < 0) return msg('select a hymn first');
+  const h = B.hymns[sel];
+  const before = confirm('Does this segment come BEFORE the hymn\u2019s printed score?\nOK = sung first (e.g. a shared Doxa/Kai nyn) \u00b7 Cancel = sung after');
+  armNew = { wd: h.wd, name: h.name, start: null, segment: true,
+             where: before ? 'before' : 'after' };
+  armBar(`${h.name}: tap the segment's FIRST unit`);
+  msg(`${h.name}: tap the FIRST unit of the ${before ? 'preceding' : 'following'} segment`);
 }
 function startNewSpan() {
   if (armNew) {                          // second press cancels the placement
@@ -1103,6 +1150,7 @@ async function boot() {
   $('#follow').onclick = () => { follow = !follow; $('#follow').classList.toggle('on', follow); };
   initWave();
   $('#newspan').onclick = startNewSpan;
+  $('#newseg').onclick = startNewSeg;
   $('#armbar button').onclick = () => { if (armNew && !armNew.scoreOnly)
       delete TP?.spans?.[armNew.name];
     armNew = null; needWave = true; armBar(null); msg('+ span cancelled'); };
