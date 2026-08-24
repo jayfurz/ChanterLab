@@ -285,7 +285,10 @@ def degree_stream(units, legend, start=None, trace=None):
             #
             # Not re-anchoring means only that: do not take the martyria's
             # degree. The note is still a note and still moves by its interval.
-            deg += _iv(u, keys)
+            # (Unless nothing has anchored yet -- a machine-located range can
+            # open before any martyria, and None cannot move.)
+            if deg is not None:
+                deg += _iv(u, keys)
         elif u.get('mart_deg') is not None:
             deg = u['mart_deg']
         elif deg is not None:

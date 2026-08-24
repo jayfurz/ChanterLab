@@ -794,3 +794,25 @@ it are wrong and cancel (its classifier agreement is still 0.21 at 0 FAIL).
 The checksum is necessary, not sufficient — it triages; the audio verifiers
 adjudicate inside a span. Pieces with no interior martyria (s40/s41) have
 no checksum, which is itself an honest report.
+
+## 11. Cross-mode run: mode 2 vespers + plagal 1 (2026-08-23)
+
+`tools/corpus/mode_ident.py` — the grave identification stack pointed at a
+workdir's machine-located candidates, scored against the chanter's own
+filenames on mode 2 vespers. **Result: 2/7. The stack does not transfer to
+soft chromatic as-is.** `theos-kyrios` wins 8 of 15 files — the degenerate-
+attractor shape RESEP's text route had. This is the roadmap's open question
+("still untested: a different mode") answered with a number: the degree
+classifier, trained on diatonic grave, does not hear soft-chromatic degrees.
+Side findings: pl1-vespers (diatonic) runs but has no ground truth
+(clock-named files, 5 parallagi tracks resolved); pl1-compunction's four
+candidates tie at margin 0.000 — its line-level streams are degenerate and
+need checking before any conclusion there. Two robustness fixes landed on
+the way (degree_stream None-anchor guard; parallagi file discovery).
+
+What unblocks mode 2, in order of leverage: one chanter-pinned mode-2
+parallagi (peaks as the guide, exactly like s02) gives the classifier its
+first chromatic training piece and the pitch quantiser its chromatic
+calibration — the same 76-note investment that started the grave cascade.
+Plagal 1 is diatonic, so its blocker is different: candidate quality and
+lane truth, not the ear.
