@@ -146,6 +146,7 @@ let editMode = false, drag = null;
 let lane = 'melos';
 let paraOn = false;
 const DEG_GR = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω'];
+const DEG_CAP = ['Ν', 'Π', 'Β', 'Γ', 'Δ', 'Κ', 'Ζ'];   // one cap per degree — all distinct
 let armNew = null;   // {wd, name, start:{page,i}|null} while placing a new span                     // which recording of the span plays      // drag: {which:'start'|'end', preview:{pno,u}}
 const UC = {};                          // pno -> unit boxes (drag targets)
 async function unitsFor(pno) {
@@ -315,7 +316,7 @@ function paint(pno) {
   // One shared baseline per line, bold dark text with a halo (the thin light
   // blue at box-bottom height failed both ordering and accessibility).
   if (paraOn && det && det.degrees && sel >= 0) {
-    cx.font = 'bold ' + Math.round(g.cv.width / 55) + 'px system-ui';
+    cx.font = 'bold ' + Math.round(g.cv.width / 48) + 'px system-ui';
     cx.textAlign = 'center';
     const byLine = {};
     for (let i = 0; i < det.units.length; i++) {
@@ -332,7 +333,7 @@ function paint(pno) {
                    16 * (g.cv.width / 1100);
       const xs = boxes.map(b => b[0] + b[2] / 2).sort((a, b) => a - b);
       idxs.forEach((i, k) => {
-        const s = DEG_GR[((det.degrees[i] % 7) + 7) % 7];
+        const s = DEG_CAP[((det.degrees[i] % 7) + 7) % 7];
         cx.lineWidth = 4; cx.strokeStyle = 'rgba(255,255,255,.9)';
         cx.strokeText(s, xs[k], base);
         cx.fillStyle = i === hiGi ? '#8a5a00' : '#1c3a5e';
