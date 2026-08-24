@@ -81,6 +81,15 @@ FIGURES = {
     # key derived to None and the piece's degree stream ran one step high
     # from gi71 on -- the chanter's "ends on ga not dhi".
     '7|28ab+6ab': 4,
+    # Apostrofos inside a petasti, klasma below. Chanter, 2026-08-23, glyph
+    # 26: "should be a -1. that's a compound apostrophos inside petasti with
+    # a klasma where the petasti acts only as an orthographic/qualitative
+    # neume and the apostrophos holds the weight as -1." Both keys derived 0
+    # before this. '3|4ab' (same figure, no klasma) is INFERRED from the same
+    # ruling -- a klasma is duration-only and cannot change the pitch -- and
+    # is marked for the chanter to confirm. 37 instances pp505-569.
+    '3|4ab+8be': -1,
+    '3|4ab': -1,      # inferred sibling: klasma is duration-only
     '3|13ab+8be': 2,
     '3|16ab': 3,          # petasti + kentima on top-middle
     '3|16ab+8be': 3,
