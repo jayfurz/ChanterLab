@@ -141,6 +141,7 @@
   <button id="melbtn" title="Melisma note pinning (M): drag the teal boundaries inside an analytical span — the underlying melodic pins stay untouched">Mel</button>
   <button id="parabtn" title="Parallagi overlay (A): the degree the score implies over each glyph, in blue; a gold tick marks a unit whose martyria states the degree outright">Para</button>
   <button id="paraflagbtn" title="Flag a wrong parallagi (X): tap a glyph to mark the shown degree wrong; flagged glyphs turn red and the flag is saved on the server">Para⚑</button>
+  <button id="paraudiobtn" style="display:none" title="Listen to the PARALLAGI recording of this hymn instead of the melos. The markers stay melos times, so all editing (taps, pins, drags) is locked until you switch back.">Par♪</button>
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
   <button id="tapbtn" title="Tap mode (T): play the audio and hit SPACE at every note onset — each tap pins the next marker to that moment (first tap starts playback if paused; starts from the selected note, else the first). Then Refit spreads anything you did not tap. Space goes back to play/pause when tap mode is off.">Tap</button>
@@ -181,7 +182,7 @@
   <span id="counts"></span>
   <span id="savestate"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
-    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · T tap onsets · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
+    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · T tap onsets · V parallagi audio · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
 </div>
 <div id="transport">
   <button id="playbtn" class="primary" title="play/pause (space)">▶</button>
@@ -788,6 +789,7 @@ async function boot() {
   view = { t0: 0, t1: D.meta.duration };
   $('dur').textContent = ' / ' + fmtT(D.meta.duration);
   audio.src = DATA_DIR + D.meta.audio;
+  setupParAudio();
 
   img = new Image();
   img.onload = () => { setupScore(); dirtyScore = true; };
@@ -798,10 +800,46 @@ async function boot() {
   requestAnimationFrame(frame);
   decodePeaks();   // async; UI is usable before it completes
 }
+/* Parallagi audio lane: same piece, other recording. The chanter wants to
+   COMPARE the two renditions; on this tape the parallagi is an abbreviated
+   cadence formula, so melos slot times are meaningless against it — every
+   edit path is locked while it plays. */
+let audioLane = 'mel', parAudioUrl = null;
+async function setupParAudio() {
+  parAudioUrl = null; audioLane = 'mel';
+  const s = D.meta.source || {};
+  if (!s.workdir || !s.hymn) return;
+  const url = '/paudio/' + encodeURIComponent(s.workdir.replace(/\/+$/, '')
+    .split('/').pop()) + '/' + encodeURIComponent(s.hymn);
+  try {
+    const r = await fetch(url, { headers: { Range: 'bytes=0-1' } });
+    if (r.ok || r.status === 206) { parAudioUrl = url;
+      $('paraudiobtn').style.display = ''; }
+  } catch (e) { /* stays hidden */ }
+}
+function toggleParAudio() {
+  if (!parAudioUrl) return;
+  if (tapMode) toggleTapMode();
+  audio.pause();
+  audioLane = audioLane === 'mel' ? 'par' : 'mel';
+  $('paraudiobtn').classList.toggle('on', audioLane === 'par');
+  audio.src = audioLane === 'par' ? parAudioUrl : DATA_DIR + D.meta.audio;
+  audio.load();
+  decodePeaks();
+  $('selinfo').textContent = audioLane === 'par'
+    ? 'PARALLAGI recording — markers are melos times; editing locked until you switch back'
+    : 'melos recording — editing unlocked';
+}
+function editLocked() {
+  if (audioLane !== 'par') return false;
+  $('selinfo').textContent = 'editing locked while the parallagi plays — Par♪ to switch back';
+  return true;
+}
 async function decodePeaks() {
   $('loadmsg').textContent = 'decoding audio…';
   try {
-    const ab = await (await fetch(DATA_DIR + D.meta.audio)).arrayBuffer();
+    const ab = await (await fetch(audioLane === 'par' && parAudioUrl
+      ? parAudioUrl : DATA_DIR + D.meta.audio)).arrayBuffer();
     const ac = new (window.AudioContext || window.webkitAudioContext)();
     const buf = await ac.decodeAudioData(ab);
     const ch0 = buf.getChannelData(0);
@@ -1350,6 +1388,7 @@ function selectSlot(i, scroll = true) {
   }
 }
 function setSlotTime(i, t) {
+  if (editLocked()) return;
   const lo = i > 0 ? slotT(i-1) + MIN_GAP : 0;
   const hi = i+1 < nS() ? slotT(i+1) - MIN_GAP : D.meta.duration;
   corrected[i] = Math.round(Math.min(hi, Math.max(lo, t)) * 1000) / 1000;
@@ -1391,6 +1430,7 @@ function tapArm(i) {
   dirtyTL = true;
 }
 function doTap() {
+  if (editLocked()) return;
   if (audio.paused) { togglePlay();
     $('selinfo').textContent = `playing — tap slot ${tapIdx} on its onset`; return; }
   if (tapIdx >= nS()) { toggleTapMode(); return; }
@@ -1427,7 +1467,7 @@ function nudgeSel(dir) {
   pinned[sel] = true; save(); selectSlot(sel, false);
 }
 function togglePinSel() {
-  if (sel < 0) return;
+  if (sel < 0 || editLocked()) return;
   pinned[sel] = !pinned[sel]; save(); selectSlot(sel, false);
 }
 function toggleLoopSel() {
@@ -1787,9 +1827,11 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'x' || e.key === 'X') toggleParaFlagMode();
   else if (e.key === 's' || e.key === 'S') cycleSpeed();
   else if (e.key === 't' || e.key === 'T') toggleTapMode();
+  else if (e.key === 'v' || e.key === 'V') toggleParAudio();
 });
 $('playbtn').onclick = togglePlay;
 $('tapbtn').onclick = toggleTapMode;
+$('paraudiobtn').onclick = toggleParAudio;
 /* pitch-preserving playback speed: tap to cycle (S on desktop) */
 const SPEEDS = [1, 0.75, 0.5, 0.35, 1.5];
 let speedIdx = 0;
