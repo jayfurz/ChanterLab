@@ -1009,6 +1009,16 @@ function drawScore() {
     ctx.beginPath(); ctx.moveTo((li+1)*lineW - off - 0.5, 0);
     ctx.lineTo((li+1)*lineW - off - 0.5, stripBandH); ctx.stroke();
   }
+  if (scoreCursorX != null && !audio.paused) {
+    const cxp = scoreCursorX - off;
+    if (cxp >= 0 && cxp <= vw) {
+      ctx.strokeStyle = 'rgba(216,162,74,.9)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = 'rgba(216,162,74,.6)'; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.moveTo(cxp, 0); ctx.lineTo(cxp, stripBandH); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
   // barlines
   ctx.strokeStyle = 'rgba(80,110,160,0.5)';
   for (const b of D.barlines) {
@@ -1179,6 +1189,23 @@ function glyphAtScoreXY(x, y) {           // x in canvas CSS px (viewport)
     }
   }
   return best;
+}
+/* Chant-along follower: the old behaviour jumped scrollLeft a whole glyph at
+   every onset. Instead, interpolate a continuous ribbon position between the
+   sounding slot's glyph and the next (the ribbon is one long horizontal
+   strip, so x is monotonic even across line breaks), ease the scroll toward
+   it every frame, and draw a gliding cursor there. */
+let scoreCursorX = null;
+function smoothScoreX(t) {
+  const ps = slotAt(t);
+  if (ps < 0) return null;
+  const t0 = slotT(ps);
+  const t1 = ps + 1 < nS() ? slotT(ps + 1) : t0 + 0.5;
+  const frac = Math.max(0, Math.min(1, (t - t0) / Math.max(0.05, t1 - t0)));
+  const [a0, b0] = glyphRX(D.slots.gi[ps]);
+  const [a1, b1] = glyphRX(D.slots.gi[Math.min(ps + 1, nS() - 1)]);
+  const x0 = (a0 + b0) / 2, x1 = (a1 + b1) / 2;
+  return x0 + (x1 - x0) * frac;
 }
 function scrollGlyphIntoView(gi) {
   const [rx0, rx1] = glyphRX(gi);
@@ -2042,9 +2069,17 @@ function frame() {
   const ps = slotAt(t);
   if (ps !== playingSlot) {
     playingSlot = ps; dirtyScore = true; dirtyTL = true;
-    if (!audio.paused && $('follow').checked && ps >= 0)
-      scrollGlyphIntoView(D.slots.gi[ps]);
   }
+  if (!audio.paused && $('follow').checked) {
+    const sx = smoothScoreX(t);
+    if (sx != null) {
+      scoreCursorX = sx;
+      const target = Math.max(0, sx - wrap.clientWidth * 0.4);
+      const d = target - wrap.scrollLeft;
+      if (Math.abs(d) > 0.5) wrap.scrollLeft += d * 0.12;
+      dirtyScore = true;
+    }
+  } else scoreCursorX = null;
   const ftok = fillStateToken(t, ps);      // (gi, sub, mark step) — covers paused seeks too
   if (ftok !== fillToken) { fillToken = ftok; dirtyScore = true; }
   if (!audio.paused) {
