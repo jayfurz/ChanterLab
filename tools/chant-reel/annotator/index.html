@@ -143,6 +143,7 @@
   <button id="paraflagbtn" title="Flag a wrong parallagi (X): tap a glyph to mark the shown degree wrong; flagged glyphs turn red and the flag is saved on the server">Para⚑</button>
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
+  <button id="tapbtn" title="Tap mode (T): play the audio and hit SPACE at every note onset — each tap pins the next marker to that moment (first tap starts playback if paused; starts from the selected note, else the first). Then Refit spreads anything you did not tap. Space goes back to play/pause when tap mode is off.">Tap</button>
   <button id="refitbtn" title="Redistribute UNPINNED markers by beat weight: between pins piecewise, and beyond the outermost pins at the tempo those pins measure (not stretched to the audio edges). Pins never move. SELECT A NOTE FIRST and refit touches only the markers AFTER it, projecting from that note — everything at or before it is left alone. Pin a few, refit, pin the next few…">Refit</button>
   <button id="resetbtn" title="Clear correction + pin on selected marker (R)">Reset</button>
   <button id="clearbtn" title="Discard ALL local edits">Clear</button>
@@ -175,7 +176,7 @@
   <span id="counts"></span>
   <span id="savestate"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
-    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
+    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · T tap onsets · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
 </div>
 <div id="transport">
   <button id="playbtn" class="primary" title="play/pause (space)">▶</button>
@@ -1344,6 +1345,43 @@ function setSlotTime(i, t) {
   corrected[i] = Math.round(Math.min(hi, Math.max(lo, t)) * 1000) / 1000;
   dirtyTL = true;
 }
+/* Tap mode: the chanter plays through and taps SPACE on every onset; each
+   tap pins the next slot to the tapped moment. setSlotTime's neighbour clamp
+   is bypassed on purpose — a correct tap may legitimately land past a bad
+   seed's next marker; taps only need to stay monotonic among themselves. */
+let tapMode = false, tapIdx = 0, lastTap = -1;
+function toggleTapMode() {
+  tapMode = !tapMode;
+  $('tapbtn').classList.toggle('on', tapMode);
+  if (tapMode) {
+    tapIdx = sel >= 0 ? sel : 0;
+    lastTap = -1;
+    $('selinfo').textContent = audio.paused
+      ? `TAP armed at slot ${tapIdx} — SPACE starts playback, then tap every onset`
+      : `TAP armed at slot ${tapIdx} — SPACE on every onset`;
+  } else {
+    $('selinfo').textContent = 'tap mode off';
+  }
+}
+function doTap() {
+  if (audio.paused) { togglePlay();
+    $('selinfo').textContent = `playing — tap slot ${tapIdx} on its onset`; return; }
+  if (tapIdx >= nS()) { toggleTapMode(); return; }
+  const t = Math.round(audio.currentTime * 1000) / 1000;
+  if (t <= lastTap) return;              // key bounce / repeat
+  lastTap = t;
+  corrected[tapIdx] = t;
+  pinned[tapIdx] = true;
+  dirtyTL = dirtyScore = true;
+  save(); updateCounts();
+  selectSlot(tapIdx, false);
+  $('selinfo').textContent = `tapped slot ${tapIdx} @ ${t.toFixed(2)}s — next: ${tapIdx + 1}/${nS()}`;
+  tapIdx += 1;
+  if (tapIdx >= nS()) {
+    toggleTapMode();
+    $('selinfo').textContent = 'all slots tapped — Refit is unnecessary, every marker is pinned';
+  }
+}
 function nudgeSel(dir) {
   if (sel < 0) { seekTo(playheadT() + dir*2); return; }
   setSlotTime(sel, slotT(sel) + dir*NUDGE);
@@ -1684,7 +1722,8 @@ function togglePlay() {
 window.addEventListener('keydown', e => {
   const tag = e.target.tagName;
   if (tag === 'TEXTAREA' || tag === 'INPUT') return;
-  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'Space') { e.preventDefault();
+    if (tapMode) doTap(); else togglePlay(); }
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault(); nudgeSel(e.key === 'ArrowLeft' ? -1 : 1);
   }
@@ -1701,8 +1740,10 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'a' || e.key === 'A') toggleParaMode();
   else if (e.key === 'x' || e.key === 'X') toggleParaFlagMode();
   else if (e.key === 's' || e.key === 'S') cycleSpeed();
+  else if (e.key === 't' || e.key === 'T') toggleTapMode();
 });
 $('playbtn').onclick = togglePlay;
+$('tapbtn').onclick = toggleTapMode;
 /* pitch-preserving playback speed: tap to cycle (S on desktop) */
 const SPEEDS = [1, 0.75, 0.5, 0.35, 1.5];
 let speedIdx = 0;
