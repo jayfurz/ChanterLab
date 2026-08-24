@@ -172,7 +172,8 @@ def parallagi_for(piece_id):
                         # the opening must have been.
                         try:
                             from hymn_align import load_units_h
-                            from score_degrees import degree_stream
+                            from score_degrees import degree_stream, \
+                                leading_anchor
                             pr = dict(row)
                             pr.update({k: rng[k] for k in
                                        ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')

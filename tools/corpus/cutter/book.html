@@ -762,8 +762,15 @@ async function enterTape(wd) {
   if (!wd) { msg('no tapes known'); return false; }
   const t = TAPES[wd];
   const spans = {};
-  t.hymns.forEach(h => { spans[h.name] = { t0: h.t0, t1: h.t1, t_in: h.t_in ?? null,
-    label: h.label ?? null, lane: h.lane ?? null, skips: h.skips || [] }; });
+  t.hymns.forEach(h => {
+    // older workdirs (mode 2 etc.) were precut long before the book existed:
+    // their tape positions live in recut_<wd>.json's 'cur', not in a cuts
+    // file. Show those spans too; a Save simply promotes them into cuts.
+    const t0 = h.t0 ?? (h.cur ? h.cur[0] : null);
+    const t1 = h.t1 ?? (h.cur ? h.cur[1] : null);
+    spans[h.name] = { t0, t1, t_in: h.t_in ?? null,
+      label: h.label ?? null, lane: h.lane ?? null, skips: h.skips || [] };
+  });
   TP = { wd, spans, pps: 20, peaks: null, dur: 0, view: [0, 60], dirty: false };
   stop();
   A.src = '/tape/' + encodeURIComponent(wd);
