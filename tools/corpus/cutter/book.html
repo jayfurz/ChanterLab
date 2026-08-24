@@ -61,6 +61,11 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
 #scrub .thumb{position:absolute;right:2px;width:18px;height:30px;
   background:var(--gold);border-radius:9px;opacity:.85}
 body.editing .pg canvas{touch-action:none;cursor:grab}
+body.tape #laneM,body.tape #laneP{display:none}
+#wmenu{position:fixed;z-index:20;background:var(--panel);border:1px solid var(--gold);
+  border-radius:10px;padding:6px;display:none;min-width:150px}
+#wmenu button{display:block;width:100%;margin:3px 0;text-align:left}
+#wmenu .t{font-size:12px;color:var(--dim);padding:2px 4px}
 #wavep{display:none;background:#0d0b0a;border-top:1px solid var(--line);
   position:relative;height:96px;touch-action:none}
 body.tape #wavep{display:block}
@@ -83,6 +88,7 @@ body.tape .taperow{display:flex}
 </header>
 <audio id="a" preload="none" playsinline webkit-playsinline></audio>
 <nav id="tocp"></nav>
+<div id="wmenu"></div>
 <div id="scrub"><div class="track"></div><div class="thumb"></div><div class="tip"></div></div>
 <main id="pages"></main>
 
@@ -106,7 +112,8 @@ body.tape .taperow{display:flex}
     <button id="prev">&#8592; prev</button>
     <button id="pp" disabled>Play</button>
     <button id="next">next &#8594;</button>
-    <button id="lane" title="every score span has two recordings: the melos and its parallagi (the score sung as degree names). Toggle which one plays.">MELOS</button>
+    <button id="laneM" class="on" title="melos lane: plays the melos recording; in tape mode, start/end/apichima edits apply to the hymn's MELOS span">melos</button>
+    <button id="laneP" title="parallagi lane: plays the degree-name recording; in tape mode, start/end/apichima edits apply to the hymn's PARALLAGI span (stored as <name>#par)">parallagi</button>
     <button id="tape" title="play the whole tape; the book follows and spans are editable on the waveform">Tape</button>
     <button id="follow" class="on" title="auto-scroll to the sounding line">follow</button>
   </div>
@@ -321,8 +328,7 @@ async function select(i, scroll, keepAudio) {
   $('#edit').disabled = false;
   $('#fix').disabled = !h.piece;
   if (!tapeMode) $('#pp').disabled = !(h.audio || (h.t0 != null) || h.par);
-  $('#lane').disabled = !h.par && lane === 'melos';
-  $('#lane').title = h.par ? $('#lane').title : 'no parallagi recording found for this hymn';
+  $('#laneP').disabled = !tapeMode && !h.par;
   $('#tl').textContent = '';
   msg('p' + h.start.p + ' → p' + h.end.p +
       (h.audio ? '' : h.t0 != null ? ' · tape span audio' : ' · no audio yet'));
@@ -368,11 +374,13 @@ A.ontimeupdate = () => {
   $('#seek .fill').style.width = (fr * 100) + '%';
   if (tapeMode && TP) {
     needWave = true;
-    const name = tapeSpanOf(A.currentTime);
-    if (name && (sel < 0 || B.hymns[sel].wd !== TP.wd || B.hymns[sel].name !== name)) {
-      const i = B.hymns.findIndex(h => h.wd === TP.wd && h.name === name);
+    const row = tapeSpanOf(A.currentTime);
+    const base = row && spanBase(row);
+    if (base && (sel < 0 || B.hymns[sel].wd !== TP.wd || B.hymns[sel].name !== base)) {
+      const i = B.hymns.findIndex(h => h.wd === TP.wd && h.name === base);
       if (i >= 0) select(i, follow, true);
     }
+    if (row && spanIsPar(row, TP.spans[row] || {})) { hiGi = -1; return; }
   }
   if (stopAt != null && A.currentTime >= stopAt) { stop(); repaintAll(); return; }
   if (!det || !det.slots) return;
@@ -566,8 +574,10 @@ function tpDur() {
   if (TP.dur) return TP.dur;
   return isFinite(A.duration) && A.duration > 0 ? A.duration : 0;
 }
+function spanBase(name) { return name.split('#')[0]; }
+function spanIsPar(name, s) { return s.lane === 'parallagi' || name.includes('#par'); }
 function spanColor(name) { return sel >= 0 && B.hymns[sel].wd === TP.wd &&
-  B.hymns[sel].name === name; }
+  B.hymns[sel].name === spanBase(name); }
 function t2x(t, W) { const [v0, v1] = TP.view; return (t - v0) / (v1 - v0) * W; }
 function x2t(x, W) { const [v0, v1] = TP.view; return v0 + x / W * (v1 - v0); }
 function drawWave() {
@@ -596,7 +606,9 @@ function drawWave() {
   for (const [name, s] of Object.entries(TP.spans)) {
     if (s.t0 == null || s.t1 == null || s.t1 < v0 || s.t0 > v1) continue;
     const x0 = t2x(s.t0, W), x1 = t2x(s.t1, W), hot = spanColor(name);
-    cx.fillStyle = hot ? 'rgba(216,162,74,.20)' : 'rgba(110,164,95,.12)';
+    const par = spanIsPar(name, s);
+    cx.fillStyle = hot ? 'rgba(216,162,74,.20)'
+                 : par ? 'rgba(106,140,190,.14)' : 'rgba(110,164,95,.12)';
     cx.fillRect(x0, 0, x1 - x0, H);
     cx.fillStyle = '#6ea45f'; cx.fillRect(x0 - 2, 0, hot ? 5 : 3, H);
     cx.fillStyle = '#c65b4e'; cx.fillRect(x1 - 2, 0, hot ? 5 : 3, H);
@@ -605,9 +617,9 @@ function drawWave() {
       const xi = t2x(s.t_in, W);
       for (let y = 0; y < H; y += 14) cx.fillRect(xi - 1, y, 3, 8);
     }
-    cx.fillStyle = hot ? '#d8a24a' : '#9c9086';
+    cx.fillStyle = hot ? '#d8a24a' : par ? '#8aa3c8' : '#9c9086';
     cx.font = Math.round(11 * devicePixelRatio) + 'px system-ui';
-    cx.fillText(name, x0 + 6, 14 * devicePixelRatio);
+    cx.fillText(par ? spanBase(name) + ' · par' : name, x0 + 6, 14 * devicePixelRatio);
   }
   const xp = t2x(A.currentTime, W);
   if (xp >= 0 && xp <= W) { cx.fillStyle = '#efe7dc'; cx.fillRect(xp - 1, 0, 2, H); }
@@ -636,11 +648,63 @@ function selectedTapeSpan() {
   if (!TP || sel < 0) return null;
   const h = B.hymns[sel];
   if (h.wd !== TP.wd) return null;
+  // both lanes live on the tape at once: edit the selected hymn's span under
+  // the playhead when there is one, otherwise its melos row (create it).
+  const t = A.currentTime;
+  for (const k of [h.name, h.name + '#par']) {
+    const s = TP.spans[k];
+    if (s && s.t0 != null && s.t1 != null && t >= s.t0 && t < s.t1) return s;
+  }
   return TP.spans[h.name] || (TP.spans[h.name] = { t0: null, t1: null, t_in: null,
     label: null, lane: null, skips: [] });
 }
+function spanAt(tapeT) {
+  let best = null;
+  for (const [name, s] of Object.entries(TP.spans))
+    if (s.t0 != null && s.t1 != null && tapeT >= s.t0 && tapeT <= s.t1)
+      if (!best || s.t1 - s.t0 < TP.spans[best].t1 - TP.spans[best].t0) best = name;
+  return best;
+}
+function openWaveMenu(name, cx, cy) {
+  const M = $('#wmenu'), s = TP.spans[name];
+  const par = spanIsPar(name, s), base = spanBase(name);
+  M.innerHTML = `<div class="t">${base}${par ? ' · parallagi' : ' · melos'}</div>`;
+  const add = (label, fn) => { const b = document.createElement('button');
+    b.textContent = label; b.onclick = () => { M.style.display = 'none'; fn(); };
+    M.append(b); };
+  if (par) add('→ mark as MELOS', () => {
+    if (TP.spans[base]) return msg(`${base} already has a melos span`);
+    TP.spans[base] = { ...s, lane: 'melos' };
+    delete TP.spans[name];
+    TP.dirty = true; needWave = true; msg(`${base}: span is now melos (unsaved)`);
+  });
+  else add('→ mark as PARALLAGI', () => {
+    const k = base + '#par';
+    if (TP.spans[k]) return msg(`${base} already has a parallagi span`);
+    TP.spans[k] = { ...s, lane: 'parallagi' };
+    delete TP.spans[name];
+    TP.dirty = true; needWave = true; msg(`${base}: span is now parallagi (unsaved)`);
+  });
+  add('✕ delete this span', () => {
+    delete TP.spans[name];
+    TP.dirty = true; needWave = true; msg(`${base}: span deleted (unsaved — Save cuts to persist)`);
+  });
+  add('cancel', () => {});
+  M.style.display = 'block';
+  M.style.left = Math.min(cx, innerWidth - 180) + 'px';
+  M.style.top = Math.max(10, cy - M.offsetHeight - 10) + 'px';
+}
 function initWave() {
   const P = $('#wavep'), cv = P.querySelector('canvas');
+  let press = null, pressAt = null;       // long-press timer (iPad has no right-click)
+  document.addEventListener('pointerdown', e => {
+    if (!$('#wmenu').contains(e.target)) $('#wmenu').style.display = 'none';
+  }, true);
+  P.addEventListener('contextmenu', e => {
+    if (!TP) return; e.preventDefault();
+    const name = spanAt(x2t(px(e), cv.width));
+    if (name) openWaveMenu(name, e.clientX, e.clientY);
+  });
   const px = e => { const r = P.getBoundingClientRect();
     return (e.clientX - r.left) * (cv.width || r.width) / r.width; };
   const pts = new Map();
@@ -648,6 +712,14 @@ function initWave() {
     if (!TP) return;
     P.setPointerCapture(e.pointerId);
     pts.set(e.pointerId, e.clientX);
+    clearTimeout(press);
+    const lpX = e.clientX, lpY = e.clientY;
+    pressAt = [lpX, lpY];
+    press = setTimeout(() => {
+      if (!TP || pts.size !== 1) return;
+      const name = spanAt(x2t(px({ clientX: lpX }), cv.width));
+      if (name) { wdrag = null; openWaveMenu(name, lpX, lpY); }
+    }, 600);
     if (pts.size > 1) { wdrag = { kind: 'pinch' }; return; }
     const W = cv.width, x = px(e), tol = 10 * devicePixelRatio;
     wdrag = { kind: 'pan', x0: x, v: [...TP.view], moved: false };
@@ -667,6 +739,8 @@ function initWave() {
   P.addEventListener('pointermove', e => {
     if (!TP || !wdrag) return;
     pts.set(e.pointerId, e.clientX);
+    if (pressAt && Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 8)
+      clearTimeout(press);
     const W = cv.width, x = px(e);
     if (wdrag.kind === 'pinch' && pts.size >= 2) {
       const [a, b] = [...pts.values()];
@@ -703,6 +777,7 @@ function initWave() {
     TP.view = [Math.max(0, v0), Math.min(Dp, v1)]; needWave = true;
   });
   const up = e => {
+    clearTimeout(press);
     pts.delete(e.pointerId);
     if (!wdrag) return;
     if (wdrag.kind === 'pan' && !wdrag.moved && TP)
@@ -730,7 +805,9 @@ async function saveCuts() {
   const cuts = Object.entries(TP.spans)
     .filter(([, s]) => s.t0 != null && s.t1 != null)
     .map(([name, s]) => ({ hymn: name, t0: +s.t0.toFixed(2), t1: +s.t1.toFixed(2),
-      label: s.label, lane: s.lane, t_in: s.t_in == null ? null : +s.t_in.toFixed(2),
+      label: s.label,
+      lane: s.lane || (name.includes('#par') ? 'parallagi' : null),
+      t_in: s.t_in == null ? null : +s.t_in.toFixed(2),
       skips: s.skips || [] }));
   msg('saving cuts…');
   try {
@@ -844,13 +921,16 @@ async function boot() {
   $('#follow').onclick = () => { follow = !follow; $('#follow').classList.toggle('on', follow); };
   initWave();
   $('#newspan').onclick = startNewSpan;
-  $('#lane').onclick = () => {
-    lane = lane === 'melos' ? 'parallagi' : 'melos';
-    $('#lane').textContent = lane.toUpperCase();
-    $('#lane').classList.toggle('on', lane === 'parallagi');
+  const setLane = l => {
+    lane = l;
+    $('#laneM').classList.toggle('on', l === 'melos');
+    $('#laneP').classList.toggle('on', l === 'parallagi');
     if (!tapeMode && !A.paused) { stop(); playPause(); }   // switch mid-play
-    else msg(lane === 'parallagi' ? 'parallagi lane — plays the degree-name recording' : '');
+    else if (tapeMode) msg(l + ' lane — span edits now apply to the ' + l + ' span');
+    needWave = true;
   };
+  $('#laneM').onclick = () => setLane('melos');
+  $('#laneP').onclick = () => setLane('parallagi');
   $('#tape').onclick = async () => {
     tapeMode = !tapeMode;
     $('#tape').classList.toggle('on', tapeMode);
