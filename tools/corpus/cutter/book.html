@@ -346,15 +346,24 @@ async function pick(pno, px, py) {
     if (Math.abs(y1 - y2) > LINE) return y1 - y2;
     return x1 - x2;
   };
-  let inBest = -1;
+  let inBest = -1, bestStart = null;
   B.hymns.forEach((h, i) => {
-    if (pno < h.start.p || pno > h.end.p) return;
-    if (cmp(pno, pt[1], pt[0], h.start.p, h.start.y0, h.start.x0) < 0) return;
-    if (cmp(pno, pt[1], pt[0], h.end.p, h.end.y1, h.end.x1) > 0) return;
-    // overlapping candidates: keep the one that starts latest (tightest span)
-    if (inBest < 0 || cmp(h.start.p, h.start.y0, h.start.x0,
-        B.hymns[inBest].start.p, B.hymns[inBest].start.y0,
-        B.hymns[inBest].start.x0) >= 0) inBest = i;
+    // a segmented hymn contains a point only inside one of its SEGMENTS —
+    // the envelope between segments is other hymns' territory (the aposticha
+    // theotokion's gap holds the whole dogmatic theotokion)
+    const ranges = h.segs ? h.segs.filter(Boolean).map(s => [s.start, s.end])
+                          : [[h.start, h.end]];
+    for (const [a, b] of ranges) {
+      if (pno < a.p || pno > b.p) continue;
+      if (cmp(pno, pt[1], pt[0], a.p, a.y0, a.x0) < 0) continue;
+      if (cmp(pno, pt[1], pt[0], b.p, b.y1, b.x1) > 0) continue;
+      // overlapping candidates: keep the one whose containing range starts latest
+      if (inBest < 0 || cmp(a.p, a.y0, a.x0,
+          bestStart.p, bestStart.y0, bestStart.x0) >= 0) {
+        inBest = i; bestStart = a;
+      }
+      break;
+    }
   });
   if (inBest >= 0) select(inBest, false);
 }
