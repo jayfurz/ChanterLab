@@ -35,6 +35,8 @@ def regen(pid, cache):
     from hymn_align import load_units_h
     units, _ = load_units_h(r)
     lines = P.hymn_lines(r)
+    unit_pls = {tuple(u['pl']) for u in units}
+    lines = [pl for pl in lines if pl in unit_pls] or lines
     clip = P.hymn_x_clip(units)
     w, h, centers, tops = P.build_strip(pdf, lines, cache,
                                         os.path.join(d, 'strip.png'), clip=clip)

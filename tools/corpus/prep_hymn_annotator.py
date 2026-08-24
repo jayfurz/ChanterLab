@@ -388,6 +388,12 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
 
     # ---- strip + note geometry ----
     lines = hymn_lines(h)
+    # Drop lines that contribute NO units: a stray red glyph on its own line
+    # (p12 l2, one 7pt rubric mark) got a full band whose crop showed the line
+    # above AGAIN, and the follower glided across the duplicate. A band with
+    # nothing to point at is only noise.
+    unit_pls = {tuple(u['pl']) for u in units}
+    lines = [pl for pl in lines if pl in unit_pls] or lines
     if h.get('g0') is not None or h.get('g1') is not None:
         # g0/g1-trimmed hymn: only strip the lines its units actually occupy
         occ = {tuple(u['pl']) for u in units}
