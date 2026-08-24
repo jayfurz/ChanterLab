@@ -1007,6 +1007,36 @@ def _attach_orphan_kentima(units, recs):
     return units
 
 
+def _mark_ypsili_side(units, recs):
+    """'7|28ab+6ab': ypsili LEFT of the oligon's midpoint = +5, RIGHT = +4.
+
+    Chanter, both on 2026-08-23: s42 gi71 "+4 ... ypseli is on the right half
+    of the oligon"; s06 gi89 "+5, since ypseli is on the left". One key, two
+    figures, and the unit BOX cannot separate them (the ypsili sits above the
+    oligon either way, so all instances measure alike -- the earlier FIGURES
+    lock at +4 was wrong for the left form and broke gold s06's stream at
+    gi89). The member records can: compare the ypsili's x-centre with the
+    oligon's midpoint inside the same unit.
+    """
+    for u in units:
+        if u.get('key') != '7|28ab+6ab' or u.get('iv') is not None:
+            continue
+        pl = u['pl']
+        inside = [r for r in recs
+                  if (r.get('page'), r.get('line')) == pl
+                  and u['x0'] - 1 <= 0.5 * (r['x0'] + r['x1']) <= u['x1'] + 1
+                  and u['y0'] - 2 <= 0.5 * (r['y0'] + r['y1']) <= u['y1'] + 2]
+        yps = [r for r in inside if r.get('cluster') == 28]
+        oli = [r for r in inside if r.get('cluster') == 6]
+        if not yps or not oli:
+            continue
+        ymid = 0.5 * (yps[0]['x0'] + yps[0]['x1'])
+        omid = 0.5 * (oli[0]['x0'] + oli[0]['x1'])
+        u['iv'] = 4 if ymid > omid else 5
+        u['ypsili_side'] = 'right' if ymid > omid else 'left'
+    return units
+
+
 def _mark_kentima_height(units):
     """Set iv per instance where a key covers two figures at different heights."""
     for u in units:
@@ -1255,7 +1285,7 @@ def load_units(p0, l0, p1, l1):
     units.sort(key=lambda u: (u['pl'], u.get('sx', u['x0']),
                               u['part'] if u.get('part') is not None else 0))
     return _mark_synexes_elaphron(_mark_kentima_height(
-        _attach_orphan_kentima(units, recs))), lyr
+        _mark_ypsili_side(_attach_orphan_kentima(units, recs), recs))), lyr
 
 def load_units_h(h):
     """units + lyrics for a hymns.json row. Optional g0/g1 (annotator glyph

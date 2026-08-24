@@ -69,18 +69,14 @@ JUMP_MARKS = {16, 28, 83}
 # Explicit figures from the atlas, which override any composition rule.
 FIGURES = {
     '3|13ab': 2,          # petasti + oligon
-    # Ypsili on the RIGHT half of an oligon, psifiston underneath. Chanter,
-    # 2026-08-23, on s42 glyph 71: "this should be +4 (ypseli over oligon
-    # where ypseli is on the right half of the oligon. it has a psifiston
-    # underneath that is qualitative orthography only." The qualitative-base
-    # rule would compose oligon(+1)+ypsili(+4)=+5, which is the ypsili-LEFT
-    # figure -- and that one keys differently (oligon base: '6|28ab' = 5), so
-    # the extraction already separates the two forms. Geometry confirms one
-    # figure here: all 5 instances in pp505-569 measure w 36.8-38.4 x
-    # h 25.5-26.3 (p517, 521, 536, 549=s42 gi71, 565). Without this entry the
-    # key derived to None and the piece's degree stream ran one step high
-    # from gi71 on -- the chanter's "ends on ga not dhi".
-    '7|28ab+6ab': 4,
+    # '7|28ab+6ab' (psifiston + ypsili-above + oligon-above) is NOT here any
+    # more: it is one key covering TWO figures -- ypsili on the oligon's RIGHT
+    # half = +4 (chanter, s42 gi71), ypsili on the LEFT = +5 (chanter, s06
+    # gi89: "should be +5, since ypseli is on the left"). The box cannot tell
+    # them apart (all five instances measure alike -- the ypsili is above the
+    # oligon either way); the MEMBER x-positions can, and
+    # hymn_align._mark_ypsili_side sets iv per instance. The bare key falls
+    # back to the qualitative-promotion composition (+5).
     # Apostrofos inside a petasti, klasma below. Chanter, 2026-08-23, glyph
     # 26: "should be a -1. that's a compound apostrophos inside petasti with
     # a klasma where the petasti acts only as an orthographic/qualitative
