@@ -332,6 +332,11 @@ function paint(pno) {
       const base = Math.max(...boxes.map(b => b[1] + b[3])) +
                    16 * (g.cv.width / 1100);
       const xs = boxes.map(b => b[0] + b[2] / 2).sort((a, b) => a - b);
+      // compound figures (a note and its kentimata) print at almost the same
+      // x, stacking their letters — enforce a minimum gap, preserving order
+      const gap = Math.round(g.cv.width / 48) * 1.05;
+      for (let k = 1; k < xs.length; k++)
+        if (xs[k] < xs[k - 1] + gap) xs[k] = xs[k - 1] + gap;
       idxs.forEach((i, k) => {
         const s = DEG_CAP[((det.degrees[i] % 7) + 7) % 7];
         cx.lineWidth = 4; cx.strokeStyle = 'rgba(255,255,255,.9)';
