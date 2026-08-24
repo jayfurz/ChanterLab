@@ -1318,6 +1318,11 @@ function openDetail(gi) {
   note.oninput = () => { flags[gi] = note.value; save(); };
 }
 function selectSlot(i, scroll = true) {
+  // in tap mode, a marker CLICK (scroll=true path) means "resume tapping
+  // from this note": rewind a lead-in and continue
+  if (tapMode && scroll && i >= 0 && i !== tapIdx) {
+    sel = i; tapArm(i); return;
+  }
   sel = i; dirtyTL = dirtyScore = true;
   updateTransport();
   if (i >= 0) {
@@ -1354,14 +1359,26 @@ function toggleTapMode() {
   tapMode = !tapMode;
   $('tapbtn').classList.toggle('on', tapMode);
   if (tapMode) {
-    tapIdx = sel >= 0 ? sel : 0;
-    lastTap = -1;
-    $('selinfo').textContent = audio.paused
-      ? `TAP armed at slot ${tapIdx} — SPACE starts playback, then tap every onset`
-      : `TAP armed at slot ${tapIdx} — SPACE on every onset`;
+    tapArm(sel >= 0 ? sel : 0);
   } else {
     $('selinfo').textContent = 'tap mode off';
   }
+}
+const TAP_LEAD = 3;   // seconds of run-up before the armed note
+function tapArm(i) {
+  tapIdx = Math.max(0, Math.min(nS() - 1, i));
+  lastTap = -1;
+  // start the player a little BEFORE the armed note so the chanter can catch
+  // the beat again — resuming mid-hymn after losing track is the whole point
+  const lead = Math.max(0, slotT(tapIdx) - TAP_LEAD);
+  seekTo(lead);
+  lastTap = lead;                        // taps before the run-up point are ignored
+  $('selinfo').textContent = (audio.paused
+    ? `TAP armed at slot ${tapIdx} (player set ${TAP_LEAD}s before it) — SPACE starts playback, then tap every onset`
+    : `TAP re-armed at slot ${tapIdx} — playing from ${TAP_LEAD}s before it`);
+  if (!audio.paused) { /* keep rolling from the lead-in */ }
+  selectSlot(tapIdx, true);
+  dirtyTL = true;
 }
 function doTap() {
   if (audio.paused) { togglePlay();

@@ -36,10 +36,28 @@ def regen(pid, cache):
     units, _ = load_units_h(r)
     lines = P.hymn_lines(r)
     clip = P.hymn_x_clip(units)
-    w, h, centers, _ = P.build_strip(pdf, lines, cache,
-                                     os.path.join(d, 'strip.png'), clip=clip)
+    w, h, centers, tops = P.build_strip(pdf, lines, cache,
+                                        os.path.join(d, 'strip.png'), clip=clip)
     D['meta'].update({'strip_w': w, 'strip_h': h, 'line_centers': centers,
                       'band_up': P.BAND_UP, 'band_dn': P.BAND_DN})
+    # notes carry ABSOLUTE strip y (rel + line * LINE_BAND): a band-height
+    # change moves every line's offset, so recompute y0/y1 exactly as prep
+    # does — first regen shipped 288-based note y under a 344 meta and the
+    # neume highlights floated 56px higher per line.
+    line_ix = {pl: i for i, pl in enumerate(lines)}
+    if len(units) == len(D.get('notes', [])):
+        for u, n in zip(units, D['notes']):
+            pl = tuple(u['pl'])
+            li = line_ix.get(pl)
+            if li is None or pl not in tops:
+                continue
+            ty = tops[pl]
+            n['line'] = li
+            n['y0'] = round((u['y0'] - ty) * P.ZOOM + li * P.LINE_BAND, 1)
+            n['y1'] = round((u['y1'] - ty) * P.ZOOM + li * P.LINE_BAND, 1)
+    else:
+        print(f'{pid}: WARNING notes ({len(D.get("notes", []))}) != units '
+              f'({len(units)}) — note boxes NOT recomputed')
     tmp = f + '.tmp'
     with open(tmp, 'w') as fh:
         json.dump(D, fh, ensure_ascii=False)
