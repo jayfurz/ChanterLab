@@ -526,6 +526,13 @@ function startNewSpan() {
     .trim().toLowerCase();
   if (!name) return;
   if (!/^[a-z0-9][a-z0-9-]{1,50}$/.test(name)) return msg('name must be a-z, 0-9, dashes');
+  const dup = B.hymns.findIndex(h => h.wd === wd && h.name === name);
+  if (dup >= 0) {
+    select(dup, true, tapeMode);
+    return msg(`${name} already exists — selected it. To add its parallagi: ` +
+               'play inside the range, start@play/end@play (marks go to the ' +
+               'parallagi once a melos span exists), then Save cuts.');
+  }
   armNew = { wd, name, start: null };
   msg(`${name} (${wd}): tap its FIRST unit in the book` +
       (tapeMode ? ' — start@play/end@play now mark THIS hymn\'s tape span' : ''));
@@ -713,15 +720,34 @@ function selectedTapeSpan() {
     msg(`${h.name} is not on this tape (${TP.wd}) — select a hymn from this tape`);
     return null;
   }
-  // both lanes live on the tape at once: edit the selected hymn's span under
-  // the playhead when there is one, otherwise its melos row (create it).
+  // Both lanes live on the tape at once. Marks land on, in order:
+  //   1. the selected hymn's span under the playhead
+  //   2. its missing melos row (created)
+  //   3. its missing parallagi row (created)
+  // NEVER on an existing span the playhead is outside of — that once moved a
+  // saved melos span when the chanter meant to add the parallagi. Existing
+  // spans move only by dragging their own edges.
   const t = A.currentTime;
+  const mk = () => ({ t0: null, t1: null, t_in: null, label: null,
+                      lane: null, skips: [] });
   for (const k of [h.name, h.name + '#par']) {
     const s = TP.spans[k];
-    if (s && s.t0 != null && s.t1 != null && t >= s.t0 && t < s.t1) return s;
+    if (s && s.t0 != null && s.t1 != null && t >= s.t0 && t < s.t1) {
+      TP.markKey = k; return s;
+    }
   }
-  return TP.spans[h.name] || (TP.spans[h.name] = { t0: null, t1: null, t_in: null,
-    label: null, lane: null, skips: [] });
+  if (!TP.spans[h.name] || TP.spans[h.name].t0 == null) {
+    TP.markKey = h.name;
+    return TP.spans[h.name] || (TP.spans[h.name] = mk());
+  }
+  const pk = h.name + '#par';
+  if (!TP.spans[pk] || TP.spans[pk].t0 == null) {
+    TP.markKey = pk;
+    return TP.spans[pk] || (TP.spans[pk] = { ...mk(), lane: 'parallagi' });
+  }
+  msg(`${h.name} already has melos + parallagi spans — drag an edge to move ` +
+      'one, or play inside a span to re-mark it');
+  return null;
 }
 function spanAt(tapeT) {
   let best = null;
@@ -1017,11 +1043,13 @@ async function boot() {
   $('#tstart').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
     const c = tapeSnap('start mark');
     s.t0 = +A.currentTime.toFixed(2); if (s.t1 == null || s.t1 <= s.t0) s.t1 = s.t0 + 30;
-    normalizeSpan(s); c(); TP.dirty = true; needWave = true; msg('start set (unsaved)'); };
+    normalizeSpan(s); c(); TP.dirty = true; needWave = true;
+    msg(`start set on ${TP.markKey || 'span'} (unsaved)`); };
   $('#tend').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
     const c = tapeSnap('end mark');
     s.t1 = +A.currentTime.toFixed(2); if (s.t0 == null || s.t0 >= s.t1) s.t0 = Math.max(0, s.t1 - 30);
-    normalizeSpan(s); c(); TP.dirty = true; needWave = true; msg('end set (unsaved)'); };
+    normalizeSpan(s); c(); TP.dirty = true; needWave = true;
+    msg(`end set on ${TP.markKey || 'span'} (unsaved)`); };
   $('#tapx').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
     const c = tapeSnap('apichima mark');
     s.t_in = s.t_in == null ? +A.currentTime.toFixed(2) : null;
