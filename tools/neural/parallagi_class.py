@@ -101,6 +101,61 @@ def degrees(hymn, n):
     return [int(x) for x in d]
 
 
+def degrees_row(src, n):
+    """Labels for a mode-workdir hymn piece (slip_check's resolution, kept
+    ABSOLUTE -- the classifier's octave is what is meant, so no mod-7 here).
+
+    The piece's meta.source names the workdir and the hymn; the hymns.json row
+    IS the score range. A -par piece reads the row's par_score range -- the
+    parallagi has its own slice of the book -- while a melos piece reads the
+    row's main range. genus rides along for reporting only: it moves the
+    pitches, not the ladder positions the score writes.
+    """
+    from score_degrees import degree_stream, leading_anchor
+    from hymn_align import load_units, load_units_h
+    rows = json.load(open(os.path.join(src['workdir'], 'hymns.json')))
+    rows = rows if isinstance(rows, list) else rows['hymns']
+    name = src['hymn']
+    par = name.endswith('-par')
+    r = next(x for x in rows if x['name'] == (name[:-4] if par else name))
+    rr = dict(r['par_score']) if par else r
+    u, _ = load_units_h(rr)
+    leg = json.load(open('/mnt/data/chant-corpus/scores/legend_canon.json'))
+    # leading_anchor wants the range start as a unit index WITHIN ITS PAGE --
+    # the grave scorecuts store exactly that, but a row's g0 is relative to the
+    # row's own (page,line) slice. Handing it the row g0 made every mid-page
+    # row look like a page-top one, degree_stream never anchored, and the
+    # un-anchored prefix fell out of the stream silently (kyrie lost 12 notes).
+    usp, _ = load_units(rr['p0'], 0, rr['p0'], 10 ** 6)
+    g0p = next((i for i, w in enumerate(usp)
+                if w['pl'] == u[0]['pl'] and abs(w['x0'] - u[0]['x0']) < 0.5), 0)
+    start = leading_anchor(rr['p0'], g0p)
+    if start is None:
+        # A hymn that OPENS the book (kyrie-ekekraxa is the first piece of
+        # mode 1) has no martyria anywhere in front of it, and degree_stream
+        # drops the un-anchored prefix silently. The contour is linear in the
+        # anchor, so back-solve: pick the start that makes the contour arrive
+        # exactly on the first in-range cadence martyria.
+        keys = leg['keys']
+        def _ivu(w):
+            v = w.get('iv')
+            if v is None:
+                v = keys.get(w.get('key'), keys.get('%s|' % w.get('base')))
+            return v or 0
+        for j, w in enumerate(u):
+            if w.get('rest'):
+                continue
+            m = (w['mart_cad'][0] if w.get('mart_cad')
+                 else w.get('mart_deg'))
+            if m is not None:
+                start = int(m) - sum(_ivu(x) for x in u[:j + 1]
+                                     if not x.get('rest'))
+                break
+    d = degree_stream(u, leg, start=start)
+    assert len(d) == n, 'degree stream %d vs %d notes' % (len(d), n)
+    return [int(x) for x in d], (r.get('genus') or src.get('genus') or 'diatonic')
+
+
 def cut(M, t0, t1):
     """One note's mel patch, fixed width, centred if the note is long."""
     a, b = int(t0 * SR / HOP), int(t1 * SR / HOP)
@@ -148,11 +203,23 @@ def load(piece_dir, gold_file, hymn):
     else:
         g = {int(k): float(v) for k, v in raw}
     M = mel(audio(os.path.join(piece_dir, 'audio.wav')))
-    y = degrees(hymn, n)
+    src = D['meta'].get('source') or {}
+    # a grave tape-span piece carries 'span' (and a workdir NAME); a
+    # mode-workdir hymn piece carries a workdir PATH and 'hymn' -- same
+    # discrimination slip_check uses
+    if 'span' in src or 'hymn' not in src:
+        y, genus = degrees(hymn, n), 'diatonic'
+    else:
+        y, genus = degrees_row(src, n)
     X, Y, dropped = [], [], []
-    ts = [g[i] for i in sorted(g)]
-    for k, i in enumerate(sorted(g)):
-        t1 = ts[k + 1] if k + 1 < len(ts) else ts[k] + 0.6
+    gis = sorted(g)
+    ts = [g[i] for i in gis]
+    for k, i in enumerate(gis):
+        # A pinned note ends at the NEXT pin only when that pin is the next
+        # note. On a partially-pinned piece the next pin may be many notes
+        # away, and the centre-crop would land on someone else's note.
+        nxt = k + 1 < len(gis) and gis[k + 1] == i + 1
+        t1 = ts[k + 1] if nxt else ts[k] + 0.6
         if not DEG_LO <= y[i] <= DEG_HI:
             dropped.append((i, y[i])); continue
         X.append(cut(M, g[i], t1)); Y.append(y[i] - DEG_LO)
@@ -160,7 +227,10 @@ def load(piece_dir, gold_file, hymn):
         print('    %d note(s) outside the two-octave range, excluded: %s'
               % (len(dropped), ', '.join('gi=%d %s(%+d)' % (i, deg_name(d), d)
                                          for i, d in dropped)))
-    return np.stack(X), np.array(Y), os.path.basename(piece_dir)[14:44]
+    nm = os.path.basename(piece_dir.rstrip('/'))
+    if nm.startswith('grave-orthros-'):
+        nm = nm[14:44]
+    return np.stack(X), np.array(Y), nm, genus
 
 
 def predict(net, piece_dir, onsets_file, dev, hymn=None):
@@ -244,9 +314,14 @@ def run(train, test, epochs, lr, dev, tag):
             opt.zero_grad(); l = lf(net(xb), Ytr[j]); l.backward(); opt.step()
         sch.step()
     net.eval()
-    with torch.inference_mode():
-        pr = net(Xte).argmax(1)
-        tr = net(Xtr).argmax(1)
+    # chunked -- a full-batch pass over ~1.5k notes wants 1.5 GB of conv
+    # activations, and the GPU is down to whatever the vLLM worker left over
+    def _pred(X):
+        with torch.inference_mode():
+            return torch.cat([net(X[i:i + 64]).argmax(1)
+                              for i in range(0, len(X), 64)])
+    pr = _pred(Xte)
+    tr = _pred(Xtr)
     acc = float((pr == Yte).float().mean()); tacc = float((tr == Ytr).float().mean())
     print('  %-34s train %5.1f%%   %s %5.1f%%  (n=%d)'
           % (tag, 100 * tacc, 'TEST', 100 * acc, len(Yte)))
@@ -281,8 +356,8 @@ def main():
     global AUG_SHIFT
     AUG_SHIFT = a.aug_shift
     data = [load(p, g, h) for p, g, h in zip(a.piece, a.gold, a.hymn)]
-    for X, Y, nm in data:
-        print('%-34s %3d notes' % (nm, len(Y)))
+    for X, Y, nm, genus in data:
+        print('%-34s %3d notes  %s' % (nm, len(Y), genus))
     allY = np.concatenate([d[1] for d in data])
     base = np.bincount(allY, minlength=NCLS).max() / len(allY)
     print('\n%d classes, low %s .. high %s' % (NCLS, deg_name(DEG_LO), deg_name(DEG_HI)))
