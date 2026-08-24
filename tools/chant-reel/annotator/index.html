@@ -804,9 +804,28 @@ async function boot() {
    COMPARE the two renditions; on this tape the parallagi is an abbreviated
    cadence formula, so melos slot times are meaningless against it — every
    edit path is locked while it plays. */
-let audioLane = 'mel', parAudioUrl = null;
+let audioLane = 'mel', parAudioUrl = null, parPieceId = null;
 async function setupParAudio() {
-  parAudioUrl = null; audioLane = 'mel';
+  parAudioUrl = null; parPieceId = null; audioLane = 'mel';
+  const pid = PIECE || D.meta.piece_id;
+  // a real parallagi PIECE (its own score range, its own pitch) wins over the
+  // audio-swap fallback; on a -par piece the button goes back to the melos
+  if (pid && pid.endsWith('-par')) {
+    parPieceId = pid.slice(0, -4);
+    $('paraudiobtn').style.display = '';
+    $('paraudiobtn').classList.add('on');
+    $('paraudiobtn').textContent = 'Mel♪';
+    $('paraudiobtn').title = 'back to the MELOS piece of this hymn (V)';
+    return;
+  }
+  if (pid) {
+    try {
+      const r = await fetch('data/' + encodeURIComponent(pid) + '-par/annotator_data.json',
+                            { method: 'HEAD' });
+      if (r.ok) { parPieceId = pid + '-par';
+        $('paraudiobtn').style.display = ''; return; }
+    } catch (e) { /* fall through */ }
+  }
   const s = D.meta.source || {};
   if (!s.workdir || !s.hymn) return;
   const url = '/paudio/' + encodeURIComponent(s.workdir.replace(/\/+$/, '')
@@ -818,6 +837,10 @@ async function setupParAudio() {
   } catch (e) { /* stays hidden */ }
 }
 function toggleParAudio() {
+  if (parPieceId) {                      // navigate to the real other-lane piece
+    location.search = '?piece=' + encodeURIComponent(parPieceId);
+    return;
+  }
   if (!parAudioUrl) return;
   if (tapMode) toggleTapMode();
   audio.pause();
@@ -827,7 +850,7 @@ function toggleParAudio() {
   audio.load();
   decodePeaks();
   $('selinfo').textContent = audioLane === 'par'
-    ? 'PARALLAGI recording — markers are melos times; editing locked until you switch back'
+    ? 'PARALLAGI recording over the MELOS score (no parallagi piece prepped yet) — editing locked'
     : 'melos recording — editing unlocked';
 }
 function editLocked() {
