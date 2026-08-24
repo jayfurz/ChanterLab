@@ -261,7 +261,7 @@ function paint(pno) {
         cx.lineWidth = isSel ? 5 : 2.5; cx.strokeRect(...r);
         cx.font = Math.round(g.cv.width / 55) + 'px system-ui';
         cx.fillStyle = isSel ? '#d8a24a' : 'rgba(110,164,95,.95)';
-        cx.fillText((h.label || h.name), r[0], Math.max(r[1] - 8, 20));
+        cx.fillText(h.name + (h.label ? ' — ' + h.label : ''), r[0], Math.max(r[1] - 8, 20));
       }
     }
     if (h.end.p === pno) {
@@ -367,7 +367,7 @@ async function select(i, scroll, keepAudio) {
   const h = B.hymns[i];
   $('#who').innerHTML = `<span class="dot" style="background:${
     h.audio ? 'var(--green)' : h.t0 != null ? 'var(--gold)' : '#777'}"></span>` +
-    `${h.wd} · ${h.label || h.name}` + (h.genus ? ` · ${h.genus}` : '');
+    `${h.wd} · ${h.name}` + (h.label ? ` — ${h.label}` : '') + (h.genus ? ` · ${h.genus}` : '');
   $('#edit').disabled = false;
   $('#newseg').disabled = false;
   $('#fix').disabled = !h.piece;
@@ -1083,7 +1083,7 @@ function drawToc() {
         const d = document.createElement('div'); d.className = 'hy'; d.dataset.i = i;
         d.innerHTML = `<span class="dot" style="background:${
           h.audio ? 'var(--green)' : h.t0 != null ? 'var(--gold)' : '#777'}"></span>` +
-          `<span class="n">${h.label || h.name}</span>` +
+          `<span class="n">${h.name}${h.label ? ' — ' + h.label : ''}</span>` +
           `<span class="pgs">${pos.p}${h.end.p !== pos.p ? '–' + h.end.p : ''}</span>`;
         d.onclick = () => { $('#tocp').classList.remove('open'); select(i); };
         p.append(d);
