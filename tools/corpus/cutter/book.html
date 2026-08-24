@@ -307,16 +307,39 @@ function paint(pno) {
       }
     }
   });
-  // parallagi overlay: degree syllables under the selected hymn's units
+  // parallagi overlay: degree syllables under the selected hymn's units.
+  // The parallagi is READ LEFT TO RIGHT, always — but the unit stream is in
+  // SUNG order, and kentimata figures print right of the note they precede.
+  // So per line: degrees stay in stream order, positions are the same units'
+  // boxes sorted by x — left-to-right reading spells the sung sequence.
+  // One shared baseline per line, bold dark text with a halo (the thin light
+  // blue at box-bottom height failed both ordering and accessibility).
   if (paraOn && det && det.degrees && sel >= 0) {
-    cx.font = Math.round(g.cv.width / 90) + 'px system-ui';
+    cx.font = 'bold ' + Math.round(g.cv.width / 55) + 'px system-ui';
+    cx.textAlign = 'center';
+    const byLine = {};
     for (let i = 0; i < det.units.length; i++) {
-      const u = det.units[i], dg = det.degrees[i];
-      if (dg == null || u.p !== pno) continue;
-      const r = markBox(pno, u, 0); if (!r) continue;
-      cx.fillStyle = i === hiGi ? '#d8a24a' : 'rgba(106,140,190,.95)';
-      cx.fillText(DEG_GR[((dg % 7) + 7) % 7], r[0], r[1] + r[3] + 13 * (g.cv.width / 1100));
+      const u = det.units[i];
+      if (u.p !== pno || det.degrees[i] == null) continue;
+      (byLine[u.l] = byLine[u.l] || []).push(i);
     }
+    for (const l of Object.keys(byLine)) {
+      const idxs = byLine[l];                       // stream order
+      const boxes = idxs.map(i => markBox(pno, det.units[i], 0))
+                        .filter(Boolean);
+      if (boxes.length !== idxs.length) continue;
+      const base = Math.max(...boxes.map(b => b[1] + b[3])) +
+                   16 * (g.cv.width / 1100);
+      const xs = boxes.map(b => b[0] + b[2] / 2).sort((a, b) => a - b);
+      idxs.forEach((i, k) => {
+        const s = DEG_GR[((det.degrees[i] % 7) + 7) % 7];
+        cx.lineWidth = 4; cx.strokeStyle = 'rgba(255,255,255,.9)';
+        cx.strokeText(s, xs[k], base);
+        cx.fillStyle = i === hiGi ? '#8a5a00' : '#1c3a5e';
+        cx.fillText(s, xs[k], base);
+      });
+    }
+    cx.textAlign = 'start';
   }
   // drag preview: where the marker would land
   if (drag && drag.preview && drag.preview.pno === pno) {
