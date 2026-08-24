@@ -695,8 +695,7 @@ def book_span_save(payload):
         r['par_score'] = rng
     stamp = time.strftime('%Y%m%d-%H%M%S')
     shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
-    json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
-    open(hj, 'a').write('\n')
+    _write_json(hj, rows)
     box = lambda x: {'p': x['pl'][0], 'l': x['pl'][1],
                      'x0': round(x['x0'], 1), 'y0': round(x['y0'], 1),
                      'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
@@ -716,6 +715,22 @@ def book_span_save(payload):
 
 
 NEW_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9-]{1,50}$')
+
+# The server is threaded and every span edit is a read-modify-write of
+# hymns.json. On 2026-08-24 two concurrent saves interleaved and left valid
+# JSON followed by a stray tail — the book went blank until hand-repair. One
+# lock for all hymns.json/cuts writes, and writes go through a temp file +
+# os.replace so a crash mid-write can never leave a torn file.
+import threading
+_WRITE_LOCK = threading.Lock()
+
+
+def _write_json(path, obj):
+    tmp = path + '.tmp.%d' % os.getpid()
+    with open(tmp, 'w') as fh:
+        json.dump(obj, fh, indent=1, ensure_ascii=False)
+        fh.write('\n')
+    os.replace(tmp, path)
 
 
 def book_new_span(payload):
@@ -775,8 +790,7 @@ def book_new_span(payload):
             out = {'wd': wd, 'name': name, 'melos_only': True,
                    'start': box(stream[rng['g0']]),
                    'end': box(stream[rng['g1']])}
-        json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
-        open(hj, 'a').write('\n')
+        _write_json(hj, rows)
         return out, None
     r = {'name': name, 'p0': int(st['page']), 'l0': u0['pl'][1],
          'p1': int(en['page']), 'l1': u1['pl'][1] + 1,
@@ -802,8 +816,7 @@ def book_new_span(payload):
     stamp = time.strftime('%Y%m%d-%H%M%S')
     shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
     rows.append(r)
-    json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
-    open(hj, 'a').write('\n')
+    _write_json(hj, rows)
     t0, t1 = payload.get('t0'), payload.get('t1')
     if t0 is not None and t1 is not None and float(t1) > float(t0):
         cf = f'{TEXTS}/cuts_{wd}.json'
@@ -817,7 +830,7 @@ def book_new_span(payload):
         cur.setdefault('cuts', []).append(
             {'hymn': name, 't0': round(float(t0), 2),
              't1': round(float(t1), 2), 'label': 'book view draft'})
-        json.dump(cur, open(cf, 'w'), ensure_ascii=False, indent=1)
+        _write_json(cf, cur)
     box = lambda x: {'p': x['pl'][0], 'l': x['pl'][1],
                      'x0': round(x['x0'], 1), 'y0': round(x['y0'], 1),
                      'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
@@ -1093,7 +1106,8 @@ class H(BaseHTTPRequestHandler):
                 n = int(self.headers.get('Content-Length', 0))
                 if not 0 < n <= MAX_BODY:
                     raise ValueError('bad length')
-                d, err = book_new_span(json.loads(self.rfile.read(n)))
+                with _WRITE_LOCK:
+                    d, err = book_new_span(json.loads(self.rfile.read(n)))
             except Exception as e:
                 return self._send(400, json.dumps({'error': str(e)[:150]}))
             if err:
@@ -1108,7 +1122,8 @@ class H(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(400, json.dumps({'error': str(e)[:120]}))
             try:
-                d, err = book_span_save(payload)
+                with _WRITE_LOCK:
+                    d, err = book_span_save(payload)
             except Exception as e:
                 return self._send(500, json.dumps({'error': str(e)[:120]}))
             if err:
