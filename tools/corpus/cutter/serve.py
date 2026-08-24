@@ -501,6 +501,7 @@ def book():
             hymns.append({**par_boxes,
                 'wd': wd, 'name': r['name'], 'genus': r.get('genus'),
                 'segs': seg_boxes,
+                'ord': box(us[0]),
                 'start': seg_boxes[0]['start'] if seg_boxes else box(us[0]),
                 'end': seg_boxes[-1]['end'] if seg_boxes else box(us[-1]),
                 'piece': pc['id'] if pc else None,
@@ -509,8 +510,10 @@ def book():
                 't0': c.get('t0'), 't1': c.get('t1'),
                 'label': c.get('label'), 'lane': c.get('lane'),
             })
-    hymns.sort(key=lambda h: (h['start']['p'], h['start']['l'],
-                              h['start']['x0']))
+    # liturgical order follows each hymn's OWN printed text, not a borrowed
+    # prelude segment (the aposticha theotokion opens with p12's shared Doxa
+    # but lives at p17)
+    hymns.sort(key=lambda h: (h['ord']['p'], h['ord']['l'], h['ord']['x0']))
     n_pages = int(bm.get('n_pages') or 673)
     pages = []
     for pno in range(1, n_pages + 1):

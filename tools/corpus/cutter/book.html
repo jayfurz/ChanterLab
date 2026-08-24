@@ -591,6 +591,7 @@ async function placeNew(pno, px, py) {
     const out = await r.json();
     if (!r.ok) throw new Error(out.error || r.status);
     out.wd = body.workdir;
+    if (!out.ord && out.start) out.ord = out.start;
     if (out.par_only || out.melos_only) {
       const ex = B.hymns.find(h => h.wd === out.wd && h.name === out.name);
       if (ex) for (const k of ['start', 'end', 'par_start', 'par_end'])
@@ -605,8 +606,8 @@ async function placeNew(pno, px, py) {
       out.t0 = TP.spans[out.name].t0; out.t1 = TP.spans[out.name].t1;
     }
     B.hymns.push(out);
-    B.hymns.sort((a, b) => (a.start.p - b.start.p) || (a.start.l - b.start.l)
-      || (a.start.x0 - b.start.x0));
+    B.hymns.sort((a, b) => { const A = a.ord || a.start, Bb = b.ord || b.start;
+      return (A.p - Bb.p) || (A.l - Bb.l) || (A.x0 - Bb.x0); });
     drawToc();
     const i = B.hymns.findIndex(h => h.wd === out.wd && h.name === out.name);
     select(i, false, tapeMode);
@@ -1077,19 +1078,21 @@ function drawToc() {
       h4.onclick = () => go(document.getElementById('sec' + sv.pdf_pages[0]) || PG[sv.pdf_pages[0]]?.el);
       p.append(h4);
       B.hymns.forEach((h, i) => {
-        if (h.start.p < sv.pdf_pages[0] || h.start.p > sv.pdf_pages[1]) return;
+        const pos = h.ord || h.start;
+        if (pos.p < sv.pdf_pages[0] || pos.p > sv.pdf_pages[1]) return;
         const d = document.createElement('div'); d.className = 'hy'; d.dataset.i = i;
         d.innerHTML = `<span class="dot" style="background:${
           h.audio ? 'var(--green)' : h.t0 != null ? 'var(--gold)' : '#777'}"></span>` +
           `<span class="n">${h.label || h.name}</span>` +
-          `<span class="pgs">${h.start.p}${h.end.p !== h.start.p ? '–' + h.end.p : ''}</span>`;
+          `<span class="pgs">${pos.p}${h.end.p !== pos.p ? '–' + h.end.p : ''}</span>`;
         d.onclick = () => { $('#tocp').classList.remove('open'); select(i); };
         p.append(d);
       });
     });
   });
-  const orphans = B.hymns.filter(h => !(B.sections || []).some(sec =>
-    (sec.services || []).some(sv => h.start.p >= sv.pdf_pages[0] && h.start.p <= sv.pdf_pages[1])));
+  const orphans = B.hymns.filter(h => { const pos = h.ord || h.start;
+    return !(B.sections || []).some(sec => (sec.services || []).some(sv =>
+      pos.p >= sv.pdf_pages[0] && pos.p <= sv.pdf_pages[1])); });
   if (orphans.length) {
     const h3 = document.createElement('h3'); h3.textContent = 'other'; p.append(h3);
     orphans.forEach(h => {
