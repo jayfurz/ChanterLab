@@ -470,6 +470,11 @@ async function placeNew(pno, px, py) {
   repaintAll();
 }
 function startNewSpan() {
+  if (armNew) {                          // second press cancels the placement
+    delete TP?.spans?.[armNew.name];
+    armNew = null; needWave = true;
+    return msg('+ span cancelled');
+  }
   const wd = tapeMode && TP ? TP.wd : sel >= 0 ? B.hymns[sel].wd : null;
   if (!wd) return msg('select any hymn (or enter tape mode) first so I know the workdir');
   const name = (prompt('name for the new hymn (kebab-case, e.g. tas-esperinas)') || '')
@@ -478,7 +483,7 @@ function startNewSpan() {
   if (!/^[a-z0-9][a-z0-9-]{1,50}$/.test(name)) return msg('name must be a-z, 0-9, dashes');
   armNew = { wd, name, start: null };
   msg(`${name} (${wd}): tap its FIRST unit in the book` +
-      (tapeMode ? ' — mark its tape start/end first if you want audio included' : ''));
+      (tapeMode ? ' — start@play/end@play now mark THIS hymn\'s tape span' : ''));
 }
 
 /* span editing --------------------------------------------------------- */
@@ -645,9 +650,19 @@ function normalizeSpan(s) {
     .filter(iv => iv[1] - iv[0] > 0.05);
 }
 function selectedTapeSpan() {
-  if (!TP || sel < 0) return null;
+  if (!TP) { msg('enter Tape mode first'); return null; }
+  // a +span in progress owns the marks: they land on the NEW hymn's row
+  if (armNew && armNew.wd === TP.wd) {
+    const k = armNew.name;
+    return TP.spans[k] || (TP.spans[k] = { t0: null, t1: null, t_in: null,
+      label: null, lane: null, skips: [] });
+  }
+  if (sel < 0) { msg('select a hymn first (or start a + span)'); return null; }
   const h = B.hymns[sel];
-  if (h.wd !== TP.wd) return null;
+  if (h.wd !== TP.wd) {
+    msg(`${h.name} is not on this tape (${TP.wd}) — select a hymn from this tape`);
+    return null;
+  }
   // both lanes live on the tape at once: edit the selected hymn's span under
   // the playhead when there is one, otherwise its melos row (create it).
   const t = A.currentTime;
