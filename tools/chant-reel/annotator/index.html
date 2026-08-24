@@ -173,6 +173,11 @@
 </div>
 <div id="status">
   <span id="selinfo">no selection</span>
+  <div id="tapglow" style="display:none;position:fixed;inset:0;pointer-events:none;z-index:98;
+    border:5px solid #d8a24a;box-shadow:inset 0 0 30px rgba(216,162,74,.25)"></div>
+  <div id="tapbanner" style="display:none;position:fixed;top:0;left:50%;transform:translateX(-50%);
+    z-index:99;background:#d8a24a;color:#1a1512;font-weight:700;border-radius:0 0 10px 10px;
+    padding:6px 16px;pointer-events:none">TAP MODE — space = tap · backspace = undo tap · esc = pause / exit · T = exit</div>
   <span id="counts"></span>
   <span id="savestate"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
@@ -1355,13 +1360,18 @@ function setSlotTime(i, t) {
    is bypassed on purpose — a correct tap may legitimately land past a bad
    seed's next marker; taps only need to stay monotonic among themselves. */
 let tapMode = false, tapIdx = 0, lastTap = -1;
+let tapUndo = [];
 function toggleTapMode() {
   tapMode = !tapMode;
   $('tapbtn').classList.toggle('on', tapMode);
+  $('tapglow').style.display = tapMode ? 'block' : 'none';
+  $('tapbanner').style.display = tapMode ? 'block' : 'none';
+  document.body.classList.toggle('tapmode', tapMode);
   if (tapMode) {
+    tapUndo = [];
     tapArm(sel >= 0 ? sel : 0);
   } else {
-    $('selinfo').textContent = 'tap mode off';
+    $('selinfo').textContent = 'tap mode off — space is play/pause again';
   }
 }
 const TAP_LEAD = 3;   // seconds of run-up before the armed note
@@ -1387,17 +1397,29 @@ function doTap() {
   const t = Math.round(audio.currentTime * 1000) / 1000;
   if (t <= lastTap) return;              // key bounce / repeat
   lastTap = t;
+  tapUndo.push({ i: tapIdx, corr: corrected[tapIdx], pin: pinned[tapIdx] });
   corrected[tapIdx] = t;
   pinned[tapIdx] = true;
   dirtyTL = dirtyScore = true;
   save(); updateCounts();
-  selectSlot(tapIdx, false);
-  $('selinfo').textContent = `tapped slot ${tapIdx} @ ${t.toFixed(2)}s — next: ${tapIdx + 1}/${nS()}`;
+  $('selinfo').textContent = `tapped ${tapIdx} @ ${t.toFixed(2)}s — waiting for ${tapIdx + 1}/${nS()}`;
   tapIdx += 1;
   if (tapIdx >= nS()) {
     toggleTapMode();
-    $('selinfo').textContent = 'all slots tapped — Refit is unnecessary, every marker is pinned';
+    $('selinfo').textContent = 'all slots tapped — every marker is pinned';
+    return;
   }
+  sel = tapIdx; selectSlot(tapIdx, false);   // the WAITING note is the highlighted one
+}
+function tapUndoLast() {
+  const u = tapUndo.pop();
+  if (!u) { $('selinfo').textContent = 'nothing to un-tap'; return; }
+  corrected[u.i] = u.corr; pinned[u.i] = u.pin;
+  tapIdx = u.i; lastTap = -1;
+  dirtyTL = dirtyScore = true;
+  save(); updateCounts();
+  sel = tapIdx; selectSlot(tapIdx, false);
+  $('selinfo').textContent = `un-tapped slot ${u.i} — waiting for it again`;
 }
 function nudgeSel(dir) {
   if (sel < 0) { seekTo(playheadT() + dir*2); return; }
@@ -1741,6 +1763,13 @@ window.addEventListener('keydown', e => {
   if (tag === 'TEXTAREA' || tag === 'INPUT') return;
   if (e.code === 'Space') { e.preventDefault();
     if (tapMode) doTap(); else togglePlay(); }
+  else if (tapMode && e.key === 'Backspace') { e.preventDefault(); tapUndoLast(); }
+  else if (tapMode && e.key === 'Escape') {
+    e.preventDefault();
+    if (!audio.paused) { togglePlay();
+      $('selinfo').textContent = `paused — still in tap mode, waiting for ${tapIdx}; space resumes, esc again exits`; }
+    else toggleTapMode();
+  }
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault(); nudgeSel(e.key === 'ArrowLeft' ? -1 : 1);
   }
