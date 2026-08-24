@@ -165,6 +165,62 @@ def parallagi_for(piece_id):
                         anchor = leading_anchor(rng['p0'], rng.get('g0') or 0)
                     except Exception:
                         anchor = None
+                    if anchor is None:
+                        # No printed opening martyria (katefthynthito starts
+                        # mid-column): let degree_stream find the first
+                        # MID-STREAM martyria and walk its value back to what
+                        # the opening must have been.
+                        try:
+                            from hymn_align import load_units_h
+                            from score_degrees import degree_stream
+                            pr = dict(row)
+                            pr.update({k: rng[k] for k in
+                                       ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')
+                                       if rng.get(k) is not None})
+                            us, _ = load_units_h(pr)
+                            leg = {'keys': keys}
+                            ds = degree_stream(us, leg)
+                            j = next((i for i, v in enumerate(ds)
+                                      if v is not None), None)
+                            def _iv(u):
+                                v = u.get('iv')
+                                if v is None:
+                                    v = keys.get(u['key'],
+                                                 keys.get('%s|' % u['base'], 0)) or 0
+                                return v
+
+                            def _backwalk(stream, dstream, upto):
+                                back = dstream[upto]
+                                for k in range(upto, -1, -1):
+                                    back -= _iv(stream[k])
+                                return back
+                            if j is not None and len(us) == len(notes):
+                                anchor = _backwalk(us, ds, j)
+                            elif hy.endswith('-par'):
+                                # an abbreviated parallagi (a cadence formula)
+                                # can hold no martyria at all: anchor it from
+                                # the FULL hymn's stream at the par range's
+                                # first unit
+                                fus, _ = load_units_h(row)
+                                fds = degree_stream(fus, leg)
+                                ident = lambda x: (x['pl'][0], x['pl'][1],
+                                                   round(x['x0'], 1))
+                                fids = [ident(x) for x in fus]
+                                if us and ident(us[0]) in fids:
+                                    i0 = fids.index(ident(us[0]))
+                                    v = fds[i0]
+                                    if v is None:
+                                        jj = next((i for i, x in enumerate(fds)
+                                                   if x is not None), None)
+                                        if jj is not None:
+                                            base0 = _backwalk(fus, fds, jj)
+                                            v = base0
+                                            for k in range(0, i0 + 1):
+                                                v += _iv(fus[k])
+                                    if v is not None:
+                                        anchor = v - _iv(us[0])
+                        except Exception:
+                            anchor = None
 
     # The opening martyria gives the pitch the hymn starts FROM; the first neume
     # moves from it like any other, and an ison needs no special case because
