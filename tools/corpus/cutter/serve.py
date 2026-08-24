@@ -610,6 +610,13 @@ def parallagi_audio(r, wd=None):
     a prepared parallagi_dir (audio_16k.wav), a parallagi_track filename next
     to the melos, or the raw folder's (ΠΑΡΑΛΛΑΓΗ) file that PRECEDES the melos
     file — parallagi-then-melos is the tape's own order (23/23 measured)."""
+    # The chanter's own '#par' tape cut comes FIRST: cuts he saved are ground
+    # truth, and the legacy parallagi_dir/track fields can point at cuts that
+    # predate his (mode 2 kyrie-ekekraxa served a stale pipeline cut).
+    if wd:
+        cut = _par_cut_audio(r, wd)
+        if cut:
+            return cut
     pd = r.get('parallagi_dir')
     if pd and os.path.isdir(pd):
         for n in ('audio_16k.wav', 'audio.wav'):
@@ -638,31 +645,33 @@ def parallagi_audio(r, wd=None):
                 return os.path.join(base, names[j])
             if 'ΜΕΛΟΣ' in up or 'MELOS' in up:
                 break                     # ran into the previous hymn
-    # Last resort: the chanter's own '#par' tape cut. Cut once, cache next to
-    # the peaks — this is how book-cut hymns without legacy parallagi files
-    # (most of mode 1 vespers) get their parallagi served at all.
-    if wd:
-        cf = f'{TEXTS}/cuts_{wd}.json'
-        t = tapes().get(wd)
-        if t and os.path.exists(cf):
-            try:
-                c = {x['hymn']: x for x in
-                     json.load(open(cf))['cuts']}.get(r['name'] + '#par')
-            except Exception:
-                c = None
-            if c and c.get('t0') is not None:
-                out_dir = f'{TEXTS}/paudio_cache'
-                os.makedirs(out_dir, exist_ok=True)
-                out = f"{out_dir}/{wd}__{r['name']}.wav"
-                if not os.path.exists(out) or \
-                        os.path.getmtime(out) < os.path.getmtime(cf):
-                    t0 = max(float(c['t0']), float(c.get('t_in') or c['t0']))
-                    subprocess.run(['ffmpeg', '-v', 'quiet', '-y',
-                                    '-i', t['tape'], '-ss', str(t0),
-                                    '-to', str(c['t1']), out], check=False)
-                if os.path.exists(out):
-                    return out
     return None
+
+
+def _par_cut_audio(r, wd):
+    """The chanter's '#par' tape cut, cut once and cached; None if he has
+    not cut one. Cache invalidates when the cuts file changes."""
+    cf = f'{TEXTS}/cuts_{wd}.json'
+    t = tapes().get(wd)
+    if not t or not os.path.exists(cf):
+        return None
+    try:
+        c = {x['hymn']: x for x in
+             json.load(open(cf))['cuts']}.get(r['name'] + '#par')
+    except Exception:
+        return None
+    if not c or c.get('t0') is None:
+        return None
+    out_dir = f'{TEXTS}/paudio_cache'
+    os.makedirs(out_dir, exist_ok=True)
+    out = f"{out_dir}/{wd}__{r['name']}.wav"
+    if not os.path.exists(out) or \
+            os.path.getmtime(out) < os.path.getmtime(cf):
+        t0 = max(float(c['t0']), float(c.get('t_in') or c['t0']))
+        subprocess.run(['ffmpeg', '-v', 'quiet', '-y',
+                        '-i', t['tape'], '-ss', str(t0),
+                        '-to', str(c['t1']), out], check=False)
+    return out if os.path.exists(out) else None
 
 
 def book_segment(payload):
