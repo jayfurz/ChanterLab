@@ -506,8 +506,11 @@ async function placeNew(pno, px, py) {
     drawToc();
     const i = B.hymns.findIndex(h => h.wd === out.wd && h.name === out.name);
     select(i, false, tapeMode);
+    // persist any tape marks made during placement — melos AND parallagi
+    if (tapeMode && TP && (TP.spans[out.name] || TP.spans[out.name + '#par']))
+      await saveCuts();
     msg(`created ${out.name} — p${out.start.p} → p${out.end.p}` +
-        (body.t0 != null ? ' (audio span included)' : ''));
+        (body.t0 != null ? ' + audio span(s) saved' : ''));
   } catch (e) { msg('create failed: ' + e.message); }
   repaintAll();
 }
