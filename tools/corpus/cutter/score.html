@@ -53,7 +53,10 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
 </style>
 
 <header>
-  <select id="wd"></select>
+  <div class="row" style="margin:0 0 6px">
+    <select id="wd" style="flex:1;width:auto"></select>
+    <a href="/book" style="flex:0 0 auto;color:var(--dim);text-decoration:none;font-size:13px;border:1px solid var(--line);border-radius:9px;padding:9px 10px">book</a>
+  </div>
   <div id="who"></div>
   <div class="row">
     <button id="mode0" class="on">tap = START</button>
@@ -273,6 +276,8 @@ async function loadPeaks(k) {
   drawWave();
 }
 
+const Q = new URLSearchParams(location.search);
+let pendingHymn = Q.get('hymn');
 async function boot() {
   const tapes = await (await fetch('/api/tapes')).json();
   Object.keys(tapes).forEach(k => {
@@ -280,7 +285,10 @@ async function boot() {
     $('#wd').append(o);
   });
   $('#wd').onchange = () => load($('#wd').value);
-  load(Object.keys(tapes)[0]);
+  const wq = Q.get('wd');
+  const k0 = wq && tapes[wq] ? wq : Object.keys(tapes)[0];
+  $('#wd').value = k0;
+  load(k0);
 }
 
 async function load(k) {
@@ -312,6 +320,11 @@ async function load(k) {
   drawPages(); render();
   const n = rows.filter(r => r.t0 != null).length;
   msg(`${D.pages.length} pages · ${D.pages.reduce((a, p) => a + p.glyphs.length, 0)} glyphs · ${n} audio spans`);
+  if (pendingHymn) {
+    const i = rows.findIndex(r => r.name === pendingHymn);
+    pendingHymn = null;
+    if (i >= 0) { sel = i; render(); repaintAll(); setTimeout(() => $('#goto').click(), 300); }
+  }
 }
 
 function drawPages() {

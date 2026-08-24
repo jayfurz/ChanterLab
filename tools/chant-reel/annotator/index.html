@@ -465,22 +465,41 @@ function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     localStorage.setItem(lsKey(),
-      JSON.stringify({ corrected, pinned, flags, ghosts, anaT }));
+      JSON.stringify({ corrected, pinned, flags, ghosts, anaT,
+                       savedAt: Date.now() / 1000 }));
     $('savestate').textContent = 'autosaved ' + new Date().toLocaleTimeString();
     updateCounts();
   }, 250);
 }
 function restore() {
+  /* THE EXPORT WINS WHEN IT IS NEWER, and it has to.
+
+     data_rev is md5 over the glyph indices and unit count, so it does NOT
+     change when a piece gains a seed. A browser that had already cached a blank
+     local state for this revision would restore that blank state and never look
+     at the seed -- which is exactly what the chanter hit: "i cant see the
+     exports. it still has the old unedited one", twice, after the seed was
+     already sitting in the data file.
+
+     Pressing Export is the deliberate act; the autosave is a working cache. So
+     compare stamps and take the later one. A local state with no stamp predates
+     this fix and therefore loses to any export. */
+  let s = null;
   try {
-    const s = JSON.parse(localStorage.getItem(lsKey()));
-    if (s && s.corrected && s.corrected.length === nS()) {
-      corrected = s.corrected; pinned = s.pinned; flags = s.flags || {};
-      ghosts = s.ghosts || [];
-      anaT = s.anaT || null;
-      $('savestate').textContent = 'restored local edits';
-      return;
-    }
-  } catch (e) { /* fall through to the seed */ }
+    s = JSON.parse(localStorage.getItem(lsKey()));
+  } catch (e) { s = null; }
+  const usable = s && s.corrected && s.corrected.length === nS();
+  const exportedAt = (D.seed && D.seed.exported_at) || 0;
+  if (usable && (s.savedAt || 0) >= exportedAt) {
+    corrected = s.corrected; pinned = s.pinned; flags = s.flags || {};
+    ghosts = s.ghosts || [];
+    anaT = s.anaT || null;
+    $('savestate').textContent = 'restored local edits';
+    return;
+  }
+  if (usable) {
+    $('savestate').textContent = 'loaded your exported work (newer than local edits)';
+  }
   seedFromGold();
 }
 /* No local edits for this slot revision — but the piece may ship curated
@@ -660,11 +679,51 @@ async function loadPieceList() {
   });
   if (!ready.length) return;
   const sel = $('piecesel');
+  /* Grouped by mode in liturgical order — modes 1-4 then the plagals (varys
+     is plagal 3), vespers before orthros — instead of one flat list. The
+     group comes from the piece's workdir; the chanter's 47 tape spans are
+     grave-orthros. */
+  const GROUPS = [
+    ['mode1', 'Mode 1 — Vespers'], ['mode1-orthros', 'Mode 1 — Orthros'],
+    ['mode2', 'Mode 2 — Vespers'], ['mode2-orthros', 'Mode 2 — Orthros'],
+    ['mode3', 'Mode 3 — Vespers'], ['mode3-orthros', 'Mode 3 — Orthros'],
+    ['mode4', 'Mode 4 — Vespers'], ['mode4-orthros', 'Mode 4 — Orthros'],
+    ['pl1-vespers', 'Plagal 1 — Vespers'], ['pl1-orthros', 'Plagal 1 — Orthros'],
+    ['pl1-compunction', 'Plagal 1 — Compunction'],
+    ['pl2', 'Plagal 2 — Vespers'], ['pl2-orthros', 'Plagal 2 — Orthros'],
+    ['grave', 'Varys — Vespers'], ['grave-orthros', 'Varys — Orthros'],
+    ['pl4', 'Plagal 4 — Vespers'], ['pl4-orthros', 'Plagal 4 — Orthros'],
+    ['prosomia', 'Prosomia'], ['other', 'Other'],
+  ];
+  const known = new Set(GROUPS.map(g => g[0]));
+  const groupKey = p => {
+    let wd = p.workdir ? p.workdir.replace(/\/+$/, '').split('/').pop() : null;
+    if (!wd && p.kind === 'span') wd = 'grave-orthros';
+    if (!wd) {
+      const m = (p.id || '').match(/^(mode\d(?:-orthros)?|pl\d[a-z-]*?|grave(?:-orthros)?|prosomia)(?=-)/);
+      wd = m ? m[1] : null;
+    }
+    return wd && known.has(wd) ? wd : 'other';
+  };
+  const byGroup = new Map();
+  for (const p of ready) {
+    const k = groupKey(p);
+    if (!byGroup.has(k)) byGroup.set(k, []);
+    byGroup.get(k).push(p);
+  }
+  let parent = sel;
   const opt = (v, label) => { const o = document.createElement('option');
     o.value = v; o.textContent = label; if (v === (PIECE || '')) o.selected = true;
-    sel.appendChild(o); };
+    parent.appendChild(o); };
   if (!PIECE) opt('', '(legacy piece in data/)');
-  for (const p of ready) {
+  for (const [gk, glabel] of GROUPS) {
+    const members = byGroup.get(gk);
+    if (!members || !members.length) continue;
+    const og = document.createElement('optgroup');
+    og.label = glabel + ' (' + members.length + ')';
+    sel.appendChild(og);
+    parent = og;
+    for (const p of members) {
     let pins = 0;
     try {
       const s = JSON.parse(localStorage.getItem('chant-annotator:' + p.id +
@@ -688,6 +747,7 @@ async function loadPieceList() {
     }
     opt(p.id, label + (p.alignment_stale ? ' · ⚠ times stale' : '')
              + (pins ? ' · ✎' + pins : ''));
+    }
   }
   sel.style.display = '';
   sel.onchange = () =>

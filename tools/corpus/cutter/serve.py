@@ -217,7 +217,25 @@ def page_thumb(pno):
     out = f'{THUMBS}/page{pno}.jpg'
     src = f'{RENDERS}/page{pno}.png'
     if not os.path.exists(src):
-        return None
+        # No master render: the book view wants EVERY page of the
+        # Anastasimatarion, so rasterise straight from the PDF at thumbnail
+        # width. Cached like the master path; a miss costs one pdftoppm.
+        if os.path.exists(out):
+            return out
+        bm = _book_map()
+        pdf = (bm or {}).get('pdf')
+        if not pdf or not os.path.exists(pdf) or pno < 1:
+            return None
+        tmp = f'{THUMBS}/.pdf{pno}.{os.getpid()}'
+        subprocess.run(['pdftoppm', '-jpeg', '-cropbox',
+                        '-scale-to-x', str(THUMB_W), '-scale-to-y', '-1',
+                        '-f', str(pno), '-l', str(pno), pdf, tmp],
+                       check=False)
+        got = glob.glob(tmp + '*')
+        if not got:
+            return None
+        os.replace(got[0], out)
+        return out
     if not os.path.exists(out) or os.path.getmtime(out) < os.path.getmtime(src):
         from PIL import Image
         im = Image.open(src).convert('RGB')
@@ -358,6 +376,177 @@ def score_pages(wd):
             'saved': saved}
 
 
+
+# --------------------------------------------------------------------------
+# Book view: the whole Anastasimatarion with every workdir's spans in context.
+ANNOT_DATA = os.path.normpath(os.path.join(
+    HERE, '..', '..', 'chant-reel', 'annotator', 'data'))
+EXPORTS_DIR = os.path.normpath(os.path.join(
+    HERE, '..', '..', '..', 'datasets', 'exports'))
+BOOK_MAP = f'{SCORES}/book_map.json'
+_BM = {}
+
+
+def _book_map():
+    if not os.path.exists(BOOK_MAP):
+        return None
+    m = os.path.getmtime(BOOK_MAP)
+    if _BM.get('m') != m:
+        _BM['m'], _BM['d'] = m, json.load(open(BOOK_MAP))
+    return _BM['d']
+
+
+def _piece_index():
+    """(workdir_basename, hymn_name) -> annotator piece manifest entry."""
+    f = os.path.join(ANNOT_DATA, 'index.json')
+    if not os.path.exists(f):
+        return {}
+    out = {}
+    try:
+        for p in json.load(open(f)).get('pieces', []):
+            wd, hy = p.get('workdir'), p.get('hymn')
+            if wd and hy and p.get('status') == 'ready':
+                out[(os.path.basename(wd), hy)] = p
+    except Exception:
+        pass
+    return out
+
+
+def _piece_audio(pid):
+    """URL path of the piece's audio as the ANNOTATOR serves it, or None."""
+    d = os.path.join(ANNOT_DATA, pid)
+    for n in ('audio.wav', 'audio.m4a', 'audio.mp3'):
+        if os.path.exists(os.path.join(d, n)):
+            return f'/data/{pid}/{n}'
+    return None
+
+
+_BOOK = {}
+
+
+def book():
+    """Everything the book view needs, cached on the source files' mtimes.
+
+    Spans come from every workdir's hymns.json — the machine/chanter score
+    ranges — with audio-cut times joined on where a tape has been cut. A span
+    is shown even when no audio exists for it: the book IS the context.
+    """
+    hj = sorted(glob.glob(f'{WORKDIRS}/*/hymns.json'))
+    sig = tuple((f, os.path.getmtime(f)) for f in hj)
+    sig += tuple((f, os.path.getmtime(f))
+                 for f in sorted(glob.glob(f'{TEXTS}/cuts_*.json')))
+    mi = os.path.join(ANNOT_DATA, 'index.json')
+    if os.path.exists(mi):
+        sig += ((mi, os.path.getmtime(mi)),)
+    if _BOOK.get('sig') == sig:
+        return _BOOK['d']
+    from hymn_align import load_units_h
+    OFF = json.load(open(OFFSETS)) if os.path.exists(OFFSETS) else {}
+    pieces = _piece_index()
+    bm = _book_map() or {}
+    hymns = []
+    for f in hj:
+        wd = os.path.basename(os.path.dirname(f))
+        try:
+            rows = json.load(open(f))
+        except Exception:
+            continue
+        rows = rows if isinstance(rows, list) else rows.get('hymns', [])
+        cuts = {}
+        cf = f'{TEXTS}/cuts_{wd}.json'
+        if os.path.exists(cf):
+            try:
+                cuts = {c['hymn']: c for c in json.load(open(cf))['cuts']}
+            except Exception:
+                cuts = {}
+        for r in rows:
+            try:
+                us, _ = load_units_h(r)
+            except Exception:
+                us = []
+            if not us:
+                continue
+            box = lambda u: {'p': u['pl'][0], 'l': u['pl'][1],
+                             'x0': round(u['x0'], 1), 'y0': round(u['y0'], 1),
+                             'x1': round(u['x1'], 1), 'y1': round(u['y1'], 1)}
+            pc = pieces.get((wd, r['name']))
+            c = cuts.get(r['name'], {})
+            hymns.append({
+                'wd': wd, 'name': r['name'], 'genus': r.get('genus'),
+                'start': box(us[0]), 'end': box(us[-1]),
+                'piece': pc['id'] if pc else None,
+                'audio': _piece_audio(pc['id']) if pc else None,
+                't0': c.get('t0'), 't1': c.get('t1'),
+                'label': c.get('label'), 'lane': c.get('lane'),
+            })
+    hymns.sort(key=lambda h: (h['start']['p'], h['start']['l'],
+                              h['start']['x0']))
+    n_pages = int(bm.get('n_pages') or 673)
+    pages = []
+    for pno in range(1, n_pages + 1):
+        off = OFF.get(str(pno), {})
+        pages.append({'page': pno, 'w': off.get('w', 0), 'h': off.get('h', 0),
+                      'dx': off.get('dx', 0), 'dy': off.get('dy', 0)})
+    d = {'pages': pages, 'thumb_w': THUMB_W, 'hymns': hymns,
+         'sections': bm.get('sections', [])}
+    _BOOK['sig'], _BOOK['d'] = sig, d
+    return d
+
+
+def book_hymn(wd, name):
+    """One hymn's playable detail: unit boxes in page space plus the
+    annotator's slot times (chanter corrections included) for highlighting."""
+    hj = f'{WORKDIRS}/{wd}/hymns.json'
+    if not os.path.exists(hj):
+        return None
+    rows = json.load(open(hj))
+    rows = rows if isinstance(rows, list) else rows.get('hymns', [])
+    r = next((x for x in rows if x['name'] == name), None)
+    if r is None:
+        return None
+    from hymn_align import load_units_h
+    us, _ = load_units_h(r)
+    units = [{'p': u['pl'][0], 'l': u['pl'][1],
+              'x0': round(u['x0'], 1), 'y0': round(u['y0'], 1),
+              'x1': round(u['x1'], 1), 'y1': round(u['y1'], 1)}
+             for u in us]
+    pc = _piece_index().get((wd, name))
+    slots = None
+    audio = None
+    if pc:
+        audio = _piece_audio(pc['id'])
+        f = os.path.join(ANNOT_DATA, pc['id'], 'annotator_data.json')
+        if os.path.exists(f):
+            try:
+                D = json.load(open(f))
+                s = D.get('slots') or {}
+                t, gi = list(s.get('t') or []), list(s.get('gi') or [])
+                # chanter-corrected times, index-aligned with the seed
+                cf = os.path.join(EXPORTS_DIR, pc['id'],
+                                  'slots_corrected.json')
+                if os.path.exists(cf):
+                    ct = (json.load(open(cf)) or {}).get('t') or []
+                    for i, v in enumerate(ct[:len(t)]):
+                        if v is not None:
+                            t[i] = v
+                if t and gi:
+                    slots = {'t': t, 'gi': gi}
+            except Exception:
+                slots = None
+    c = {}
+    cf = f'{TEXTS}/cuts_{wd}.json'
+    if os.path.exists(cf):
+        try:
+            c = {x['hymn']: x for x in
+                 json.load(open(cf))['cuts']}.get(name, {})
+        except Exception:
+            c = {}
+    tape = f'/tape/{wd}' if wd in tapes() else None
+    return {'wd': wd, 'name': name, 'units': units, 'slots': slots,
+            'piece': pc['id'] if pc else None, 'audio': audio,
+            'tape': tape, 't0': c.get('t0'), 't1': c.get('t1')}
+
+
 class H(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
 
@@ -400,6 +589,23 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if p in ('/book', '/book.html'):
+            f = os.path.join(HERE, 'book.html')
+            return self._send(200, open(f, 'rb').read(),
+                              'text/html; charset=utf-8')
+        if p == '/api/book':
+            return self._send(200, json.dumps(book(), ensure_ascii=False))
+        if p == '/api/book/hymn':
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            wd = (q.get('wd') or [''])[0]
+            name = (q.get('name') or [''])[0]
+            if not WD_RE.match(wd):
+                return self._send(400, '{"error":"bad workdir"}')
+            d = book_hymn(wd, name)
+            if d is None:
+                return self._send(404, '{"error":"unknown hymn"}')
+            return self._send(200, json.dumps(d, ensure_ascii=False))
         if p in ('/score', '/score.html'):
             f = os.path.join(HERE, 'score.html')
             return self._send(200, open(f, 'rb').read(),
