@@ -849,8 +849,23 @@ every workdir melos audio was restored from its source (originals kept as
 re-prepped. Any non-grave workdir may carry the same rot; the sweep is one
 loop of ffprobe and should run corpus-wide before anyone reviews those modes.
 
-**The chromatic ear now has a hard number.** He transcribed the opening of
-the christos-o-sotir parallagi (δι κε ζω ζω νη' ζω κε δι κε ζω νη' ζω κε δι);
-the diatonic-trained classifier heard **3/14** (opens ζω for δι). That is the
-mode-2 identification failure in miniature, and the first 14 labelled
-chromatic notes of the eventual mode-2 training set.
+**The chromatic ear, measured properly — and the chanter's mode-invariance
+claim vindicated.** His transcription (δι κε ζω ζω νη' ζω κε δι κε ζω νη' ζω
+κε δι) was of the FRAGMENT the annotator had been serving, not file 09 — the
+first "3/14" was scored against the wrong audio and is void. On the audio he
+actually heard:
+
+  | reader | score | error shape |
+  |---|---|---|
+  | classifier (diatonic-trained) | 7/14 | every anchor right (all δι, ζω); every miss ONE STEP SHORT (κε→δι, νη'→ζω) — it snaps the shrunken chromatic steps to the nearest diatonic degree |
+  | + pitch-shift augmentation (±10 mel bins) | 7/14 | same (grave LOO holds at 95.6 % over 4 pieces incl. s18) |
+  | pitch quantiser, correct genus handling | **11/14** | first ten notes PERFECT; the tail is one onset slip, not degree errors |
+
+  Chanter: "it should be mode invariant. they are the same syllables just
+  slightly different intervals." Correct: the syllable/anchor channel
+  transfers; only the small chromatic intervals compress. The near-term
+  chromatic path is therefore the quantiser (genus-aware) fused with the
+  classifier's anchors — worth re-running mode-2 identification with the
+  quantiser stream before asking for any new labels. The clean two
+  independent-readers-agreeing check (classifier ≡ quantiser, note for note,
+  on file 09) is also what exposed the wrong-audio mixup.

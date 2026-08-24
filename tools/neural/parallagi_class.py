@@ -217,6 +217,9 @@ def predict(net, piece_dir, onsets_file, dev, hymn=None):
     return row
 
 
+AUG_SHIFT = 0
+
+
 def run(train, test, epochs, lr, dev, tag):
     Xtr = torch.from_numpy(np.concatenate([t[0] for t in train])).to(dev)
     Ytr = torch.from_numpy(np.concatenate([t[1] for t in train])).long().to(dev)
@@ -233,7 +236,12 @@ def run(train, test, epochs, lr, dev, tag):
         net.train(); perm = torch.randperm(len(Xtr), device=dev)
         for i in range(0, len(perm), bs):
             j = perm[i:i + bs]
-            opt.zero_grad(); l = lf(net(Xtr[j]), Ytr[j]); l.backward(); opt.step()
+            xb = Xtr[j]
+            if AUG_SHIFT:
+                k = int(torch.randint(-AUG_SHIFT, AUG_SHIFT + 1, (1,)))
+                if k:
+                    xb = torch.roll(xb, k, dims=1)
+            opt.zero_grad(); l = lf(net(xb), Ytr[j]); l.backward(); opt.step()
         sch.step()
     net.eval()
     with torch.inference_mode():
@@ -251,6 +259,12 @@ def main():
     ap.add_argument('--gold', action='append', required=True)
     ap.add_argument('--hymn', action='append', required=True)
     ap.add_argument('--epochs', type=int, default=400)
+    ap.add_argument('--aug-shift', type=int, default=0,
+                    help='random +/-N mel-bin roll per training sample. Pitch-shift '
+                         'augmentation: the chanter, on the mode-2 failure, "it should '
+                         'be mode invariant. they are the same syllables just slightly '
+                         'different intervals" -- so make absolute pitch a useless cue '
+                         'and force the net onto the formants.')
     ap.add_argument('--lr', type=float, default=6e-4)
     ap.add_argument('--loo', action='store_true', help='leave one hymn out')
     ap.add_argument('--out-degrees')
@@ -264,6 +278,8 @@ def main():
                          'repeatable. Predicts the degree of every note.')
     a = ap.parse_args()
     dev = torch.device(a.device if torch.cuda.is_available() else 'cpu')
+    global AUG_SHIFT
+    AUG_SHIFT = a.aug_shift
     data = [load(p, g, h) for p, g, h in zip(a.piece, a.gold, a.hymn)]
     for X, Y, nm in data:
         print('%-34s %3d notes' % (nm, len(Y)))
