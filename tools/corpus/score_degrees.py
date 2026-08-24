@@ -265,7 +265,10 @@ def degree_stream(units, legend, start=None):
             #
             # Not re-anchoring means only that: do not take the martyria's
             # degree. The note is still a note and still moves by its interval.
-            deg += _iv(u, keys)
+            # (Unless no anchor has appeared yet — then there is nothing to
+            # move FROM; ek-pason's parallagi opens on exactly this case.)
+            if deg is not None:
+                deg += _iv(u, keys)
         elif u.get('mart_deg') is not None:
             deg = u['mart_deg']
         elif deg is not None:

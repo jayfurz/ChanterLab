@@ -578,11 +578,14 @@ def book_hymn(wd, name):
     pa = parallagi_audio(r, wd)
     degrees = None
     try:
-        from score_degrees import degree_stream, leading_anchor
-        leg = json.load(open('/mnt/data/chant-corpus/scores/legend_canon.json'))
-        degrees = [None if v is None else int(v) for v in
-                   degree_stream(us, leg,
-                                 start=leading_anchor(r['p0'], r.get('g0') or 0))]
+        from score_degrees import leading_anchor
+        keys = json.load(open(
+            '/mnt/data/chant-corpus/scores/legend_canon.json'))['keys']
+        # degree_stream FILTERS the Nones out, which breaks index alignment
+        # with units whenever the anchor arrives late — the overlay painted
+        # syllables on the wrong notes. Walk unfiltered instead.
+        degrees = unit_degrees(us, keys,
+                               leading_anchor(r['p0'], r.get('g0') or 0))
     except Exception:
         degrees = None
     return {'wd': wd, 'name': name, 'units': units, 'slots': slots,
@@ -727,6 +730,24 @@ def book_segment(payload):
         except Exception:
             out.append(None)
     return {'wd': wd, 'name': name, 'segments': out}, None
+
+
+def unit_degrees(us, keys, start):
+    """Per-unit absolute degree, index-aligned with `us` (None before the
+    first anchor). Mirrors score_degrees.degree_stream's walk WITHOUT its
+    trailing None-filter, which destroys unit alignment."""
+    deg = start
+    out = []
+    for u in us:
+        if u.get('mart_deg') is not None:
+            deg = u['mart_deg']
+        elif deg is not None:
+            iv = u.get('iv')
+            if iv is None:
+                iv = keys.get(u.get('key'), keys.get('%s|' % u.get('base')))
+            deg += iv or 0
+        out.append(None if deg is None else int(deg))
+    return out
 
 
 def book_units(pno):

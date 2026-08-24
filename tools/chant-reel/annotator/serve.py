@@ -179,10 +179,7 @@ def parallagi_for(piece_id):
                                        ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')
                                        if rng.get(k) is not None})
                             us, _ = load_units_h(pr)
-                            leg = {'keys': keys}
-                            ds = degree_stream(us, leg)
-                            j = next((i for i, v in enumerate(ds)
-                                      if v is not None), None)
+
                             def _iv(u):
                                 v = u.get('iv')
                                 if v is None:
@@ -190,6 +187,20 @@ def parallagi_for(piece_id):
                                                  keys.get('%s|' % u['base'], 0)) or 0
                                 return v
 
+                            def _walk(stream, start=None):
+                                # unfiltered per-unit degrees (degree_stream
+                                # drops Nones and loses unit alignment)
+                                dv, o = start, []
+                                for u in stream:
+                                    if u.get('mart_deg') is not None:
+                                        dv = u['mart_deg']
+                                    elif dv is not None:
+                                        dv += _iv(u)
+                                    o.append(dv)
+                                return o
+                            ds = _walk(us)
+                            j = next((i for i, v in enumerate(ds)
+                                      if v is not None), None)
                             def _backwalk(stream, dstream, upto):
                                 back = dstream[upto]
                                 for k in range(upto, -1, -1):
@@ -203,7 +214,7 @@ def parallagi_for(piece_id):
                                 # the FULL hymn's stream at the par range's
                                 # first unit
                                 fus, _ = load_units_h(row)
-                                fds = degree_stream(fus, leg)
+                                fds = _walk(fus)
                                 ident = lambda x: (x['pl'][0], x['pl'][1],
                                                    round(x['x0'], 1))
                                 fids = [ident(x) for x in fus]
