@@ -67,7 +67,8 @@ COMPLETE = ('s02-parallagi', 's04-parallagi', 's06-parallagi',
             's05-melos',    # 2026-08-23: re-pinned from his own draft after the seed was reverted -- "this is now the golden one"
             's11-melos',    # 2026-08-23: model seed approved BY EAR, zero drags ("pretty close to spot on")
             's15-melos',    # 2026-08-23: model seed approved by ear, zero drags
-            's17-melos')    # 2026-08-23: model seed, chanter fixed the ending and exported
+            's17-melos',    # 2026-08-23: model seed, chanter fixed the ending and exported
+            's18-parallagi')  # 2026-08-23: onset_match seed from his 2 end pins; "there were a few slips. fixed them all"
 
 # MELOS PINS ARE NOT TRUSTED. Chanter, 2026-08-23: "we cant really trust s03
 # or s05 because i might not have perfectly done the onsets when i did it
