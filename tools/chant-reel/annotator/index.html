@@ -188,7 +188,7 @@
   <span id="counts"></span>
   <span id="savestate"></span>
   <span id="help">space play · click wave seek · drag marker correct · wheel zoom · shift+wheel pan ·
-    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · T tap onsets · V parallagi audio · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
+    &larr;/&rarr; nudge &plusmn;50ms · L loop · P pin · R reset · S speed · 0 playhead to start · T tap onsets · V parallagi audio · A parallagi · X flag it · long-press marker pin · pinch zoom</span>
 </div>
 <div id="transport">
   <button id="playbtn" class="primary" title="play/pause (space)">▶</button>
@@ -1920,6 +1920,8 @@ window.addEventListener('keydown', e => {
   }
   else if (e.key === 'Escape') selectSlot(-1);
   else if (e.key === 'Home') setView(0, D.meta.duration);
+  else if (e.key === '0') { seekTo(0);
+    $('selinfo').textContent = 'playhead at 0:00'; }
   else if (e.key === 'f' || e.key === 'F') $('follow').checked = !$('follow').checked;
   else if (e.key === 'g' || e.key === 'G') toggleGhostMode();
   else if (e.key === 'm' || e.key === 'M') toggleMelMode();
