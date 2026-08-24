@@ -369,6 +369,14 @@ async function select(i, scroll, keepAudio) {
     if (seq !== selSeq) return;          // a later select superseded this one
     det = d;
   } catch (e) { if (seq === selSeq) det = null; }
+  if (det) {
+    // det is fresher than the boot-time book payload: cuts saved this session
+    // change playability without a page reload
+    if (det.t0 != null) { h.t0 = det.t0; h.t1 = det.t1; }
+    if (det.audio) h.audio = det.audio;
+    if (!tapeMode)
+      $('#pp').disabled = !(det.audio || (h.t0 != null && det.tape) || det.par_audio);
+  }
   if (det && !det.slots && det.audio) msg('audio, but no alignment — no highlighting');
 }
 
@@ -391,10 +399,16 @@ async function playPause() {
     msg('no parallagi recording for this hymn — playing melos');
   if (want) {
     if (!A.src.endsWith(want)) { A.src = want; stopAt = null; }
-  } else if (h.t0 != null && det && det.tape) {
+  } else if (!det) {
+    return msg('still loading this hymn — try again in a second');
+  } else if (h.t0 != null && det.tape) {
     if (!A.src.includes(det.tape)) A.src = det.tape;
     A.currentTime = h.t0; stopAt = h.t1;
-  } else return;
+  } else if (lane === 'parallagi' && det.par_audio) {
+    if (!A.src.endsWith(det.par_audio)) { A.src = det.par_audio; stopAt = null; }
+  } else {
+    return msg('no audio for this hymn yet — cut its span in Tape mode');
+  }
   A.playbackRate = rate;
   try { await A.play(); $('#pp').textContent = 'Pause'; } catch (e) { msg('play failed: ' + e.message); }
 }
@@ -980,6 +994,11 @@ async function saveCuts() {
     const out = await r.json();
     if (!r.ok || out.error) throw new Error(out.error || r.status);
     TP.dirty = false; TAPES = null; tapesIndex();
+    B.hymns.forEach(h => {
+      if (h.wd !== TP.wd) return;
+      const s = TP.spans[h.name] || TP.spans[h.name + '#par'];
+      if (s && s.t0 != null) { h.t0 = s.t0; h.t1 = s.t1; }
+    });
     msg(`saved ${cuts.length} spans for ${TP.wd}`);
   } catch (e) { msg('save failed: ' + e.message); }
 }
