@@ -145,7 +145,7 @@ def _iv(u, keys):
     return v or 0
 
 
-def degree_stream(units, legend, start=None):
+def degree_stream(units, legend, start=None, trace=None):
     """Absolute degrees implied by the neumes.
 
     The first martyria in range fixes the anchor; before one appears the
@@ -229,8 +229,28 @@ def degree_stream(units, legend, start=None):
             # wrong interval: if the contour is off by a step the martyria still
             # disagrees and martyria_check still counts it.
             m = u['mart_cad'][0]
+            before = deg
             deg = m if deg is None else min(
                 (m + 7 * k for k in range(-3, 4)), key=lambda v: abs(v - deg))
+            if trace is not None:
+                # The checksum the chanter asked for (2026-08-23): "if a note
+                # was wrong in between two martyria, then we know something in
+                # that span is wrong. then we just flag it and reset". The
+                # reset has always happened here; this records whether the
+                # contour ARRIVED on the letter the martyria states, so the
+                # span since the previous checkpoint can be flagged. The
+                # anchored unit takes the martyria directly and never applies
+                # its own interval, so the contour's true arrival is
+                # before + this unit's interval -- comparing `before` alone
+                # flagged every descending cadence one high, including the
+                # gold-verified pieces.
+                iv_ = u.get('iv')
+                if iv_ is None:
+                    iv_ = keys.get(u.get('key'), keys.get(f"{u.get('base')}|"))
+                arr = None if before is None else before + (iv_ or 0)
+                trace.append({'note': len(out), 'letter': int(m),
+                              'before': arr,
+                              'ok': (arr is not None and arr % 7 == m % 7)})
         elif u.get('mart_open') is not None and u.get('mart_deg') == u.get('mart_open'):
             # OPENING-ONLY: right-aligned, and it belongs to the NEXT hymn. Do
             # not re-anchor -- the contour carries straight through it, and this

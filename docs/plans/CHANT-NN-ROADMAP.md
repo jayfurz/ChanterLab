@@ -760,3 +760,37 @@ segmentation/score range of t01_#19 and t01_#42 around those notes (the
 extra unit on s18 sits near gi 14). The closed loop's three readers now
 triage cleanly: quantiser catches desyncs, classifier catches off-by-ones
 and names the direction, and their agreement (s14) clears a piece.
+
+## 10. The score's own checksums — martyria spans (2026-08-23)
+
+Chanter: *"the scores have martyria interspersed throughout. why cant we use
+those as a check — if a note was wrong in between two martyria, then we know
+something in that span is wrong. then we just flag it and reset to the
+correct note (following the martyria)."* The RESET half already existed
+(degree_stream re-anchors at every cadence martyria, octave-folded). The
+FLAG half is now `tools/corpus/martyria_spans.py`, on a `trace` hook in
+`degree_stream`. One bug found on the way: the anchored unit takes the
+martyria directly and skips its own interval, so the naive comparison
+flagged every descending cadence one high — arrival is `before + iv`.
+
+Validation: **all 8 gold pieces pass every span (0 FAIL)**, and s42's final
+martyria prints Ga — the book itself was flagging the ending the chanter
+heard ("ends on ga not dhi") before any audio was consulted.
+
+Localised score errors, from the book alone
+(`martyria_spans_grave-orthros.json`):
+
+    s06/s07  gi 66–96  Ga arrived Vou   (the region with the chanter's
+                                         confirmed s06 score error)
+    s12/s13  gi 37–63  Ga arrived Di    (matches the audio-mirrored region)
+    s24/s25  gi 0–14   Ga arrived Di
+    s32/s33  both spans fail (Vou ← Zo, Vou ← Ni)
+    s44/s45  gi 138–248: three consecutive spans all arrive Ke for Di
+    s46      gi 344–441 and 633–746
+    s20/s21  5 of 7 spans (the antiphon structure problem, restated)
+
+Caveat, stated by s42: a span-sum can pass while individual intervals inside
+it are wrong and cancel (its classifier agreement is still 0.21 at 0 FAIL).
+The checksum is necessary, not sufficient — it triages; the audio verifiers
+adjudicate inside a span. Pieces with no interior martyria (s40/s41) have
+no checksum, which is itself an honest report.
