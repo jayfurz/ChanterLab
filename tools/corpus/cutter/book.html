@@ -524,6 +524,7 @@ async function placeNew(pno, px, py) {
   const body = { workdir: armNew.wd, hymn: armNew.name,
     start: armNew.start, end: { page: pno, i: best.i } };
   if (armNew.par) body.par = true;
+  if (armNew.replace) body.replace = true;
   const wasScoreOnly = armNew.scoreOnly;
   if (!wasScoreOnly && tapeMode && TP && TP.wd === armNew.wd) {
     const s = TP.spans[armNew.name];
@@ -538,12 +539,15 @@ async function placeNew(pno, px, py) {
     const out = await r.json();
     if (!r.ok) throw new Error(out.error || r.status);
     out.wd = body.workdir;
-    if (out.par_only) {
+    if (out.par_only || out.melos_only) {
       const ex = B.hymns.find(h => h.wd === out.wd && h.name === out.name);
-      if (ex) { ex.par_start = out.par_start; ex.par_end = out.par_end; }
+      if (ex) for (const k of ['start', 'end', 'par_start', 'par_end'])
+        if (out[k]) ex[k] = out[k];
       repaintAll();
-      return msg(`${out.name}: parallagi score range placed — ` +
-                 `p${out.par_start.p} → p${out.par_end.p}`);
+      const which = out.par_only ? 'parallagi' : 'melos';
+      const b = out.par_only ? out.par_start : out.start;
+      const e = out.par_only ? out.par_end : out.end;
+      return msg(`${out.name}: ${which} score range placed — p${b.p} → p${e.p}`);
     }
     if (wasScoreOnly && TP && TP.spans[out.name]) {
       out.t0 = TP.spans[out.name].t0; out.t1 = TP.spans[out.name].t1;
@@ -834,14 +838,14 @@ function openWaveMenu(name, cx, cy) {
     TP.dirty = true; needWave = true; msg(`${base}: span is now parallagi (unsaved)`);
   });
   const hasRow = B.hymns.some(h => h.wd === TP.wd && h.name === base);
-  if (!hasRow || par)
-    add(par ? '▤ place PARALLAGI score span (tap first + last unit)'
-            : '▤ place score span (tap first + last unit)', () => {
-      armNew = { wd: TP.wd, name: base, start: null, scoreOnly: true,
-                 par: par && hasRow };
-      armBar(`${base}${par ? ' (parallagi)' : ''}: tap its FIRST unit on the score`);
-      msg(`${base}: scroll the book and tap its FIRST unit`);
-    });
+  const arm = (isPar) => {
+    armNew = { wd: TP.wd, name: base, start: null, scoreOnly: true,
+               par: isPar, replace: !isPar && hasRow };
+    armBar(`${base}${isPar ? ' (parallagi)' : ' (melos)'}: tap its FIRST unit on the score`);
+    msg(`${base}: scroll the book and tap its FIRST unit`);
+  };
+  add(`▤ place MELOS score span${hasRow ? ' (re-place)' : ''}`, () => arm(false));
+  add(`▤ place PARALLAGI score span`, () => arm(true));
   add('✕ delete this span', () => {
     delete TP.spans[name];
     TP.dirty = true; needWave = true; msg(`${base}: span deleted (unsaved — Save cuts to persist)`);
@@ -1106,8 +1110,23 @@ async function boot() {
         $('#tape').classList.remove('on');
         document.body.classList.remove('tape');
       }
-    } else { stop(); TP = null; A.removeAttribute('src'); A.load(); msg(''); }
+    } else {
+      if (TP && TP.dirty) {
+        if (confirm('You have UNSAVED cut edits on this tape. Save them before leaving tape mode?')) {
+          await saveCuts();
+        } else if (!confirm('Discard the unsaved cut edits?')) {
+          tapeMode = true;
+          $('#tape').classList.add('on');
+          document.body.classList.add('tape');
+          return;
+        }
+      }
+      stop(); TP = null; A.removeAttribute('src'); A.load(); msg('');
+    }
   };
+  window.addEventListener('beforeunload', e => {
+    if (tapeMode && TP && TP.dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
   $('#tstart').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
     const c = tapeSnap('start mark');
     s.t0 = +A.currentTime.toFixed(2); if (s.t1 == null || s.t1 <= s.t0) s.t1 = s.t0 + 30;

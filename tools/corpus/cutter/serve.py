@@ -735,7 +735,8 @@ def book_new_span(payload):
     rows = json.load(open(hj))
     rows = rows if isinstance(rows, list) else rows.get('hymns', [])
     existing = next((x for x in rows if x['name'] == name), None)
-    if existing is not None and not payload.get('par'):
+    if existing is not None and not payload.get('par') \
+            and not payload.get('replace'):
         return None, f'a row named {name} already exists'
     try:
         us0, _ = load_units(int(st['page']), 0, int(st['page']), 10 ** 6)
@@ -744,6 +745,7 @@ def book_new_span(payload):
     except Exception as e:
         return None, 'bad start/end unit: %s' % str(e)[:80]
     if existing is not None:
+        want_par = bool(payload.get('par'))
         rng = {'p0': int(st['page']), 'l0': u0['pl'][1],
                'p1': int(en['page']), 'l1': u1['pl'][1] + 1}
         try:
@@ -760,15 +762,22 @@ def book_new_span(payload):
             return None, 'start lands after end'
         stamp = time.strftime('%Y%m%d-%H%M%S')
         shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
-        existing['par_score'] = rng
-        json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
-        open(hj, 'a').write('\n')
         box = lambda x: {'p': x['pl'][0], 'l': x['pl'][1],
                          'x0': round(x['x0'], 1), 'y0': round(x['y0'], 1),
                          'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
-        return {'wd': wd, 'name': name, 'par_only': True,
-                'par_start': box(stream[rng['g0']]),
-                'par_end': box(stream[rng['g1']])}, None
+        if want_par:
+            existing['par_score'] = rng
+            out = {'wd': wd, 'name': name, 'par_only': True,
+                   'par_start': box(stream[rng['g0']]),
+                   'par_end': box(stream[rng['g1']])}
+        else:                              # replace the MELOS range in place
+            existing.update(rng)
+            out = {'wd': wd, 'name': name, 'melos_only': True,
+                   'start': box(stream[rng['g0']]),
+                   'end': box(stream[rng['g1']])}
+        json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
+        open(hj, 'a').write('\n')
+        return out, None
     r = {'name': name, 'p0': int(st['page']), 'l0': u0['pl'][1],
          'p1': int(en['page']), 'l1': u1['pl'][1] + 1,
          'boundary_note': 'created in the book view %s'
@@ -788,6 +797,8 @@ def book_new_span(payload):
     if g0 > g1:
         return None, 'start lands after end'
     r['g0'], r['g1'] = g0, g1
+    if payload.get('par'):
+        r['par_score'] = {k: r[k] for k in ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')}
     stamp = time.strftime('%Y%m%d-%H%M%S')
     shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
     rows.append(r)
