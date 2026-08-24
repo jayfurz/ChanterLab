@@ -471,7 +471,23 @@ def book():
                              'x1': round(u['x1'], 1), 'y1': round(u['y1'], 1)}
             pc = pieces.get((wd, r['name']))
             c = cuts.get(r['name'], {})
-            hymns.append({
+            if c.get('t0') is None and cuts.get(r['name'] + '#par'):
+                # only the parallagi has been cut so far: surface ITS times so
+                # the span is not painted as audio-less
+                cp = cuts[r['name'] + '#par']
+                c = dict(c, t0=cp.get('t0'), t1=cp.get('t1'),
+                         lane='parallagi', label=cp.get('label'))
+            par_boxes = {}
+            ps = r.get('par_score')
+            if ps:
+                try:
+                    _, kept = _range_units(ps)
+                    if kept:
+                        par_boxes = {'par_start': box(kept[0]),
+                                     'par_end': box(kept[-1])}
+                except Exception:
+                    par_boxes = {}
+            hymns.append({**par_boxes,
                 'wd': wd, 'name': r['name'], 'genus': r.get('genus'),
                 'start': box(us[0]), 'end': box(us[-1]),
                 'piece': pc['id'] if pc else None,
@@ -551,6 +567,15 @@ def book_hymn(wd, name):
 
 
 
+def _range_units(rng):
+    """units of a {p0,l0,g0,p1,l1,g1} score range, trimmed."""
+    from hymn_align import load_units
+    us, _ = load_units(rng['p0'], rng['l0'], rng['p1'], rng['l1'])
+    lo = int(rng.get('g0') or 0)
+    hi = int(rng['g1']) if rng.get('g1') is not None else len(us) - 1
+    return us, us[lo:hi + 1]
+
+
 def parallagi_audio(r):
     """The row's parallagi recording, resolved the way the corpus stores it:
     a prepared parallagi_dir (audio_16k.wav), a parallagi_track filename next
@@ -610,7 +635,8 @@ def book_span_save(payload):
     wd, name = payload.get('workdir'), payload.get('hymn')
     which = payload.get('which')
     page, i = payload.get('page'), payload.get('i')
-    if not WD_RE.match(wd or '') or which not in ('start', 'end') \
+    if not WD_RE.match(wd or '') \
+            or which not in ('start', 'end', 'par_start', 'par_end') \
             or not isinstance(page, int) or not isinstance(i, int):
         return None, 'bad request'
     hj = f'{WORKDIRS}/{wd}/hymns.json'
@@ -626,38 +652,47 @@ def book_span_save(payload):
         return None, 'unit out of range'
     u = us_p[i]
     ident = lambda x: (x['pl'][0], x['pl'][1], round(x['x0'], 1))
+    par = which.startswith('par_')
+    # the parallagi's score range is its own {p0..g1}, defaulting to a copy of
+    # the melos range the first time one of its edges moves
+    rng = (r.get('par_score') or
+           {k: r.get(k) for k in ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')}) \
+        if par else r
+    edge = which.replace('par_', '')
     # the boundary NOT being moved, by printed identity, before any mutation
     try:
-        cur, _ = load_units_h(r)
+        _, cur = _range_units(rng)
     except Exception:
         cur = []
     keep = None
     if cur:
-        keep = ident(cur[-1]) if which == 'start' else ident(cur[0])
-    old = {k: r.get(k) for k in ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')}
-    if which == 'start':
-        r['p0'], r['l0'] = page, u['pl'][1]
+        keep = ident(cur[-1]) if edge == 'start' else ident(cur[0])
+    old = {k: rng.get(k) for k in ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')}
+    if edge == 'start':
+        rng['p0'], rng['l0'] = page, u['pl'][1]
     else:
-        r['p1'], r['l1'] = page, u['pl'][1] + 1
+        rng['p1'], rng['l1'] = page, u['pl'][1] + 1
     # rebuild both g indices against the new stream
     try:
-        stream, _ = load_units(r['p0'], r['l0'], r['p1'], r['l1'])
+        stream, _ = load_units(rng['p0'], rng['l0'], rng['p1'], rng['l1'])
     except Exception:
         stream = []
     ids = [ident(x) for x in stream]
     tgt = ident(u)
     lo = ids.index(tgt) if tgt in ids else None
     ko = ids.index(keep) if keep in ids else None
-    g0 = (lo if which == 'start' else ko)
-    g1 = (ko if which == 'start' else lo)
+    g0 = (lo if edge == 'start' else ko)
+    g1 = (ko if edge == 'start' else lo)
     if g0 is None or g1 is None or g0 > g1:
         for k, v in old.items():
             if v is None:
-                r.pop(k, None)
+                rng.pop(k, None)
             else:
-                r[k] = v
+                rng[k] = v
         return None, 'start would land after end (or unit not in range)'
-    r['g0'], r['g1'] = g0, g1
+    rng['g0'], rng['g1'] = g0, g1
+    if par:
+        r['par_score'] = rng
     stamp = time.strftime('%Y%m%d-%H%M%S')
     shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
     json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
@@ -665,8 +700,19 @@ def book_span_save(payload):
     box = lambda x: {'p': x['pl'][0], 'l': x['pl'][1],
                      'x0': round(x['x0'], 1), 'y0': round(x['y0'], 1),
                      'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
-    return {'name': name, 'wd': wd,
-            'start': box(stream[g0]), 'end': box(stream[g1])}, None
+    out = {'name': name, 'wd': wd}
+    try:
+        _, mk = _range_units(r)
+        out['start'], out['end'] = box(mk[0]), box(mk[-1])
+    except Exception:
+        pass
+    if r.get('par_score'):
+        try:
+            _, pk = _range_units(r['par_score'])
+            out['par_start'], out['par_end'] = box(pk[0]), box(pk[-1])
+        except Exception:
+            pass
+    return out, None
 
 
 NEW_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9-]{1,50}$')
@@ -688,7 +734,8 @@ def book_new_span(payload):
         return None, 'unknown workdir'
     rows = json.load(open(hj))
     rows = rows if isinstance(rows, list) else rows.get('hymns', [])
-    if any(x['name'] == name for x in rows):
+    existing = next((x for x in rows if x['name'] == name), None)
+    if existing is not None and not payload.get('par'):
         return None, f'a row named {name} already exists'
     try:
         us0, _ = load_units(int(st['page']), 0, int(st['page']), 10 ** 6)
@@ -696,6 +743,32 @@ def book_new_span(payload):
         u0, u1 = us0[int(st['i'])], us1[int(en['i'])]
     except Exception as e:
         return None, 'bad start/end unit: %s' % str(e)[:80]
+    if existing is not None:
+        rng = {'p0': int(st['page']), 'l0': u0['pl'][1],
+               'p1': int(en['page']), 'l1': u1['pl'][1] + 1}
+        try:
+            stream, _ = load_units(rng['p0'], rng['l0'], rng['p1'], rng['l1'])
+        except Exception:
+            stream = []
+        ident = lambda x: (x['pl'][0], x['pl'][1], round(x['x0'], 1))
+        ids = [ident(x) for x in stream]
+        try:
+            rng['g0'], rng['g1'] = ids.index(ident(u0)), ids.index(ident(u1))
+        except ValueError:
+            return None, 'start/end do not form a readable range'
+        if rng['g0'] > rng['g1']:
+            return None, 'start lands after end'
+        stamp = time.strftime('%Y%m%d-%H%M%S')
+        shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
+        existing['par_score'] = rng
+        json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
+        open(hj, 'a').write('\n')
+        box = lambda x: {'p': x['pl'][0], 'l': x['pl'][1],
+                         'x0': round(x['x0'], 1), 'y0': round(x['y0'], 1),
+                         'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
+        return {'wd': wd, 'name': name, 'par_only': True,
+                'par_start': box(stream[rng['g0']]),
+                'par_end': box(stream[rng['g1']])}, None
     r = {'name': name, 'p0': int(st['page']), 'l0': u0['pl'][1],
          'p1': int(en['page']), 'l1': u1['pl'][1] + 1,
          'boundary_note': 'created in the book view %s'

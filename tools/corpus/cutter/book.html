@@ -207,15 +207,17 @@ function drawPages() {
       const r = cv.getBoundingClientRect();
       const px = (e.clientX - r.left) / r.width * cv.width;
       const py = (e.clientY - r.top) / r.height * cv.height;
-      for (const which of ['start', 'end']) {
+      for (const which of ['par_start', 'par_end', 'start', 'end']) {
         const b = h[which];
-        if (b.p !== p.page) continue;
+        if (!b || b.p !== p.page) continue;
         const m = markBox(p.page, b, 14);
         if (m && px >= m[0] && px <= m[0] + m[2] && py >= m[1] && py <= m[1] + m[3]) {
           e.preventDefault();
           drag = { which, preview: null, moved: false };
           unitsFor(p.page);
-          msg('dragging the ' + (which === 'start' ? 'GREEN start' : 'RED end') +
+          const WORD = { start: 'GREEN melos start', end: 'RED melos end',
+            par_start: 'blue PARALLAGI start', par_end: 'blue PARALLAGI end' };
+          msg('dragging the ' + WORD[which] +
               ' — release on the unit it belongs on');
           return;
         }
@@ -266,6 +268,24 @@ function paint(pno) {
         cx.fillStyle = 'rgba(198,91,78,.42)'; cx.fillRect(...r);
         cx.strokeStyle = isSel ? '#d8a24a' : '#c65b4e';
         cx.lineWidth = isSel ? 5 : 2.5; cx.strokeRect(...r);
+      }
+    }
+    // the parallagi's own score range, when it differs from the melos
+    if (h.par_start && h.par_start.p === pno) {
+      const r = markBox(pno, h.par_start, 7); if (r) {
+        cx.setLineDash([6, 4]);
+        cx.strokeStyle = isSel ? '#d8a24a' : '#5f8ea4';
+        cx.lineWidth = isSel ? 4 : 2.5; cx.strokeRect(...r); cx.setLineDash([]);
+        cx.fillStyle = '#8aa3c8';
+        cx.font = Math.round(g.cv.width / 70) + 'px system-ui';
+        cx.fillText('par', r[0], Math.max(r[1] - 4, 12));
+      }
+    }
+    if (h.par_end && h.par_end.p === pno) {
+      const r = markBox(pno, h.par_end, 7); if (r) {
+        cx.setLineDash([6, 4]);
+        cx.strokeStyle = isSel ? '#d8a24a' : '#a45f6e';
+        cx.lineWidth = isSel ? 4 : 2.5; cx.strokeRect(...r); cx.setLineDash([]);
       }
     }
   });
@@ -479,7 +499,9 @@ async function postSpanBox(h, which, box) {
                            page: box.p, i: u.i }) });
   const out = await res.json();
   if (!res.ok) throw new Error(out.error || res.status);
-  h.start = out.start; h.end = out.end; repaintAll();
+  for (const k of ['start', 'end', 'par_start', 'par_end'])
+    if (out[k]) h[k] = out[k];
+  repaintAll();
 }
 
 /* new spans ------------------------------------------------------------ */
@@ -501,6 +523,7 @@ async function placeNew(pno, px, py) {
   armBar(null);
   const body = { workdir: armNew.wd, hymn: armNew.name,
     start: armNew.start, end: { page: pno, i: best.i } };
+  if (armNew.par) body.par = true;
   const wasScoreOnly = armNew.scoreOnly;
   if (!wasScoreOnly && tapeMode && TP && TP.wd === armNew.wd) {
     const s = TP.spans[armNew.name];
@@ -515,6 +538,13 @@ async function placeNew(pno, px, py) {
     const out = await r.json();
     if (!r.ok) throw new Error(out.error || r.status);
     out.wd = body.workdir;
+    if (out.par_only) {
+      const ex = B.hymns.find(h => h.wd === out.wd && h.name === out.name);
+      if (ex) { ex.par_start = out.par_start; ex.par_end = out.par_end; }
+      repaintAll();
+      return msg(`${out.name}: parallagi score range placed — ` +
+                 `p${out.par_start.p} → p${out.par_end.p}`);
+    }
     if (wasScoreOnly && TP && TP.spans[out.name]) {
       out.t0 = TP.spans[out.name].t0; out.t1 = TP.spans[out.name].t1;
     }
@@ -608,12 +638,13 @@ window.addEventListener('pointerup', async () => {
                              page: d.preview.pno, i: d.preview.u.i }) });
     const out = await res.json();
     if (!res.ok) throw new Error(out.error || res.status);
-    h.start = out.start; h.end = out.end;
+    for (const k of ['start', 'end', 'par_start', 'par_end'])
+      if (out[k]) h[k] = out[k];
     const next = { ...out[d.which] };
     pushUndo({ label: `${d.which} of ${h.name}`,
       undo: () => postSpanBox(h, d.which, prev),
       redo: () => postSpanBox(h, d.which, next) });
-    msg(`${d.which} of ${h.name} → p${out[d.which].p} line ${out[d.which].l + 1} — saved`);
+    msg(`${d.which.replace('_', ' ')} of ${h.name} → p${out[d.which].p} line ${out[d.which].l + 1} — saved`);
   } catch (e) { msg('save failed: ' + e.message); }
   repaintAll();
 });
@@ -802,10 +833,13 @@ function openWaveMenu(name, cx, cy) {
     delete TP.spans[name];
     TP.dirty = true; needWave = true; msg(`${base}: span is now parallagi (unsaved)`);
   });
-  if (!B.hymns.some(h => h.wd === TP.wd && h.name === base))
-    add('▤ place score span (tap first + last unit)', () => {
-      armNew = { wd: TP.wd, name: base, start: null, scoreOnly: true };
-      armBar(`${base}: tap its FIRST unit on the score`);
+  const hasRow = B.hymns.some(h => h.wd === TP.wd && h.name === base);
+  if (!hasRow || par)
+    add(par ? '▤ place PARALLAGI score span (tap first + last unit)'
+            : '▤ place score span (tap first + last unit)', () => {
+      armNew = { wd: TP.wd, name: base, start: null, scoreOnly: true,
+                 par: par && hasRow };
+      armBar(`${base}${par ? ' (parallagi)' : ''}: tap its FIRST unit on the score`);
       msg(`${base}: scroll the book and tap its FIRST unit`);
     });
   add('✕ delete this span', () => {
