@@ -816,3 +816,21 @@ first chromatic training piece and the pitch quantiser its chromatic
 calibration — the same 76-note investment that started the grave cascade.
 Plagal 1 is diatonic, so its blocker is different: candidate quality and
 lane truth, not the ear.
+
+## 12. s01, the sealed test fold, tried (2026-08-23)
+
+The chanter asked to see CHANT-NN on s01 (Θεός Κύριος, 99 notes, no paired
+parallagi, his 37-pin half-draft from the annotator's early days). Result:
+**today's stack cannot do it, for a structural reason worth keeping.**
+onset_match fails its own verifier (slip_check 0.32/0.26; −2.9 s vs the
+draft pins), and the peak census says why: **~40 peaks at every threshold
+for 99 notes** — the piece is melismatic, sung on open vowels, and more than
+half the notes have no articulation to find. Every working melos alignment
+in this repo rides a parallagi template; s01 is the tape's first span and
+has none. So s01 sits exactly in the gap the NEURAL-CHANT encoder-decoder
+(NN-01, still gated) exists to fill — score-conditioned onsets with no
+template — and it remains the right sealed test for it. Nearer-term
+alternatives if s01 gold is wanted sooner: the chanter finishes his draft
+by hand (58 notes left), or a Melodos-recorded rendition becomes a
+synthetic template for the transfer (§8). NO SEED was written: the rule is
+never hand over a seed with a slip, and both candidates slip wall to wall.
