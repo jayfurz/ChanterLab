@@ -743,3 +743,20 @@ s30/s31's earlier mirror dissolved when the alignment improved, so a mirror
 alone is not proof — but a mirror that survives re-alignment at 0.9+
 elsewhere is. These three unit ranges go to the chanter: wrong passage,
 or a phthora the diatonic quantiser cannot follow.
+
+### s18 and s42: not alignment — the score stream is off by one (2026-08-23)
+
+With the chanter's own end pins (s18 1.22→56.44 s; s42 1.64→57.39 s, *"on ga
+not dhi btw"*) both still failed slip_check whole-piece (0.39 / 0.32) — under
+every rotation, so not a base error. The degree classifier (control: s14
+agreement **1.00** on its seed) then showed the real shape: on s18 from note
+~14, and on s42 from note ~1, **heard[i] == score[i+1]** — the rendition runs
+one note ahead of the score stream. That is a unit-segmentation error (an
+extra decoded unit the singer never sings, or an unmarked skip), and the
+chanter's Ga-vs-Dhi ending is its fingerprint: the stream's final Δι is never
+reached. No aligner can absorb an off-by-one in the score itself, which is
+why every entry point failed identically. Fix is editorial: re-check the
+segmentation/score range of t01_#19 and t01_#42 around those notes (the
+extra unit on s18 sits near gi 14). The closed loop's three readers now
+triage cleanly: quantiser catches desyncs, classifier catches off-by-ones
+and names the direction, and their agreement (s14) clears a piece.
