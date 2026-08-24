@@ -1,0 +1,5 @@
+{
+ "seeded_at": "20260823-173252",
+ "method": "melos transfer (learned cost)",
+ "verdict": "slip_check 0.22, suspect [{'gi0': 0, 'gi1': 280, 't0': 1.9, 't1': 159.9}, {'gi0': 282, 'gi1': 395, 't0': 160.4, 't1': 220.2}]"
+}

@@ -1,18 +1,5 @@
 {
- "seeded_at": "20260823-131236",
- "method": "melos_onset_net learned-cost transfer from paired parallagi (peak onsets)",
- "lock_check": {
-  "n": 76,
-  "melos_sung_start": 0.0,
-  "n_models": 3,
-  "agree_150": 0.947,
-  "longest_disagreement_run": 2,
-  "monotonic": true,
-  "disagree_gi": [
-   50,
-   51,
-   57,
-   58
-  ]
- }
+ "seeded_at": "20260823-173252",
+ "method": "melos transfer (learned cost)",
+ "verdict": "slip_check 0.25, suspect [{'gi0': 0, 'gi1': 75, 't0': 1.2, 't1': 58.3}]"
 }
