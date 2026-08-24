@@ -947,7 +947,9 @@ function toggleParAudio() {
 }
 function editLocked() {
   if (audioLane !== 'par') return false;
-  $('selinfo').textContent = 'editing locked while the parallagi plays — Par♪ to switch back';
+  $('selinfo').textContent = 'editing locked: this is the parallagi AUDIO over the ' +
+    'MELOS score (no parallagi piece prepped for this hymn yet — ' +
+    'prep_par_piece.py gives it one you can tap)';
   return true;
 }
 async function decodePeaks() {

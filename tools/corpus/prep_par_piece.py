@@ -64,10 +64,15 @@ def main():
         if args.hymn and r['name'] != args.hymn:
             continue
         ps, cut = r.get('par_score'), cuts.get(r['name'] + '#par')
-        if not ps or not cut or cut.get('t0') is None or not tape:
+        if not cut or cut.get('t0') is None or not tape:
             if args.hymn:
-                sys.exit(f"{r['name']}: needs par_score AND a saved #par cut")
+                sys.exit(f"{r['name']}: needs a saved #par cut")
             continue
+        if not ps:
+            # chanter: outside the abbreviated-parallagi tapes the two lanes
+            # share the same exact score span — the melos range IS the
+            # parallagi range unless a par_score says otherwise
+            ps = {k: r.get(k) for k in ('p0', 'l0', 'g0', 'p1', 'l1', 'g1')}
         pseudo = {k: v for k, v in r.items()
                   if k not in ('segments', 'par_score', 'parallagi_track',
                                'parallagi_dir', 'tape_span', 'melos_audio')}
