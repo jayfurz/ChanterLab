@@ -234,31 +234,35 @@ def piece_peaks(pid):
     cache = d / 'piece_peaks.json'
     if cache.exists() and cache.stat().st_mtime >= wav.stat().st_mtime:
         return json.load(open(cache))
-    import sys as _sys
-    _sys.path.insert(0, str(HERE.parent.parent / 'neural'))
-    import numpy as np
-    import torch
-    import quick_onset as QO
-    if 'net' not in _QO:
-        net = QO.Net()
-        net.load_state_dict(torch.load(
-            '/mnt/data/chant-corpus/models/quick_onset_s020406_e200.pt',
-            map_location='cpu'))
-        net.eval()
-        _QO['net'] = net
-    y = QO.audio(str(wav))
-    with torch.inference_mode():
-        prob = torch.sigmoid(_QO['net'](
-            torch.from_numpy(QO.features(y)).unsqueeze(0)))[0].numpy()
-    idx = np.where((prob[1:-1] >= prob[:-2]) & (prob[1:-1] > prob[2:])
-                   & (prob[1:-1] >= 0.5))[0] + 1
-    fr = []
-    for i in idx[np.argsort(-prob[idx])]:
-        if all(abs(int(i) - j) >= 18 for j in fr):
-            fr.append(int(i))
-    out = {'onsets': [round(f * QO.HOP / QO.SR, 3) for f in sorted(fr)]}
-    json.dump(out, open(cache, 'w'))
-    return out
+    # torch lives in the corpus venv, not the service's interpreter — run the
+    # detector out of process and read its cache file back
+    import subprocess
+    script = (
+        "import json, sys, numpy as np, torch\n"
+        "sys.path.insert(0, %r)\n"
+        "import quick_onset as QO\n"
+        "net = QO.Net()\n"
+        "net.load_state_dict(torch.load(%r, map_location='cpu')); net.eval()\n"
+        "y = QO.audio(%r)\n"
+        "with torch.inference_mode():\n"
+        "    prob = torch.sigmoid(net(torch.from_numpy(QO.features(y))"
+        ".unsqueeze(0)))[0].numpy()\n"
+        "idx = np.where((prob[1:-1] >= prob[:-2]) & (prob[1:-1] > prob[2:])"
+        " & (prob[1:-1] >= 0.5))[0] + 1\n"
+        "fr = []\n"
+        "for i in idx[np.argsort(-prob[idx])]:\n"
+        "    if all(abs(int(i) - j) >= 18 for j in fr): fr.append(int(i))\n"
+        "json.dump({'onsets': [round(f * QO.HOP / QO.SR, 3)"
+        " for f in sorted(fr)]}, open(%r, 'w'))\n"
+    ) % (str(HERE.parent.parent / 'neural'),
+         '/mnt/data/chant-corpus/models/quick_onset_s020406_e200.pt',
+         str(wav), str(cache))
+    r = subprocess.run(['/mnt/data/chant-corpus/venv/bin/python3', '-c', script],
+                       capture_output=True, text=True, timeout=240)
+    if not cache.exists():
+        raise RuntimeError('peak detector failed: ' +
+                           (r.stderr or r.stdout)[-200:])
+    return json.load(open(cache))
 
 
 class Handler(SimpleHTTPRequestHandler):
