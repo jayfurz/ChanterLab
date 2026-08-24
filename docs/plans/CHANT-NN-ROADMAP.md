@@ -884,3 +884,19 @@ material — the same over-slicing grave solved with the chanter's
 glyph-level scorecuts), and four files' truths are not in the candidate
 pool at all. Next lever: glyph-level candidate trims (drop-cap starts,
 martyria ends) for mode 2's fifteen ranges — score-side work, no audio.
+
+### Mode 2 solved to grave level: quantiser ear + drop-cap candidates (2026-08-23)
+
+`mode_ident --ear quantiser --dropcap-candidates`: the candidate pool is the
+book's own drop-cap partition (glyph-precise, 37 segments over mode 2's
+pages) instead of the machine's line-level ranges. Scored by initial letter +
+page against the known rows: **10 of 11 checkable files correct** — vs 2/7
+(classifier + line ranges), 3/7 (quantiser + line ranges). The theos-kyrios
+attractor is gone: it was never the ear, it was over-sliced candidates, the
+same disease grave had before the chanter's glyph-level scorecuts — and the
+drop-cap hard constraint (26/26 on gold) supplies those automatically. The
+one miss: file 26 (ΘΕΟΣ ΚΥΡΙΟΣ) at margin 0.013, a near-tie. Unscoreable:
+files 05/13/14/24, whose hymns have no machine row (05 is the Θου Κύριε
+verses — the "quick short verses are one hymn" combine case). The recipe for
+every remaining mode is now: drop-cap partition -> quantiser ear with the
+mode's genus -> DTW -> pairing/verse combine pass -> the closed loop.

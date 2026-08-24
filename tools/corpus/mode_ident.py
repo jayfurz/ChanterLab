@@ -116,6 +116,8 @@ def main():
     ap.add_argument('--device', default='cpu')
     ap.add_argument('--json')
     ap.add_argument('--ear', default='classifier', choices=('classifier', 'quantiser'))
+    ap.add_argument('--dropcap-candidates', action='store_true',
+                    help='candidate pool = drop-cap segments of the workdir pages')
     a = ap.parse_args()
     dev = torch.device(a.device if torch.cuda.is_available() else 'cpu')
     onet = QO.Net().to(dev)
@@ -127,13 +129,37 @@ def main():
     hymns = json.load(open(f'{WD}/{a.workdir}/hymns.json'))
     hymns = hymns if isinstance(hymns, list) else hymns.get('hymns', [])
     cand = {}
-    for h in hymns:
-        try:
-            u = units_for(h['p0'], h['l0'], 0, h['p1'], h['l1'], 10 ** 6)
-            cand[h['name']] = [int(v) % 7 for v in degree_stream(
-                u, leg, start=leading_anchor(h['p0'], 0))]
-        except Exception as e:
-            print('  candidate %s failed: %s' % (h['name'], str(e)[:60]))
+    if a.dropcap_candidates:
+        # Candidates are DROP-CAP SEGMENTS, not the machine's line ranges.
+        # Glyph-precise (the 26/26 hard constraint), and complete: hymns the
+        # machine never located (Θου Κύριε) are in the pool automatically.
+        from dropcap_ranges import ranges_from_caps
+        pages = sorted({p for h in hymns for p in range(h['p0'], h['p1'] + 1)})
+        runs, cur = [], None
+        for p in pages:
+            if cur and p == cur[1] + 1:
+                cur[1] = p
+            else:
+                cur = [p, p]; runs.append(cur)
+        for p0, p1 in runs:
+            for r in ranges_from_caps(p0, p1):
+                try:
+                    u = units_for(r['p0'], r['l0'], r['g0'], r['p1'], r['l1'], r['g1'])
+                    if len(u) < 20:
+                        continue
+                    nm = '%s@p%d.%d.%d' % (r.get('letter', '?'), r['p0'], r['l0'], r['g0'])
+                    cand[nm] = [int(v) % 7 for v in degree_stream(
+                        u, leg, start=leading_anchor(r['p0'], r['g0']))]
+                except Exception:
+                    continue
+    else:
+        for h in hymns:
+            try:
+                u = units_for(h['p0'], h['l0'], 0, h['p1'], h['l1'], 10 ** 6)
+                cand[h['name']] = [int(v) % 7 for v in degree_stream(
+                    u, leg, start=leading_anchor(h['p0'], 0))]
+            except Exception as e:
+                print('  candidate %s failed: %s' % (h['name'], str(e)[:60]))
     print('%d candidates with degree streams' % len(cand))
 
     # the parallagi audio files: chanter-named where available
