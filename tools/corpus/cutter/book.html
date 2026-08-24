@@ -428,7 +428,7 @@ async function playPause() {
   A.playbackRate = rate;
   try { await A.play(); $('#pp').textContent = 'Pause'; } catch (e) { msg('play failed: ' + e.message); }
 }
-A.ontimeupdate = () => {
+function playbackSync() {
   $('#tl').textContent = fmt(A.currentTime) + (A.duration ? ' / ' + fmt(A.duration) : '');
   const fr = A.duration ? A.currentTime / A.duration : 0;
   $('#seek .fill').style.width = (fr * 100) + '%';
@@ -479,7 +479,14 @@ A.ontimeupdate = () => {
       }
       followPage = cur; }
   }
-};
+}
+/* timeupdate fires ~4x/s — human-noticeable highlight lag. Drive the sync
+   from the frame clock while playing, like the annotator does. */
+A.ontimeupdate = playbackSync;           // still covers paused seeks
+(function syncLoop() {
+  if (!A.paused && A.readyState >= 2) playbackSync();
+  requestAnimationFrame(syncLoop);
+})();
 A.onended = async () => {
   if (tapeMode && TP && TAPES) {
     const order = tapeOrder(), k = order.indexOf(TP.wd);
