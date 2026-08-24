@@ -145,6 +145,26 @@ def parallagi_for(piece_id):
                     anchor = leading_anchor(row['p0'], g0)
                 except Exception:
                     anchor = None
+    if anchor is None:
+        # Named mode-workdir pieces (mode1-kyrie-ekekraxa, ...-par) match
+        # neither the span path nor -tNN: resolve the anchor from the piece's
+        # own source row — the '-par' pieces anchor on the PARALLAGI's range.
+        s = D.get('meta', {}).get('source') or {}
+        if s.get('workdir') and s.get('hymn'):
+            hy = s['hymn']
+            base = hy[:-4] if hy.endswith('-par') else hy
+            hj = os.path.join(s['workdir'], 'hymns.json')
+            if os.path.exists(hj):
+                row = next((h for h in json.loads(open(hj).read())
+                            if h['name'] in (hy, base)), None)
+                if row:
+                    rng = (row.get('par_score') or row) if hy.endswith('-par') \
+                        else row
+                    try:
+                        from score_degrees import leading_anchor
+                        anchor = leading_anchor(rng['p0'], rng.get('g0') or 0)
+                    except Exception:
+                        anchor = None
 
     # The opening martyria gives the pitch the hymn starts FROM; the first neume
     # moves from it like any other, and an ison needs no special case because

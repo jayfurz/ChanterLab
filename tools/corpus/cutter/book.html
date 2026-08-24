@@ -131,6 +131,7 @@ body.tape .taperow{display:flex}
     <button id="undo" disabled title="undo (ctrl+z)">&#8630;</button>
     <button id="redo" disabled title="redo (ctrl+shift+z)">&#8631;</button>
     <button id="fix" disabled>Fix onsets (annotator)</button>
+    <button id="parann" title="parallagi overlay: the degree syllable the score implies under each unit of the selected hymn">Para</button>
   </div>
   <div id="msg"></div>
 </footer>
@@ -143,6 +144,8 @@ let det = null;               // /api/book/hymn payload for sel
 let rate = 1, stopAt = null, hiGi = -1, follow = true;
 let editMode = false, drag = null;
 let lane = 'melos';
+let paraOn = false;
+const DEG_GR = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω'];
 let armNew = null;   // {wd, name, start:{page,i}|null} while placing a new span                     // which recording of the span plays      // drag: {which:'start'|'end', preview:{pno,u}}
 const UC = {};                          // pno -> unit boxes (drag targets)
 async function unitsFor(pno) {
@@ -304,6 +307,17 @@ function paint(pno) {
       }
     }
   });
+  // parallagi overlay: degree syllables under the selected hymn's units
+  if (paraOn && det && det.degrees && sel >= 0) {
+    cx.font = Math.round(g.cv.width / 90) + 'px system-ui';
+    for (let i = 0; i < det.units.length; i++) {
+      const u = det.units[i], dg = det.degrees[i];
+      if (dg == null || u.p !== pno) continue;
+      const r = markBox(pno, u, 0); if (!r) continue;
+      cx.fillStyle = i === hiGi ? '#d8a24a' : 'rgba(106,140,190,.95)';
+      cx.fillText(DEG_GR[((dg % 7) + 7) % 7], r[0], r[1] + r[3] + 13 * (g.cv.width / 1100));
+    }
+  }
   // drag preview: where the marker would land
   if (drag && drag.preview && drag.preview.pno === pno) {
     const u = drag.preview.u;
@@ -1251,6 +1265,12 @@ async function boot() {
   };
   $('#fix').onclick = () => { const h = B.hymns[sel]; if (h && h.piece)
     location.href = `/?piece=${encodeURIComponent(h.piece)}`; };
+  $('#parann').onclick = () => {
+    paraOn = !paraOn;
+    $('#parann').classList.toggle('on', paraOn);
+    if (paraOn && det && !det.degrees) msg('no degree stream for this hymn (no anchor found)');
+    repaintAll();
+  };
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'SELECT') return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {

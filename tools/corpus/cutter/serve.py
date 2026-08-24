@@ -576,7 +576,17 @@ def book_hymn(wd, name):
             c = {}
     tape = f'/tape/{wd}' if wd in tapes() else None
     pa = parallagi_audio(r, wd)
+    degrees = None
+    try:
+        from score_degrees import degree_stream, leading_anchor
+        leg = json.load(open('/mnt/data/chant-corpus/scores/legend_canon.json'))
+        degrees = [None if v is None else int(v) for v in
+                   degree_stream(us, leg,
+                                 start=leading_anchor(r['p0'], r.get('g0') or 0))]
+    except Exception:
+        degrees = None
     return {'wd': wd, 'name': name, 'units': units, 'slots': slots,
+            'degrees': degrees,
             'piece': pc['id'] if pc else None, 'audio': audio,
             'par_audio': f'/paudio/{wd}/{name}' if pa else None,
             'tape': tape, 't0': c.get('t0'), 't1': c.get('t1')}
