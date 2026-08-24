@@ -476,6 +476,7 @@ def book():
                 'start': box(us[0]), 'end': box(us[-1]),
                 'piece': pc['id'] if pc else None,
                 'audio': _piece_audio(pc['id']) if pc else None,
+                'par': bool(parallagi_audio(r)),
                 't0': c.get('t0'), 't1': c.get('t1'),
                 'label': c.get('label'), 'lane': c.get('lane'),
             })
@@ -542,10 +543,48 @@ def book_hymn(wd, name):
         except Exception:
             c = {}
     tape = f'/tape/{wd}' if wd in tapes() else None
+    pa = parallagi_audio(r)
     return {'wd': wd, 'name': name, 'units': units, 'slots': slots,
             'piece': pc['id'] if pc else None, 'audio': audio,
+            'par_audio': f'/paudio/{wd}/{name}' if pa else None,
             'tape': tape, 't0': c.get('t0'), 't1': c.get('t1')}
 
+
+
+def parallagi_audio(r):
+    """The row's parallagi recording, resolved the way the corpus stores it:
+    a prepared parallagi_dir (audio_16k.wav), a parallagi_track filename next
+    to the melos, or the raw folder's (ΠΑΡΑΛΛΑΓΗ) file that PRECEDES the melos
+    file — parallagi-then-melos is the tape's own order (23/23 measured)."""
+    pd = r.get('parallagi_dir')
+    if pd and os.path.isdir(pd):
+        for n in ('audio_16k.wav', 'audio.wav'):
+            f = os.path.join(pd, n)
+            if os.path.exists(f):
+                return f
+        for f in sorted(glob.glob(os.path.join(pd, '*.mp3')) +
+                        glob.glob(os.path.join(pd, '*.wav'))):
+            return f
+    ma = r.get('melos_audio') or ''
+    base = os.path.dirname(ma)
+    pt = r.get('parallagi_track')
+    if pt:
+        f = pt if os.path.isabs(pt) else os.path.join(base, pt)
+        if os.path.exists(f):
+            return f
+    if base and os.path.isdir(base) and os.path.basename(ma):
+        names = sorted(os.listdir(base))
+        try:
+            k = names.index(os.path.basename(ma))
+        except ValueError:
+            k = -1
+        for j in range(k - 1, -1, -1):
+            up = names[j].upper()
+            if 'ΠΑΡΑΛΛΑΓ' in up or 'PARALLAG' in up:
+                return os.path.join(base, names[j])
+            if 'ΜΕΛΟΣ' in up or 'MELOS' in up:
+                break                     # ran into the previous hymn
+    return None
 
 
 def book_units(pno):
@@ -628,6 +667,80 @@ def book_span_save(payload):
                      'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
     return {'name': name, 'wd': wd,
             'start': box(stream[g0]), 'end': box(stream[g1])}, None
+
+
+NEW_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9-]{1,50}$')
+
+
+def book_new_span(payload):
+    """Create a hymns.json row for a hymn that was never mapped: name + a
+    start and end unit tapped on the book. Audio t0/t1, when given, land in
+    cuts_<wd>.json — the same file the tape editor saves."""
+    from hymn_align import load_units
+    wd, name = payload.get('workdir'), payload.get('hymn')
+    st, en = payload.get('start') or {}, payload.get('end') or {}
+    if not WD_RE.match(wd or ''):
+        return None, 'bad workdir'
+    if not NEW_NAME_RE.match(name or ''):
+        return None, 'name must be kebab-case ascii (a-z, 0-9, dashes)'
+    hj = f'{WORKDIRS}/{wd}/hymns.json'
+    if not os.path.exists(hj):
+        return None, 'unknown workdir'
+    rows = json.load(open(hj))
+    rows = rows if isinstance(rows, list) else rows.get('hymns', [])
+    if any(x['name'] == name for x in rows):
+        return None, f'a row named {name} already exists'
+    try:
+        us0, _ = load_units(int(st['page']), 0, int(st['page']), 10 ** 6)
+        us1, _ = load_units(int(en['page']), 0, int(en['page']), 10 ** 6)
+        u0, u1 = us0[int(st['i'])], us1[int(en['i'])]
+    except Exception as e:
+        return None, 'bad start/end unit: %s' % str(e)[:80]
+    r = {'name': name, 'p0': int(st['page']), 'l0': u0['pl'][1],
+         'p1': int(en['page']), 'l1': u1['pl'][1] + 1,
+         'boundary_note': 'created in the book view %s'
+         % time.strftime('%Y-%m-%d')}
+    if payload.get('genus'):
+        r['genus'] = str(payload['genus'])[:40]
+    try:
+        stream, _ = load_units(r['p0'], r['l0'], r['p1'], r['l1'])
+    except Exception:
+        stream = []
+    ident = lambda x: (x['pl'][0], x['pl'][1], round(x['x0'], 1))
+    ids = [ident(x) for x in stream]
+    try:
+        g0, g1 = ids.index(ident(u0)), ids.index(ident(u1))
+    except ValueError:
+        return None, 'start/end do not form a readable range'
+    if g0 > g1:
+        return None, 'start lands after end'
+    r['g0'], r['g1'] = g0, g1
+    stamp = time.strftime('%Y%m%d-%H%M%S')
+    shutil.copy2(hj, f'{hj}.bak-book-{stamp}')
+    rows.append(r)
+    json.dump(rows, open(hj, 'w'), indent=1, ensure_ascii=False)
+    open(hj, 'a').write('\n')
+    t0, t1 = payload.get('t0'), payload.get('t1')
+    if t0 is not None and t1 is not None and float(t1) > float(t0):
+        cf = f'{TEXTS}/cuts_{wd}.json'
+        cur = {'workdir': wd, 'cuts': []}
+        if os.path.exists(cf):
+            shutil.copy2(cf, cf + f'.bak-book-{stamp}')
+            try:
+                cur = json.load(open(cf))
+            except Exception:
+                pass
+        cur.setdefault('cuts', []).append(
+            {'hymn': name, 't0': round(float(t0), 2),
+             't1': round(float(t1), 2), 'label': 'book view draft'})
+        json.dump(cur, open(cf, 'w'), ensure_ascii=False, indent=1)
+    box = lambda x: {'p': x['pl'][0], 'l': x['pl'][1],
+                     'x0': round(x['x0'], 1), 'y0': round(x['y0'], 1),
+                     'x1': round(x['x1'], 1), 'y1': round(x['y1'], 1)}
+    return {'wd': wd, 'name': name, 'start': box(stream[g0]),
+            'end': box(stream[g1]), 'genus': r.get('genus'),
+            'piece': None, 'audio': None, 'par': False,
+            't0': t0, 't1': t1, 'label': None, 'lane': None}, None
 
 
 class H(BaseHTTPRequestHandler):
@@ -729,6 +842,20 @@ class H(BaseHTTPRequestHandler):
             return
         if p.startswith('/tape/'):
             return self.serve_tape(unquote(p[6:]))
+        if p.startswith('/paudio/'):
+            parts = unquote(p[8:]).split('/', 1)
+            if len(parts) != 2 or not WD_RE.match(parts[0]):
+                return self._send(400, '{"error":"bad path"}')
+            hj = f'{WORKDIRS}/{parts[0]}/hymns.json'
+            if not os.path.exists(hj):
+                return self._send(404, '{"error":"unknown workdir"}')
+            rows = json.load(open(hj))
+            rows = rows if isinstance(rows, list) else rows.get('hymns', [])
+            r = next((x for x in rows if x['name'] == parts[1]), None)
+            pa = parallagi_audio(r) if r else None
+            if not pa:
+                return self._send(404, '{"error":"no parallagi audio"}')
+            return self.stream_file(pa)
         self._send(404, '{"error":"not found"}')
 
     def serve_tape(self, wd):
@@ -737,7 +864,9 @@ class H(BaseHTTPRequestHandler):
         t = tapes().get(wd)
         if not t:
             return self._send(404, '{"error":"unknown workdir"}')
-        path = t['tape']
+        return self.stream_file(t['tape'])
+
+    def stream_file(self, path):
         size = os.path.getsize(path)
         ctype = MIME.get(os.path.splitext(path)[1].lower(),
                          'application/octet-stream')
@@ -875,6 +1004,17 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split('?')[0]
+        if path == '/api/book/new':
+            try:
+                n = int(self.headers.get('Content-Length', 0))
+                if not 0 < n <= MAX_BODY:
+                    raise ValueError('bad length')
+                d, err = book_new_span(json.loads(self.rfile.read(n)))
+            except Exception as e:
+                return self._send(400, json.dumps({'error': str(e)[:150]}))
+            if err:
+                return self._send(400, json.dumps({'error': err}))
+            return self._send(200, json.dumps(d, ensure_ascii=False))
         if path == '/api/book/span':
             try:
                 n = int(self.headers.get('Content-Length', 0))

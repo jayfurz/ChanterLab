@@ -59,7 +59,7 @@ CUTTER = ('127.0.0.1', 8790)
 CUTTER_PREFIXES = ('/score', '/cut', '/tape/', '/page/', '/api/tapes',
                    '/api/score/', '/api/peaks/', '/api/degrees/',
                    '/api/cuts', '/api/scorecuts', '/api/span',
-                   '/api/degree-flag', '/book', '/api/book')
+                   '/api/degree-flag', '/book', '/api/book', '/paudio/')
 
 
 # The cutter owns '/api/degree-flag'; these two are the annotator's own and

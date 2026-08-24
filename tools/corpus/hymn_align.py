@@ -1562,7 +1562,16 @@ def cmd_melos(wd, hymns, name):
     mdir = os.path.join(wd, 'melos_' + name)
     os.makedirs(mdir, exist_ok=True)
     wav = os.path.join(mdir, 'audio.wav')
-    if not os.path.exists(os.path.join(mdir, 'voice_notes.json')):
+    vnf = os.path.join(mdir, 'voice_notes.json')
+    # The cache key is the SOURCE, not mere existence: on 2026-08-24 three
+    # recut melos files were silently re-aligned against the previous audio's
+    # cached events (katefthynthito reported 1127 events on a 149 s recording)
+    # because this gate only asked whether voice_notes.json existed.
+    stale = os.path.exists(vnf) and os.path.exists(h.get('melos_audio') or '') \
+        and os.path.getmtime(h['melos_audio']) > os.path.getmtime(vnf)
+    if stale:
+        print(f'  melos audio newer than cached events — re-extracting {name}')
+    if stale or not os.path.exists(vnf):
         # NEVER let ffmpeg write through audio.wav. It may be a SYMLINK to the
         # corpus source (restore_melos_audio.py makes it one to avoid a second
         # copy of 1.1 GB), and 'ffmpeg -y -i SRC ... audio.wav' then reads and

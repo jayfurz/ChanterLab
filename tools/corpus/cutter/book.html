@@ -61,6 +61,15 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
 #scrub .thumb{position:absolute;right:2px;width:18px;height:30px;
   background:var(--gold);border-radius:9px;opacity:.85}
 body.editing .pg canvas{touch-action:none;cursor:grab}
+#wavep{display:none;background:#0d0b0a;border-top:1px solid var(--line);
+  position:relative;height:96px;touch-action:none}
+body.tape #wavep{display:block}
+#wavep canvas{position:absolute;inset:0;width:100%;height:100%}
+#seek{height:14px;position:relative;background:#241f1b;border:1px solid var(--line);
+  border-radius:7px;margin-top:6px;cursor:pointer;overflow:hidden}
+#seek .fill{position:absolute;left:0;top:0;bottom:0;background:var(--gold);opacity:.55;width:0}
+.taperow{display:none}
+body.tape .taperow{display:flex}
 #scrub .tip{position:absolute;right:30px;transform:translateY(-50%);
   background:var(--gold);color:#1a1512;font-weight:600;font-size:13px;
   border-radius:7px;padding:3px 9px;white-space:nowrap;display:none}
@@ -78,19 +87,33 @@ body.editing .pg canvas{touch-action:none;cursor:grab}
 <main id="pages"></main>
 
 <footer>
+  <div id="wavep"><canvas></canvas></div>
   <div class="row">
     <span id="who">— tap a green marker to pick a hymn —</span>
     <span id="tl"></span>
+  </div>
+  <div id="seek"><div class="fill"></div></div>
+  <div class="row taperow">
+    <button id="tstart">start@play</button>
+    <button id="tend">end@play</button>
+    <button id="tapx" title="mark where the apichima ends / notes start">apichima@play</button>
+    <button id="tzo">−</button>
+    <button id="tzi">+</button>
+    <button id="tfit">fit</button>
+    <button id="tsave">Save cuts</button>
   </div>
   <div class="row">
     <button id="prev">&#8592; prev</button>
     <button id="pp" disabled>Play</button>
     <button id="next">next &#8594;</button>
+    <button id="lane" title="every score span has two recordings: the melos and its parallagi (the score sung as degree names). Toggle which one plays.">MELOS</button>
+    <button id="tape" title="play the whole tape; the book follows and spans are editable on the waveform">Tape</button>
     <button id="follow" class="on" title="auto-scroll to the sounding line">follow</button>
   </div>
   <div class="row rates" id="rates"></div>
   <div class="row">
     <button id="edit" disabled>Edit spans</button>
+    <button id="newspan" title="map a hymn that has no span yet: name it, then tap its first and last unit in the book">+ span</button>
     <button id="fix" disabled>Fix onsets (annotator)</button>
   </div>
   <div id="msg"></div>
@@ -102,7 +125,9 @@ let B = null;                 // /api/book payload
 let sel = -1;                 // index into B.hymns
 let det = null;               // /api/book/hymn payload for sel
 let rate = 1, stopAt = null, hiGi = -1, follow = true;
-let editMode = false, drag = null;      // drag: {which:'start'|'end', preview:{pno,u}}
+let editMode = false, drag = null;
+let lane = 'melos';
+let armNew = null;   // {wd, name, start:{page,i}|null} while placing a new span                     // which recording of the span plays      // drag: {which:'start'|'end', preview:{pno,u}}
 const UC = {};                          // pno -> unit boxes (drag targets)
 async function unitsFor(pno) {
   if (UC[pno]) return UC[pno];
@@ -247,7 +272,8 @@ function paint(pno) {
 function repaintAll() { Object.keys(PG).forEach(p => paint(+p)); }
 
 /* selection ------------------------------------------------------------ */
-function pick(pno, px, py) {
+async function pick(pno, px, py) {
+  if (armNew) return placeNew(pno, px, py);
   let best = -1, bd = 1e9;
   B.hymns.forEach((h, i) => {
     [h.start, h.end].forEach(b => {
@@ -282,16 +308,21 @@ function pick(pno, px, py) {
   });
   if (inBest >= 0) select(inBest, false);
 }
-async function select(i, scroll) {
+let selSeq = 0;
+async function select(i, scroll, keepAudio) {
   if (i < 0 || i >= B.hymns.length) return;
-  stop(); sel = i; det = null; hiGi = -1;
+  if (!keepAudio) stop();
+  sel = i; det = null; hiGi = -1;
+  const seq = ++selSeq;
   const h = B.hymns[i];
   $('#who').innerHTML = `<span class="dot" style="background:${
     h.audio ? 'var(--green)' : h.t0 != null ? 'var(--gold)' : '#777'}"></span>` +
     `${h.wd} · ${h.label || h.name}` + (h.genus ? ` · ${h.genus}` : '');
   $('#edit').disabled = false;
   $('#fix').disabled = !h.piece;
-  $('#pp').disabled = !(h.audio || (h.t0 != null));
+  if (!tapeMode) $('#pp').disabled = !(h.audio || (h.t0 != null) || h.par);
+  $('#lane').disabled = !h.par && lane === 'melos';
+  $('#lane').title = h.par ? $('#lane').title : 'no parallagi recording found for this hymn';
   $('#tl').textContent = '';
   msg('p' + h.start.p + ' → p' + h.end.p +
       (h.audio ? '' : h.t0 != null ? ' · tape span audio' : ' · no audio yet'));
@@ -300,8 +331,10 @@ async function select(i, scroll) {
   repaintAll();
   try {
     const r = await fetch(`/api/book/hymn?wd=${encodeURIComponent(h.wd)}&name=${encodeURIComponent(h.name)}`);
-    if (r.ok) det = await r.json();
-  } catch (e) { det = null; }
+    const d = r.ok ? await r.json() : null;
+    if (seq !== selSeq) return;          // a later select superseded this one
+    det = d;
+  } catch (e) { if (seq === selSeq) det = null; }
   if (det && !det.slots && det.audio) msg('audio, but no alignment — no highlighting');
 }
 
@@ -309,9 +342,19 @@ async function select(i, scroll) {
 function stop() { A.pause(); stopAt = null; hiGi = -1; $('#pp').textContent = 'Play'; }
 async function playPause() {
   if (!A.paused) return stop(), repaintAll();
+  if (tapeMode && TP) {
+    A.playbackRate = rate;
+    try { await A.play(); $('#pp').textContent = 'Pause'; }
+    catch (e) { msg('play failed: ' + e.message); }
+    return;
+  }
   const h = B.hymns[sel]; if (!h) return;
-  if (det && det.audio) {
-    if (!A.src.endsWith(det.audio)) { A.src = det.audio; stopAt = null; }
+  const want = lane === 'parallagi' && det && det.par_audio ? det.par_audio
+             : det && det.audio ? det.audio : null;
+  if (lane === 'parallagi' && det && !det.par_audio)
+    msg('no parallagi recording for this hymn — playing melos');
+  if (want) {
+    if (!A.src.endsWith(want)) { A.src = want; stopAt = null; }
   } else if (h.t0 != null && det && det.tape) {
     if (!A.src.includes(det.tape)) A.src = det.tape;
     A.currentTime = h.t0; stopAt = h.t1;
@@ -321,9 +364,33 @@ async function playPause() {
 }
 A.ontimeupdate = () => {
   $('#tl').textContent = fmt(A.currentTime) + (A.duration ? ' / ' + fmt(A.duration) : '');
+  const fr = A.duration ? A.currentTime / A.duration : 0;
+  $('#seek .fill').style.width = (fr * 100) + '%';
+  if (tapeMode && TP) {
+    needWave = true;
+    const name = tapeSpanOf(A.currentTime);
+    if (name && (sel < 0 || B.hymns[sel].wd !== TP.wd || B.hymns[sel].name !== name)) {
+      const i = B.hymns.findIndex(h => h.wd === TP.wd && h.name === name);
+      if (i >= 0) select(i, follow, true);
+    }
+  }
   if (stopAt != null && A.currentTime >= stopAt) { stop(); repaintAll(); return; }
   if (!det || !det.slots) return;
-  const t = A.currentTime, ts = det.slots.t;
+  if (!tapeMode && lane === 'parallagi') return;   // slot times are melos-aligned
+  const h0 = B.hymns[sel];
+  const off = tapeMode && h0 && h0.t0 != null ? h0.t0 : 0;
+  let t = A.currentTime - off;
+  if (tapeMode && TP && h0) {
+    // slot times are in PIECE time: the piece audio was cut with the span's
+    // skip intervals removed, so subtract whatever skip time has elapsed —
+    // and freeze the highlight while the tape is inside a skip.
+    const sp = TP.spans[h0.name];
+    for (const iv of (sp && sp.skips) || []) {
+      if (A.currentTime >= iv[1]) t -= iv[1] - iv[0];
+      else if (A.currentTime >= iv[0]) return;
+    }
+  }
+  const ts = det.slots.t;
   let lo = 0, hi = ts.length - 1, k = -1;
   while (lo <= hi) { const m = (lo + hi) >> 1;
     if (ts[m] <= t) { k = m; lo = m + 1; } else hi = m - 1; }
@@ -341,7 +408,70 @@ A.ontimeupdate = () => {
       } }
   }
 };
-A.onended = () => { stop(); repaintAll(); };
+A.onended = async () => {
+  if (tapeMode && TP && TAPES) {
+    const order = tapeOrder(), k = order.indexOf(TP.wd);
+    if (k >= 0 && k + 1 < order.length) {
+      await enterTape(order[k + 1]);
+      try { await A.play(); $('#pp').textContent = 'Pause'; } catch (e) { }
+      return;
+    }
+  }
+  stop(); repaintAll();
+};
+
+/* new spans ------------------------------------------------------------ */
+async function placeNew(pno, px, py) {
+  const pt = toPt(pno, px, py); if (!pt) return;
+  const us = await unitsFor(pno);
+  let best = null, bd = 1e9;
+  us.forEach(u => {
+    const d = (pt[0] - (u.x0 + u.x1) / 2) ** 2 + (pt[1] - (u.y0 + u.y1) / 2) ** 2;
+    if (d < bd) { bd = d; best = u; }
+  });
+  if (!best || bd > 3600) return msg('tap closer to a neume');
+  if (!armNew.start) {
+    armNew.start = { page: pno, i: best.i };
+    msg(`${armNew.name}: start set at p${pno} — now tap its LAST unit`);
+    return;
+  }
+  const body = { workdir: armNew.wd, hymn: armNew.name,
+    start: armNew.start, end: { page: pno, i: best.i } };
+  if (tapeMode && TP && TP.wd === armNew.wd) {
+    const s = TP.spans[armNew.name];
+    if (s && s.t0 != null) { body.t0 = s.t0; body.t1 = s.t1; }
+  }
+  armNew = null;
+  msg('creating span…');
+  try {
+    const r = await fetch('/api/book/new', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body) });
+    const out = await r.json();
+    if (!r.ok) throw new Error(out.error || r.status);
+    out.wd = body.workdir;
+    B.hymns.push(out);
+    B.hymns.sort((a, b) => (a.start.p - b.start.p) || (a.start.l - b.start.l)
+      || (a.start.x0 - b.start.x0));
+    drawToc();
+    const i = B.hymns.findIndex(h => h.wd === out.wd && h.name === out.name);
+    select(i, false, tapeMode);
+    msg(`created ${out.name} — p${out.start.p} → p${out.end.p}` +
+        (body.t0 != null ? ' (audio span included)' : ''));
+  } catch (e) { msg('create failed: ' + e.message); }
+  repaintAll();
+}
+function startNewSpan() {
+  const wd = tapeMode && TP ? TP.wd : sel >= 0 ? B.hymns[sel].wd : null;
+  if (!wd) return msg('select any hymn (or enter tape mode) first so I know the workdir');
+  const name = (prompt('name for the new hymn (kebab-case, e.g. tas-esperinas)') || '')
+    .trim().toLowerCase();
+  if (!name) return;
+  if (!/^[a-z0-9][a-z0-9-]{1,50}$/.test(name)) return msg('name must be a-z, 0-9, dashes');
+  armNew = { wd, name, start: null };
+  msg(`${name} (${wd}): tap its FIRST unit in the book` +
+      (tapeMode ? ' — mark its tape start/end first if you want audio included' : ''));
+}
 
 /* span editing --------------------------------------------------------- */
 function canvasAt(x, y) {
@@ -392,6 +522,227 @@ window.addEventListener('pointerup', async () => {
   } catch (e) { msg('save failed: ' + e.message); }
   repaintAll();
 });
+
+/* tape mode ------------------------------------------------------------ */
+let tapeMode = false, TP = null, TAPES = null, wdrag = null, needWave = false;
+async function tapesIndex() {
+  if (!TAPES) TAPES = await (await fetch('/api/tapes')).json();
+  return TAPES;
+}
+function tapeOrder() {
+  const first = {};
+  B.hymns.forEach(h => { if (!(h.wd in first)) first[h.wd] = h.start.p; });
+  return Object.keys(TAPES).sort((a, b) => (first[a] ?? 9e3) - (first[b] ?? 9e3));
+}
+async function enterTape(wd) {
+  await tapesIndex();
+  if (!TAPES[wd]) wd = tapeOrder()[0];
+  if (!wd) { msg('no tapes known'); return false; }
+  const t = TAPES[wd];
+  const spans = {};
+  t.hymns.forEach(h => { spans[h.name] = { t0: h.t0, t1: h.t1, t_in: h.t_in ?? null,
+    label: h.label ?? null, lane: h.lane ?? null, skips: h.skips || [] }; });
+  TP = { wd, spans, pps: 20, peaks: null, dur: 0, view: [0, 60], dirty: false };
+  stop();
+  A.src = '/tape/' + encodeURIComponent(wd);
+  A.playbackRate = rate;
+  $('#pp').disabled = false;
+  needWave = true;
+  msg('tape: ' + (t.basename || wd) + ' — loading waveform…');
+  try {
+    const r = await fetch('/api/peaks/' + encodeURIComponent(wd));
+    if (!r.ok) throw new Error('peaks ' + r.status);
+    TP.pps = +(r.headers.get('X-Peaks-Per-Second') || 20);
+    TP.peaks = new Uint8Array(await r.arrayBuffer());
+    TP.dur = TP.peaks.length / TP.pps;
+    TP.view = [0, TP.dur];
+    msg('tape: ' + (t.basename || wd) + ' — ' + Math.round(TP.dur / 60) + ' min');
+  } catch (e) { msg('waveform unavailable: ' + e.message); }
+  needWave = true;
+  return true;
+}
+function tpDur() {
+  if (!TP) return 0;
+  if (TP.dur) return TP.dur;
+  return isFinite(A.duration) && A.duration > 0 ? A.duration : 0;
+}
+function spanColor(name) { return sel >= 0 && B.hymns[sel].wd === TP.wd &&
+  B.hymns[sel].name === name; }
+function t2x(t, W) { const [v0, v1] = TP.view; return (t - v0) / (v1 - v0) * W; }
+function x2t(x, W) { const [v0, v1] = TP.view; return v0 + x / W * (v1 - v0); }
+function drawWave() {
+  const cv = document.querySelector('#wavep canvas'); if (!cv || !TP) return;
+  const r = cv.parentElement.getBoundingClientRect();
+  if (cv.width !== Math.round(r.width * devicePixelRatio)) {
+    cv.width = Math.round(r.width * devicePixelRatio);
+    cv.height = Math.round(r.height * devicePixelRatio);
+  }
+  const cx = cv.getContext('2d'), W = cv.width, H = cv.height;
+  cx.clearRect(0, 0, W, H);
+  const [v0, v1] = TP.view;
+  if (TP.peaks) {
+    cx.fillStyle = '#8a7c6a';
+    const n0 = Math.max(0, Math.floor(v0 * TP.pps)),
+          n1 = Math.min(TP.peaks.length, Math.ceil(v1 * TP.pps));
+    const perPx = (n1 - n0) / W;
+    for (let x = 0; x < W; x++) {
+      let m = 0;
+      const a = n0 + Math.floor(x * perPx), b = n0 + Math.floor((x + 1) * perPx) + 1;
+      for (let i = a; i < b && i < n1; i++) m = Math.max(m, TP.peaks[i]);
+      const h = Math.max(2, m / 255 * (H - 8));
+      cx.fillRect(x, (H - h) / 2, 1, h);
+    }
+  }
+  for (const [name, s] of Object.entries(TP.spans)) {
+    if (s.t0 == null || s.t1 == null || s.t1 < v0 || s.t0 > v1) continue;
+    const x0 = t2x(s.t0, W), x1 = t2x(s.t1, W), hot = spanColor(name);
+    cx.fillStyle = hot ? 'rgba(216,162,74,.20)' : 'rgba(110,164,95,.12)';
+    cx.fillRect(x0, 0, x1 - x0, H);
+    cx.fillStyle = '#6ea45f'; cx.fillRect(x0 - 2, 0, hot ? 5 : 3, H);
+    cx.fillStyle = '#c65b4e'; cx.fillRect(x1 - 2, 0, hot ? 5 : 3, H);
+    if (s.t_in != null && s.t_in >= v0 && s.t_in <= v1) {
+      cx.fillStyle = '#d8a24a';
+      const xi = t2x(s.t_in, W);
+      for (let y = 0; y < H; y += 14) cx.fillRect(xi - 1, y, 3, 8);
+    }
+    cx.fillStyle = hot ? '#d8a24a' : '#9c9086';
+    cx.font = Math.round(11 * devicePixelRatio) + 'px system-ui';
+    cx.fillText(name, x0 + 6, 14 * devicePixelRatio);
+  }
+  const xp = t2x(A.currentTime, W);
+  if (xp >= 0 && xp <= W) { cx.fillStyle = '#efe7dc'; cx.fillRect(xp - 1, 0, 2, H); }
+}
+A.onloadedmetadata = () => {
+  if (tapeMode && TP && !TP.dur && isFinite(A.duration) && A.duration > 0) {
+    TP.dur = A.duration; TP.view = [0, TP.dur]; needWave = true;
+  }
+};
+function tapeSpanOf(t) {
+  if (!TP) return null;
+  for (const [name, s] of Object.entries(TP.spans))
+    if (s.t0 != null && s.t1 != null && t >= s.t0 && t < s.t1) return name;
+  return null;
+}
+function normalizeSpan(s) {
+  if (s.t0 == null || s.t1 == null) return;
+  if (s.t_in != null && (s.t_in < s.t0 || s.t_in > s.t1)) {
+    s.t_in = null; msg('apichima mark fell outside the span — cleared (unsaved)');
+  }
+  s.skips = (s.skips || [])
+    .map(iv => [Math.max(iv[0], s.t0), Math.min(iv[1], s.t1)])
+    .filter(iv => iv[1] - iv[0] > 0.05);
+}
+function selectedTapeSpan() {
+  if (!TP || sel < 0) return null;
+  const h = B.hymns[sel];
+  if (h.wd !== TP.wd) return null;
+  return TP.spans[h.name] || (TP.spans[h.name] = { t0: null, t1: null, t_in: null,
+    label: null, lane: null, skips: [] });
+}
+function initWave() {
+  const P = $('#wavep'), cv = P.querySelector('canvas');
+  const px = e => { const r = P.getBoundingClientRect();
+    return (e.clientX - r.left) * (cv.width || r.width) / r.width; };
+  const pts = new Map();
+  P.addEventListener('pointerdown', e => {
+    if (!TP) return;
+    P.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, e.clientX);
+    if (pts.size > 1) { wdrag = { kind: 'pinch' }; return; }
+    const W = cv.width, x = px(e), tol = 10 * devicePixelRatio;
+    wdrag = { kind: 'pan', x0: x, v: [...TP.view], moved: false };
+    for (const [name, s] of Object.entries(TP.spans)) {
+      if (s.t0 == null) continue;
+      if (Math.abs(t2x(s.t0, W) - x) < tol) wdrag = { kind: 'edge', name, edge: 't0' };
+      else if (Math.abs(t2x(s.t1, W) - x) < tol) wdrag = { kind: 'edge', name, edge: 't1' };
+      else if (s.t_in != null && Math.abs(t2x(s.t_in, W) - x) < tol)
+        wdrag = { kind: 'edge', name, edge: 't_in' };
+      if (wdrag.kind === 'edge') {
+        const i = B.hymns.findIndex(h => h.wd === TP.wd && h.name === name);
+        if (i >= 0 && i !== sel) select(i, false, true);
+        break;
+      }
+    }
+  });
+  P.addEventListener('pointermove', e => {
+    if (!TP || !wdrag) return;
+    pts.set(e.pointerId, e.clientX);
+    const W = cv.width, x = px(e);
+    if (wdrag.kind === 'pinch' && pts.size >= 2) {
+      const [a, b] = [...pts.values()];
+      if (wdrag.d0 == null) { wdrag.d0 = Math.abs(a - b); wdrag.v = [...TP.view];
+        wdrag.mid = x2t((Math.min(a, b) + Math.abs(a - b) / 2 -
+          P.getBoundingClientRect().left) * devicePixelRatio, W); return; }
+      const k = Math.max(0.05, wdrag.d0 / Math.max(10, Math.abs(a - b)));
+      const w = (wdrag.v[1] - wdrag.v[0]) * k;
+      const Dz = tpDur() || wdrag.v[1];
+      TP.view = [Math.max(0, wdrag.mid - w / 2),
+                 Math.min(Dz, wdrag.mid + w / 2)];
+      needWave = true; return;
+    }
+    if (wdrag.kind === 'edge') {
+      const D = tpDur();
+      if (!D) { msg('tape duration unknown — edits disabled until it loads'); return; }
+      const s = TP.spans[wdrag.name], t = Math.max(0, Math.min(D, x2t(x, W)));
+      if (wdrag.edge === 't0') s.t0 = Math.min(t, (s.t1 ?? D) - 0.5);
+      else if (wdrag.edge === 't1') s.t1 = Math.max(t, (s.t0 ?? 0) + 0.5);
+      else s.t_in = Math.max(s.t0 ?? 0, Math.min(s.t1 ?? D, t));
+      normalizeSpan(s);
+      TP.dirty = true; needWave = true;
+      msg(`${wdrag.name} ${wdrag.edge} → ${fmt(wdrag.edge === 't0' ? s.t0 :
+          wdrag.edge === 't1' ? s.t1 : s.t_in)} (unsaved)`);
+      return;
+    }
+    // pan
+    const dt = (wdrag.x0 - x) / W * (wdrag.v[1] - wdrag.v[0]);
+    if (Math.abs(wdrag.x0 - x) > 6 * devicePixelRatio) wdrag.moved = true;
+    const Dp = tpDur() || wdrag.v[1];
+    let v0 = wdrag.v[0] + dt, v1 = wdrag.v[1] + dt;
+    if (v0 < 0) { v1 -= v0; v0 = 0; }
+    if (v1 > Dp) { v0 -= v1 - Dp; v1 = Dp; }
+    TP.view = [Math.max(0, v0), Math.min(Dp, v1)]; needWave = true;
+  });
+  const up = e => {
+    pts.delete(e.pointerId);
+    if (!wdrag) return;
+    if (wdrag.kind === 'pan' && !wdrag.moved && TP)
+      A.currentTime = x2t(px(e), cv.width);
+    if (wdrag.kind === 'pinch' || pts.size === 0) wdrag = null;
+    needWave = true;
+  };
+  P.addEventListener('pointerup', up); P.addEventListener('pointercancel', up);
+  P.addEventListener('wheel', e => {
+    if (!TP) return; e.preventDefault();
+    const W = cv.width, mid = x2t(px(e), W);
+    const k = e.deltaY > 0 ? 1.3 : 1 / 1.3;
+    const Dw = tpDur() || TP.view[1];
+    TP.view = [Math.max(0, mid - (mid - TP.view[0]) * k),
+               Math.min(Dw, mid + (TP.view[1] - mid) * k)];
+    if (TP.view[1] - TP.view[0] < 2) TP.view = [mid - 1, mid + 1];
+    needWave = true;
+  }, { passive: false });
+  (function loop() { if (tapeMode && TP && (needWave || !A.paused))
+      { drawWave(); needWave = false; }
+    requestAnimationFrame(loop); })();
+}
+async function saveCuts() {
+  if (!TP) return;
+  const cuts = Object.entries(TP.spans)
+    .filter(([, s]) => s.t0 != null && s.t1 != null)
+    .map(([name, s]) => ({ hymn: name, t0: +s.t0.toFixed(2), t1: +s.t1.toFixed(2),
+      label: s.label, lane: s.lane, t_in: s.t_in == null ? null : +s.t_in.toFixed(2),
+      skips: s.skips || [] }));
+  msg('saving cuts…');
+  try {
+    const r = await fetch('/api/cuts', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workdir: TP.wd, cuts }) });
+    const out = await r.json();
+    if (!r.ok || out.error) throw new Error(out.error || r.status);
+    TP.dirty = false; TAPES = null; tapesIndex();
+    msg(`saved ${cuts.length} spans for ${TP.wd}`);
+  } catch (e) { msg('save failed: ' + e.message); }
+}
 
 /* header jump ---------------------------------------------------------- */
 function drawJump() {
@@ -491,6 +842,53 @@ async function boot() {
   $('#prev').onclick = () => select(sel < 0 ? 0 : Math.max(0, sel - 1));
   $('#next').onclick = () => select(sel < 0 ? 0 : Math.min(B.hymns.length - 1, sel + 1));
   $('#follow').onclick = () => { follow = !follow; $('#follow').classList.toggle('on', follow); };
+  initWave();
+  $('#newspan').onclick = startNewSpan;
+  $('#lane').onclick = () => {
+    lane = lane === 'melos' ? 'parallagi' : 'melos';
+    $('#lane').textContent = lane.toUpperCase();
+    $('#lane').classList.toggle('on', lane === 'parallagi');
+    if (!tapeMode && !A.paused) { stop(); playPause(); }   // switch mid-play
+    else msg(lane === 'parallagi' ? 'parallagi lane — plays the degree-name recording' : '');
+  };
+  $('#tape').onclick = async () => {
+    tapeMode = !tapeMode;
+    $('#tape').classList.toggle('on', tapeMode);
+    document.body.classList.toggle('tape', tapeMode);
+    if (tapeMode) {
+      let ok = false;
+      try { ok = await enterTape(sel >= 0 ? B.hymns[sel].wd : null); }
+      catch (e) { msg('tape unavailable: ' + e.message); }
+      if (!ok || !TP) {
+        tapeMode = false;
+        $('#tape').classList.remove('on');
+        document.body.classList.remove('tape');
+      }
+    } else { stop(); TP = null; A.removeAttribute('src'); A.load(); msg(''); }
+  };
+  $('#tstart').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
+    s.t0 = +A.currentTime.toFixed(2); if (s.t1 == null || s.t1 <= s.t0) s.t1 = s.t0 + 30;
+    normalizeSpan(s); TP.dirty = true; needWave = true; msg('start set (unsaved)'); };
+  $('#tend').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
+    s.t1 = +A.currentTime.toFixed(2); if (s.t0 == null || s.t0 >= s.t1) s.t0 = Math.max(0, s.t1 - 30);
+    normalizeSpan(s); TP.dirty = true; needWave = true; msg('end set (unsaved)'); };
+  $('#tapx').onclick = () => { const s = selectedTapeSpan(); if (!s) return;
+    s.t_in = s.t_in == null ? +A.currentTime.toFixed(2) : null;
+    TP.dirty = true; needWave = true;
+    msg(s.t_in == null ? 'apichima mark cleared (unsaved)' : 'apichima end marked (unsaved)'); };
+  $('#tzi').onclick = () => { const D = tpDur(); if (!TP || !D) return;
+    const [v0, v1] = TP.view, m = (v0 + v1) / 2,
+    w = Math.max(2, (v1 - v0) / 1.6); TP.view = [Math.max(0, m - w / 2), Math.min(D, m + w / 2)]; needWave = true; };
+  $('#tzo').onclick = () => { const D = tpDur(); if (!TP || !D) return;
+    const [v0, v1] = TP.view, m = (v0 + v1) / 2,
+    w = Math.min(D, (v1 - v0) * 1.6); TP.view = [Math.max(0, m - w / 2), Math.min(D, m + w / 2)]; needWave = true; };
+  $('#tfit').onclick = () => { const D = tpDur(); if (TP && D) { TP.view = [0, D]; needWave = true; } };
+  $('#tsave').onclick = saveCuts;
+  $('#seek').addEventListener('pointerdown', e => {
+    const r = $('#seek').getBoundingClientRect();
+    const f = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    if (A.duration) A.currentTime = f * A.duration;
+  });
   $('#edit').onclick = () => {
     editMode = !editMode;
     $('#edit').classList.toggle('on', editMode);
