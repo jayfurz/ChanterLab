@@ -87,20 +87,30 @@ def heard_degrees(piece_dir, ts, genus='diatonic'):
 
 def score_degrees_for(piece_dir):
     D = json.load(open(os.path.join(piece_dir, 'annotator_data.json')))
-    span = D['meta']['source']['span']
-    sc = {c['hymn']: c for c in
-          json.load(open(f'{TEXTS}/scorecuts_grave-orthros.json'))['cuts']}[span]
+    src = D['meta']['source']
     leg = json.load(open('/mnt/data/chant-corpus/scores/legend_canon.json'))
-    u = units_for(sc['p0'], sc['l0'], sc['g0'], sc['p1'], sc['l1'], sc['g1'])
-    return [int(v) % 7 for v in degree_stream(u, leg, start=leading_anchor(sc['p0'], sc['g0']))]
+    if 'span' in src:                      # grave tape span piece
+        sc = {c['hymn']: c for c in
+              json.load(open(f'{TEXTS}/scorecuts_grave-orthros.json'))['cuts']}[src['span']]
+        u = units_for(sc['p0'], sc['l0'], sc['g0'], sc['p1'], sc['l1'], sc['g1'])
+        return [int(v) % 7 for v in degree_stream(u, leg, start=leading_anchor(sc['p0'], sc['g0']))], 'diatonic'
+    # mode-workdir hymn piece: the row IS the range (g0/g1 annotator-relative)
+    wd = src['workdir']
+    rows = json.load(open(os.path.join(wd, 'hymns.json')))
+    rows = rows if isinstance(rows, list) else rows['hymns']
+    r = [x for x in rows if x['name'] == src['hymn']][0]
+    from hymn_align import load_units_h
+    u, _ = load_units_h(r)
+    genus = r.get('genus') or src.get('genus') or 'diatonic'
+    return [int(v) % 7 for v in degree_stream(u, leg, start=leading_anchor(r['p0'], r.get('g0') or 0))], genus
 
 
 def check(piece_dir, onsets_file, window=8):
     on = load_onsets(onsets_file)
-    exp = score_degrees_for(piece_dir)
+    exp, genus = score_degrees_for(piece_dir)
     gs = sorted(on)
     ts = [on[g] for g in gs]
-    heard = heard_degrees(piece_dir, ts)
+    heard = heard_degrees(piece_dir, ts, genus=genus)
     n = min(len(exp), len(gs))
     # Base estimation has near-symmetric optima (degree_match.py: offsets for
     # the SAME span swing 560-710 cents between runs), so the heard degrees
