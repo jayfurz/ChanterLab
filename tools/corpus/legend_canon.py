@@ -69,6 +69,18 @@ JUMP_MARKS = {16, 28, 83}
 # Explicit figures from the atlas, which override any composition rule.
 FIGURES = {
     '3|13ab': 2,          # petasti + oligon
+    # Ypsili on the RIGHT half of an oligon, psifiston underneath. Chanter,
+    # 2026-08-23, on s42 glyph 71: "this should be +4 (ypseli over oligon
+    # where ypseli is on the right half of the oligon. it has a psifiston
+    # underneath that is qualitative orthography only." The qualitative-base
+    # rule would compose oligon(+1)+ypsili(+4)=+5, which is the ypsili-LEFT
+    # figure -- and that one keys differently (oligon base: '6|28ab' = 5), so
+    # the extraction already separates the two forms. Geometry confirms one
+    # figure here: all 5 instances in pp505-569 measure w 36.8-38.4 x
+    # h 25.5-26.3 (p517, 521, 536, 549=s42 gi71, 565). Without this entry the
+    # key derived to None and the piece's degree stream ran one step high
+    # from gi71 on -- the chanter's "ends on ga not dhi".
+    '7|28ab+6ab': 4,
     '3|13ab+8be': 2,
     '3|16ab': 3,          # petasti + kentima on top-middle
     '3|16ab+8be': 3,

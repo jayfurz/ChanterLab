@@ -972,6 +972,41 @@ ELAPHRON_BASES = (20,)
 APOSTROPHOS_BASES = (4,)
 
 
+def _attach_orphan_kentima(units, recs):
+    """A kentima the grouping dropped, sitting just RIGHT of an oligon: +2.
+
+    Chanter, 2026-08-23, s18 glyph 53: "6| is not supposed to be just the
+    plain oligon. there is a kentima to the right of it means +2." The raw
+    record exists (p524 line 5: oligon 77-112, kentima 112-119, same height
+    band) but touches without x-overlapping, so _note_subgroups keeps them
+    apart -- and the kentima lands in NO unit at all and vanishes. The atlas
+    already states the value: "kentima below or to the RIGHT of an oligon ->
+    compound = +2". Per instance, like KENTIMA_SPLIT: the key stays '6|', the
+    iv is set here.
+    """
+    by_pl = {}
+    for u in units:
+        by_pl.setdefault(u['pl'], []).append(u)
+    for r in recs:
+        if r.get('cluster') != 16:
+            continue
+        row = by_pl.get((r.get('page'), r.get('line'))) or []
+        if not row:
+            continue                      # strict (page, line): no cross-page guessing
+        cx = 0.5 * (r['x0'] + r['x1']); cy = 0.5 * (r['y0'] + r['y1'])
+        if any(u['x0'] - 1 <= cx <= u['x1'] + 1 and u['y0'] - 8 <= cy <= u['y1'] + 8
+               for u in row):
+            continue                      # not an orphan
+        for u in row:
+            if (u.get('key') == '6|' and 0 <= r['x0'] - u['x1'] <= 4
+                    and u['y0'] - 6 <= cy <= u['y1'] + 6):
+                u['iv'] = 2
+                u['x1'] = max(u['x1'], r['x1'])
+                u['kentima_right'] = True
+                break
+    return units
+
+
 def _mark_kentima_height(units):
     """Set iv per instance where a key covers two figures at different heights."""
     for u in units:
@@ -1049,6 +1084,7 @@ def load_units(p0, l0, p1, l1):
                or p > p1:
                 continue
             g['cluster'] = _reclass(g)
+            g.setdefault('page', p)
             recs.append(g)
         for w in d.get('lyrics', []):
             if (p == p0 and w.get('line', 0) < l0) or (p == p1 and w.get('line', 0) >= l1):
@@ -1218,7 +1254,8 @@ def load_units(p0, l0, p1, l1):
     _attach_pthoras(units, recs)
     units.sort(key=lambda u: (u['pl'], u.get('sx', u['x0']),
                               u['part'] if u.get('part') is not None else 0))
-    return _mark_synexes_elaphron(_mark_kentima_height(units)), lyr
+    return _mark_synexes_elaphron(_mark_kentima_height(
+        _attach_orphan_kentima(units, recs))), lyr
 
 def load_units_h(h):
     """units + lyrics for a hymns.json row. Optional g0/g1 (annotator glyph
