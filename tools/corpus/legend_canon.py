@@ -85,11 +85,11 @@ FIGURES = {
     # 26: "should be a -1. that's a compound apostrophos inside petasti with
     # a klasma where the petasti acts only as an orthographic/qualitative
     # neume and the apostrophos holds the weight as -1." Both keys derived 0
-    # before this. '3|4ab' (same figure, no klasma) is INFERRED from the same
-    # ruling -- a klasma is duration-only and cannot change the pitch -- and
-    # is marked for the chanter to confirm. 37 instances pp505-569.
+    # before this. '3|4ab' (same figure, no klasma) was inferred from the same
+    # ruling -- a klasma is duration-only -- and the chanter confirmed it
+    # directly: "3|4ab is -1 correct" (2026-08-23). 37 instances pp505-569.
     '3|4ab+8be': -1,
-    '3|4ab': -1,      # inferred sibling: klasma is duration-only
+    '3|4ab': -1,      # chanter-confirmed sibling
     '3|13ab+8be': 2,
     '3|16ab': 3,          # petasti + kentima on top-middle
     '3|16ab+8be': 3,
