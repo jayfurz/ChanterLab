@@ -148,7 +148,7 @@ let rate = 1, stopAt = null, hiGi = -1, follow = true;
 let editMode = false, drag = null;
 let lane = 'melos';
 let paraOn = false;
-let transSt = 0, transPoll = null;
+let transSt = 0, transPoll = null, transUrl = null;
 function setTranspose(st) {
   transSt = Math.max(-12, Math.min(12, st));
   $('#trlbl').textContent = (transSt > 0 ? '+' : transSt < 0 ? '' : '±') + transSt;
@@ -166,14 +166,15 @@ function setTranspose(st) {
     A.addEventListener('loadedmetadata', () => { A.currentTime = t;
       if (playing) A.play().catch(() => {}); }, { once: true });
   };
-  if (transSt === 0) { swap(det.audio); return; }
+  if (transSt === 0) { transUrl = null; swap(det.audio); return; }
   const ask = async () => {
     const r = await fetch('/api/transpose?piece=' + encodeURIComponent(h.piece) +
                           '&st=' + transSt);
     const d = await r.json();
     if (d.status === 'ready') {
       clearInterval(transPoll); transPoll = null;
-      swap('/' + d.url + '?v=' + Date.now());
+      transUrl = '/' + d.url + '?v=' + Date.now();
+      swap(transUrl);
       msg(`transposed ${transSt > 0 ? '+' : ''}${transSt} st — highlighting unchanged`);
     } else if (d.status === 'error') {
       clearInterval(transPoll); transPoll = null;
@@ -466,6 +467,7 @@ async function select(i, scroll, keepAudio) {
   msg('p' + h.start.p + ' → p' + h.end.p +
       (h.audio ? '' : h.t0 != null ? ' · tape span audio' : ' · no audio yet'));
   if (scroll !== false) PG[h.start.p]?.el.scrollIntoView({ block: 'start' });
+  transUrl = null;
   tocMark();
   repaintAll();
   try {
@@ -485,6 +487,7 @@ async function select(i, scroll, keepAudio) {
     updFixBtn(h);
   }
   if (det && !det.slots && det.audio) msg('audio, but no alignment — no highlighting');
+  if (det && det.piece && transSt !== 0 && !tapeMode) setTranspose(transSt);
 }
 
 /* playback ------------------------------------------------------------- */
@@ -500,8 +503,9 @@ async function playPause() {
     return;
   }
   const h = B.hymns[sel]; if (!h) return;
-  const want = lane === 'parallagi' && det && det.par_audio ? det.par_audio
+  let want = lane === 'parallagi' && det && det.par_audio ? det.par_audio
              : det && det.audio ? det.audio : null;
+  if (want && transSt !== 0 && transUrl && lane !== 'parallagi') want = transUrl;
   if (lane === 'parallagi' && det && !det.par_audio)
     msg('no parallagi recording for this hymn — playing melos');
   if (want) {
