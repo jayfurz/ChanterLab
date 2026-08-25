@@ -200,7 +200,21 @@ def hymn_x_clip(units):
     first, last = units[0], units[-1]
     clip = {}
     pl0, pl1 = tuple(first['pl']), tuple(last['pl'])
-    clip[pl0] = [first['x0'] - 2.0, None]
+    lo0 = first['x0'] - 2.0
+    # The drop cap is printed LEFT of the first neume and belongs to THIS
+    # hymn — clipping at the neume's x whitewashed the Κ of every hymn that
+    # opens one (chanter caught it on mode2 katefthynthito). 26/26 measured
+    # hymn starts land on a cap, so look one up and keep it.
+    try:
+        caps = json.load(open('/mnt/data/chant-corpus/scores/dropcaps.json'))
+        for c in caps:
+            if c.get('page') == pl0[0] and c.get('size', 0) >= 18.0 \
+                    and abs(c.get('line', -9) - pl0[1]) <= 1 \
+                    and first['x0'] - 70 <= c['x0'] < first['x0']:
+                lo0 = min(lo0, c['x0'] - 3.0)
+    except Exception:
+        pass
+    clip[pl0] = [lo0, None]
     xs = sorted(_line_glyph_spans(*pl1))
     keep = last['x1']
     for x0, x1 in xs:                       # walk right from the last note
