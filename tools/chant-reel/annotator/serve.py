@@ -65,7 +65,8 @@ CUTTER_PREFIXES = ('/score', '/cut', '/tape/', '/page/', '/api/tapes',
 # The cutter owns '/api/degree-flag'; these two are the annotator's own and
 # must be answered here, so they are checked before the proxy test.
 LOCAL_PREFIXES = ('/api/parallagi', '/api/parallagi-flag',
-                  '/api/parallagi-flags', '/api/piece-peaks')
+                  '/api/parallagi-flags', '/api/piece-peaks',
+                  '/api/prep-par')
 
 
 def _is_cutter(path):
@@ -362,6 +363,41 @@ def piece_peaks(pid):
     return json.load(open(cache))
 
 
+_PREP_JOBS = {}
+
+
+def prep_par_start(pid):
+    """Build the -par piece for a melos piece in the background.
+
+    The chanter cuts a '#par' span in the book, then presses Par♪ in the
+    annotator — a one-off batch can never keep up with that, so the piece is
+    built on demand: ~1 min of alignment in a subprocess, polled by the page.
+    """
+    target = HERE / 'data' / (pid + '-par') / 'annotator_data.json'
+    if target.exists():
+        return {'status': 'ready'}
+    dd = HERE / 'data' / pid / 'annotator_data.json'
+    if not dd.exists():
+        return {'status': 'error', 'error': 'no such piece'}
+    s = (json.loads(dd.read_text()).get('meta') or {}).get('source') or {}
+    if not s.get('workdir') or not s.get('hymn'):
+        return {'status': 'error', 'error': 'piece has no source row'}
+    j = _PREP_JOBS.get(pid)
+    if j is not None and j.poll() is None:
+        return {'status': 'building'}
+    if j is not None and j.returncode not in (0, None):
+        _PREP_JOBS.pop(pid, None)
+        return {'status': 'error', 'error': 'previous build failed (rc %s) — '
+                'see prep_par.%s.log' % (j.returncode, pid)}
+    log = open(str(HERE / 'data' / ('prep_par.%s.log' % pid)), 'w')
+    _PREP_JOBS[pid] = __import__('subprocess').Popen(
+        ['/mnt/data/chant-corpus/venv/bin/python3',
+         os.path.join(CORPUS_TOOLS, 'prep_par_piece.py'),
+         '--workdir', s['workdir'], '--hymn', s['hymn']],
+        stdout=log, stderr=log)
+    return {'status': 'started'}
+
+
 class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # HTML must never be heuristically cached: UI fixes ship many times a
@@ -428,6 +464,11 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = self.path.split('?')[0]
+        if route == '/api/prep-par':
+            pid = self._query_piece()
+            if pid is not None:
+                self._json(prep_par_start(pid))
+            return
         if route == '/api/piece-peaks':
             pid = self._query_piece()
             if pid is None:

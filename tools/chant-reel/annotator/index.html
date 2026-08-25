@@ -926,12 +926,33 @@ async function setupParAudio() {
       $('paraudiobtn').style.display = ''; }
   } catch (e) { /* stays hidden */ }
 }
+let prepPoll = null;
 function toggleParAudio() {
   if (parPieceId) {                      // navigate to the real other-lane piece
     location.search = '?piece=' + encodeURIComponent(parPieceId);
     return;
   }
   if (!parAudioUrl) return;
+  // parallagi audio exists but no piece yet: kick a background build so the
+  // chanter can TAP it in a minute instead of only listening
+  const pid = PIECE || D.meta.piece_id;
+  if (pid && !prepPoll) {
+    fetch('/api/prep-par?piece=' + encodeURIComponent(pid)).catch(() => {});
+    prepPoll = setInterval(async () => {
+      try {
+        const r = await fetch('data/' + encodeURIComponent(pid) +
+          '-par/annotator_data.json', { method: 'HEAD' });
+        if (r.ok) {
+          clearInterval(prepPoll); prepPoll = null;
+          parPieceId = pid + '-par';
+          $('selinfo').textContent =
+            'parallagi piece is READY — press V to open it and tap';
+        }
+      } catch (e) { /* keep polling */ }
+    }, 8000);
+    $('selinfo').textContent = 'building a real parallagi piece in the background ' +
+      '(~1 min) — you can listen meanwhile; I\u2019ll say when it\u2019s tappable';
+  }
   if (tapMode) toggleTapMode();
   audio.pause();
   audioLane = audioLane === 'mel' ? 'par' : 'mel';
