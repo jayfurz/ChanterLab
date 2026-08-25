@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+"""propose_cuts.py -- DRAFT tape cuts from the tape_lane classifier.
+
+Turns cutting a new tape into verification: the lane classifier stream is
+smoothed and decoded into (lane, t0, t1) segments, edges are snapped to energy
+dips, and the book's hymn order (workdir hymns.json) names the segments in
+sequence -- parallagi-then-melos, the measured 23/23 prior.
+
+Writes texts/draftcuts_<wd>.json, schema mirroring cuts_<wd>.json plus per-row
+provenance.  NEVER writes cuts_*.json; chanter cuts are ground truth and drafts
+are never auto-adopted.
+
+Usage:
+  propose_cuts.py --workdir mode2-orthros              # write drafts
+  propose_cuts.py --workdir mode1 --model .../tape_lane_heldout_mode1.pt \
+                  --eval --no-write                    # honest fold scoring
+"""
+import argparse, json, os, sys
+import numpy as np
+import torch
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, '..', 'neural'))
+import tape_lane as TL
+
+TEXTS = TL.TEXTS
+STRIDE = 11                                   # frames between windows, ~0.26 s
+STEP = STRIDE / TL.FPS
+
+
+def prob_stream(net, M, dev, cache_key=None):
+    if cache_key:
+        fn = f'{TL.CACHE}/probs_{cache_key}.npz'
+        if os.path.exists(fn):
+            z = np.load(fn)
+            return z['t'], z['P']
+    starts = list(range(0, M.shape[1] - TL.WIN, STRIDE))
+    P = np.zeros((len(starts), 3), dtype=np.float32)
+    net.eval()
+    with torch.no_grad():
+        for i in range(0, len(starts), 256):
+            xs = TL.cmvn(np.stack([M[:, s:s + TL.WIN]
+                                for s in starts[i:i + 256]]))
+            p = torch.softmax(net(torch.from_numpy(xs).to(dev)), -1)
+            P[i:i + 256] = p.cpu().numpy()
+    t = (np.array(starts) + TL.WIN / 2) / TL.FPS      # window-centre seconds
+    if cache_key:
+        np.savez(f'{TL.CACHE}/probs_{cache_key}.npz', t=t, P=P)
+    return t, P
+
+
+def smooth(P, w=13):
+    k = np.ones(w) / w
+    return np.stack([np.convolve(P[:, i], k, 'same') for i in range(3)], 1)
+
+
+def runs_of(states):
+    out, s0 = [], 0
+    for i in range(1, len(states) + 1):
+        if i == len(states) or states[i] != states[s0]:
+            out.append([int(states[s0]), s0, i])
+            s0 = i
+    return out
+
+
+LAM_SING = 8.0     # switch cost speech <-> singing
+LAM_LANE = 22.0     # switch cost parallagi <-> melos
+
+
+def decode(t, P):
+    """prob stream -> [(lane_idx, i0, i1)] sing segments (indices into t).
+
+    Penalised Viterbi over {speech, par, mel}: the MAP state path under a
+    per-switch cost.  This is the change-point detector -- a 60%%-correct
+    parallagi stream still yields the right single change-point, where
+    run-length heuristics merged or fragmented it.
+    """
+    L = np.log(np.maximum(smooth(P, 5), 1e-9))
+    lam = np.array([[0, LAM_SING, LAM_SING],
+                    [LAM_SING, 0, LAM_LANE],
+                    [LAM_SING, LAM_LANE, 0]], dtype=np.float32)
+    T = len(L)
+    D = L[0].copy()
+    B = np.zeros((T, 3), dtype=np.int8)
+    for i in range(1, T):
+        cand = D[:, None] - lam
+        B[i] = cand.argmax(0)
+        D = cand.max(0) + L[i]
+    st = np.zeros(T, dtype=np.int8)
+    st[-1] = D.argmax()
+    for i in range(T - 1, 0, -1):
+        st[i - 1] = B[i, st[i]]
+    R = runs_of(st)
+    # absorb residual too-short runs (speech < 4 s, lane < 10 s)
+    def dur(r): return (r[2] - r[1]) * STEP
+    changed = True
+    while changed and len(R) > 1:
+        changed = False
+        for i, r in enumerate(R):
+            if dur(r) >= (4.0 if r[0] == 0 else 10.0):
+                continue
+            nb = [R[j] for j in (i - 1, i + 1) if 0 <= j < len(R)]
+            tgt = max(nb, key=dur)
+            if tgt[0] != r[0]:
+                r[0] = tgt[0]
+                changed = True
+        M2 = []
+        for r in R:
+            if M2 and M2[-1][0] == r[0]:
+                M2[-1][2] = r[2]
+            else:
+                M2.append(r)
+        R = M2
+    return [r for r in R if r[0] != 0]
+
+
+def envelope(M, w=9):
+    e = M.mean(0)                                  # mean log-mel, per frame
+    k = np.ones(w) / w
+    return np.convolve(e, k, 'same')
+
+
+def snap(sec, env, half=2.0):
+    """Move a boundary to the deepest energy dip within +/- half seconds."""
+    a = max(0, int((sec - half) * TL.FPS))
+    b = min(len(env), int((sec + half) * TL.FPS))
+    if b - a < 3:
+        return sec
+    return (a + int(np.argmin(env[a:b]))) / TL.FPS
+
+
+def segments(net, M, dev, cache_key=None):
+    t, P = prob_stream(net, M, dev, cache_key)
+    env = envelope(M)
+    R = decode(t, P)
+    segs = []
+    for k, (lane, i0, i1) in enumerate(R):
+        if segs and segs[-1].get('_i1') == i0:
+            t0 = segs[-1]['t1']          # shared lane-change boundary
+        else:
+            t0 = snap(t[i0] - 2.0, env, half=1.5)
+        if k + 1 < len(R) and R[k + 1][1] == i1:
+            # contiguous singing, lane change: ONE boundary, snapped once
+            t1 = snap(t[i1 - 1], env, half=3.0)
+        else:
+            t1 = snap(t[i1 - 1] + 2.0, env, half=1.5)
+        if t1 <= t0:
+            t1 = t[i1 - 1] + 2.0
+        segs.append(dict(lane=TL.CLS[lane], t0=round(t0, 2),
+                         t1=round(t1, 2), _i1=i1))
+    segs = [s for s in segs if s['t1'] - s['t0'] >= 8]
+    for a, b in zip(segs, segs[1:]):
+        if a['t1'] > b['t0']:
+            mid = round((a['t1'] + b['t0']) / 2, 2)
+            a['t1'] = b['t0'] = mid
+    for s in segs:
+        s.pop('_i1', None)
+    return segs
+
+
+def book_order(wd):
+    h = json.load(open(f'/mnt/data/chant-corpus/workdirs/{wd}/hymns.json'))
+    return [r['name'] for r in h]
+
+
+def assemble(segs, hymns):
+    """Greedy hymn naming: parallagi opens a hymn, melos closes it (23/23)."""
+    out, hi, open_par = [], 0, False
+    for s in segs:
+        row = dict(hymn=None, t0=s['t0'], t1=s['t1'], t_in=None, skips=[],
+                   label=None, lane=s['lane'], draft=True)
+        if s['lane'] == 'parallagi':
+            if open_par:
+                hi += 1                       # par after par: hymn had no melos
+            if hi < len(hymns):
+                row['hymn'] = hymns[hi] + '#par'
+            open_par = True
+        else:
+            if hi < len(hymns):
+                row['hymn'] = hymns[hi]
+            hi += 1
+            open_par = False
+        if row['hymn'] is None:
+            row['label'] = 'EXTRA: past end of book order'
+        out.append(row)
+    return out
+
+
+# ---------------- evaluation against chanter cuts ----------------
+
+def gold_spans(wd):
+    d = json.load(open(f'{TEXTS}/cuts_{wd}.json'))
+    return sorted([dict(hymn=c['hymn'], t0=c['t0'], t1=c['t1'],
+                        lane=TL.lane_of(c)) for c in d['cuts']],
+                  key=lambda c: c['t0'])
+
+
+def uniq_bounds(spans, eps=1.0):
+    b = sorted([s['t0'] for s in spans] + [s['t1'] for s in spans])
+    out = []
+    for x in b:
+        if not out or x - out[-1] > eps:
+            out.append(x)
+    return out
+
+
+def match_bounds(pred, gold, tol):
+    used, hit = set(), 0
+    for g in gold:
+        best, bd = None, tol
+        for i, p in enumerate(pred):
+            if i in used or abs(p - g) > bd:
+                continue
+            best, bd = i, abs(p - g)
+        if best is not None:
+            used.add(best); hit += 1
+    return hit
+
+
+def eval_segs(segs, gold, label):
+    gb = uniq_bounds(gold)
+    pb = uniq_bounds([dict(t0=s['t0'], t1=s['t1']) for s in segs])
+    print(f'-- {label}: {len(segs)} segments, {len(pb)} boundaries '
+          f'(gold {len(gold)} spans, {len(gb)} boundaries)')
+    for tol in (2, 5, 10):
+        h = match_bounds(pb, gb, tol)
+        print(f'   boundaries within {tol:2d}s: {h}/{len(gb)} recall '
+              f'{h/len(gb):.2f}   precision {h/max(1,len(pb)):.2f}')
+    if not segs or 'lane' not in segs[0]:
+        return
+    lane_ok = miss = 0
+    matched_pred = set()
+    for g in gold:
+        best, bo = None, 0.0
+        for i, s in enumerate(segs):
+            o = min(g['t1'], s['t1']) - max(g['t0'], s['t0'])
+            if o > bo:
+                best, bo = i, o
+        iou = 0.0
+        if best is not None:
+            s = segs[best]
+            iou = bo / (max(g['t1'], s['t1']) - min(g['t0'], s['t0']))
+        if best is None or iou < 0.3:
+            miss += 1
+        else:
+            matched_pred.add(best)
+            if segs[best]['lane'] == g['lane']:
+                lane_ok += 1
+    hall = len(segs) - len(matched_pred)
+    print(f'   spans: matched {len(gold)-miss}/{len(gold)}, missed {miss}, '
+          f'hallucinated/split-extra {hall};  lane acc on matched '
+          f'{lane_ok}/{len(gold)-miss} = {lane_ok/max(1,len(gold)-miss):.2f}')
+
+
+def baseline_silence(M):
+    env = envelope(M, w=43)                       # ~1 s smoothing
+    thr = np.percentile(env, 12)
+    sil = env < thr
+    segs, i, T = [], 0, len(sil)
+    while i < T:
+        if not sil[i]:
+            j = i
+            while j < T:
+                if sil[j]:
+                    k = j
+                    while k < T and sil[k]:
+                        k += 1
+                    if (k - j) / TL.FPS >= 1.5:
+                        break
+                    j = k
+                else:
+                    j += 1
+            segs.append(dict(t0=round(i / TL.FPS, 2), t1=round(j / TL.FPS, 2)))
+            while j < T and sil[j]:
+                j += 1
+            i = j
+        else:
+            i += 1
+    return [s for s in segs if s['t1'] - s['t0'] >= 5]
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--workdir', required=True)
+    ap.add_argument('--model', default=f'{TL.MODELS}/tape_lane_all.pt')
+    ap.add_argument('--device', default='cuda')
+    ap.add_argument('--eval', action='store_true')
+    ap.add_argument('--no-write', action='store_true')
+    a = ap.parse_args()
+    dev = a.device if (a.device == 'cpu' or torch.cuda.is_available()) else 'cpu'
+    ck = torch.load(a.model, map_location=dev, weights_only=False)
+    if ck['cfg'].get('heldout') != a.workdir and a.eval:
+        print(f"WARNING: model heldout={ck['cfg'].get('heldout')} but "
+              f"evaluating {a.workdir} -- scores are NOT honest", file=sys.stderr)
+    net = TL.Net().to(dev)
+    net.load_state_dict(ck['state'])
+    tape = TL.tape_for(a.workdir)
+    print('tape', tape)
+    M = TL.mel(tape)
+    segs = segments(net, M, dev, cache_key=f"{a.workdir}_{os.path.basename(a.model).replace('.pt','')}")
+    hymns = book_order(a.workdir)
+    rows = assemble(segs, hymns)
+    if a.eval:
+        gold = gold_spans(a.workdir)
+        eval_segs(segs, gold, f'model ({os.path.basename(a.model)})')
+        eval_segs(baseline_silence(M), gold, 'baseline silence-gap')
+    if not a.no_write:
+        out = f'{TEXTS}/draftcuts_{a.workdir}.json'
+        assert 'draftcuts_' in os.path.basename(out)
+        import datetime
+        json.dump(dict(workdir=a.workdir, saved=datetime.datetime.now()
+                       .isoformat(timespec='seconds'),
+                       source=dict(model=a.model, tool='propose_cuts.py'),
+                       draft=True, cuts=rows),
+                  open(out, 'w'), indent=1, ensure_ascii=False)
+        print('wrote', out)
+    for r in rows:
+        print(' %8.1f %8.1f %-9s %s%s' % (r['t0'], r['t1'], r['lane'],
+              r['hymn'] or '??', '  [' + r['label'] + ']' if r['label'] else ''))
+
+
+if __name__ == '__main__':
+    main()

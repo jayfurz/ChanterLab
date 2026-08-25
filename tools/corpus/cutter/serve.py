@@ -189,6 +189,42 @@ def tapes():
             at = next((i for i, h in enumerate(hymns)
                        if h['name'].split('#')[0] == base), len(hymns) - 1)
             hymns.insert(at + 1, row)
+        # machine draft spans (propose_cuts.py -> draftcuts_<wd>.json). A
+        # draft NEVER overrides a chanter cut and the book skips drafts on
+        # "Save cuts" until each one is adopted.
+        df = f'{TEXTS}/draftcuts_{wd}.json'
+        if os.path.exists(df):
+            try:
+                drows = json.load(open(df)).get('cuts') or []
+            except Exception:
+                drows = []
+            byname = {h['name']: h for h in hymns}
+            for c in drows:
+                n = c.get('hymn')
+                if not n or c.get('t0') is None or c.get('t1') is None:
+                    continue
+                r = byname.get(n)
+                if r is not None:
+                    if r.get('t0') is not None:
+                        continue        # chanter-saved span wins
+                    r.update(t0=c.get('t0'), t1=c.get('t1'),
+                             lane=c.get('lane'), t_in=c.get('t_in'),
+                             label=c.get('label'),
+                             skips=c.get('skips') or [], draft=True)
+                else:
+                    row = {'name': n, 'cur': None, 't0': c.get('t0'),
+                           't1': c.get('t1'), 'label': c.get('label'),
+                           'lane': c.get('lane'), 't_in': c.get('t_in'),
+                           'skips': c.get('skips') or [], 'extra': True,
+                           'draft': True, 'page': None, 'line': None}
+                    base = n.split('#')[0]
+                    at = next((i for i, h in enumerate(hymns)
+                               if h['name'].split('#')[0] == base), None)
+                    if at is None:
+                        hymns.append(row)
+                    else:
+                        hymns.insert(at, row)   # parallagi precedes melos
+                    byname[n] = row
         out[wd] = {'tape': tape, 'basename': os.path.basename(tape),
                    'hymns': hymns}
     # Tapes with no workdir. The goal is every mode for both services, and two

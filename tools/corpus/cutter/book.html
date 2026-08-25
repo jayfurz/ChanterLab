@@ -841,7 +841,8 @@ async function enterTape(wd) {
     const t0 = h.t0 ?? (h.cur ? h.cur[0] : null);
     const t1 = h.t1 ?? (h.cur ? h.cur[1] : null);
     spans[h.name] = { t0, t1, t_in: h.t_in ?? null,
-      label: h.label ?? null, lane: h.lane ?? null, skips: h.skips || [] };
+      label: h.label ?? null, lane: h.lane ?? null, skips: h.skips || [],
+      draft: !!h.draft };
   });
   TP = { wd, spans, pps: 20, peaks: null, dur: 0, view: [0, 60], dirty: false };
   stop();
@@ -900,11 +901,19 @@ function drawWave() {
     if (s.t0 == null || s.t1 == null || s.t1 < v0 || s.t0 > v1) continue;
     const x0 = t2x(s.t0, W), x1 = t2x(s.t1, W), hot = spanColor(name);
     const par = spanIsPar(name, s);
-    cx.fillStyle = hot ? 'rgba(216,162,74,.20)'
+    cx.fillStyle = s.draft ? (par ? 'rgba(106,140,190,.06)' : 'rgba(110,164,95,.05)')
+                 : hot ? 'rgba(216,162,74,.20)'
                  : par ? 'rgba(106,140,190,.14)' : 'rgba(110,164,95,.12)';
     cx.fillRect(x0, 0, x1 - x0, H);
-    cx.fillStyle = '#6ea45f'; cx.fillRect(x0 - 2, 0, hot ? 5 : 3, H);
-    cx.fillStyle = '#c65b4e'; cx.fillRect(x1 - 2, 0, hot ? 5 : 3, H);
+    if (s.draft) {   // dashed ghost edges: machine proposal, not chanter work
+      cx.fillStyle = '#6ea45f';
+      for (let y = 0; y < H; y += 12) cx.fillRect(x0 - 1, y, 2, 6);
+      cx.fillStyle = '#c65b4e';
+      for (let y = 6; y < H; y += 12) cx.fillRect(x1 - 1, y, 2, 6);
+    } else {
+      cx.fillStyle = '#6ea45f'; cx.fillRect(x0 - 2, 0, hot ? 5 : 3, H);
+      cx.fillStyle = '#c65b4e'; cx.fillRect(x1 - 2, 0, hot ? 5 : 3, H);
+    }
     if (s.t_in != null && s.t_in >= v0 && s.t_in <= v1) {
       cx.fillStyle = '#d8a24a';
       const xi = t2x(s.t_in, W);
@@ -912,7 +921,8 @@ function drawWave() {
     }
     cx.fillStyle = hot ? '#d8a24a' : par ? '#8aa3c8' : '#9c9086';
     cx.font = Math.round(11 * devicePixelRatio) + 'px system-ui';
-    cx.fillText(par ? spanBase(name) + ' · par' : name, x0 + 6, 14 * devicePixelRatio);
+    cx.fillText((par ? spanBase(name) + ' · par' : name) + (s.draft ? ' · DRAFT' : ''),
+                x0 + 6, 14 * devicePixelRatio);
   }
   const xp = t2x(A.currentTime, W);
   if (xp >= 0 && xp <= W) { cx.fillStyle = '#efe7dc'; cx.fillRect(xp - 1, 0, 2, H); }
@@ -990,11 +1000,15 @@ function spanAt(tapeT) {
 function openWaveMenu(name, cx, cy) {
   const M = $('#wmenu'), s = TP.spans[name];
   const par = spanIsPar(name, s), base = spanBase(name);
-  M.innerHTML = `<div class="t">${base}${par ? ' · parallagi' : ' · melos'}</div>`;
+  M.innerHTML = `<div class="t">${base}${par ? ' · parallagi' : ' · melos'}${s.draft ? ' · DRAFT' : ''}</div>`;
   const add = (label, fn) => { const b = document.createElement('button');
     b.textContent = label; b.onclick = () => { M.style.display = 'none';
       const c = tapeSnap(label); fn(); c(); };
     M.append(b); };
+  if (s.draft) add('✓ adopt this draft', () => {
+    s.draft = false; TP.dirty = true; needWave = true;
+    msg(`${name}: draft adopted (unsaved — Save cuts to persist)`);
+  });
   if (par) add('→ mark as MELOS', () => {
     if (TP.spans[base]) return msg(`${base} already has a melos span`);
     TP.spans[base] = { ...s, lane: 'melos' };
@@ -1095,9 +1109,11 @@ function initWave() {
       else if (wdrag.edge === 't1') s.t1 = Math.max(t, (s.t0 ?? 0) + 0.5);
       else s.t_in = Math.max(s.t0 ?? 0, Math.min(s.t1 ?? D, t));
       normalizeSpan(s);
+      const adopted = s.draft; if (adopted) s.draft = false;
       TP.dirty = true; needWave = true;
       msg(`${wdrag.name} ${wdrag.edge} → ${fmt(wdrag.edge === 't0' ? s.t0 :
-          wdrag.edge === 't1' ? s.t1 : s.t_in)} (unsaved)`);
+          wdrag.edge === 't1' ? s.t1 : s.t_in)}`
+          + (adopted ? ' — draft adopted (unsaved)' : ' (unsaved)'));
       return;
     }
     // pan
@@ -1136,8 +1152,9 @@ function initWave() {
 }
 async function saveCuts() {
   if (!TP) return;
+  const nDraft = Object.values(TP.spans).filter(s => s.draft).length;
   const cuts = Object.entries(TP.spans)
-    .filter(([, s]) => s.t0 != null && s.t1 != null)
+    .filter(([, s]) => s.t0 != null && s.t1 != null && !s.draft)
     .map(([name, s]) => ({ hymn: name, t0: +s.t0.toFixed(2), t1: +s.t1.toFixed(2),
       label: s.label,
       lane: s.lane || (name.includes('#par') ? 'parallagi' : null),
@@ -1156,7 +1173,8 @@ async function saveCuts() {
       const s = TP.spans[h.name] || TP.spans[h.name + '#par'];
       if (s && s.t0 != null) { h.t0 = s.t0; h.t1 = s.t1; }
     });
-    msg(`saved ${cuts.length} spans for ${TP.wd}`);
+    msg(`saved ${cuts.length} spans for ${TP.wd}`
+        + (nDraft ? ` — ${nDraft} machine draft(s) NOT saved (adopt them first)` : ''));
   } catch (e) { msg('save failed: ' + e.message); }
 }
 
