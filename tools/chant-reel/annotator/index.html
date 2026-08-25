@@ -145,6 +145,9 @@
   <button id="parabtn" title="Parallagi overlay (A): the degree the score implies over each glyph, in blue; a gold tick marks a unit whose martyria states the degree outright">Para</button>
   <button id="paraflagbtn" title="Flag a wrong parallagi (X): tap a glyph to mark the shown degree wrong; flagged glyphs turn red and the flag is saved on the server">Para⚑</button>
   <button id="paraudiobtn" style="display:none" title="Listen to the PARALLAGI recording of this hymn instead of the melos. The markers stay melos times, so all editing (taps, pins, drags) is locked until you switch back.">Par♪</button>
+  <button id="trdn" title="transpose down a semitone (formant-preserving; timing unchanged)">♭</button>
+  <span id="trlbl" style="font-variant-numeric:tabular-nums;min-width:2.2em;text-align:center">±0</span>
+  <button id="trup" title="transpose up a semitone (formant-preserving; timing unchanged)">♯</button>
   <span class="sp"></span>
   <span id="time"><span id="cur">0:00.00</span><span id="dur"> / 0:00.00</span></span>
   <button id="tapbtn" title="Tap mode (T): play the audio and hit SPACE at every note onset — each tap pins the next marker to that moment (first tap starts playback if paused; starts from the selected note, else the first). Then Refit spreads anything you did not tap. Space goes back to play/pause when tap mode is off.">Tap</button>
@@ -892,6 +895,44 @@ async function boot() {
    cadence formula, so melos slot times are meaningless against it — every
    edit path is locked while it plays. */
 let audioLane = 'mel', parAudioUrl = null, parPieceId = null;
+let transSt = 0, transPoll = null, transUrl = null;
+function baseAudioUrl() {
+  return DATA_DIR + D.meta.audio + '?v=' +
+    encodeURIComponent(`${D.meta.data_rev || ''}-${D.meta.duration}`);
+}
+function applyAudioUrl(url) {
+  const t = audio.currentTime, playing = !audio.paused;
+  audio.src = url; audio.load();
+  audio.addEventListener('loadedmetadata', () => {
+    audio.currentTime = t;
+    if (playing) audio.play().catch(() => {});
+  }, { once: true });
+}
+function setTranspose(st) {
+  transSt = Math.max(-12, Math.min(12, st));
+  $('trlbl').textContent = (transSt > 0 ? '+' : transSt < 0 ? '' : '±') + transSt;
+  clearInterval(transPoll); transPoll = null;
+  if (audioLane === 'par' && !parPieceId) return;   // fallback swap lane: skip
+  const pid = PIECE || D.meta.piece_id;
+  if (transSt === 0) { transUrl = null; applyAudioUrl(baseAudioUrl()); return; }
+  const ask = async () => {
+    const r = await fetch('/api/transpose?piece=' + encodeURIComponent(pid) +
+                          '&st=' + transSt);
+    const d = await r.json();
+    if (d.status === 'ready') {
+      clearInterval(transPoll); transPoll = null;
+      transUrl = d.url + '?v=' + Date.now();
+      applyAudioUrl(transUrl);
+      $('selinfo').textContent = `transposed ${transSt > 0 ? '+' : ''}${transSt} st — timing unchanged, taps/markers all valid`;
+    } else if (d.status === 'error') {
+      clearInterval(transPoll); transPoll = null;
+      $('selinfo').textContent = 'transpose failed: ' + (d.error || '?');
+    } else {
+      $('selinfo').textContent = `rendering ${transSt > 0 ? '+' : ''}${transSt} st… (keeps playing the original meanwhile)`;
+    }
+  };
+  ask(); transPoll = setInterval(ask, 4000);
+}
 async function setupParAudio() {
   parAudioUrl = null; parPieceId = null; audioLane = 'mel';
   const pid = PIECE || D.meta.piece_id;
@@ -2017,6 +2058,8 @@ window.addEventListener('keydown', e => {
 $('playbtn').onclick = togglePlay;
 $('tapbtn').onclick = toggleTapMode;
 $('paraudiobtn').onclick = toggleParAudio;
+$('trup').onclick = () => setTranspose(transSt + 1);
+$('trdn').onclick = () => setTranspose(transSt - 1);
 /* pitch-preserving playback speed: tap to cycle (S on desktop) */
 const SPEEDS = [1, 0.75, 0.5, 0.35, 1.5];
 let speedIdx = 0;

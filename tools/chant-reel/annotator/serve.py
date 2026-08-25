@@ -66,7 +66,7 @@ CUTTER_PREFIXES = ('/score', '/cut', '/tape/', '/page/', '/api/tapes',
 # must be answered here, so they are checked before the proxy test.
 LOCAL_PREFIXES = ('/api/parallagi', '/api/parallagi-flag',
                   '/api/parallagi-flags', '/api/piece-peaks',
-                  '/api/prep-par')
+                  '/api/prep-par', '/api/transpose')
 
 
 def _is_cutter(path):
@@ -398,6 +398,61 @@ def prep_par_start(pid):
     return {'status': 'started'}
 
 
+_TRANS_JOBS = {}
+
+
+def transpose_start(pid, st):
+    """Render a pitch-shifted copy of a piece's audio, cached beside it.
+
+    The chanter is a baritone; singing along is easier a few semitones up.
+    rubberband -p <st> -F shifts pitch with FORMANT PRESERVATION and leaves
+    duration untouched, so every onset, tap and highlight stays valid and
+    nobody sounds like a chipmunk. Renders take ~10-40 s; background job +
+    polling, like prep-par.
+    """
+    try:
+        st = int(st)
+    except (TypeError, ValueError):
+        return {'status': 'error', 'error': 'bad semitones'}
+    if not -12 <= st <= 12:
+        return {'status': 'error', 'error': 'semitones out of range'}
+    d = HERE / 'data' / pid
+    src = d / 'audio.wav'
+    if not src.exists():
+        return {'status': 'error', 'error': 'no audio.wav for this piece'}
+    if st == 0:
+        return {'status': 'ready', 'url': f'data/{pid}/audio.wav'}
+    out = d / ('audio.st%+d.wav' % st)
+    url = f'data/{pid}/{out.name}'
+    real = src.resolve()
+    if out.exists() and out.stat().st_mtime >= real.stat().st_mtime:
+        return {'status': 'ready', 'url': url}
+    key = f'{pid}:{st}'
+    j = _TRANS_JOBS.get(key)
+    if j is not None and j.poll() is None:
+        return {'status': 'building'}
+    if j is not None and j.returncode not in (0, None) and not out.exists():
+        _TRANS_JOBS.pop(key, None)
+        return {'status': 'error', 'error': 'render failed (rc %s)' % j.returncode}
+    import subprocess
+    log = open(str(d / 'transpose.log'), 'a')
+    _TRANS_JOBS[key] = subprocess.Popen(
+        ['rubberband', '-p', str(st), '-F', str(real), str(out) + '.tmp.wav'],
+        stdout=log, stderr=log)
+    # a tiny shim renames atomically when done, so a half-rendered file can
+    # never be served (today's lesson, thrice over)
+    import threading
+
+    def _finish(job=_TRANS_JOBS[key], tmp=str(out) + '.tmp.wav', dst=str(out)):
+        job.wait()
+        if job.returncode == 0 and os.path.exists(tmp):
+            os.replace(tmp, dst)
+        elif os.path.exists(tmp):
+            os.unlink(tmp)
+    threading.Thread(target=_finish, daemon=True).start()
+    return {'status': 'started'}
+
+
 class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # HTML must never be heuristically cached: UI fixes ship many times a
@@ -469,6 +524,14 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = self.path.split('?')[0]
+        if route == '/api/transpose':
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            pid = (q.get('piece') or [''])[0]
+            if not PIECE_RE.match(pid):
+                return self._json({'error': 'bad piece'}, 400)
+            self._json(transpose_start(pid, (q.get('st') or ['0'])[0]))
+            return
         if route == '/api/prep-par':
             pid = self._query_piece()
             if pid is not None:

@@ -132,6 +132,9 @@ body.tape .taperow{display:flex}
     <button id="redo" disabled title="redo (ctrl+shift+z)">&#8631;</button>
     <button id="fix" disabled>Fix onsets (annotator)</button>
     <button id="parann" title="parallagi overlay: the degree syllable the score implies under each unit of the selected hymn">Para</button>
+    <button id="trdn" title="transpose down a semitone (formant-preserving; timing unchanged)">♭</button>
+    <span id="trlbl" style="font-variant-numeric:tabular-nums;min-width:2em;text-align:center;color:var(--dim)">±0</span>
+    <button id="trup" title="transpose up a semitone (formant-preserving; timing unchanged)">♯</button>
   </div>
   <div id="msg"></div>
 </footer>
@@ -145,6 +148,38 @@ let rate = 1, stopAt = null, hiGi = -1, follow = true;
 let editMode = false, drag = null;
 let lane = 'melos';
 let paraOn = false;
+let transSt = 0, transPoll = null;
+function setTranspose(st) {
+  transSt = Math.max(-12, Math.min(12, st));
+  $('#trlbl').textContent = (transSt > 0 ? '+' : transSt < 0 ? '' : '±') + transSt;
+  clearInterval(transPoll); transPoll = null;
+  const h = B.hymns[sel];
+  if (!h || !h.piece || !det || !det.audio) {
+    if (transSt !== 0) msg('transpose works on hymns with a built piece');
+    return;
+  }
+  const swap = url => {
+    const t = A.currentTime, playing = !A.paused;
+    A.src = url; A.load();
+    A.addEventListener('loadedmetadata', () => { A.currentTime = t;
+      if (playing) A.play().catch(() => {}); }, { once: true });
+  };
+  if (transSt === 0) { swap(det.audio); return; }
+  const ask = async () => {
+    const r = await fetch('/api/transpose?piece=' + encodeURIComponent(h.piece) +
+                          '&st=' + transSt);
+    const d = await r.json();
+    if (d.status === 'ready') {
+      clearInterval(transPoll); transPoll = null;
+      swap('/' + d.url + '?v=' + Date.now());
+      msg(`transposed ${transSt > 0 ? '+' : ''}${transSt} st — highlighting unchanged`);
+    } else if (d.status === 'error') {
+      clearInterval(transPoll); transPoll = null;
+      msg('transpose failed: ' + (d.error || '?'));
+    } else msg(`rendering ${transSt > 0 ? '+' : ''}${transSt} st…`);
+  };
+  ask(); transPoll = setInterval(ask, 4000);
+}
 const DEG_GR = ['νη', 'πα', 'βου', 'γα', 'δι', 'κε', 'ζω'];
 const DEG_CAP = ['Ν', 'Π', 'Β', 'Γ', 'Δ', 'Κ', 'Ζ'];   // one cap per degree — all distinct
 let armNew = null;   // {wd, name, start:{page,i}|null} while placing a new span                     // which recording of the span plays      // drag: {which:'start'|'end', preview:{pno,u}}
@@ -1329,6 +1364,8 @@ async function boot() {
       } catch (e) { /* keep polling */ }
     }, 10000);
   };
+  $('#trup').onclick = () => setTranspose(transSt + 1);
+  $('#trdn').onclick = () => setTranspose(transSt - 1);
   $('#parann').onclick = () => {
     paraOn = !paraOn;
     $('#parann').classList.toggle('on', paraOn);
