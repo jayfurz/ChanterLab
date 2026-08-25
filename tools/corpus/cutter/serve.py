@@ -759,6 +759,27 @@ def unit_degrees(us, keys, start):
     return out
 
 
+_MPREP = {}
+
+
+def book_prep_start(wd, name):
+    """Background-build a hymn's melos annotator piece (cut+align+prep)."""
+    key = f'{wd}/{name}'
+    j = _MPREP.get(key)
+    if j is not None and j.poll() is None:
+        return {'status': 'building'}
+    hj = f'{WORKDIRS}/{wd}/hymns.json'
+    if not os.path.exists(hj):
+        return {'status': 'error', 'error': 'unknown workdir'}
+    log_f = open(f'{TEXTS}/prep_melos.{wd}.{name}.log', 'w')
+    _MPREP[key] = subprocess.Popen(
+        ['/mnt/data/chant-corpus/venv/bin/python3',
+         os.path.join(os.path.dirname(HERE), 'prep_melos_piece.py'),
+         '--workdir', f'{WORKDIRS}/{wd}', '--hymn', name],
+        stdout=log_f, stderr=log_f)
+    return {'status': 'started'}
+
+
 def book_units(pno):
     """Tap/drag targets for one page: every unit box in page space."""
     from hymn_align import load_units
@@ -1033,6 +1054,14 @@ class H(BaseHTTPRequestHandler):
             f = os.path.join(HERE, 'book.html')
             return self._send(200, open(f, 'rb').read(),
                               'text/html; charset=utf-8')
+        if p == '/api/book/prep':
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            wd = (q.get('wd') or [''])[0]
+            name = (q.get('name') or [''])[0]
+            if not WD_RE.match(wd):
+                return self._send(400, '{"error":"bad workdir"}')
+            return self._send(200, json.dumps(book_prep_start(wd, name)))
         if p == '/api/book/units':
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)

@@ -422,7 +422,7 @@ async function select(i, scroll, keepAudio) {
     `${h.wd} · ${h.name}` + (h.label ? ` — ${h.label}` : '') + (h.genus ? ` · ${h.genus}` : '');
   $('#edit').disabled = false;
   $('#newseg').disabled = false;
-  $('#fix').disabled = !h.piece;
+  updFixBtn(h);
   if (!tapeMode) $('#pp').disabled = !(h.audio || (h.t0 != null) || h.par);
   $('#laneP').disabled = !tapeMode && !h.par;
   $('#tl').textContent = '';
@@ -442,8 +442,10 @@ async function select(i, scroll, keepAudio) {
     // change playability without a page reload
     if (det.t0 != null) { h.t0 = det.t0; h.t1 = det.t1; }
     if (det.audio) h.audio = det.audio;
+    if (det.piece) h.piece = det.piece;
     if (!tapeMode)
       $('#pp').disabled = !(det.audio || (h.t0 != null && det.tape) || det.par_audio);
+    updFixBtn(h);
   }
   if (det && !det.slots && det.audio) msg('audio, but no alignment — no highlighting');
 }
@@ -1129,6 +1131,12 @@ function drawJump() {
     if (el) el.scrollIntoView({ block: 'start' }); s.value = ''; };
 }
 
+function updFixBtn(h) {
+  const b = $('#fix');
+  if (h && h.piece) { b.disabled = false; b.textContent = 'Fix onsets (annotator)'; }
+  else if (h && h.t0 != null) { b.disabled = false; b.textContent = 'Build piece'; }
+  else { b.disabled = true; b.textContent = 'Fix onsets (annotator)'; }
+}
 /* table of contents ---------------------------------------------------- */
 function drawToc() {
   const p = $('#tocp'); p.innerHTML = '';
@@ -1299,8 +1307,28 @@ async function boot() {
     msg(editMode ? 'edit mode: drag the green start or red end of the selected hymn'
                  : '');
   };
-  $('#fix').onclick = () => { const h = B.hymns[sel]; if (h && h.piece)
-    location.href = `/?piece=${encodeURIComponent(h.piece)}`; };
+  $('#fix').onclick = () => {
+    const h = B.hymns[sel]; if (!h) return;
+    if (h.piece) { location.href = `/?piece=${encodeURIComponent(h.piece)}`; return; }
+    if (h.t0 == null) return;
+    // no piece yet: build the whole melos chain (cut, align, prep) on demand
+    fetch(`/api/book/prep?wd=${encodeURIComponent(h.wd)}&name=${encodeURIComponent(h.name)}`)
+      .catch(() => {});
+    $('#fix').textContent = 'building piece…';
+    msg('building the annotator piece (cut + align + prep, ~1–3 min)…');
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/book/hymn?wd=${encodeURIComponent(h.wd)}&name=${encodeURIComponent(h.name)}`);
+        const d = r.ok ? await r.json() : null;
+        if (d && d.piece) {
+          clearInterval(poll);
+          h.piece = d.piece; h.audio = d.audio;
+          updFixBtn(h);
+          msg(`${h.name}: piece ready — Fix onsets is live`);
+        }
+      } catch (e) { /* keep polling */ }
+    }, 10000);
+  };
   $('#parann').onclick = () => {
     paraOn = !paraOn;
     $('#parann').classList.toggle('on', paraOn);
