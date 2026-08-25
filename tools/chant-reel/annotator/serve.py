@@ -406,6 +406,11 @@ class Handler(SimpleHTTPRequestHandler):
         p = self.path.split('?')[0]
         if p.endswith('.html') or p.endswith('/') or p == '':
             self.send_header('Cache-Control', 'no-cache')
+        elif '/data/' in p and '/audio.' in p:
+            # piece audio is rebuilt in place whenever spans change; a browser
+            # that fetched mid-write kept a truncated copy TWICE today (dogmatic
+            # 3:34/4:43, thou-kyrie a quarter in). Never let it keep one.
+            self.send_header('Cache-Control', 'no-store')
         super().end_headers()
 
     def _proxy(self, method):
