@@ -911,6 +911,8 @@ function applyAudioUrl(url) {
 function setTranspose(st) {
   transSt = Math.max(-12, Math.min(12, st));
   $('trlbl').textContent = (transSt > 0 ? '+' : transSt < 0 ? '' : '±') + transSt;
+  $('trlbl').style.color = transSt !== 0 ? '#d8a24a' : '';
+  $('trlbl').style.fontWeight = transSt !== 0 ? '700' : '';
   clearInterval(transPoll); transPoll = null;
   if (audioLane === 'par' && !parPieceId) return;   // fallback swap lane: skip
   const pid = PIECE || D.meta.piece_id;
@@ -931,8 +933,13 @@ function setTranspose(st) {
       $('selinfo').textContent = `rendering ${transSt > 0 ? '+' : ''}${transSt} st… (keeps playing the original meanwhile)`;
     }
   };
-  ask(); transPoll = setInterval(ask, 4000);
+  ask(); transPoll = setInterval(ask, 1200);
 }
+audio.addEventListener('error', () => {
+  const e = audio.error;
+  $('selinfo').textContent = 'AUDIO LOAD ERROR (code ' + (e && e.code) + ') on ' +
+    (audio.currentSrc || audio.src).split('/').slice(-2).join('/');
+});
 async function setupParAudio() {
   parAudioUrl = null; parPieceId = null; audioLane = 'mel';
   const pid = PIECE || D.meta.piece_id;
