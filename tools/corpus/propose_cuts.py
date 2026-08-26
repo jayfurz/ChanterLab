@@ -121,12 +121,37 @@ def envelope(M, w=9):
 
 
 def snap(sec, env, half=2.0):
-    """Move a boundary to the deepest energy dip within +/- half seconds."""
+    """Move a boundary to the CENTRE of the longest quiet run within +/- half s.
+
+    argmin(env) lands on the FIRST of the near-tied floor frames -- the left
+    edge of the pause -- so every boundary clipped the closing fade off the
+    ending hymn (verified visually across all 45 mode2-orthros drafts).  The
+    real pause is a run of floor-level frames; its midpoint leaves the fade
+    on the correct side.  Longest run (not deepest frame) because inter-hymn
+    pauses reach tape floor for seconds, breath dips for fractions of one.
+    """
     a = max(0, int((sec - half) * TL.FPS))
     b = min(len(env), int((sec + half) * TL.FPS))
     if b - a < 3:
         return sec
-    return (a + int(np.argmin(env[a:b]))) / TL.FPS
+    w = env[a:b]
+    floor = float(w.min())
+    thr = floor + 0.15 * max(float(np.median(w)) - floor, 1e-6)
+    quiet = w <= thr
+    best, i, n = None, 0, len(quiet)
+    while i < n:
+        if quiet[i]:
+            j = i
+            while j < n and quiet[j]:
+                j += 1
+            if best is None or j - i > best[1] - best[0]:
+                best = (i, j)
+            i = j
+        else:
+            i += 1
+    if best is None:
+        return (a + int(np.argmin(w))) / TL.FPS
+    return (a + (best[0] + best[1]) / 2) / TL.FPS
 
 
 def segments(net, M, dev, cache_key=None):
@@ -140,8 +165,11 @@ def segments(net, M, dev, cache_key=None):
         else:
             t0 = snap(t[i0] - 2.0, env, half=1.5)
         if k + 1 < len(R) and R[k + 1][1] == i1:
-            # contiguous singing, lane change: ONE boundary, snapped once
-            t1 = snap(t[i1 - 1], env, half=3.0)
+            # contiguous singing, lane change: ONE boundary, snapped once.
+            # Wide window: the Viterbi change-point can sit a full phrase
+            # before the actual pause (t03 end was 8 s early, t19 end 10 s);
+            # the longest-quiet-run rule keeps a wide search honest.
+            t1 = snap(t[i1 - 1], env, half=8.0)
         else:
             t1 = snap(t[i1 - 1] + 2.0, env, half=1.5)
         if t1 <= t0:
