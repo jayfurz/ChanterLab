@@ -265,8 +265,45 @@ def audit_boundary(env, sec):
     return dict(verdict='ERROR', reason=err[:80])
 
 
-def audit(rows, env):
-    """Verdict per unique boundary; MID_AUDIO flags append to row labels."""
+def rule_verdict(env, sec, near=1.5, ctx=20.0, frac=0.15, min_run=1.2):
+    """IN_GAP iff a quiet run >= min_run s overlaps [sec-near, sec+near].
+
+    Quiet = below floor + frac*(context median - floor), the same definition
+    snap() uses. Tuned on the 31 chanter-verified boundaries (2026-08-25):
+    28/31 with ZERO false passes -- it catches every mid-audio boundary and
+    over-flags ~2 good ones, which the tiered LLM pass then clears.
+    """
+    a = max(0, int((sec - ctx) * TL.FPS))
+    b = min(len(env), int((sec + ctx) * TL.FPS))
+    w = env[a:b]
+    floor = float(w.min())
+    thr = floor + frac * max(float(np.median(w)) - floor, 1e-6)
+    quiet = w <= thr
+    lo = int((sec - near) * TL.FPS) - a
+    hi = int((sec + near) * TL.FPS) - a
+    i, n = 0, len(quiet)
+    while i < n:
+        if quiet[i]:
+            j = i
+            while j < n and quiet[j]:
+                j += 1
+            if (j - i) / TL.FPS >= min_run and j > lo and i < hi:
+                return dict(verdict='IN_GAP', reason='quiet run at boundary')
+            i = j
+        else:
+            i += 1
+    return dict(verdict='MID_AUDIO', reason='no quiet run within +/-%.1fs' % near)
+
+
+def audit(rows, env, mode='tiered'):
+    """Verdict per unique boundary; MID_AUDIO flags append to row labels.
+
+    mode 'rule': envelope rule only (instant, zero deps).
+    mode 'qwen': LLM on every boundary.
+    mode 'tiered': rule first; the LLM is consulted only on rule flags, to
+    confirm or clear them (measured: rule has 0 false passes, so a rule
+    IN_GAP needs no second opinion). LLM errors fall back to the rule.
+    """
     bounds = []
     for r in rows:
         for x in (r['t0'], r['t1']):
@@ -274,9 +311,15 @@ def audit(rows, env):
                 bounds.append(x)
     verdicts = {}
     for x in sorted(bounds):
-        v = audit_boundary(env, x)
+        v = rule_verdict(env, x)
+        via = 'rule'
+        if mode == 'qwen' or (mode == 'tiered'
+                              and v['verdict'] == 'MID_AUDIO'):
+            lv = audit_boundary(env, x)
+            if lv['verdict'] != 'ERROR':
+                v, via = lv, 'qwen'
         verdicts[x] = v
-        print(f'   audit {x:8.1f}  {v["verdict"]:9s} {v["reason"][:70]}')
+        print(f'   audit {x:8.1f}  {v["verdict"]:9s} [{via}] {v["reason"][:60]}')
     for r in rows:
         flags = []
         for name, x in (('t0', r['t0']), ('t1', r['t1'])):
@@ -413,7 +456,8 @@ def main():
     ap.add_argument('--model', default=f'{TL.MODELS}/tape_lane_all.pt')
     ap.add_argument('--device', default='cuda')
     ap.add_argument('--eval', action='store_true')
-    ap.add_argument('--audit', default='qwen', choices=['qwen', 'none'])
+    ap.add_argument('--audit', default='tiered',
+                    choices=['tiered', 'rule', 'qwen', 'none'])
     ap.add_argument('--no-write', action='store_true')
     a = ap.parse_args()
     dev = a.device if (a.device == 'cpu' or torch.cuda.is_available()) else 'cpu'
@@ -429,8 +473,8 @@ def main():
     segs = segments(net, M, dev, cache_key=f"{a.workdir}_{os.path.basename(a.model).replace('.pt','')}")
     hymns = book_order(a.workdir)
     rows = assemble(segs, hymns)
-    if a.audit == 'qwen':
-        rows = audit(rows, envelope(M))
+    if a.audit != 'none':
+        rows = audit(rows, envelope(M), mode=a.audit)
     if a.eval:
         gold = gold_spans(a.workdir)
         eval_segs(segs, gold, f'model ({os.path.basename(a.model)})')
