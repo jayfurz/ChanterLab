@@ -7,7 +7,9 @@ wd = sys.argv[1] if len(sys.argv) > 1 else 'mode2-orthros'
 DF = f'/mnt/data/chant-corpus/texts/draftcuts_{wd}.json'
 d = json.load(open(DF))
 cuts = d['cuts']
-rows = json.load(open(f'/mnt/data/chant-corpus/texts/recut_{wd}.json'))
+import os
+rf = f'/mnt/data/chant-corpus/texts/recut_{wd}.json'
+rows = json.load(open(rf)) if os.path.exists(rf) else []   # extra tapes: no old pairing
 mel_idx = [i for i, c in enumerate(cuts) if c['lane'] == 'melos']
 owners = {}   # mel cut index -> [hymn names]
 for r in rows:
@@ -20,23 +22,31 @@ for r in rows:
     if best is not None and bov / (c1 - c0) >= 0.2:
         owners.setdefault(best, []).append(r['hymn'])
 new = []
+def keep_audit(prev, label):
+    # propose_cuts audit verdicts ride in the label -- renaming must not
+    # clobber them (it did: mode2-orthros lost 6 flags on 2026-08-25)
+    aud = [p.strip() for p in (prev or '').split('|') if 'AUDIT' in p]
+    return ' | '.join(([label] if label else []) + aud) or None
+
 for i, c in enumerate(cuts):
     c = dict(c)
     if c['lane'] == 'melos':
         names = owners.get(i, [])
         if len(names) == 1:
             c['hymn'] = names[0]
-            c['label'] = 'renamed from old track pairing'
+            c['label'] = keep_audit(c.get('label'), 'renamed from old track pairing')
         elif len(names) > 1:
             c['hymn'] = names[0]
-            c['label'] = f'MERGED? old pairing says {"+".join(names)} — check for missed boundary'
+            c['label'] = keep_audit(c.get('label'), f'MERGED? old pairing says {"+".join(names)} — check for missed boundary')
         else:
             c['hymn'] = None
-            c['label'] = 'no old-pairing evidence — identify by ear'
+            c['label'] = keep_audit(c.get('label'), 'no old-pairing evidence — identify by ear')
         # the par span immediately before this melos follows its name
         if i > 0 and cuts[i-1]['lane'] == 'parallagi' and new and new[-1]['lane'] == 'parallagi':
             new[-1]['hymn'] = (c['hymn'] + '#par') if c['hymn'] else None
-            new[-1]['label'] = c['label']
+            base = ' | '.join(x.strip() for x in (c['label'] or '').split('|')
+                              if 'AUDIT' not in x) or None
+            new[-1]['label'] = keep_audit(new[-1].get('label'), base)
     new.append(c)
 # unnamed pairs get stable placeholder identities: uNN_#par / uNN_ in tape
 # order, so the cutter and any downstream tool can address them before the

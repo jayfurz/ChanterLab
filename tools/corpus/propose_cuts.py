@@ -187,8 +187,108 @@ def segments(net, M, dev, cache_key=None):
 
 
 def book_order(wd):
-    h = json.load(open(f'/mnt/data/chant-corpus/workdirs/{wd}/hymns.json'))
-    return [r['name'] for r in h]
+    fn = f'/mnt/data/chant-corpus/workdirs/{wd}/hymns.json'
+    if not os.path.exists(fn):
+        return []          # extra tape without a workdir: all spans unnamed
+    return [r['name'] for r in json.load(open(fn))]
+
+
+def tape_of(wd):
+    try:
+        return TL.tape_for(wd)
+    except FileNotFoundError:
+        return json.load(open(f'{TEXTS}/extra_tapes.json'))[wd]
+
+
+# ---------------- LLM boundary audit ----------------
+# The local vLLM judges each drafted boundary from a digit sparkline of the
+# loudness envelope -- measured 30/31 against a chanter-verified visual review
+# (mode2-orthros, 2026-08-25), catching 11/11 mid-audio boundaries with zero
+# false passes. Second opinion only: verdicts land in labels, never move cuts.
+QWEN_URL = os.environ.get('QWEN_URL',
+                          'http://10.43.106.252:8000/v1/chat/completions')
+QWEN_MODEL = os.environ.get('QWEN_MODEL', 'qwen3.8-27b-uncensored')
+
+AUDIT_PROMPT = """\
+You are inspecting the loudness envelope of a cassette tape of Byzantine chant.
+Below is a string of digits. Each digit is the average loudness of 0.25 seconds
+of audio, 0 = silence (tape floor), 9 = loudest chanting. The string covers 40
+seconds. A proposed cut boundary between two hymns sits exactly at the position
+marked '|'.
+
+A CORRECT boundary sits inside a silence gap: a run of several consecutive
+0s/1s (at least ~1 second, i.e. 4+ low digits) separating two loud blocks.
+Quiet SPEECH (a sustained murmur of 1-3 digits) adjacent to the mark also
+counts as a valid neighbour -- the tape has spoken introductions between hymns.
+An INCORRECT boundary sits in the middle of ongoing chanting (surrounded by
+mid/high digits), even if there is a real silence gap somewhere else in the
+string.
+
+Envelope:
+%s
+
+Judge ONLY the marked position. Reply with a single JSON object, no other text:
+{"verdict": "IN_GAP" or "MID_AUDIO", "reason": "<one short sentence>"}"""
+
+
+def sparkline(env, sec, half=20.0, bin_s=0.25):
+    a = max(0, int((sec - half) * TL.FPS))
+    b = min(len(env), int((sec + half) * TL.FPS))
+    n = max(1, int(bin_s * TL.FPS))
+    w = env[a:b]
+    v = np.array([w[i:i + n].mean() for i in range(0, len(w) - n, n)])
+    lo, hi = v.min(), v.max()
+    d = np.clip(((v - lo) / (hi - lo + 1e-9) * 9).round(), 0, 9).astype(int)
+    mid = int((sec - a / TL.FPS) / bin_s)
+    s = ''.join(str(x) for x in d)
+    return s[:mid] + '|' + s[mid:]
+
+
+def audit_boundary(env, sec):
+    import urllib.request
+    body = json.dumps(dict(
+        model=QWEN_MODEL,
+        messages=[dict(role='user', content=AUDIT_PROMPT % sparkline(env, sec))],
+        temperature=0, max_tokens=3000,
+        chat_template_kwargs=dict(enable_thinking=False))).encode()
+    req = urllib.request.Request(QWEN_URL, body,
+                                 {'Content-Type': 'application/json'})
+    for _ in range(2):
+        try:
+            r = json.load(urllib.request.urlopen(req, timeout=120))
+            txt = r['choices'][0]['message']['content'] or ''
+            j = json.loads(txt[txt.index('{'):txt.rindex('}') + 1])
+            if j.get('verdict') in ('IN_GAP', 'MID_AUDIO'):
+                return j
+        except Exception as e:
+            err = str(e)
+    return dict(verdict='ERROR', reason=err[:80])
+
+
+def audit(rows, env):
+    """Verdict per unique boundary; MID_AUDIO flags append to row labels."""
+    bounds = []
+    for r in rows:
+        for x in (r['t0'], r['t1']):
+            if not bounds or all(abs(x - b) > 0.5 for b in bounds):
+                bounds.append(x)
+    verdicts = {}
+    for x in sorted(bounds):
+        v = audit_boundary(env, x)
+        verdicts[x] = v
+        print(f'   audit {x:8.1f}  {v["verdict"]:9s} {v["reason"][:70]}')
+    for r in rows:
+        flags = []
+        for name, x in (('t0', r['t0']), ('t1', r['t1'])):
+            key = min(verdicts, key=lambda b: abs(b - x))
+            v = verdicts[key]
+            if v['verdict'] == 'MID_AUDIO':
+                flags.append(f'AUDIT: {name} mid-audio — check')
+            elif v['verdict'] == 'ERROR':
+                flags.append(f'AUDIT: {name} unavailable')
+        if flags:
+            r['label'] = ' | '.join(([r['label']] if r['label'] else []) + flags)
+    return rows
 
 
 def assemble(segs, hymns):
@@ -313,6 +413,7 @@ def main():
     ap.add_argument('--model', default=f'{TL.MODELS}/tape_lane_all.pt')
     ap.add_argument('--device', default='cuda')
     ap.add_argument('--eval', action='store_true')
+    ap.add_argument('--audit', default='qwen', choices=['qwen', 'none'])
     ap.add_argument('--no-write', action='store_true')
     a = ap.parse_args()
     dev = a.device if (a.device == 'cpu' or torch.cuda.is_available()) else 'cpu'
@@ -322,12 +423,14 @@ def main():
               f"evaluating {a.workdir} -- scores are NOT honest", file=sys.stderr)
     net = TL.Net().to(dev)
     net.load_state_dict(ck['state'])
-    tape = TL.tape_for(a.workdir)
+    tape = tape_of(a.workdir)
     print('tape', tape)
     M = TL.mel(tape)
     segs = segments(net, M, dev, cache_key=f"{a.workdir}_{os.path.basename(a.model).replace('.pt','')}")
     hymns = book_order(a.workdir)
     rows = assemble(segs, hymns)
+    if a.audit == 'qwen':
+        rows = audit(rows, envelope(M))
     if a.eval:
         gold = gold_spans(a.workdir)
         eval_segs(segs, gold, f'model ({os.path.basename(a.model)})')

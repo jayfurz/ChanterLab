@@ -241,6 +241,27 @@ def tapes():
                       'skips': c.get('skips') or [], 'extra': True, 'page': None, 'line': None}
                      for n, c in sorted(saved.items(),
                                         key=lambda kv: kv[1].get('t0', 0))]
+            # machine drafts render here too -- same rules as workdir tapes:
+            # a draft never overrides a chanter span, skipped on save until
+            # adopted (these tapes have no hymns.json, so every draft is new)
+            df = f'{TEXTS}/draftcuts_{wd}.json'
+            if os.path.exists(df):
+                try:
+                    drows = json.load(open(df)).get('cuts') or []
+                except Exception:
+                    drows = []
+                known = {h['name'] for h in hymns}
+                for c in drows:
+                    n = c.get('hymn')
+                    if not n or n in known or c.get('t0') is None \
+                            or c.get('t1') is None:
+                        continue
+                    hymns.append({'name': n, 'cur': None, 't0': c.get('t0'),
+                                  't1': c.get('t1'), 'label': c.get('label'),
+                                  'lane': c.get('lane'), 't_in': c.get('t_in'),
+                                  'skips': c.get('skips') or [], 'extra': True,
+                                  'draft': True, 'page': None, 'line': None})
+                hymns.sort(key=lambda h: h.get('t0') or 0)
             out[wd] = {'tape': tape, 'basename': os.path.basename(tape),
                        'hymns': hymns, 'no_workdir': True}
     return out
