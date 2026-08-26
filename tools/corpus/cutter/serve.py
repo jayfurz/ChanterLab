@@ -167,7 +167,11 @@ def tapes():
         for h in json.load(open(hj)):
             n = h['name']
             s = saved.get(n)
-            hymns.append({'name': n, 'cur': cur.get(n),
+            # 'cur' (old resep machine spans) is no longer surfaced: those
+            # spans cut through continuous audio (verified 2026-08-25/26) and
+            # the show-then-promote-on-Save path silently laundered them into
+            # chanter cuts files. The draft lane replaces them.
+            hymns.append({'name': n, 'cur': None,
                           't0': s['t0'] if s else None,
                           't1': s['t1'] if s else None,
                           'label': (s or {}).get('label'),
