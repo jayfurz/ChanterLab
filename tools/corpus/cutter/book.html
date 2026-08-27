@@ -1290,13 +1290,46 @@ async function boot() {
   $('#armbar button').onclick = () => { if (armNew && !armNew.scoreOnly)
       delete TP?.spans?.[armNew.name];
     armNew = null; needWave = true; armBar(null); msg('+ span cancelled'); };
-  const setLane = l => {
+  const setLane = async l => {
+    if (l === lane) return;
+    const wasPlaying = !tapeMode && !A.paused;
+    // Carry the playback position across lanes by FRACTION of the piece
+    // (parallagi ~= melos duration per hymn), so a mid-sentence switch stays
+    // mid-sentence instead of restarting the hymn.
+    let frac = null;
+    const h = B.hymns[sel];
+    if (wasPlaying && h) {
+      if (det && det.tape && A.src.includes('/tape/')
+          && h.t0 != null && h.t1 > h.t0)
+        frac = (A.currentTime - h.t0) / (h.t1 - h.t0);
+      else if (A.duration)
+        frac = A.currentTime / A.duration;
+      if (frac != null) frac = Math.max(0, Math.min(1, frac));
+    }
     lane = l;
     $('#laneM').classList.toggle('on', l === 'melos');
     $('#laneP').classList.toggle('on', l === 'parallagi');
-    if (!tapeMode && !A.paused) { stop(); playPause(); }   // switch mid-play
-    else if (tapeMode) msg(l + ' lane — span edits now apply to the ' + l + ' span');
     needWave = true;
+    if (tapeMode)
+      return msg(l + ' lane — span edits now apply to the ' + l + ' span');
+    if (!wasPlaying) return;
+    stop(); repaintAll();          // never leave a stale frozen highlight
+    await playPause();
+    if (frac != null) {
+      const seek = () => {
+        if (lane !== 'parallagi' && stopAt != null && h.t0 != null)
+          A.currentTime = h.t0 + frac * (stopAt - h.t0);
+        else if (A.duration)
+          A.currentTime = frac * A.duration;
+      };
+      if (A.readyState >= 1) seek();
+      else A.addEventListener('loadedmetadata', seek, { once: true });
+    }
+    if (l === 'parallagi')
+      // highlight needs par-aligned slot times, which the corpus does not
+      // have for the new '#par' cuts yet -- say so instead of freezing
+      msg('parallagi lane — highlight off (no score-aligned parallagi '
+          + 'times yet); position carried over');
   };
   $('#laneM').onclick = () => setLane('melos');
   $('#laneP').onclick = () => setLane('parallagi');
