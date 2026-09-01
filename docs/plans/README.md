@@ -1,5 +1,7 @@
 # ChanterLab Implementation Plans
 
+- **[CHANT-DATASET-PLAN.md](CHANT-DATASET-PLAN.md)** — *the corpus/MCR plan against the four products* (follow-along video, transcription, analytical scores, generation). Verified state as of 2026-09-01, eleven lanes with gates, wave order, and the owner decisions blocking the registry. Start at §0.
+
 - **[NEURAL-CHANT.md](NEURAL-CHANT.md)** — *the implementable half of the neural
   plan.* Vocabulary, feature cache, hybrid-attention encoder-decoder, decode,
   staging, gates. **A fresh session starts at REPRO-01** (§10) — not at NN-01,
