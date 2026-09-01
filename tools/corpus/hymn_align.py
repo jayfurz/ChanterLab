@@ -1295,10 +1295,10 @@ def load_units_h(h):
     units, lyr = load_units(h['p0'], h['l0'], h['p1'], h['l1'])
     g0, g1 = h.get('g0'), h.get('g1')
     if g0 is None and g1 is None:
-        return units, lyr
+        return _apply_row_rulings(h, units), lyr
     lo = 0 if g0 is None else int(g0)
     hi = len(units) - 1 if g1 is None else int(g1)
-    kept = units[lo:hi + 1]
+    kept = _apply_row_rulings(h, units[lo:hi + 1])
     if kept:
         pl0, kx0 = kept[0]['pl'], kept[0]['x0']
         pl1, kx1 = kept[-1]['pl'], kept[-1]['x1']
@@ -1313,6 +1313,47 @@ def load_units_h(h):
             return True
         lyr = [w for w in lyr if _keep(w)]
     return kept, lyr
+
+
+
+def _apply_row_rulings(h, units):
+    """Per-instance chanter rulings carried on the hymns.json row, indexed
+    like unitdeg_*/iv_ovr_* (unit index within the trimmed stream).
+
+    synexes_units: [j, ...]      unit j and the unit before it are ONE running
+                                 elaphron, whatever the spacing rule said.
+    not_synexes_units: [j, ...]  the opposite: a plain elaphron after an
+                                 apostrophos, however close they print.
+
+    First instance, chanter 2026-09-01 via the annotator /d page, mode-2
+    dogmatic-theotokion-lihc glyphs 22+23 (4| then 20|8ab): "Thats a running
+    elafron not two separate apostrophos and elafron". The spacing rule
+    measured that pair at ratio 0.73 against the 0.72 cut -- 0.01 from the
+    figure he ruled NOT running (p522 line 2, 0.74). The x0-to-x0 yardstick
+    has run out of resolution there; the ink gap (elaphron x0 minus
+    apostrophos x1) is 0.29 of its median for this pair and is the candidate
+    replacement once the ruled set is re-measured under it. Until then the
+    ruling lives here, so the stream the annotator and the aligner see is
+    what the chanter sees.
+    """
+    for j in h.get('synexes_units') or []:
+        j = int(j)
+        if 0 < j < len(units):
+            cur, prev = units[j], units[j - 1]
+            cur['iv'] = SYNEXES_STEP
+            cur['synexes'] = True
+            cur['synexes_ruled'] = True
+            prev['synexes_gorgon'] = True
+    for j in h.get('not_synexes_units') or []:
+        j = int(j)
+        if 0 < j < len(units) and units[j].get('synexes'):
+            cur, prev = units[j], units[j - 1]
+            cur['synexes'] = False
+            cur['synexes_ruled'] = False
+            cur['iv'] = None                 # back to the legend's elaphron
+            prev['synexes_gorgon'] = False
+    return units
+
 
 W_ABS, ABS_CAP = 0.55, 2.0
 W_MART = 1.6

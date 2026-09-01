@@ -426,7 +426,13 @@ def prep_hymn(wd, h, pdf, ann_data_dir, cache_dir):
     expected, mcr = [], []
     matched_units = {a['unit'] for a in aligned}
     for j, u in enumerate(units):
-        interval = iv.get(u['key'], iv.get(f"{u['base']}|", 0))
+        # A per-instance reading set by hymn_align (kentima height split,
+        # running elaphron, orphan kentima, chanter rulings on the row) beats
+        # the key's legend value. Chanter, 2026-09-01, thou-kyrie-par glyphs
+        # 313/602 (7|16ab+6ab, low kentima): "Should be +2 only" -- the
+        # aligner already knew, this line printed the legend's +3 / a 0.
+        interval = (u['iv'] if u.get('iv') is not None
+                    else iv.get(u['key'], iv.get(f"{u['base']}|", 0)))
         exp = unitdeg.get(j)
         expected.append(exp)
         mcr.append({
