@@ -1,0 +1,30 @@
+{
+ "answers": {
+  "verdict:mode1-dogmatic-theotokion-lihc": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:13:19"
+  },
+  "verdict:mode1-dogmatic-theotokion-lihc-par": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:13:35"
+  },
+  "verdict:mode2-kyrie-ekekraxa": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:13:47"
+  },
+  "verdict:mode2-kyrie-ekekraxa-par": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:14:01"
+  },
+  "verdict:mode2-katefthynthito": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:14:26"
+  }
+ },
+ "updated": "2026-09-01T16:14:26"
+}

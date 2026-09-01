@@ -1,0 +1,60 @@
+{
+ "answers": {
+  "verdict:mode1-dogmatic-theotokion-lihc": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:13:19"
+  },
+  "verdict:mode1-dogmatic-theotokion-lihc-par": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:13:35"
+  },
+  "verdict:mode2-kyrie-ekekraxa": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:13:47"
+  },
+  "verdict:mode2-kyrie-ekekraxa-par": {
+   "choice": "untrusted",
+   "note": "",
+   "ts": "2026-09-01T16:14:01"
+  },
+  "verdict:mode2-katefthynthito": {
+   "choice": "untrusted",
+   "note": "It looks like the wrong score too",
+   "ts": "2026-09-01T16:14:35"
+  },
+  "verdict:mode2-thou-kyrie": {
+   "choice": "gold",
+   "note": "",
+   "ts": "2026-09-01T16:15:33"
+  },
+  "verdict:mode2-thou-kyrie-par": {
+   "choice": "approved",
+   "note": "glyph #313 7|16ab+6ab 7|16ab+6ab Should be +2 only. All the onsets sre exactly perfect, but the parallagi math is wrong because of this. Also glyph #602 7|16ab+6ab 7|16ab+6ab is +2 (i think they are the same compound?)",
+   "ts": "2026-09-01T16:19:34"
+  },
+  "lihc2:pinned": {
+   "choice": null,
+   "note": "It wasnt in the browser. So the pins arent confirmed. Also the parallagi math looks wrong. Glyph 22 and glyph 23 should actually be combined. Thats a running elafron not two separate apostrophos and elafron",
+   "ts": "2026-09-01T16:22:36"
+  },
+  "lihc2:genus": {
+   "choice": "soft",
+   "note": "",
+   "ts": "2026-09-01T16:23:12"
+  },
+  "ask:chromatic-tape": {
+   "choice": "mode2-orthros",
+   "note": "I thought i already cut mode 2 vespers…. I did it about a week ago. It should be somewhere.. maybe a worktree? Another folder anywhere?",
+   "ts": "2026-09-01T16:24:17"
+  },
+  "melodos:record": {
+   "choice": "unsure",
+   "note": "It does synthesized notes only. They dont have the actual chanter singing the vowel its just like a synth organ or different insteument playing the melody in the scale",
+   "ts": "2026-09-01T16:25:11"
+  }
+ },
+ "updated": "2026-09-01T16:25:11"
+}
