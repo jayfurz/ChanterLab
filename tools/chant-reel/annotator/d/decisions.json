@@ -1,0 +1,144 @@
+{
+ "version": 1,
+ "written": "2026-09-01",
+ "plan": "docs/plans/CHANT-DATASET-PLAN.md §5",
+ "intro": "Six decisions, nothing else. Each one blocks a lane of the dataset plan. Tap an answer and it saves to the server straight away; add a note where it helps. Come back any time, everything stays.",
+ "groups": [
+  {
+   "id": "verdicts",
+   "title": "Are these seven exports gold?",
+   "blocks": "DS-02 gold registry · EAR-01 chromatic measurement · melos onset training",
+   "why": "On 24 August you exported these pieces from the annotator. The gold list that trains and grades the models does not know about them, because nothing records whether you finished a piece or saved a draft. Your verdict puts each one into the registry at the right trust level: gold and approved pieces train the chromatic ear and the melos onset model, drafts are only used to spot slips of seconds, untrusted ones are never read.",
+   "evidence_note": "“Moved” counts slots whose time differs from the machine seed by more than 50 ms — a rough measure of how much you dragged or refit. “Saves” is how many times Export was pressed.",
+   "choices": [
+    {"v": "gold", "label": "Gold", "help": "Every onset is where I want it. Train and grade on it."},
+    {"v": "approved", "label": "Approved by ear", "help": "I listened through; the markers were right without dragging."},
+    {"v": "draft", "label": "Draft", "help": "Partly done or not checked. Use only to spot slips of seconds."},
+    {"v": "untrusted", "label": "Untrusted", "help": "Do not use these onsets for anything."}
+   ],
+   "items": [
+    {"id": "verdict:mode1-dogmatic-theotokion-lihc", "kind": "verdict", "piece": "mode1-dogmatic-theotokion-lihc",
+     "title": "Τὴν παγκόσμιον δόξαν", "subtitle": "Dogmatic Theotokion · mode 1 vespers · melos", "genus": "diatonic",
+     "duration": 283.1, "pages": "12–14", "slots": 338, "pinned": 338, "moved": 322, "exported": "24 Aug 15:18", "saves": 4},
+    {"id": "verdict:mode1-dogmatic-theotokion-lihc-par", "kind": "verdict", "piece": "mode1-dogmatic-theotokion-lihc-par",
+     "title": "Τὴν παγκόσμιον δόξαν", "subtitle": "Dogmatic Theotokion · mode 1 vespers · parallagi", "genus": "diatonic",
+     "duration": 271.3, "pages": "12–14", "slots": 338, "pinned": 338, "moved": 315, "exported": "24 Aug 15:16", "saves": 2},
+    {"id": "verdict:mode2-kyrie-ekekraxa", "kind": "verdict", "piece": "mode2-kyrie-ekekraxa",
+     "title": "Κύριε ἐκέκραξα", "subtitle": "mode 2 vespers · melos", "genus": "soft chromatic",
+     "duration": 114.5, "pages": "92–93", "slots": 139, "pinned": 139, "moved": 139, "exported": "24 Aug 15:40", "saves": 2},
+    {"id": "verdict:mode2-kyrie-ekekraxa-par", "kind": "verdict", "piece": "mode2-kyrie-ekekraxa-par",
+     "title": "Κύριε ἐκέκραξα", "subtitle": "mode 2 vespers · parallagi", "genus": "soft chromatic",
+     "duration": 111.8, "pages": "92–93", "slots": 139, "pinned": 139, "moved": 117, "exported": "24 Aug 17:00", "saves": 1,
+     "note": "If this one is gold or approved, it is the first chromatic parallagi with chanter onsets. The classifier gets measured on it before anything else is asked of you."},
+    {"id": "verdict:mode2-katefthynthito", "kind": "verdict", "piece": "mode2-katefthynthito",
+     "title": "Κατευθυνθήτω", "subtitle": "mode 2 vespers · melos", "genus": "soft chromatic",
+     "duration": 80.4, "pages": "93", "slots": 94, "pinned": 94, "moved": 94, "exported": "24 Aug 17:07", "saves": 2},
+    {"id": "verdict:mode2-thou-kyrie", "kind": "verdict", "piece": "mode2-thou-kyrie",
+     "title": "Θοῦ, Κύριε", "subtitle": "psalm verses · mode 2 vespers · melos", "genus": "soft chromatic",
+     "duration": 378.3, "pages": "93–97", "slots": 667, "pinned": 667, "moved": 347, "exported": "24 Aug 18:18", "saves": 4},
+    {"id": "verdict:mode2-thou-kyrie-par", "kind": "verdict", "piece": "mode2-thou-kyrie-par",
+     "title": "Θοῦ, Κύριε", "subtitle": "psalm verses · mode 2 vespers · parallagi", "genus": "soft chromatic",
+     "duration": 384.1, "pages": "93–97", "slots": 667, "pinned": 30, "moved": 319, "exported": "24 Aug 18:38", "saves": 3,
+     "note": "Only 30 of 667 slots are pinned, so this looks partial. Draft is the expected answer unless you finished it."}
+   ]
+  },
+  {
+   "id": "lihc2",
+   "title": "The mode-2 Dogmatic Theotokion",
+   "blocks": "LAB-01 · a second chromatic piece for the ear",
+   "why": "You remember pinning Παρῆλθεν ἡ σκιὰ τοῦ νόμου in mode 2. The server has exports for the mode-1 Dogmatic Theotokion (both lanes, 24 Aug at 15:16 and 15:18) but none for the mode-2 pieces, which were prepared that evening and machine-seeded the next morning. Pins you drag are autosaved only in the browser you used; pressing Export is what sends them here. If they exist, open the piece in that same browser, press Export, then answer.",
+   "items": [
+    {"id": "lihc2:pinned", "kind": "choice", "title": "Did you pin the mode-2 piece?",
+     "links": [{"label": "Open mode-2 melos", "href": "/?piece=mode2-dogmatic-theotokion-lihc"}, {"label": "Open mode-2 parallagi", "href": "/?piece=mode2-dogmatic-theotokion-lihc-par"}],
+     "choices": [
+      {"v": "exported", "label": "Yes, I have exported it now"},
+      {"v": "mode1-only", "label": "I pinned the mode-1 one, not mode 2"},
+      {"v": "check", "label": "Not sure, I will check the browser"}
+     ]},
+    {"id": "lihc2:genus", "kind": "choice", "title": "Which genus is it sung in?",
+     "why": "The row has no genus set, and the two lanes were prepared with different guesses: the melos as soft chromatic, the parallagi as hard chromatic. The hearing tools ladder the pitch by this answer.",
+     "choices": [
+      {"v": "soft", "label": "Soft chromatic"},
+      {"v": "hard", "label": "Hard chromatic"},
+      {"v": "diatonic", "label": "Diatonic"},
+      {"v": "mixed", "label": "It changes inside the hymn (say where in the note)"}
+     ]}
+   ]
+  },
+  {
+   "id": "asks",
+   "title": "Your time: two asks, about an hour together",
+   "blocks": "CUT-01 cutter generalisation · ALN-02 sealed test",
+   "why": "Each one unlocks a whole lane. Nothing else needs your ear right now: everything else goes through the review queue, which will only show you seeds that pass three automatic checks.",
+   "items": [
+    {"id": "ask:chromatic-tape", "kind": "choice", "title": "Ear-verify every cut on one chromatic tape",
+     "why": "The cutter and the lane detector only know grave orthros, the one tape you cut by hand. On the other 16 tapes, 0 pass the parallagi-then-melos alternation check. A second hand-verified tape in a chromatic mode is what they learn to generalise from.",
+     "choices": [
+      {"v": "mode2-orthros", "label": "Mode 2 orthros (43 of 45 draft cuts already verified)"},
+      {"v": "mode2", "label": "Mode 2 vespers"},
+      {"v": "pl2", "label": "Plagal 2 vespers"},
+      {"v": "later", "label": "Later"},
+      {"v": "no", "label": "No"}
+     ]},
+    {"id": "ask:s01", "kind": "choice", "title": "Finish s01, Θεὸς Κύριος (grave orthros)",
+     "why": "58 of its 99 slots are still unplaced. It is the sealed test piece for the template-free aligner: nothing ever trains on it, so its number is the one honest number the project will have.",
+     "links": [{"label": "Open s01", "href": "/?piece=grave-orthros-s01-unset-θεοςκυριοςκαιε-πεφα-νενημιν"}],
+     "choices": [
+      {"v": "yes", "label": "Yes, this week"},
+      {"v": "later", "label": "Later"},
+      {"v": "no", "label": "No"}
+     ]}
+   ]
+  },
+  {
+   "id": "melodos",
+   "title": "Melodos as a reference recording",
+   "blocks": "ALN-01 synthetic templates for hymns with no recorded parallagi",
+   "why": "Melodos plays synthesized renditions of scores on your old Windows laptop. It cannot export audio and its .mel files are encrypted, so the only way to use it is to record the laptop's playback. A recorded rendition gives a synthetic parallagi for hymns that have no recorded one, and a second opinion on durations.",
+   "items": [
+    {"id": "melodos:record", "kind": "choice", "title": "Record some playback, or drop it?",
+     "choices": [
+      {"v": "record", "label": "I will record some playback (say which hymns in the note)"},
+      {"v": "drop", "label": "Drop it"},
+      {"v": "unsure", "label": "Not sure"}
+     ]}
+   ]
+  },
+  {
+   "id": "damaskinos",
+   "title": "Ask for the DAMASKINOS corpus",
+   "blocks": "GEN-03 second singers · a cross-singer test for the degree classifier",
+   "why": "A University of Athens corpus of 20 professional chanters recorded under studio conditions, with the notation characters, the expected pitch and the performed pitch tagged. It is the only multi-singer set we know of and the cross-singer test the classifier needs. It is available by request only.",
+   "items": [
+    {"id": "damaskinos:request", "kind": "choice", "title": "Who writes to them?",
+     "links": [
+      {"label": "The corpus paper (ResearchGate)", "href": "https://www.researchgate.net/publication/235973045_DAMASKINOS_The_Prototype_Corpus_of_Greek_Orthodox_Ecclesiastical_Chant_Voices", "ext": true},
+      {"label": "Speech group, Univ. of Athens", "href": "https://speech.di.uoa.gr/", "ext": true}
+     ],
+     "choices": [
+      {"v": "i-write", "label": "I will write to them"},
+      {"v": "draft-for-me", "label": "Draft the email, I will send it"},
+      {"v": "skip", "label": "Skip"}
+     ]}
+   ]
+  },
+  {
+   "id": "languages",
+   "title": "Arabic and Slavonic",
+   "blocks": "LANG-03 · nothing can be modelled before a recording exists",
+   "why": "There are zero Arabic and zero Slavonic recordings. Each language needs one chanter and a matching book, so this is a recruiting question, not a modelling one. The provenance field is ready for them.",
+   "items": [
+    {"id": "lang:arabic", "kind": "choice", "title": "Arabic: is there someone in mind?",
+     "choices": [
+      {"v": "someone", "label": "Yes (who, which book, and when, in the note)"},
+      {"v": "nobody", "label": "No one yet"}
+     ]},
+    {"id": "lang:slavonic", "kind": "choice", "title": "Slavonic: is there someone in mind?",
+     "choices": [
+      {"v": "someone", "label": "Yes (who, which book, and when, in the note)"},
+      {"v": "nobody", "label": "No one yet"}
+     ]}
+   ]
+  }
+ ]
+}

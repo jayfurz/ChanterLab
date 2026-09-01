@@ -15,6 +15,11 @@ Serves the annotator directory like `python -m http.server` did, plus:
   GET  /api/parallagi-flags?piece=<id>    what the chanter rejected, so a later
                                           legend fix can be scored against the
                                           label he was actually shown
+  GET  /d  + /api/decisions               the owner decisions page (d/decisions.json
+                                          is the content) with the answers so far
+  POST /api/decision  body: {id, choice, note}
+                                          one answer -> <exports-dir>/decisions/
+                                          answers.json, timestamped history copy
 
 Usage:
   python3 serve.py [--port 8779] [--bind 0.0.0.0] [--exports-dir DIR]
@@ -25,6 +30,7 @@ import argparse
 import json
 import os
 import re
+import threading
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -49,6 +55,27 @@ EXPORT_FILES = {          # payload key -> filename written
 FLAGS_FILE = "parallagi_flags.json"   # under data/<piece>/, not exports/
 OPTIONAL_KEYS = {"pitch_ghosts": [], "analytical_notes": []}   # defaults for older clients
 
+# Owner decisions (docs/plans/CHANT-DATASET-PLAN.md §5): the questions live in
+# d/decisions.json next to the page, the answers in <exports-dir>/decisions/ so
+# they sit beside the chanter's other exports and are read by the gold
+# registry build. Ids are "group:item", e.g. "verdict:mode2-kyrie-ekekraxa-par".
+DECISIONS_FILE = HERE / 'd' / 'decisions.json'
+DECISION_ID_RE = re.compile(r'^[a-z0-9][a-z0-9:_-]{0,79}$')
+_DECISION_LOCK = threading.Lock()
+
+
+def read_decision_answers(exports_dir):
+    """{'answers': {id: {choice, note, ts}}, 'updated': ts} — empty if none yet."""
+    p = Path(exports_dir) / 'decisions' / 'answers.json'
+    if p.exists():
+        try:
+            d = json.loads(p.read_text(encoding='utf-8'))
+            if isinstance(d, dict) and isinstance(d.get('answers'), dict):
+                return d
+        except (OSError, ValueError):
+            pass
+    return {'answers': {}, 'updated': None}
+
 
 # The boundary cutter runs as its own service on 8790, bound to localhost. It
 # is reachable over tailscale, but the chanter works through
@@ -66,7 +93,8 @@ CUTTER_PREFIXES = ('/score', '/cut', '/tape/', '/page/', '/api/tapes',
 # must be answered here, so they are checked before the proxy test.
 LOCAL_PREFIXES = ('/api/parallagi', '/api/parallagi-flag',
                   '/api/parallagi-flags', '/api/piece-peaks',
-                  '/api/prep-par', '/api/transpose')
+                  '/api/prep-par', '/api/transpose',
+                  '/api/decisions', '/api/decision')
 
 
 def _is_cutter(path):
@@ -559,6 +587,15 @@ class Handler(SimpleHTTPRequestHandler):
             if pid is not None:
                 self._json(read_parallagi_flags(pid))
             return
+        if route == '/api/decisions':
+            try:
+                content = json.loads(DECISIONS_FILE.read_text(encoding='utf-8'))
+            except (OSError, ValueError) as e:
+                return self._json({'error': f'decisions.json: {e}'[:200]}, 500)
+            ans = read_decision_answers(self.exports_dir)
+            return self._json({'decisions': content,
+                               'answers': ans.get('answers', {}),
+                               'updated': ans.get('updated')})
         if _is_cutter(self.path):
             return self._proxy('GET')
         return super().do_GET()
@@ -575,6 +612,9 @@ class Handler(SimpleHTTPRequestHandler):
                       ".json": "application/json; charset=utf-8"}
 
     def do_POST(self):
+        if self.path.rstrip('/') == '/api/decision':
+            self.handle_decision()
+            return
         if self.path.rstrip('/') == '/api/parallagi-flag':
             self.handle_parallagi_flag()
             return
@@ -653,6 +693,44 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
         self.log_message("clusters -> %s (history/%s)", dest, stamp)
+
+    def handle_decision(self):
+        """POST /api/decision — one owner answer: {id, choice, note}.
+
+        choice null clears the answer but keeps the note. Written to
+        <exports-dir>/decisions/answers.json with a timestamped history copy,
+        the same never-destroy pattern as piece exports.
+        """
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+            if not 0 < n <= 64 * 1024:
+                raise ValueError(f"bad content length {n}")
+            payload = json.loads(self.rfile.read(n))
+            did = str(payload.get("id", ""))
+            if not DECISION_ID_RE.match(did):
+                raise ValueError(f"bad id {did!r}")
+            choice = payload.get("choice")
+            if choice is not None:
+                choice = str(choice)
+                if not (0 < len(choice) <= 80):
+                    raise ValueError("bad choice")
+            note = str(payload.get("note") or "")[:4000]
+        except (TypeError, ValueError, json.JSONDecodeError) as e:
+            self.send_error(400, str(e))
+            return
+        ts = time.strftime("%Y-%m-%dT%H:%M:%S")
+        with _DECISION_LOCK:
+            state = read_decision_answers(self.exports_dir)
+            state["answers"][did] = {"choice": choice, "note": note, "ts": ts}
+            state["updated"] = ts
+            dest = self.exports_dir / "decisions"
+            (dest / "history").mkdir(parents=True, exist_ok=True)
+            text = json.dumps(state, ensure_ascii=False, indent=1)
+            (dest / "answers.json").write_text(text, encoding="utf-8")
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            (dest / "history" / f"{stamp}.json").write_text(text, encoding="utf-8")
+        self._json({"ok": True, "id": did, "choice": choice, "ts": ts})
+        self.log_message("decision %s = %r (history/%s)", did, choice, stamp)
 
     def handle_parallagi_flag(self):
         """POST /api/parallagi-flag — the chanter rejecting one printed degree.

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Decisions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --paper:#f2f2ef; --plate:#ffffff; --ink:#17181b; --ink-soft:#4a4c52; --ink-faint:#797c83;
+  --rule:#d9d9d4; --rule-soft:#e6e6e2;
+  --rubric:#9d2b26;            /* the red the book prints its martyrias in */
+  --settled:#2c6a4a; --settled-soft:#e4efe8;
+  --pick:#0a5ac2; --pick-soft:#e3ecf8;
+  --shadow:0 1px 2px rgba(23,24,27,.06),0 8px 24px rgba(23,24,27,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#131417; --plate:#1b1d22; --ink:#e9e9e4; --ink-soft:#a8aab0; --ink-faint:#7d8087;
+    --rule:#2c2e33; --rule-soft:#232529;
+    --rubric:#e0736c; --settled:#69b892; --settled-soft:#1c2b23; --pick:#6ea3f0; --pick-soft:#1c2738;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#131417; --plate:#1b1d22; --ink:#e9e9e4; --ink-soft:#a8aab0; --ink-faint:#7d8087;
+  --rule:#2c2e33; --rule-soft:#232529;
+  --rubric:#e0736c; --settled:#69b892; --settled-soft:#1c2b23; --pick:#6ea3f0; --pick-soft:#1c2738;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;font-size:16.5px;line-height:1.55;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+a{color:var(--pick)}
+button:focus-visible,a:focus-visible,textarea:focus-visible{outline:2px solid var(--pick);outline-offset:2px}
+.top{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--rule);padding:.8rem clamp(1rem,4vw,2rem)}
+.top .row{max-width:56rem;margin:0 auto;display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.top h1{font-family:"EB Garamond",Georgia,serif;font-weight:500;font-size:1.6rem;margin:0;letter-spacing:-.01em}
+.top .prog{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.78rem;color:var(--ink-soft);display:flex;align-items:center;gap:.7rem}
+.bar{width:9rem;height:6px;background:var(--rule);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--settled);width:0;transition:width .3s}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+.wrap{max-width:56rem;margin:0 auto;padding:1.6rem clamp(1rem,4vw,2rem) 6rem}
+.intro{font-family:"EB Garamond",Georgia,serif;font-size:1.22rem;line-height:1.5;color:var(--ink-soft);max-width:42rem;margin:0 0 2.2rem}
+.intro .src{display:block;font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-top:.6rem}
+.group{border-top:2px solid var(--rubric);padding-top:1.2rem;margin:0 0 2.8rem}
+.group .blocks{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--rubric);margin:0 0 .5rem}
+.group h2{font-family:"EB Garamond",Georgia,serif;font-weight:500;font-size:1.85rem;line-height:1.1;margin:0 0 .7rem;letter-spacing:-.01em;text-wrap:balance}
+.group .why{color:var(--ink-soft);max-width:44rem;margin:0 0 1rem}
+.group .ev{font-size:.85rem;color:var(--ink-faint);max-width:44rem;margin:0 0 1.2rem}
+.cards{display:grid;gap:1rem}
+@media(min-width:46rem){.cards.two{grid-template-columns:1fr 1fr}}
+.card{background:var(--plate);border:1px solid var(--rule);border-radius:4px;padding:1.1rem 1.15rem 1rem;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:.7rem;border-left:4px solid var(--rule)}
+.card[data-answered="1"]{border-left-color:var(--settled)}
+.card h3{font-family:"EB Garamond",Georgia,serif;font-weight:500;font-size:1.35rem;line-height:1.15;margin:0}
+.card .sub{color:var(--ink-soft);font-size:.92rem;margin:-.3rem 0 0}
+.card .why{color:var(--ink-soft);font-size:.93rem;margin:0}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(7.2rem,1fr));gap:.45rem .8rem;font-family:"IBM Plex Mono",monospace;font-size:.76rem;color:var(--ink-soft);padding:.55rem 0;border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft)}
+.facts b{display:block;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+.facts span{color:var(--ink-faint);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase}
+.hint{font-size:.88rem;color:var(--ink-soft);font-style:italic;margin:0}
+.links{display:flex;flex-wrap:wrap;gap:.4rem .9rem;font-size:.88rem}
+.links a{color:var(--pick);text-decoration:none;border-bottom:1px solid var(--rule)}
+.links a:hover{border-bottom-color:var(--pick)}
+.choices{display:flex;flex-direction:column;gap:.45rem}
+.choice{display:block;width:100%;text-align:left;background:var(--paper);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:.6rem .8rem;font:inherit;cursor:pointer;line-height:1.3}
+.choice small{display:block;color:var(--ink-faint);font-size:.8rem;margin-top:.15rem}
+.choice:hover{border-color:var(--ink-faint)}
+.choice[aria-pressed="true"]{background:var(--pick-soft);border-color:var(--pick);box-shadow:inset 0 0 0 1px var(--pick)}
+.choice[aria-pressed="true"]::before{content:"✓ ";color:var(--pick);font-weight:600}
+textarea{width:100%;min-height:2.6rem;resize:vertical;font:inherit;font-size:.92rem;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:.5rem .65rem}
+textarea::placeholder{color:var(--ink-faint)}
+.status{display:flex;justify-content:space-between;align-items:baseline;font-family:"IBM Plex Mono",monospace;font-size:.74rem;color:var(--ink-faint);min-height:1.1rem}
+.status .ok{color:var(--settled)}
+.status .err{color:var(--rubric)}
+.status button{font:inherit;font-size:.74rem;background:none;border:1px solid var(--rule);border-radius:3px;color:var(--ink-soft);padding:.15rem .5rem;cursor:pointer}
+.empty{padding:2rem;text-align:center;color:var(--ink-faint)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="row">
+    <h1>Decisions</h1>
+    <div class="prog"><span id="progtext">loading…</span><div class="bar"><i id="progbar"></i></div></div>
+  </div>
+</header>
+<main class="wrap" id="main"><div class="empty">Loading the decisions…</div></main>
+
+<script>
+(function(){
+  const $main = document.getElementById('main');
+  let DATA = null, ANSWERS = {};
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmtDur = s => { s = Math.round(s); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
+  const now = () => new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+  function allItems(){ return DATA.groups.flatMap(g => g.items.map(it => ({...it, group:g}))); }
+  function progress(){
+    const items = allItems();
+    const n = items.filter(it => ANSWERS[it.id] && ANSWERS[it.id].choice).length;
+    document.getElementById('progtext').textContent = n + ' of ' + items.length + ' answered';
+    document.getElementById('progbar').style.width = (items.length ? 100*n/items.length : 0) + '%';
+  }
+
+  function factsHtml(it){
+    if (it.kind !== 'verdict') return '';
+    const f = [
+      ['genus', it.genus], ['length', fmtDur(it.duration)], ['pages', it.pages],
+      ['slots', it.slots], ['pinned', it.pinned], ['moved', it.moved],
+      ['exported', it.exported], ['saves', it.saves]
+    ];
+    return '<div class="facts">' + f.map(([k,v]) => '<div><b>' + esc(v) + '</b><span>' + esc(k) + '</span></div>').join('') + '</div>';
+  }
+  function linksHtml(it){
+    const links = [];
+    if (it.kind === 'verdict') links.push({label:'Open in the annotator ↗', href:'/?piece=' + encodeURIComponent(it.piece)});
+    (it.links || []).forEach(l => links.push({label: l.label + (l.ext ? ' ↗' : ' ↗'), href: l.href}));
+    if (!links.length) return '';
+    return '<div class="links">' + links.map(l => '<a href="' + esc(l.href) + '" target="_blank" rel="noopener">' + esc(l.label) + '</a>').join('') + '</div>';
+  }
+  function cardHtml(it, group){
+    const choices = it.choices || group.choices || [];
+    const a = ANSWERS[it.id] || {};
+    const answered = a.choice ? '1' : '0';
+    return '<article class="card" data-id="' + esc(it.id) + '" data-answered="' + answered + '">' +
+      '<h3>' + esc(it.title) + '</h3>' +
+      (it.subtitle ? '<p class="sub">' + esc(it.subtitle) + '</p>' : '') +
+      (it.why ? '<p class="why">' + esc(it.why) + '</p>' : '') +
+      factsHtml(it) +
+      (it.note ? '<p class="hint">' + esc(it.note) + '</p>' : '') +
+      linksHtml(it) +
+      '<div class="choices">' + choices.map(c =>
+        '<button type="button" class="choice" data-v="' + esc(c.v) + '" aria-pressed="' + (a.choice === c.v ? 'true' : 'false') + '">' +
+        esc(c.label) + (c.help ? '<small>' + esc(c.help) + '</small>' : '') + '</button>').join('') + '</div>' +
+      '<textarea placeholder="Note (optional) — saves when you click away">' + esc(a.note || '') + '</textarea>' +
+      '<div class="status"><span class="msg">' + (a.ts ? '<span class="ok">saved ' + esc(a.ts.slice(0,16).replace('T',' ')) + '</span>' : 'not answered') + '</span>' +
+      (a.choice ? '<button type="button" class="clear">clear</button>' : '') + '</div>' +
+    '</article>';
+  }
+  function render(){
+    if (!DATA.groups.length){ $main.innerHTML = '<div class="empty">No decisions.</div>'; return; }
+    let h = '<p class="intro">' + esc(DATA.intro) + '<span class="src">from ' + esc(DATA.plan) + ' · written ' + esc(DATA.written) + '</span></p>';
+    for (const g of DATA.groups){
+      h += '<section class="group" id="' + esc(g.id) + '">' +
+        '<p class="blocks">unblocks · ' + esc(g.blocks) + '</p>' +
+        '<h2>' + esc(g.title) + '</h2>' +
+        '<p class="why">' + esc(g.why) + '</p>' +
+        (g.evidence_note ? '<p class="ev">' + esc(g.evidence_note) + '</p>' : '') +
+        '<div class="cards' + (g.items.length > 1 && g.items[0].kind === 'verdict' ? ' two' : '') + '">' +
+        g.items.map(it => cardHtml(it, g)).join('') + '</div></section>';
+    }
+    $main.innerHTML = h;
+    progress();
+  }
+
+  async function save(card, choice, note){
+    const id = card.dataset.id;
+    const msg = card.querySelector('.msg');
+    msg.textContent = 'saving…';
+    try{
+      const r = await fetch('/api/decision', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id, choice, note})});
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      ANSWERS[id] = {choice, note, ts: j.ts};
+      card.dataset.answered = choice ? '1' : '0';
+      card.querySelectorAll('.choice').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === choice ? 'true' : 'false'));
+      msg.innerHTML = choice ? '<span class="ok">saved ' + now() + '</span>' : 'not answered';
+      const st = card.querySelector('.status');
+      let clr = st.querySelector('.clear');
+      if (choice && !clr){ clr = document.createElement('button'); clr.type='button'; clr.className='clear'; clr.textContent='clear'; st.appendChild(clr); }
+      if (!choice && clr) clr.remove();
+      progress();
+    }catch(e){
+      msg.innerHTML = '<span class="err">could not save (' + esc(e.message) + '), tap again</span>';
+    }
+  }
+
+  $main.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    const card = b.closest('.card');
+    if (!card) return;
+    const note = card.querySelector('textarea').value.trim();
+    if (b.classList.contains('choice')) save(card, b.dataset.v, note);
+    else if (b.classList.contains('clear')) save(card, null, note);
+  });
+  $main.addEventListener('focusout', ev => {
+    if (ev.target.tagName !== 'TEXTAREA') return;
+    const card = ev.target.closest('.card');
+    const a = ANSWERS[card.dataset.id] || {};
+    const note = ev.target.value.trim();
+    if ((a.note || '') === note) return;
+    save(card, a.choice || null, note);
+  });
+
+  fetch('/api/decisions').then(r => r.json()).then(j => {
+    if (j.error) throw new Error(j.error);
+    DATA = j.decisions; ANSWERS = j.answers || {};
+    render();
+  }).catch(e => { $main.innerHTML = '<div class="empty">Could not load: ' + esc(e.message) + '</div>'; });
+})();
+</script>
+</body>
+</html>
