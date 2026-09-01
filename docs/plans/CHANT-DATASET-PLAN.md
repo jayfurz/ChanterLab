@@ -306,6 +306,12 @@ minutes bind everywhere; LAB-02 exists so each minute buys the most.
 
 ## 5. Owner decisions needed
 
+Collected at **`https://annotator.lab.alwaysdobetterllc.com/d`** (annotator route
+`/d`, content in `tools/chant-reel/annotator/d/decisions.json` on the
+chant-align-dataset branch). Answers are written to the chant-annotator
+worktree's `datasets/exports/decisions/answers.json` with history copies;
+DS-02 reads the `verdict:*` answers into the registry.
+
 1. **Verdicts** for the 2026-08-24 exports: mode1 lihc (melos, parallagi),
    mode2 kyrie-ekekraxa (melos, parallagi), mode2 katefthynthito, mode2
    thou-kyrie, mode2 thou-kyrie-par (30 of many). Gold, approved by ear, or
