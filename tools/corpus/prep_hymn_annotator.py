@@ -101,6 +101,29 @@ def load_gold_seed(piece, n_units):
         if not os.path.exists(pf):
             return None
     pins = [p for p in json.load(open(pf)) if isinstance(p, (list, tuple))]
+    # A COMPLETE piece (gold_times: the chanter said so) is seeded from EVERY
+    # slot time he edited or pinned, not only the pinned subset. pins.json is
+    # the dragged subset; slots_corrected.json is the labels (cd492e8). Found
+    # 2026-09-01 re-prepping mode2-thou-kyrie-par, approved by ear with 30
+    # pins and 605 edited slots: a pins-only seed handed back machine times
+    # on 637 notes he had already approved.
+    scf = os.path.join(gdir, 'slots_corrected.json')
+    try:
+        import gold_times
+        done = gold_times.is_done(piece)
+    except Exception:
+        done = False
+    if done and os.path.exists(scf):
+        sc = json.load(open(scf))
+        n = len(sc.get('gi', []))
+        ed = sc.get('edited') or [True] * n
+        pn = sc.get('pinned') or [False] * n
+        full = [[g, t] for g, t, e, q in zip(sc['gi'], sc['t'], ed, pn)
+                if t is not None and (e or q)]
+        if len(full) > len(pins):
+            print(f'  {piece}: COMPLETE -- seeding {len(full)} slot times '
+                  f'(pins.json held {len(pins)})')
+            pins = full
     keep = [p for p in pins if 0 <= p[0] < n_units]
     if len(keep) != len(pins):
         print(f'  WARNING {piece}: {len(pins) - len(keep)} gold pins fall outside '
