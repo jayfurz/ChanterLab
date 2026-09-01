@@ -62,7 +62,29 @@ SEALED = ('s01',)
 
 
 # Declared complete by the chanter. Add a hymn here ONLY when he says so.
-COMPLETE = ('s02-parallagi', 's04-parallagi', 's06-parallagi')
+COMPLETE = ('s02-parallagi', 's04-parallagi', 's06-parallagi',
+            's03-melos',    # 2026-08-23: re-pinned from the mel-transfer seed, "mark this export all gold"
+            's05-melos',    # 2026-08-23: re-pinned from his own draft after the seed was reverted -- "this is now the golden one"
+            's11-melos',    # 2026-08-23: model seed approved BY EAR, zero drags ("pretty close to spot on")
+            's15-melos',    # 2026-08-23: model seed approved by ear, zero drags
+            's17-melos',    # 2026-08-23: model seed, chanter fixed the ending and exported
+            's18-parallagi',  # 2026-08-23: onset_match seed from his 2 end pins; "there were a few slips. fixed them all"
+            'mode2-thou-kyrie')  # 2026-09-01 via annotator /d: melos GOLD (667 notes); parallagi APPROVED -- "All the onsets are exactly perfect" (matches both lanes)
+
+# MELOS PINS ARE NOT TRUSTED. Chanter, 2026-08-23: "we cant really trust s03
+# or s05 because i might not have perfectly done the onsets when i did it
+# manually. s02 s04 s06 are actually pretty close to perfect because i used the
+# peakiness of the waveform rendering as a guide ... i think i might have made
+# a lot of the onsets too early." So s03/s05 pins are a biased-early draft:
+# never tune, lock, or gate a melos onset model against them. They may be used
+# to notice a slip (seconds), not to judge precision (150 ms). The trusted
+# labels are the three parallagi above, which were pinned against the peaks.
+UNTRUSTED = (                       # s03 and s05 were both re-pinned and declared gold 2026-08-23
+    # 2026-09-01, chanter verdicts via annotator /d (datasets/exports/decisions/answers.json):
+    'mode1-dogmatic-theotokion-lihc',   # both lanes: "untrusted"
+    'mode2-kyrie-ekekraxa',             # both lanes: "untrusted"
+    'mode2-katefthynthito',             # "untrusted" + "It looks like the wrong score too"
+)
 
 
 def is_done(piece_name):
@@ -88,7 +110,7 @@ def load(piece_dir):
 
 def survey():
     rows = []
-    for d in sorted(glob.glob(os.path.join(EXPORTS, 'grave-orthros-*'))):
+    for d in sorted(glob.glob(os.path.join(EXPORTS, '*'))):   # every piece export, not only grave
         f = os.path.join(d, 'slots_corrected.json')
         if not os.path.exists(f):
             continue

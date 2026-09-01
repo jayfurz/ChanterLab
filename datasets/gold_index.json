@@ -1,5 +1,5 @@
 {
- "updated_at": "2026-08-18",
+ "updated_at": "2026-09-01",
  "note": "Registry of chanter-verified gold datasets. A piece belongs here only when a chanter has signed off on its labels. Machine or silver output must never be added.",
  "datasets": [
   {
@@ -62,7 +62,63 @@
     "strict_on_pins_assisted": 0.787
    },
    "revision": 2,
-   "revision_note": "r2 2026-08-18: chanter-corrected segmentation \u2014 fused oligon+omalon+ison split into two units; old index g maps to g (g<=6) or g+1 (g>=7)"
+   "revision_note": "r2 2026-08-18: chanter-corrected segmentation — fused oligon+omalon+ison split into two units; old index g maps to g (g<=6) or g+1 (g>=7)"
+  },
+  {
+   "id": "mode2-thou-kyrie",
+   "title": "Θοῦ, Κύριε — the mode-2 vespers Stichologia verses (Greek, Ioannou vector)",
+   "mode": "2",
+   "genus": "soft_chromatic",
+   "workdir": "/mnt/data/chant-corpus/workdirs/mode2",
+   "hymn": "thou-kyrie",
+   "ground_truth": "chant-annotator worktree datasets/exports/mode2-thou-kyrie (pins.json, slots_corrected.json)",
+   "duration_s": 378.3,
+   "n_units": 667,
+   "n_pins": 667,
+   "labels": [
+    "slots_corrected.json: 667 chanter-timed onsets, every slot pinned",
+    "exported 2026-08-24 18:18, 4 saves"
+   ],
+   "verdict": "gold",
+   "verdict_source": "annotator /d, 2026-09-01 (datasets/exports/decisions/answers.json)",
+   "licenses_claims_about": [
+    "melos onset accuracy in soft chromatic against a chanter",
+    "the first chromatic melos gold"
+   ]
+  },
+  {
+   "id": "mode2-thou-kyrie-par",
+   "title": "Θοῦ, Κύριε — parallagi of the mode-2 Stichologia (Greek, Ioannou vector)",
+   "mode": "2",
+   "genus": "soft_chromatic",
+   "workdir": "/mnt/data/chant-corpus/workdirs/mode2",
+   "hymn": "thou-kyrie-par",
+   "ground_truth": "chant-annotator worktree datasets/exports/mode2-thou-kyrie-par",
+   "duration_s": 384.1,
+   "n_units": 667,
+   "n_pins": 30,
+   "labels": [
+    "slots_corrected.json: 667 onset times, 30 pinned, 605 edited -- chanter: \"All the onsets are exactly perfect\"",
+    "exported 2026-08-24 18:38, 3 saves"
+   ],
+   "verdict": "approved-by-ear",
+   "verdict_source": "annotator /d, 2026-09-01",
+   "chanter_note": "glyph #313 7|16ab+6ab Should be +2 only. All the onsets are exactly perfect, but the parallagi math is wrong because of this. Also glyph #602 7|16ab+6ab is +2 (i think they are the same compound?)",
+   "notation_check": "hymn_align KENTIMA_SPLIT already reads both at +2 (box height 12.9 pt); the annotator's parallagi overlay was served from a stale copy of tools/corpus and printed the legend's +3; prep printed 0. Both fixed 2026-09-01.",
+   "licenses_claims_about": [
+    "the first chromatic parallagi with chanter onsets: the held-out set for the chromatic degree classifier (EAR-01)"
+   ]
   }
- ]
+ ],
+ "untrusted_2026_09_01": {
+  "source": "annotator /d verdicts",
+  "pieces": [
+   "mode1-dogmatic-theotokion-lihc",
+   "mode1-dogmatic-theotokion-lihc-par",
+   "mode2-kyrie-ekekraxa",
+   "mode2-kyrie-ekekraxa-par",
+   "mode2-katefthynthito"
+  ],
+  "note_on_katefthynthito": "chanter: It looks like the wrong score too"
+ }
 }

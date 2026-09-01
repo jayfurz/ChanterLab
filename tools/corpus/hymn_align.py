@@ -912,6 +912,25 @@ def _attach_pthoras(units, recs):
 # which NEURAL-CHANT.md section 1.1 holds REPORT-ONLY until Gate C; and once the
 # martyria decides an instance it can no longer independently validate it, so
 # the 32/58 would stop being evidence for anything. Both are the chanter's call.
+# KENTIMA ON TOP vs KENTIMA UNDERNEATH -- one key, two figures, and the key
+# cannot tell them apart. Chanter, 2026-08-21, on s10 glyphs 25 and 53: "this
+# glyph with oligon kentima on the bottom is +2 only. should go to ga." His
+# earlier ruling on gold t03 gi=63 was "+3", and both are 7|16ab+6ab.
+#
+# The geometry separates them cleanly. Bounding-box height of every instance in
+# the book, in 0.1 pt bins:
+#
+#     12.7-12.9  103 instances     <- s10 gi 25 and 53 sit here: +2
+#     18.7-18.9   20 instances     <- t03 gi 63 sits here:       +3
+#     22-30       11 instances        something else again, left alone
+#
+# A kentima above the oligon adds its own height to the box; tucked beneath it
+# does not. So the split is a measurement, not a guess -- and it is the reason
+# CHECK-01's fix was too broad: it set EVERY 7|16ab+6ab to +3 from gi=63 alone,
+# when the majority are the +2 form.
+KENTIMA_SPLIT = {'7|16ab+6ab': (15.0, 2, 3)}    # key -> (height cut, low, high)
+
+
 SYNEXES_STEP = -1           # not the -2 a standalone elaphron takes; pair nets -2
 SYNEXES_GAP_FRAC = 0.72     # of the page's median note-to-note x-gap
 # 0.80 -> 0.72 on 2026-08-21. Chanter, shown p522 line 2 at ratio 0.74: "it's
@@ -951,6 +970,88 @@ SYNEXES_GAP_FRAC = 0.72     # of the page's median note-to-note x-gap
 # ever reassigns those.
 ELAPHRON_BASES = (20,)
 APOSTROPHOS_BASES = (4,)
+
+
+def _attach_orphan_kentima(units, recs):
+    """A kentima the grouping dropped, sitting just RIGHT of an oligon: +2.
+
+    Chanter, 2026-08-23, s18 glyph 53: "6| is not supposed to be just the
+    plain oligon. there is a kentima to the right of it means +2." The raw
+    record exists (p524 line 5: oligon 77-112, kentima 112-119, same height
+    band) but touches without x-overlapping, so _note_subgroups keeps them
+    apart -- and the kentima lands in NO unit at all and vanishes. The atlas
+    already states the value: "kentima below or to the RIGHT of an oligon ->
+    compound = +2". Per instance, like KENTIMA_SPLIT: the key stays '6|', the
+    iv is set here.
+    """
+    by_pl = {}
+    for u in units:
+        by_pl.setdefault(u['pl'], []).append(u)
+    for r in recs:
+        if r.get('cluster') != 16:
+            continue
+        row = by_pl.get((r.get('page'), r.get('line'))) or []
+        if not row:
+            continue                      # strict (page, line): no cross-page guessing
+        cx = 0.5 * (r['x0'] + r['x1']); cy = 0.5 * (r['y0'] + r['y1'])
+        if any(u['x0'] - 1 <= cx <= u['x1'] + 1 and u['y0'] - 8 <= cy <= u['y1'] + 8
+               for u in row):
+            continue                      # not an orphan
+        for u in row:
+            if (u.get('key') == '6|' and 0 <= r['x0'] - u['x1'] <= 4
+                    and u['y0'] - 6 <= cy <= u['y1'] + 6):
+                u['iv'] = 2
+                u['x1'] = max(u['x1'], r['x1'])
+                u['kentima_right'] = True
+                break
+    return units
+
+
+def _mark_ypsili_side(units, recs):
+    """'7|28ab+6ab': ypsili LEFT of the oligon's midpoint = +5, RIGHT = +4.
+
+    Chanter, both on 2026-08-23: s42 gi71 "+4 ... ypseli is on the right half
+    of the oligon"; s06 gi89 "+5, since ypseli is on the left". One key, two
+    figures, and the unit BOX cannot separate them (the ypsili sits above the
+    oligon either way, so all instances measure alike -- the earlier FIGURES
+    lock at +4 was wrong for the left form and broke gold s06's stream at
+    gi89). The member records can: compare the ypsili's x-centre with the
+    oligon's midpoint inside the same unit.
+    """
+    for u in units:
+        if u.get('key') != '7|28ab+6ab' or u.get('iv') is not None:
+            continue
+        pl = u['pl']
+        inside = [r for r in recs
+                  if (r.get('page'), r.get('line')) == pl
+                  and u['x0'] - 1 <= 0.5 * (r['x0'] + r['x1']) <= u['x1'] + 1
+                  and u['y0'] - 2 <= 0.5 * (r['y0'] + r['y1']) <= u['y1'] + 2]
+        yps = [r for r in inside if r.get('cluster') == 28]
+        oli = [r for r in inside if r.get('cluster') == 6]
+        if not yps or not oli:
+            continue
+        ymid = 0.5 * (yps[0]['x0'] + yps[0]['x1'])
+        omid = 0.5 * (oli[0]['x0'] + oli[0]['x1'])
+        u['iv'] = 4 if ymid > omid else 5
+        u['ypsili_side'] = 'right' if ymid > omid else 'left'
+    return units
+
+
+def _mark_kentima_height(units):
+    """Set iv per instance where a key covers two figures at different heights."""
+    for u in units:
+        spec = KENTIMA_SPLIT.get(u.get('key'))
+        if not spec or u.get('iv') is not None:
+            continue
+        if u.get('y0') is None or u.get('y1') is None:
+            continue
+        cut, lo, hi = spec
+        h = u['y1'] - u['y0']
+        if h > 21.0:            # the 22-30 pt tail is a third figure; no ruling
+            continue
+        u['iv'] = hi if h >= cut else lo
+        u['kentima_high'] = h >= cut
+    return units
 
 
 def _mark_synexes_elaphron(units):
@@ -1013,6 +1114,7 @@ def load_units(p0, l0, p1, l1):
                or p > p1:
                 continue
             g['cluster'] = _reclass(g)
+            g.setdefault('page', p)
             recs.append(g)
         for w in d.get('lyrics', []):
             if (p == p0 and w.get('line', 0) < l0) or (p == p1 and w.get('line', 0) >= l1):
@@ -1182,7 +1284,8 @@ def load_units(p0, l0, p1, l1):
     _attach_pthoras(units, recs)
     units.sort(key=lambda u: (u['pl'], u.get('sx', u['x0']),
                               u['part'] if u.get('part') is not None else 0))
-    return _mark_synexes_elaphron(units), lyr
+    return _mark_synexes_elaphron(_mark_kentima_height(
+        _mark_ypsili_side(_attach_orphan_kentima(units, recs), recs))), lyr
 
 def load_units_h(h):
     """units + lyrics for a hymns.json row. Optional g0/g1 (annotator glyph
@@ -1192,10 +1295,10 @@ def load_units_h(h):
     units, lyr = load_units(h['p0'], h['l0'], h['p1'], h['l1'])
     g0, g1 = h.get('g0'), h.get('g1')
     if g0 is None and g1 is None:
-        return units, lyr
+        return _apply_row_rulings(h, units), lyr
     lo = 0 if g0 is None else int(g0)
     hi = len(units) - 1 if g1 is None else int(g1)
-    kept = units[lo:hi + 1]
+    kept = _apply_row_rulings(h, units[lo:hi + 1])
     if kept:
         pl0, kx0 = kept[0]['pl'], kept[0]['x0']
         pl1, kx1 = kept[-1]['pl'], kept[-1]['x1']
@@ -1210,6 +1313,47 @@ def load_units_h(h):
             return True
         lyr = [w for w in lyr if _keep(w)]
     return kept, lyr
+
+
+
+def _apply_row_rulings(h, units):
+    """Per-instance chanter rulings carried on the hymns.json row, indexed
+    like unitdeg_*/iv_ovr_* (unit index within the trimmed stream).
+
+    synexes_units: [j, ...]      unit j and the unit before it are ONE running
+                                 elaphron, whatever the spacing rule said.
+    not_synexes_units: [j, ...]  the opposite: a plain elaphron after an
+                                 apostrophos, however close they print.
+
+    First instance, chanter 2026-09-01 via the annotator /d page, mode-2
+    dogmatic-theotokion-lihc glyphs 22+23 (4| then 20|8ab): "Thats a running
+    elafron not two separate apostrophos and elafron". The spacing rule
+    measured that pair at ratio 0.73 against the 0.72 cut -- 0.01 from the
+    figure he ruled NOT running (p522 line 2, 0.74). The x0-to-x0 yardstick
+    has run out of resolution there; the ink gap (elaphron x0 minus
+    apostrophos x1) is 0.29 of its median for this pair and is the candidate
+    replacement once the ruled set is re-measured under it. Until then the
+    ruling lives here, so the stream the annotator and the aligner see is
+    what the chanter sees.
+    """
+    for j in h.get('synexes_units') or []:
+        j = int(j)
+        if 0 < j < len(units):
+            cur, prev = units[j], units[j - 1]
+            cur['iv'] = SYNEXES_STEP
+            cur['synexes'] = True
+            cur['synexes_ruled'] = True
+            prev['synexes_gorgon'] = True
+    for j in h.get('not_synexes_units') or []:
+        j = int(j)
+        if 0 < j < len(units) and units[j].get('synexes'):
+            cur, prev = units[j], units[j - 1]
+            cur['synexes'] = False
+            cur['synexes_ruled'] = False
+            cur['iv'] = None                 # back to the legend's elaphron
+            prev['synexes_gorgon'] = False
+    return units
+
 
 W_ABS, ABS_CAP = 0.55, 2.0
 W_MART = 1.6

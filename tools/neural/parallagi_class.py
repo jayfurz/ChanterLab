@@ -101,6 +101,61 @@ def degrees(hymn, n):
     return [int(x) for x in d]
 
 
+def degrees_row(src, n):
+    """Labels for a mode-workdir hymn piece (slip_check's resolution, kept
+    ABSOLUTE -- the classifier's octave is what is meant, so no mod-7 here).
+
+    The piece's meta.source names the workdir and the hymn; the hymns.json row
+    IS the score range. A -par piece reads the row's par_score range -- the
+    parallagi has its own slice of the book -- while a melos piece reads the
+    row's main range. genus rides along for reporting only: it moves the
+    pitches, not the ladder positions the score writes.
+    """
+    from score_degrees import degree_stream, leading_anchor
+    from hymn_align import load_units, load_units_h
+    rows = json.load(open(os.path.join(src['workdir'], 'hymns.json')))
+    rows = rows if isinstance(rows, list) else rows['hymns']
+    name = src['hymn']
+    par = name.endswith('-par')
+    r = next(x for x in rows if x['name'] == (name[:-4] if par else name))
+    rr = dict(r['par_score']) if par else r
+    u, _ = load_units_h(rr)
+    leg = json.load(open('/mnt/data/chant-corpus/scores/legend_canon.json'))
+    # leading_anchor wants the range start as a unit index WITHIN ITS PAGE --
+    # the grave scorecuts store exactly that, but a row's g0 is relative to the
+    # row's own (page,line) slice. Handing it the row g0 made every mid-page
+    # row look like a page-top one, degree_stream never anchored, and the
+    # un-anchored prefix fell out of the stream silently (kyrie lost 12 notes).
+    usp, _ = load_units(rr['p0'], 0, rr['p0'], 10 ** 6)
+    g0p = next((i for i, w in enumerate(usp)
+                if w['pl'] == u[0]['pl'] and abs(w['x0'] - u[0]['x0']) < 0.5), 0)
+    start = leading_anchor(rr['p0'], g0p)
+    if start is None:
+        # A hymn that OPENS the book (kyrie-ekekraxa is the first piece of
+        # mode 1) has no martyria anywhere in front of it, and degree_stream
+        # drops the un-anchored prefix silently. The contour is linear in the
+        # anchor, so back-solve: pick the start that makes the contour arrive
+        # exactly on the first in-range cadence martyria.
+        keys = leg['keys']
+        def _ivu(w):
+            v = w.get('iv')
+            if v is None:
+                v = keys.get(w.get('key'), keys.get('%s|' % w.get('base')))
+            return v or 0
+        for j, w in enumerate(u):
+            if w.get('rest'):
+                continue
+            m = (w['mart_cad'][0] if w.get('mart_cad')
+                 else w.get('mart_deg'))
+            if m is not None:
+                start = int(m) - sum(_ivu(x) for x in u[:j + 1]
+                                     if not x.get('rest'))
+                break
+    d = degree_stream(u, leg, start=start)
+    assert len(d) == n, 'degree stream %d vs %d notes' % (len(d), n)
+    return [int(x) for x in d], (r.get('genus') or src.get('genus') or 'diatonic')
+
+
 def cut(M, t0, t1):
     """One note's mel patch, fixed width, centred if the note is long."""
     a, b = int(t0 * SR / HOP), int(t1 * SR / HOP)
@@ -140,13 +195,31 @@ def load(piece_dir, gold_file, hymn):
     D = json.load(open(os.path.join(piece_dir, 'annotator_data.json')))
     n = len(D['slots']['gi'])
     raw = json.load(open(gold_file))
-    g = {int(k): float(v) for k, v in (raw.items() if isinstance(raw, dict) else raw)}
+    if isinstance(raw, dict) and 'onsets' in raw:
+        # quick_onset.place() output: model onsets, in time order, one per note.
+        g = {i: float(t) for i, t in enumerate(raw['onsets'])}
+    elif isinstance(raw, dict):
+        g = {int(k): float(v) for k, v in raw.items()}
+    else:
+        g = {int(k): float(v) for k, v in raw}
     M = mel(audio(os.path.join(piece_dir, 'audio.wav')))
-    y = degrees(hymn, n)
+    src = D['meta'].get('source') or {}
+    # a grave tape-span piece carries 'span' (and a workdir NAME); a
+    # mode-workdir hymn piece carries a workdir PATH and 'hymn' -- same
+    # discrimination slip_check uses
+    if 'span' in src or 'hymn' not in src:
+        y, genus = degrees(hymn, n), 'diatonic'
+    else:
+        y, genus = degrees_row(src, n)
     X, Y, dropped = [], [], []
-    ts = [g[i] for i in sorted(g)]
-    for k, i in enumerate(sorted(g)):
-        t1 = ts[k + 1] if k + 1 < len(ts) else ts[k] + 0.6
+    gis = sorted(g)
+    ts = [g[i] for i in gis]
+    for k, i in enumerate(gis):
+        # A pinned note ends at the NEXT pin only when that pin is the next
+        # note. On a partially-pinned piece the next pin may be many notes
+        # away, and the centre-crop would land on someone else's note.
+        nxt = k + 1 < len(gis) and gis[k + 1] == i + 1
+        t1 = ts[k + 1] if nxt else ts[k] + 0.6
         if not DEG_LO <= y[i] <= DEG_HI:
             dropped.append((i, y[i])); continue
         X.append(cut(M, g[i], t1)); Y.append(y[i] - DEG_LO)
@@ -154,7 +227,67 @@ def load(piece_dir, gold_file, hymn):
         print('    %d note(s) outside the two-octave range, excluded: %s'
               % (len(dropped), ', '.join('gi=%d %s(%+d)' % (i, deg_name(d), d)
                                          for i, d in dropped)))
-    return np.stack(X), np.array(Y), os.path.basename(piece_dir)[14:44]
+    nm = os.path.basename(piece_dir.rstrip('/'))
+    if nm.startswith('grave-orthros-'):
+        nm = nm[14:44]
+    return np.stack(X), np.array(Y), nm, genus
+
+
+def predict(net, piece_dir, onsets_file, dev, hymn=None):
+    """Degree per note for a piece, from its audio and a set of onsets.
+
+    The onsets can be the chanter's or the onset model's. Where a score exists
+    the prediction is compared against it, and a DISAGREEMENT IS THE POINT: a
+    parallagi sings its answer out loud, so a confident mismatch is evidence
+    about the score, not only about the model. On s06 this heard γα where the
+    score said βου, and the chanter confirmed γα -- the score was wrong.
+
+    It cannot tell a wrong onset from a wrong degree. If the onsets came from
+    the model rather than from him, a note misplaced by one articulation reads
+    as a misclassification here, so low agreement means "look at this piece",
+    not "the score is wrong".
+    """
+    D = json.load(open(os.path.join(piece_dir, 'annotator_data.json')))
+    n = len(D['slots']['gi'])
+    raw = json.load(open(onsets_file))
+    if isinstance(raw, dict) and 'onsets' in raw:
+        ts = list(raw['onsets'])
+    elif isinstance(raw, dict):
+        ts = [float(raw[k]) for k in sorted(raw, key=int)]
+    else:
+        ts = [float(t) for _, t in raw]
+    M = mel(audio(os.path.join(piece_dir, 'audio.wav')))
+    X = []
+    for k, t0 in enumerate(ts):
+        t1 = ts[k + 1] if k + 1 < len(ts) else t0 + 0.6
+        X.append(cut(M, t0, t1))
+    x = torch.from_numpy(np.stack(X)).to(dev)
+    with torch.inference_mode():
+        p = torch.softmax(net(x), 1)
+    conf, idx = p.max(1)
+    pred = [int(i) + DEG_LO for i in idx.cpu().numpy()]
+    conf = [float(c) for c in conf.cpu().numpy()]
+    row = {'piece_id': os.path.basename(piece_dir.rstrip('/')),
+           'n_notes': n, 'n_onsets': len(ts),
+           'degrees': pred, 'names': [deg_name(d) for d in pred],
+           'confidence': [round(c, 3) for c in conf],
+           'mean_confidence': round(float(np.mean(conf)), 3)}
+    if hymn:
+        try:
+            want = degrees(hymn, n)
+            if len(want) == len(pred):
+                agree = sum(1 for a, b in zip(want, pred) if a == b)
+                row['score_agreement'] = round(agree / len(want), 3)
+                row['disagreements'] = [
+                    {'note': i, 'score': deg_name(want[i]), 'heard': deg_name(pred[i]),
+                     'conf': round(conf[i], 3)}
+                    for i in range(len(want)) if want[i] != pred[i]]
+        except Exception as e:
+            row['score_error'] = str(e)
+    return row
+
+
+AUG_SHIFT = 0
 
 
 def run(train, test, epochs, lr, dev, tag):
@@ -173,16 +306,26 @@ def run(train, test, epochs, lr, dev, tag):
         net.train(); perm = torch.randperm(len(Xtr), device=dev)
         for i in range(0, len(perm), bs):
             j = perm[i:i + bs]
-            opt.zero_grad(); l = lf(net(Xtr[j]), Ytr[j]); l.backward(); opt.step()
+            xb = Xtr[j]
+            if AUG_SHIFT:
+                k = int(torch.randint(-AUG_SHIFT, AUG_SHIFT + 1, (1,)))
+                if k:
+                    xb = torch.roll(xb, k, dims=1)
+            opt.zero_grad(); l = lf(net(xb), Ytr[j]); l.backward(); opt.step()
         sch.step()
     net.eval()
-    with torch.inference_mode():
-        pr = net(Xte).argmax(1)
-        tr = net(Xtr).argmax(1)
+    # chunked -- a full-batch pass over ~1.5k notes wants 1.5 GB of conv
+    # activations, and the GPU is down to whatever the vLLM worker left over
+    def _pred(X):
+        with torch.inference_mode():
+            return torch.cat([net(X[i:i + 64]).argmax(1)
+                              for i in range(0, len(X), 64)])
+    pr = _pred(Xte)
+    tr = _pred(Xtr)
     acc = float((pr == Yte).float().mean()); tacc = float((tr == Ytr).float().mean())
     print('  %-34s train %5.1f%%   %s %5.1f%%  (n=%d)'
           % (tag, 100 * tacc, 'TEST', 100 * acc, len(Yte)))
-    return pr.cpu().numpy(), Yte.cpu().numpy(), acc
+    return pr.cpu().numpy(), Yte.cpu().numpy(), acc, net
 
 
 def main():
@@ -191,16 +334,30 @@ def main():
     ap.add_argument('--gold', action='append', required=True)
     ap.add_argument('--hymn', action='append', required=True)
     ap.add_argument('--epochs', type=int, default=400)
+    ap.add_argument('--aug-shift', type=int, default=0,
+                    help='random +/-N mel-bin roll per training sample. Pitch-shift '
+                         'augmentation: the chanter, on the mode-2 failure, "it should '
+                         'be mode invariant. they are the same syllables just slightly '
+                         'different intervals" -- so make absolute pitch a useless cue '
+                         'and force the net onto the formants.')
     ap.add_argument('--lr', type=float, default=6e-4)
     ap.add_argument('--loo', action='store_true', help='leave one hymn out')
+    ap.add_argument('--out-degrees')
     ap.add_argument('--errors', action='store_true',
                     help='list every note where the model and the score disagree')
     ap.add_argument('--device', default='cuda')
+    ap.add_argument('--save', help='write trained weights here')
+    ap.add_argument('--load', help='use these weights instead of training')
+    ap.add_argument('--infer', action='append', metavar='DIR:ONSETS',
+                    help='piece dir and an onsets json, colon separated; '
+                         'repeatable. Predicts the degree of every note.')
     a = ap.parse_args()
     dev = torch.device(a.device if torch.cuda.is_available() else 'cpu')
+    global AUG_SHIFT
+    AUG_SHIFT = a.aug_shift
     data = [load(p, g, h) for p, g, h in zip(a.piece, a.gold, a.hymn)]
-    for X, Y, nm in data:
-        print('%-34s %3d notes' % (nm, len(Y)))
+    for X, Y, nm, genus in data:
+        print('%-34s %3d notes  %s' % (nm, len(Y), genus))
     allY = np.concatenate([d[1] for d in data])
     base = np.bincount(allY, minlength=NCLS).max() / len(allY)
     print('\n%d classes, low %s .. high %s' % (NCLS, deg_name(DEG_LO), deg_name(DEG_HI)))
@@ -216,7 +373,7 @@ def main():
             acc = _last[2]
             accs.append(acc)
             if a.errors:
-                pr, gt, _ = _last
+                pr, gt = _last[0], _last[1]
                 nm_ = data[i][2]
                 bad = [(k, gt[k], pr[k]) for k in range(len(gt)) if gt[k] != pr[k]]
                 print('      %d disagreement(s) with the score on %s:' % (len(bad), nm_))
@@ -227,7 +384,10 @@ def main():
               % (100 * np.mean(accs), 100 * base))
     else:
         print('TRAINED AND SCORED ON EVERYTHING -- memorisation, not skill:')
-        pr, gt, _ = run(data, data, a.epochs, a.lr, dev, 'all three')
+        pr, gt, _, net = run(data, data, a.epochs, a.lr, dev, 'all three')
+        if a.save:
+            torch.save(net.state_dict(), a.save)
+            print('-> weights', a.save)
         cm = np.zeros((NCLS, NCLS), int)
         for p, t in zip(pr, gt):
             cm[t][p] += 1
@@ -237,6 +397,21 @@ def main():
         for i in seen:
             print('  %-6s ' % deg_name(i + DEG_LO)
                   + ' '.join('%5d' % cm[i][j] for j in seen))
+    if a.infer:
+        net = Clf().to(dev)
+        net.load_state_dict(torch.load(a.load, map_location=dev))
+        net.eval()
+        print('\nDEGREE PER NOTE (weights %s):' % a.load)
+        rows = []
+        for spec in a.infer:
+            pd, of = spec.rsplit(':', 1)
+            r = predict(net, pd, of, dev)
+            rows.append(r)
+            print('  %-46s %3d notes  mean confidence %.2f'
+                  % (r['piece_id'][:46], r['n_onsets'], r['mean_confidence']))
+        if a.out_degrees:
+            json.dump(rows, open(a.out_degrees, 'w'), ensure_ascii=False, indent=1)
+            print('->', a.out_degrees)
     return 0
 
 

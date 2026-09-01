@@ -69,6 +69,23 @@ JUMP_MARKS = {16, 28, 83}
 # Explicit figures from the atlas, which override any composition rule.
 FIGURES = {
     '3|13ab': 2,          # petasti + oligon
+    # '7|28ab+6ab' (psifiston + ypsili-above + oligon-above) is NOT here any
+    # more: it is one key covering TWO figures -- ypsili on the oligon's RIGHT
+    # half = +4 (chanter, s42 gi71), ypsili on the LEFT = +5 (chanter, s06
+    # gi89: "should be +5, since ypseli is on the left"). The box cannot tell
+    # them apart (all five instances measure alike -- the ypsili is above the
+    # oligon either way); the MEMBER x-positions can, and
+    # hymn_align._mark_ypsili_side sets iv per instance. The bare key falls
+    # back to the qualitative-promotion composition (+5).
+    # Apostrofos inside a petasti, klasma below. Chanter, 2026-08-23, glyph
+    # 26: "should be a -1. that's a compound apostrophos inside petasti with
+    # a klasma where the petasti acts only as an orthographic/qualitative
+    # neume and the apostrophos holds the weight as -1." Both keys derived 0
+    # before this. '3|4ab' (same figure, no klasma) was inferred from the same
+    # ruling -- a klasma is duration-only -- and the chanter confirmed it
+    # directly: "3|4ab is -1 correct" (2026-08-23). 37 instances pp505-569.
+    '3|4ab+8be': -1,
+    '3|4ab': -1,      # chanter-confirmed sibling
     '3|13ab+8be': 2,
     '3|16ab': 3,          # petasti + kentima on top-middle
     '3|16ab+8be': 3,
