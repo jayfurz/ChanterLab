@@ -118,8 +118,10 @@ def load_gold_seed(piece, n_units):
         n = len(sc.get('gi', []))
         ed = sc.get('edited') or [True] * n
         pn = sc.get('pinned') or [False] * n
-        full = [[g, t] for g, t, e, q in zip(sc['gi'], sc['t'], ed, pn)
-                if t is not None and (e or q)]
+        # Every slot time is a label once he has approved the piece: the
+        # untouched ones are machine times he accepted by ear, and a re-prep
+        # re-runs the aligner, so they must not be regenerated either.
+        full = [[g, t] for g, t in zip(sc['gi'], sc['t']) if t is not None]
         if len(full) > len(pins):
             print(f'  {piece}: COMPLETE -- seeding {len(full)} slot times '
                   f'(pins.json held {len(pins)})')
