@@ -42,6 +42,9 @@ pub enum Genus {
     /// Grave Enharmonic from Ga — generator form, canonical root Ga.
     /// Not a closed 7-interval scale; see `is_closed`.
     EnharmonicGa,
+    /// Equal temperament: `divisions` equal steps per octave (12 or 24),
+    /// every step a note. Not degree-based; cells carry no Ni–Zo names.
+    EqualTemperament { divisions: i32 },
     /// User-defined interval sequence.
     ///
     /// `intervals` is stored canonical-root-indexed: the first element is the
@@ -64,6 +67,7 @@ impl Genus {
             Genus::GraveDiatonic => Degree::Ga,
             Genus::EnharmonicZo => Degree::Zo,
             Genus::EnharmonicGa => Degree::Ga,
+            Genus::EqualTemperament { .. } => Degree::Ni,
             Genus::Custom { canonical_root, .. } => *canonical_root,
         }
     }
@@ -97,6 +101,7 @@ impl Genus {
             Genus::EnharmonicZo => vec![6, 12, 12, 12, 6, 12, 12],
             // Grave Enharmonic from Ga — tetrachord generator (not closed).
             Genus::EnharmonicGa => vec![6, 12, 12],
+            Genus::EqualTemperament { divisions } => vec![72 / divisions; *divisions as usize],
             Genus::Custom { intervals, .. } => intervals.clone(),
         }
     }
@@ -122,6 +127,16 @@ impl Genus {
         )
     }
 
+    /// True iff this genus is an equal division of the octave.
+    pub fn is_equal_temperament(&self) -> bool {
+        matches!(self, Genus::EqualTemperament { .. })
+    }
+
+    /// Valid equal temperaments divide the 72-moria octave evenly.
+    pub fn equal_temperament(divisions: i32) -> Option<Genus> {
+        (divisions > 0 && 72 % divisions == 0).then_some(Genus::EqualTemperament { divisions })
+    }
+
     /// Display name for UI.
     pub fn name(&self) -> &str {
         match self {
@@ -132,6 +147,9 @@ impl Genus {
             Genus::GraveDiatonic => "Grave Diatonic",
             Genus::EnharmonicZo => "Enharmonic (Zo)",
             Genus::EnharmonicGa => "Enharmonic (Ga)",
+            Genus::EqualTemperament { divisions: 12 } => "Chromatic 12-ET",
+            Genus::EqualTemperament { divisions: 24 } => "Chromatic 24-ET",
+            Genus::EqualTemperament { .. } => "Equal temperament",
             Genus::Custom { name, .. } => name,
         }
     }
@@ -236,6 +254,19 @@ mod tests {
     fn enharmonic_ga_generator() {
         assert_eq!(Genus::EnharmonicGa.intervals(), vec![6, 12, 12]);
         assert!(!Genus::EnharmonicGa.is_closed());
+    }
+
+    #[test]
+    fn equal_temperament_steps() {
+        let g12 = Genus::equal_temperament(12).unwrap();
+        assert_eq!(g12.intervals(), vec![6; 12]);
+        assert_eq!(
+            Genus::equal_temperament(24).unwrap().intervals(),
+            vec![3; 24]
+        );
+        assert!(Genus::equal_temperament(7).is_none());
+        assert!(!g12.is_closed());
+        assert_eq!(g12.name(), "Chromatic 12-ET");
     }
 
     /// Custom genus carries user-supplied data.

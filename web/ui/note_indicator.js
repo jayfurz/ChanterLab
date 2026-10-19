@@ -303,7 +303,7 @@ export class NoteIndicator {
     }
 
     const cell = this._cells.find(candidate => candidate.moria === msg.cell_id);
-    if (!cell || cell.degree === null) {
+    if (!cell || (cell.degree === null && !Number.isInteger(cell.et_step))) {
       this.clear();
       return;
     }
@@ -349,7 +349,9 @@ export class NoteIndicator {
     this.el.classList.remove('hidden', 'no-pitch', ...HIDDEN_CLASSES);
     this.el.classList.toggle('has-exercise', activeExercise);
     this.el.classList.add(grade.className);
-    this._nameEl.textContent = degreeLabel(cell.degree);
+    this._nameEl.textContent = cell.degree !== null
+      ? degreeLabel(cell.degree)
+      : (cell.et_step === 0 ? degreeLabel('Ni') : String(cell.et_step));
     this._scoreEl.textContent = grade.label;
     this._offsetEl.textContent = `${direction} ${offsetLabel}`;
     this._cursorEl.style.left = `${50 + cursor * 48}%`;

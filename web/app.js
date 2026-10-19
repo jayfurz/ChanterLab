@@ -70,6 +70,10 @@ const BYZANTINE_PRESETS = [
   { label: 'Hard Chromatic',genus: 'HardChromatic',  degree: 'Pa'  },
   { label: 'Soft Chromatic',genus: 'SoftChromatic',  degree: 'Ni'  },
   { label: 'Western',       genus: 'Western',       degree: 'Ni'  },
+  // Equal-step grids: every step is a note, no Ni–Zo degrees. Appended last
+  // so exercise presetIdx values keep indexing the same entries.
+  { label: 'Chromatic 12-ET', genus: 'Chromatic12', degree: 'Ni' },
+  { label: 'Chromatic 24-ET', genus: 'Chromatic24', degree: 'Ni' },
   // { label: 'Grave Diatonic',genus: 'GraveDiatonic',  degree: 'Ga'  },
   // { label: 'Enharmonic Zo', genus: 'EnharmonicZo',   degree: 'Zo'  },
   // { label: 'Enharmonic Ga', genus: 'EnharmonicGa',   degree: 'Ga'  },

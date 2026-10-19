@@ -7,6 +7,10 @@ import { degreeLabel } from './degree_labels.js?v=raga-1';
 const DEGREE_INDEX = { Ni: 0, Pa: 1, Vou: 2, Ga: 3, Di: 4, Ke: 5, Zo: 6 };
 const DEGREE_H = 26;
 const NONDEG_H = 12;
+
+// Degree cells and equal-temperament steps are full note rows; everything
+// else is a thin accidental slot.
+const isNoteCell = cell => cell.degree !== null || Number.isInteger(cell.et_step);
 const CONCERT_NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const DEGREE_ACCENTS = ['#65d6ff', '#6fc7ff', '#74d3b7', '#8bc2ff', '#c3a5ff', '#ffca6f', '#ff8ea0'];
 
@@ -285,13 +289,13 @@ export class ScaleLadder {
 
       // Total natural height to determine if we need to scroll (we don't scroll
       // yet — just fit into the available height by scaling row heights).
-      const naturalH = reversed.reduce((s, c) => s + (c.degree !== null ? DEGREE_H : NONDEG_H), 0);
+      const naturalH = reversed.reduce((s, c) => s + (isNoteCell(c) ? DEGREE_H : NONDEG_H), 0);
       scale = Math.min(1, cssH / naturalH);
 
       this._rowMap = [];
       let y = 0;
       for (const cell of reversed) {
-        const h = Math.max(2, (cell.degree !== null ? DEGREE_H : NONDEG_H) * scale);
+        const h = Math.max(2, (isNoteCell(cell) ? DEGREE_H : NONDEG_H) * scale);
         this._rowMap.push({ cell, y, h });
         y += h;
       }
@@ -299,8 +303,8 @@ export class ScaleLadder {
 
     // Paint rows.
     for (const { cell, y: ry, h } of this._rowMap) {
-      const isDeg = cell.degree !== null;
-      const degreeIdx = isDeg ? DEGREE_INDEX[cell.degree] ?? 0 : 0;
+      const isDeg = isNoteCell(cell);
+      const degreeIdx = cell.degree !== null ? DEGREE_INDEX[cell.degree] ?? 0 : (cell.et_step ?? 0);
       const accent = DEGREE_ACCENTS[degreeIdx % DEGREE_ACCENTS.length];
 
       // Region background tint.
@@ -376,7 +380,9 @@ export class ScaleLadder {
       if (!isDeg) continue;
 
       // Degree label.
-      const name = degreeLabel(cell.degree ?? '?');
+      const name = cell.degree !== null
+        ? degreeLabel(cell.degree)
+        : (cell.et_step === 0 ? degreeLabel('Ni') : String(cell.et_step));
       ctx.textBaseline = 'middle';
       ctx.font = `700 ${Math.max(10, Math.round(11 * scale))}px 'Segoe UI', system-ui, sans-serif`;
       ctx.fillStyle = (isActive || isDetected) ? '#ffffff' : (cell.enabled ? accent : '#52657a');
@@ -580,7 +586,7 @@ export class ScaleLadder {
    * accidentals applied to any degree.
    */
   _paintIntervals(ctx, cssW, scale) {
-    const degRows = this._rowMap.filter(r => r.cell.degree !== null);
+    const degRows = this._rowMap.filter(r => isNoteCell(r.cell));
 
     for (let i = 0; i < degRows.length - 1; i++) {
       const upper = degRows[i];      // smaller canvas y → higher moria
