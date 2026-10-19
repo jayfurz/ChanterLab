@@ -1279,10 +1279,20 @@ mod tests {
         for (div, step) in [(12, 6), (24, 3)] {
             let mut g = TuningGrid::new_default();
             assert!(g.apply_pthora(0, Genus::equal_temperament(div).unwrap(), Degree::Ni));
-            let cells: Vec<_> = g.cells().into_iter().filter(|c| (0..72).contains(&c.moria)).collect();
+            let cells: Vec<_> = g
+                .cells()
+                .into_iter()
+                .filter(|c| (0..72).contains(&c.moria))
+                .collect();
             assert_eq!(cells.len() as i32, div);
             assert!(cells.iter().all(|c| c.enabled && c.degree.is_none()));
-            assert_eq!(cells.iter().map(|c| c.et_step.unwrap() as i32).collect::<Vec<_>>(), (0..div).collect::<Vec<_>>());
+            assert_eq!(
+                cells
+                    .iter()
+                    .map(|c| c.et_step.unwrap() as i32)
+                    .collect::<Vec<_>>(),
+                (0..div).collect::<Vec<_>>()
+            );
             assert!(cells.windows(2).all(|w| w[1].moria - w[0].moria == step));
             assert_eq!(cells[0].moria, 0);
         }

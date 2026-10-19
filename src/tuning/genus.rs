@@ -260,7 +260,10 @@ mod tests {
     fn equal_temperament_steps() {
         let g12 = Genus::equal_temperament(12).unwrap();
         assert_eq!(g12.intervals(), vec![6; 12]);
-        assert_eq!(Genus::equal_temperament(24).unwrap().intervals(), vec![3; 24]);
+        assert_eq!(
+            Genus::equal_temperament(24).unwrap().intervals(),
+            vec![3; 24]
+        );
         assert!(Genus::equal_temperament(7).is_none());
         assert!(!g12.is_closed());
         assert_eq!(g12.name(), "Chromatic 12-ET");
