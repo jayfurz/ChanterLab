@@ -745,14 +745,25 @@ impl TuningGrid {
     pub fn cells(&self) -> Vec<Cell> {
         let mut cells = Vec::new();
         for (idx, region) in self.regions.iter().enumerate() {
-            let degree_map: HashMap<i32, DegreeCellInfo> = if region.genus.is_closed() {
+            let equal = region.genus.is_equal_temperament();
+            let step = match &region.genus {
+                Genus::EqualTemperament { divisions } => 72 / divisions,
+                _ => CELL_STEP,
+            };
+            let degree_map: HashMap<i32, DegreeCellInfo> = if equal {
+                HashMap::new()
+            } else if region.genus.is_closed() {
                 self.build_degree_map(region)
             } else {
                 self.build_generator_map(region)
             };
             let start = region.start_moria.max(self.low_moria);
             let end = region.end_moria.min(self.high_moria);
-            let mut m = align_up(start, CELL_STEP);
+            let mut m = if equal {
+                align_up(start - region.anchor_moria, step) + region.anchor_moria
+            } else {
+                align_up(start, step)
+            };
             while m < end {
                 let degree_info = degree_map.get(&m).copied();
                 let degree = degree_info.map(|info| info.degree);
@@ -761,16 +772,21 @@ impl TuningGrid {
                     .overrides
                     .get(&m)
                     .map(|ov| (ov.accidental + geniki_shift, ov.enabled))
-                    .unwrap_or((geniki_shift, degree.is_some()));
+                    .unwrap_or((geniki_shift, equal || degree.is_some()));
                 cells.push(Cell {
                     moria: m,
                     degree,
                     chromatic_phase: degree_info.and_then(|info| info.chromatic_phase),
+                    et_step: if equal {
+                        Some(((m - region.anchor_moria) / step).rem_euclid(72 / step) as u8)
+                    } else {
+                        None
+                    },
                     accidental,
                     enabled,
                     region_idx: idx,
                 });
-                m += CELL_STEP;
+                m += step;
             }
         }
         cells.sort_by_key(|c| c.moria);
@@ -1258,6 +1274,20 @@ mod tests {
     }
 
     /// Cells are sorted and unique.
+    #[test]
+    fn equal_temperament_cells_are_all_enabled_and_degreeless() {
+        for (div, step) in [(12, 6), (24, 3)] {
+            let mut g = TuningGrid::new_default();
+            assert!(g.apply_pthora(0, Genus::equal_temperament(div).unwrap(), Degree::Ni));
+            let cells: Vec<_> = g.cells().into_iter().filter(|c| (0..72).contains(&c.moria)).collect();
+            assert_eq!(cells.len() as i32, div);
+            assert!(cells.iter().all(|c| c.enabled && c.degree.is_none()));
+            assert_eq!(cells.iter().map(|c| c.et_step.unwrap() as i32).collect::<Vec<_>>(), (0..div).collect::<Vec<_>>());
+            assert!(cells.windows(2).all(|w| w[1].moria - w[0].moria == step));
+            assert_eq!(cells[0].moria, 0);
+        }
+    }
+
     #[test]
     fn cells_are_sorted_and_unique() {
         let g = TuningGrid::new_default();

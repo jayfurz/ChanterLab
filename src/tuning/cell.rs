@@ -42,6 +42,10 @@ pub struct Cell {
     pub degree: Option<Degree>,
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub chromatic_phase: Option<u8>,
+    /// Index (0-based, within the octave from the region anchor) of a cell in an
+    /// equal-temperament region; `None` elsewhere.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub et_step: Option<u8>,
     pub accidental: i32,
     pub enabled: bool,
     pub region_idx: usize,
@@ -69,6 +73,7 @@ mod tests {
             moria: 12,
             degree: Some(Degree::Pa),
             chromatic_phase: None,
+            et_step: None,
             accidental: 4,
             enabled: true,
             region_idx: 0,
@@ -82,6 +87,7 @@ mod tests {
             moria: 30,
             degree: Some(Degree::Ga),
             chromatic_phase: None,
+            et_step: None,
             accidental: 0,
             enabled: true,
             region_idx: 0,
@@ -95,6 +101,7 @@ mod tests {
             moria: 22,
             degree: Some(Degree::Vou),
             chromatic_phase: None,
+            et_step: None,
             accidental: -6,
             enabled: true,
             region_idx: 0,
@@ -110,6 +117,7 @@ mod tests {
             moria: 22,
             degree: Some(Degree::Vou),
             chromatic_phase: None,
+            et_step: None,
             accidental: 10,
             enabled: true,
             region_idx: 0,
@@ -123,6 +131,7 @@ mod tests {
             moria: 0,
             degree: Some(Degree::Ni),
             chromatic_phase: None,
+            et_step: None,
             accidental: 0,
             enabled: true,
             region_idx: 0,
@@ -136,6 +145,7 @@ mod tests {
             moria: 4,
             degree: None,
             chromatic_phase: None,
+            et_step: None,
             accidental: 0,
             enabled: false,
             region_idx: 0,

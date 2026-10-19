@@ -224,6 +224,8 @@ mod main_exports {
             "GraveDiatonic" => Some(Genus::GraveDiatonic),
             "EnharmonicZo" => Some(Genus::EnharmonicZo),
             "EnharmonicGa" => Some(Genus::EnharmonicGa),
+            "Chromatic12" => Genus::equal_temperament(12),
+            "Chromatic24" => Genus::equal_temperament(24),
             _ => None,
         }
     }
