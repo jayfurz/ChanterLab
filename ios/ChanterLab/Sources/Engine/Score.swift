@@ -9,8 +9,76 @@ struct ScoreNote: Decodable {
     let measure: Int
     /// Syllable for the selected verse; a trailing "-" continues the word.
     let lyric: String?
+    /// The syllable is printed under this part's own staff (not borrowed for the lane).
+    let ownLyric: Bool
 
     var endBeat: Double { startBeat + durBeat }
+}
+
+// MARK: engraving
+
+/// A notehead as engraved.
+struct ScoreHead: Decodable {
+    /// Diatonic position: octave × 7 + step, C = 0 (C4 is 28).
+    let pos: Int
+    let accidental: String?
+    let tieStart: Bool
+    let tieStop: Bool
+    /// Index into the part's `notes`.
+    let note: Int
+}
+
+/// A note, chord or rest as engraved.
+struct ScoreEvent: Decodable {
+    let startBeat: Double
+    let durBeat: Double
+    /// "breve", "whole", "half", "quarter", "eighth" or "16th".
+    let kind: String
+    let dots: Int
+    let stemUp: Bool?
+    let beams: [String]
+    /// Empty for a rest.
+    let heads: [ScoreHead]
+
+    var isRest: Bool { heads.isEmpty }
+}
+
+struct ScoreClef: Decodable, Equatable {
+    let sign: String
+    let line: Int
+    let octaveChange: Int
+
+    static let treble = ScoreClef(sign: "G", line: 2, octaveChange: 0)
+
+    /// Diatonic position of the bottom staff line.
+    var bottomLine: Int {
+        let anchor: Int
+        switch sign {
+        case "F": anchor = 24   // F3
+        case "C": anchor = 28   // C4
+        default: anchor = 32    // G4
+        }
+        return anchor - (line - 1) * 2 + 7 * octaveChange
+    }
+}
+
+struct ScoreTime: Decodable, Equatable {
+    let beats: String
+    let beatType: String
+    let visible: Bool
+}
+
+/// One measure of one staff, with only the attributes that change in it.
+struct ScoreMeasure: Decodable {
+    let number: Int
+    let startBeat: Double
+    let endBeat: Double
+    let clef: ScoreClef?
+    let fifths: Int?
+    let time: ScoreTime?
+    let barline: String
+    let newSystem: Bool
+    let events: [ScoreEvent]
 }
 
 struct ScorePart: Decodable, Identifiable {
@@ -19,6 +87,8 @@ struct ScorePart: Decodable, Identifiable {
     let voiceName: String
     let index: Int
     let notes: [ScoreNote]
+    /// The part as engraved, measure by measure.
+    let staff: [ScoreMeasure]
 
     var id: Int { index }
 }

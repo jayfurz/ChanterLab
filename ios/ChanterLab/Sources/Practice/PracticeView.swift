@@ -5,13 +5,42 @@ struct PracticeView: View {
     @Bindable var model: PracticeModel
     @State private var showLibrary = false
     @State private var showSettings = false
+    @AppStorage("practice.view") private var viewMode = ViewMode.split
+
+    enum ViewMode: String, CaseIterable {
+        case split, score, lane
+
+        var title: String {
+            switch self {
+            case .split: return "Score and lane"
+            case .score: return "Score only"
+            case .lane: return "Lane only"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .split: return "rectangle.split.1x2"
+            case .score: return "music.note.list"
+            case .lane: return "waveform.path"
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().overlay(Theme.rule)
             ZStack {
-                LaneView(model: model)
+                VStack(spacing: 0) {
+                    if viewMode != .lane {
+                        ScoreView(model: model)
+                    }
+                    if viewMode == .split { Divider().overlay(Theme.rule) }
+                    if viewMode != .score {
+                        LaneView(model: model)
+                            .frame(maxHeight: viewMode == .split ? 190 : .infinity)
+                    }
+                }
                 if model.loading { ProgressView().controlSize(.large).tint(.white) }
                 if model.score == nil, !model.loading {
                     ContentUnavailableView("No piece loaded", systemImage: "music.note.list",
@@ -80,6 +109,14 @@ struct PracticeView: View {
                 }
                 .accessibilityLabel("Sections")
             }
+            Menu {
+                Picker("View", selection: $viewMode) {
+                    ForEach(ViewMode.allCases, id: \.self) { Label($0.title, systemImage: $0.icon).tag($0) }
+                }
+            } label: {
+                Image(systemName: viewMode.icon).font(.title3).foregroundStyle(.white)
+            }
+            .accessibilityLabel("View")
             Button { showSettings = true } label: {
                 Image(systemName: "slider.horizontal.3").font(.title3).foregroundStyle(.white)
             }
