@@ -17,6 +17,24 @@ capture. With the mic on and no headphones it runs Apple's echo canceller so
 the accompaniment stays out of the pitch tracker; with headphones it takes the
 raw mic. The echo canceller follows route changes.
 
+## Sampled voices and recording
+
+- **Voices**: `Resources/Voices/ah_040…080.m4a` are the web app's generated
+  "ah" recordings (one every four semitones), re-encoded from Opus to AAC
+  because iOS does not decode Ogg. They are decoded once at launch into a
+  sample bank the Rust synth plays, repitched, for scheduled notes.
+- **Recording** (`Sources/Audio/Recorder.swift`): the render and capture
+  callbacks push into two lock-free rings; a writer queue mixes them at the
+  chosen balance and encodes AAC. The audio graph is untouched, so recording
+  cannot disturb playback or capture. The accompaniment is delayed by the
+  output + input latency so the voice lines up with what the singer heard.
+  The file is shared with the system share sheet.
+
+## iPad
+
+Universal app. Wide layouts get larger staves, a taller and faster lane, a
+wider ladder and full voice names.
+
 ## Notation
 
 `Sources/Notation` engraves the score natively from the engraving data the Rust
@@ -28,8 +46,7 @@ headings, repeats; chords with seconds are not offset.
 
 ## Not ported yet
 
-- Sampled "ah" voices for accompaniment (synth only)
-- Recording and export, section check (whole-choir analysis)
+- Section check (whole-choir analysis)
 - Scales: glyph score practice
 
 ## Build
@@ -56,7 +73,7 @@ and rerun `ios/build_core.sh`.
 | `CHANTERLAB_TAB=practice` | Open on the Practice tab |
 | `CHANTERLAB_AUTOMIC=1` | Scales: mic on at launch |
 | `CHANTERLAB_PRESET=<label>`, `CHANTERLAB_EDIT=1`, `CHANTERLAB_EXERCISE=<id>` | Scales: load a scale, open edit mode, start a drill |
-| `CHANTERLAB_AUTOPLAY=1`, `CHANTERLAB_LOOP=1` | Practice: play the first piece (looping two measures), mic on |
+| `CHANTERLAB_AUTOPLAY=1`, `CHANTERLAB_LOOP=1`, `CHANTERLAB_RECORD=<s>` | Practice: play the first piece (looping two measures), mic on, record for that many seconds |
 
 With `simctl launch`, prefix each with `SIMCTL_CHILD_`. Stored settings can be
 overridden with launch arguments, e.g. `-practice.view score -practice.piece <id>`.

@@ -13,6 +13,8 @@ final class AppModel {
         let practice = self.practice
         audio.pitchListeners.append { [weak practice] frames in practice?.ingest(frames) }
         audio.resetListeners.append { [weak practice] in practice?.audioClockReset() }
+        audio.stateListeners.append { [weak practice] in practice?.audioStateChanged() }
+        audio.recorder.onInterrupted = { [weak practice] in practice?.recordingInterrupted() }
         audio.errorListeners.append { [weak practice] message in
             guard let practice, practice.micOn else { return }
             practice.micFailed()
@@ -52,6 +54,7 @@ struct ChanterLabApp: App {
                 // One screen makes sound at a time.
                 switch tab {
                 case .scales:
+                    app.practice.finishRecording()
                     app.practice.stop()
                     if app.practice.micOn { app.practice.setMic(false) }
                 case .practice:

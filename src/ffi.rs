@@ -478,6 +478,113 @@ pub unsafe extern "C" fn clp_synth_clear_scheduled(s: *const Synth) {
     synth_send(s, Cmd::ClearScheduled);
 }
 
+// ── Sampled instrument ────────────────────────────────────────────────────
+
+/// A new, empty sample bank. Fill it with `clp_bank_add` before giving it to
+/// a synth; after that it must not change, and must outlive every synth.
+#[no_mangle]
+pub extern "C" fn clp_bank_new() -> *mut crate::synth::SampleBank {
+    Box::into_raw(Box::new(crate::synth::SampleBank::new()))
+}
+
+/// Add a mono recording of the note `root_midi` (copied).
+///
+/// # Safety
+/// `bank` must be a live bank not yet shared with a synth; `samples` must
+/// point to `len` floats.
+#[no_mangle]
+pub unsafe extern "C" fn clp_bank_add(
+    bank: *mut crate::synth::SampleBank,
+    root_midi: f32,
+    sample_rate: f32,
+    samples: *const f32,
+    len: usize,
+) {
+    if let (Some(bank), false) = (bank.as_mut(), samples.is_null()) {
+        bank.add(
+            root_midi,
+            sample_rate,
+            core::slice::from_raw_parts(samples, len).to_vec(),
+        );
+    }
+}
+
+/// Tell a synth which bank `clp_synth_note_at` plays for voicing 6 (sampled).
+///
+/// # Safety
+/// `s` must be a live synth; `bank` must outlive it and never change again.
+#[no_mangle]
+pub unsafe extern "C" fn clp_synth_set_bank(
+    s: *const Synth,
+    bank: *const crate::synth::SampleBank,
+) {
+    synth_send(s, Cmd::Bank(crate::synth::BankRef(bank)));
+}
+
+// ── Recording rings ───────────────────────────────────────────────────────
+//
+// One thread pushes (an audio callback), one pops (the file writer).
+
+#[no_mangle]
+pub extern "C" fn clp_ring_new(capacity: usize) -> *mut crate::ring::Ring {
+    Box::into_raw(Box::new(crate::ring::Ring::new(capacity)))
+}
+
+/// # Safety
+/// `r` must come from `clp_ring_new`; no thread may use it afterwards.
+#[no_mangle]
+pub unsafe extern "C" fn clp_ring_free(r: *mut crate::ring::Ring) {
+    if !r.is_null() {
+        drop(Box::from_raw(r));
+    }
+}
+
+/// Append samples; returns how many fit (the rest are dropped and counted).
+///
+/// # Safety
+/// `r` must be a live ring; `samples` must point to `len` floats.
+#[no_mangle]
+pub unsafe extern "C" fn clp_ring_push(
+    r: *const crate::ring::Ring,
+    samples: *const f32,
+    len: usize,
+) -> usize {
+    match (r.as_ref(), samples.is_null()) {
+        (Some(r), false) => r.push(core::slice::from_raw_parts(samples, len)),
+        _ => 0,
+    }
+}
+
+/// Move up to `len` samples into `out`; returns how many.
+///
+/// # Safety
+/// `r` must be a live ring; `out` must point to `len` floats.
+#[no_mangle]
+pub unsafe extern "C" fn clp_ring_pop(
+    r: *const crate::ring::Ring,
+    out: *mut f32,
+    len: usize,
+) -> usize {
+    match (r.as_ref(), out.is_null()) {
+        (Some(r), false) => r.pop(core::slice::from_raw_parts_mut(out, len)),
+        _ => 0,
+    }
+}
+
+/// # Safety
+/// `r` must be a live ring.
+#[no_mangle]
+pub unsafe extern "C" fn clp_ring_len(r: *const crate::ring::Ring) -> usize {
+    r.as_ref().map_or(0, |r| r.len())
+}
+
+/// # Safety
+/// `r` must be a live ring.
+#[no_mangle]
+pub unsafe extern "C" fn clp_ring_dropped(r: *const crate::ring::Ring) -> u64 {
+    r.as_ref().map_or(0, |r| r.dropped())
+}
+
 // ── Scores and scoring ────────────────────────────────────────────────────
 
 /// Parse MusicXML into the practice note model (JSON; see `score::Score`),

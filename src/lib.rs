@@ -13,6 +13,7 @@ pub mod dsp;
 pub mod ffi;
 #[cfg(feature = "serde")]
 pub mod names;
+pub mod ring;
 #[cfg(feature = "ffi")]
 pub mod score;
 pub mod scoring;

@@ -85,6 +85,73 @@ final class PracticeModel {
     /// Extra playback delay to add on top of what the system reports, in ms.
     var syncMs: Double { didSet { defaults.set(syncMs, forKey: "practice.syncMs") } }
     var showVerdicts = true
+    /// Accompaniment sound: the triangle synth or the sampled "ah" voices.
+    var sampledVoices: Bool {
+        didSet {
+            defaults.set(sampledVoices, forKey: "practice.sampledVoices")
+            rescheduleIfPlaying()
+        }
+    }
+    /// Recording mix: 0 accompaniment only … 1 voice only.
+    var recordBalance: Double {
+        didSet {
+            defaults.set(recordBalance, forKey: "practice.recordBalance")
+            audio.recorder.balance = Float(recordBalance)
+        }
+    }
+
+    // MARK: recording
+
+    private(set) var recording = false
+    private(set) var recordingStarted: Date?
+    /// The last finished recording, ready to share.
+    private(set) var recordingURL: URL?
+    @ObservationIgnored private var wantsRecording = false
+
+    /// Start or stop recording the accompaniment together with the microphone.
+    func toggleRecording() {
+        if recording { finishRecording(); return }
+        wantsRecording = true
+        if micOn, audio.running { beginRecording() } else { setMic(true) }
+    }
+
+    /// The audio graph was rebuilt: a requested recording can start once the mic is live.
+    func audioStateChanged() {
+        if wantsRecording, !recording, audio.micOn, audio.running { beginRecording() }
+    }
+
+    private func beginRecording() {
+        wantsRecording = false
+        let day = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withFullDate])
+        let name = "chanterlab-\(piece?.id ?? "practice")-\(day).m4a"
+            .replacingOccurrences(of: "/", with: "-")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        do {
+            audio.recorder.balance = Float(recordBalance)
+            try audio.recorder.start(url: url)
+            recording = true
+            recordingStarted = Date()
+            recordingURL = nil
+        } catch {
+            errorMessage = "Recording could not start: \(error.localizedDescription)"
+        }
+    }
+
+    func finishRecording() {
+        wantsRecording = false
+        guard recording else { return }
+        recordingURL = audio.recorder.stop()
+        recording = false
+        recordingStarted = nil
+    }
+
+    /// The engine closed the recording itself (the audio route changed).
+    func recordingInterrupted() {
+        guard recording else { return }
+        recordingURL = audio.recorder.url
+        recording = false
+        recordingStarted = nil
+    }
 
     var sections: [ScoreSection] {
         if let catalog = piece?.sections, catalog.count >= 2 { return catalog }
@@ -151,15 +218,22 @@ final class PracticeModel {
         strict = defaults.bool(forKey: "practice.strict")
         responseMs = defaults.object(forKey: "practice.responseMs") as? Double ?? 65
         syncMs = defaults.object(forKey: "practice.syncMs") as? Double ?? 0
+        sampledVoices = defaults.bool(forKey: "practice.sampledVoices")
+        recordBalance = defaults.object(forKey: "practice.recordBalance") as? Double ?? 0.5
 
         #if DEBUG
         // Simulator checks: CHANTERLAB_AUTOPLAY=1 starts playback (and the mic,
         // with CHANTERLAB_TONE) once the first piece has loaded.
         if ProcessInfo.processInfo.environment["CHANTERLAB_AUTOPLAY"] == "1" { autoplay = true }
+        // CHANTERLAB_RECORD=<seconds> records that long after autoplay starts.
+        if let s = ProcessInfo.processInfo.environment["CHANTERLAB_RECORD"], let seconds = Double(s) {
+            autoRecordSeconds = seconds
+        }
         #endif
     }
 
     @ObservationIgnored private var autoplay = false
+    @ObservationIgnored private var autoRecordSeconds: Double?
 
     // MARK: loading
 
@@ -178,6 +252,7 @@ final class PracticeModel {
 
     func load(_ piece: Piece) async {
         stop()
+        finishRecording()
         loading = true
         defer { loading = false }
         do {
@@ -206,6 +281,13 @@ final class PracticeModel {
                 if loopOn { loopTo = min(score.lastMeasure, loopFrom + 1) }
                 setMic(true)
                 play()
+                if let seconds = autoRecordSeconds {
+                    toggleRecording()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+                        self?.finishRecording()
+                        if let url = self?.recordingURL { print("CHANTERLAB_RECORDING \(url.path)") }
+                    }
+                }
             }
         } catch {
             errorMessage = "\(piece.title): \(error.localizedDescription)"
@@ -405,7 +487,8 @@ final class PracticeModel {
                 audio.scheduleNote(hz: 440 * pow(2, Double(note.midi - 69) / 12),
                                    velocity: Self.partVelocity,
                                    startFrame: UInt64(frame),
-                                   seconds: max(0.05, (note.end - note.start) * 0.95))
+                                   seconds: max(0.05, (note.end - note.start) * 0.95),
+                                   voicing: sampledVoices && audio.voicesReady ? 6 : 5)
             }
         }
         scheduledUntil = horizon

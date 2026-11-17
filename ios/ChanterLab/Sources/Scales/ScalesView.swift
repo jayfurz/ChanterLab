@@ -124,6 +124,8 @@ struct ScalesView: View {
                 Image(systemName: "speaker.wave.3.fill").font(.caption).foregroundStyle(Theme.dim)
             }
             .tint(Theme.gold)
+            .frame(maxWidth: 360)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
