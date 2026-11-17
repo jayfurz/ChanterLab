@@ -3,7 +3,9 @@
 #define CHANTERLAB_CORE_H
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
+// ── Pitch tracker (one thread at a time) ────────────────────────────────────
 typedef struct ClpTracker ClpTracker;
 
 ClpTracker *clp_tracker_new(float sample_rate, float gate_on_amp);
@@ -13,5 +15,43 @@ float clp_tracker_detect_hz(ClpTracker *t);
 bool clp_tracker_gate_open(const ClpTracker *t);
 float clp_tracker_level(const ClpTracker *t);
 void clp_tracker_set_gate(ClpTracker *t, float gate_on_amp);
+
+// ── Tuning grid (main thread). Returned strings: clp_string_free. ───────────
+typedef struct ClpGrid ClpGrid;
+
+void clp_string_free(char *s);
+ClpGrid *clp_grid_new(void);
+ClpGrid *clp_grid_from_json(const char *json);
+void clp_grid_free(ClpGrid *g);
+char *clp_grid_to_json(const ClpGrid *g);
+char *clp_grid_cells_json(const ClpGrid *g);
+double clp_grid_moria_to_hz(const ClpGrid *g, int32_t moria);
+double clp_grid_ref_ni_hz(const ClpGrid *g);
+void clp_grid_set_ref_ni_hz(ClpGrid *g, double hz);
+bool clp_grid_apply_pthora(ClpGrid *g, int32_t moria, const char *genus, const char *degree);
+bool clp_grid_apply_custom_genus(ClpGrid *g, int32_t moria, const char *degree, const char *name,
+                                 const char *intervals_json, const char *canonical_root);
+bool clp_grid_apply_symbol_drop(ClpGrid *g, const char *json);
+bool clp_grid_remove_pthora(ClpGrid *g, int32_t moria);
+void clp_grid_set_accidental(ClpGrid *g, int32_t moria, int32_t accidental);
+int32_t clp_grid_toggle_cell(ClpGrid *g, int32_t moria);
+void clp_grid_clear_override(ClpGrid *g, int32_t moria);
+
+// ── Synth. clp_synth_render: audio thread. Everything else: one control
+//    thread; calls are queued lock-free and apply at the next render. ────────
+typedef struct ClpSynth ClpSynth;
+
+ClpSynth *clp_synth_new(float sample_rate);
+void clp_synth_free(ClpSynth *s);
+void clp_synth_render(const ClpSynth *s, float *out, size_t len);
+void clp_synth_note_on(const ClpSynth *s, int32_t id, float hz, float velocity);
+void clp_synth_note_off(const ClpSynth *s, int32_t id);
+void clp_synth_retune(const ClpSynth *s, int32_t id, float hz);
+void clp_synth_all_notes_off(const ClpSynth *s);
+void clp_synth_ison(const ClpSynth *s, float hz, float volume);
+void clp_synth_set_voicing(const ClpSynth *s, uint8_t index);
+void clp_synth_set_master(const ClpSynth *s, float level);
+void clp_synth_click(const ClpSynth *s, float hz, float volume);
+void clp_synth_metronome(const ClpSynth *s, float bpm, float volume, uint8_t beats_per_bar);
 
 #endif

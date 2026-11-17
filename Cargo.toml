@@ -16,8 +16,8 @@ serde = ["dep:serde", "dep:serde_json"]
 main = ["serde", "dep:wasm-bindgen"]
 # Worklet-only DSP: filters, gate, pitch detector, PSOLA. No serde.
 worklet = ["dep:wasm-bindgen", "dep:realfft"]
-# C ABI for native hosts (iOS audio engine): the same pitch pipeline, no wasm.
-ffi = ["dep:realfft"]
+# C ABI for native hosts (iOS app): tuning grid, pitch pipeline and synth, no wasm.
+ffi = ["serde", "dep:realfft"]
 
 [dependencies]
 wasm-bindgen = { version = "0.2", optional = true }
