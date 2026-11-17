@@ -25,8 +25,9 @@ enum Theme {
 struct LadderView: View {
     @Bindable var model: ScalesModel
 
-    private let pointsPerMoria: CGFloat = 7
-    private let ladderWidth: CGFloat = 104
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var pointsPerMoria: CGFloat { sizeClass == .regular ? 9 : 7 }
+    private var ladderWidth: CGFloat { sizeClass == .regular ? 150 : 104 }
     private let margin: CGFloat = 28
 
     private var visible: [Cell] { model.editing ? model.cells : model.playable }

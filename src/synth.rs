@@ -60,6 +60,57 @@ fn normalised(weights: [f32; K]) -> [f32; K] {
     weights.map(|w| w / sum)
 }
 
+/// Voicing index that plays scheduled notes from the sample bank.
+pub const VOICING_SAMPLED: u8 = 6;
+
+/// Recorded notes for the sampled instrument: one mono recording per root
+/// pitch, played back faster or slower to reach the notes in between.
+#[derive(Default)]
+pub struct SampleBank {
+    zones: Vec<Zone>,
+}
+
+struct Zone {
+    root_hz: f32,
+    sample_rate: f32,
+    data: Vec<f32>,
+}
+
+impl SampleBank {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a recording of the note `root_midi`.
+    pub fn add(&mut self, root_midi: f32, sample_rate: f32, data: Vec<f32>) {
+        if data.len() > 1 && sample_rate > 0.0 {
+            self.zones.push(Zone {
+                root_hz: 440.0 * 2f32.powf((root_midi - 69.0) / 12.0),
+                sample_rate,
+                data,
+            });
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.zones.is_empty()
+    }
+
+    /// The recording whose root is closest in pitch to `hz`.
+    fn zone_for(&self, hz: f32) -> Option<usize> {
+        let distance = |z: &Zone| (hz / z.root_hz).log2().abs();
+        (0..self.zones.len())
+            .min_by(|&a, &b| distance(&self.zones[a]).total_cmp(&distance(&self.zones[b])))
+    }
+}
+
+/// A bank shared with the audio thread. The owner keeps it alive, unchanged,
+/// for as long as any synth has been told about it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BankRef(pub *const SampleBank);
+// SAFETY: the bank is immutable once shared (see `BankRef`).
+unsafe impl Send for BankRef {}
+
 /// A control-thread request. `id` is any caller-chosen key (the app uses the
 /// cell's moria); it pairs a `NoteOn` with its `NoteOff`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -97,6 +148,8 @@ pub enum Cmd {
     },
     /// Drop every scheduled note and release those already sounding.
     ClearScheduled,
+    /// The recordings `NoteAt` plays when its voicing is [`VOICING_SAMPLED`].
+    Bank(BankRef),
     Master(f32),
     /// One metronome tick.
     Click {
@@ -145,6 +198,11 @@ struct Voice {
     age: u64,
     /// Clock sample at which a scheduled note releases.
     off_at: u64,
+    /// Sampled voice: zone in the bank (negative for a synthesized voice),
+    /// read position and step per output sample.
+    zone: i32,
+    sample_pos: f64,
+    sample_step: f64,
 }
 
 impl Voice {
@@ -160,6 +218,9 @@ impl Voice {
         stage: Stage::Dead,
         age: 0,
         off_at: u64::MAX,
+        zone: -1,
+        sample_pos: 0.0,
+        sample_step: 0.0,
     };
 
     fn sounding(&self) -> bool {
@@ -179,6 +240,7 @@ struct State {
     now: u64,
     pending: [Pending; MAX_PENDING],
     pending_len: usize,
+    bank: *const SampleBank,
 }
 
 #[derive(Clone, Copy)]
@@ -280,6 +342,7 @@ impl Synth {
                     voicing: 0,
                 }; MAX_PENDING],
                 pending_len: 0,
+                bank: core::ptr::null(),
             }),
         }
     }
@@ -380,6 +443,7 @@ impl State {
                     self.pending_len += 1;
                 }
             }
+            Cmd::Bank(bank) => self.bank = bank.0,
             Cmd::ClearScheduled => {
                 self.pending_len = 0;
                 self.release_where(|v| v.kind == Kind::Seq);
@@ -446,6 +510,19 @@ impl State {
                 Stage::Attack,
             );
             self.voices[slot].off_at = now + p.frames as u64;
+            if p.voicing == VOICING_SAMPLED {
+                // SAFETY: the bank outlives the synth and is never mutated (`BankRef`).
+                let bank = unsafe { self.bank.as_ref() };
+                if let Some((zone, z)) =
+                    bank.and_then(|b| b.zone_for(p.hz).map(|i| (i, &b.zones[i])))
+                {
+                    let voice = &mut self.voices[slot];
+                    voice.zone = zone as i32;
+                    voice.sample_pos = 0.0;
+                    voice.sample_step =
+                        (p.hz / z.root_hz) as f64 * (z.sample_rate / self.sample_rate) as f64;
+                }
+            }
         }
         next
     }
@@ -531,6 +608,9 @@ impl State {
             stage,
             age: self.clock,
             off_at: u64::MAX,
+            zone: -1,
+            sample_pos: 0.0,
+            sample_step: 0.0,
         };
         slot
     }
@@ -553,10 +633,16 @@ impl State {
         let click_decay = (-1.0 / (CLICK_DECAY_S * sr)).exp();
         let nyquist = sr * 0.5;
 
+        // SAFETY: the bank outlives the synth and is never mutated (`BankRef`).
+        let bank = unsafe { self.bank.as_ref() };
         for v in self.voices.iter_mut() {
             if v.stage == Stage::Dead {
                 continue;
             }
+            let recording = bank
+                .filter(|_| v.zone >= 0)
+                .and_then(|b| b.zones.get(v.zone as usize))
+                .map(|z| z.data.as_slice());
             // Partials at or above Nyquist would alias; drop them for this block.
             let partials = (1..=K).take_while(|k| v.hz * (*k as f32) < nyquist).count();
             for sample in out.iter_mut() {
@@ -594,11 +680,23 @@ impl State {
                 }
 
                 let mut s = 0.0;
-                for k in 0..partials {
-                    s += v.amps[k] * (core::f32::consts::TAU * v.phases[k]).sin();
-                    v.phases[k] += v.hz * (k as f32 + 1.0) / sr;
-                    if v.phases[k] >= 1.0 {
-                        v.phases[k] -= v.phases[k].floor();
+                if let Some(data) = recording {
+                    // Linear interpolation; the note ends with the recording.
+                    let i = v.sample_pos as usize;
+                    if i + 1 >= data.len() {
+                        v.stage = Stage::Dead;
+                        break;
+                    }
+                    let frac = (v.sample_pos - i as f64) as f32;
+                    s = data[i] + (data[i + 1] - data[i]) * frac;
+                    v.sample_pos += v.sample_step;
+                } else {
+                    for k in 0..partials {
+                        s += v.amps[k] * (core::f32::consts::TAU * v.phases[k]).sin();
+                        v.phases[k] += v.hz * (k as f32 + 1.0) / sr;
+                        if v.phases[k] >= 1.0 {
+                            v.phases[k] -= v.phases[k].floor();
+                        }
                     }
                 }
                 *sample += s * v.velocity * v.env;
@@ -802,6 +900,58 @@ mod tests {
         synth.send(Cmd::ClearScheduled);
         render(&synth, 9600);
         assert_eq!(peak(&render(&synth, 96_000)), 0.0);
+    }
+
+    #[test]
+    fn sampled_notes_play_the_nearest_recording_at_pitch() {
+        // Two "recordings": sines at A3 and A4, one second each at 44.1 kHz.
+        let recording = |hz: f32| -> Vec<f32> {
+            (0..44_100)
+                .map(|i| 0.5 * (core::f32::consts::TAU * hz * i as f32 / 44_100.0).sin())
+                .collect()
+        };
+        let mut bank = SampleBank::new();
+        bank.add(57.0, 44_100.0, recording(220.0));
+        bank.add(69.0, 44_100.0, recording(440.0));
+        let bank = Box::leak(Box::new(bank));
+
+        let synth = Synth::new(SR);
+        synth.send(Cmd::Bank(BankRef(bank)));
+        // C5 is nearest the A4 recording, played a minor third up.
+        synth.send(Cmd::NoteAt {
+            hz: 523.25,
+            velocity: 0.8,
+            start: 0,
+            frames: 24_000,
+            voicing: VOICING_SAMPLED,
+        });
+        let out = render(&synth, 24_000);
+        assert!(peak(&out) > 0.05);
+        assert!((crossings_hz(&out[2400..21_600]) - 523.25).abs() < 4.0);
+
+        // A note longer than its recording simply ends: no noise, no panic.
+        synth.send(Cmd::NoteAt {
+            hz: 220.0,
+            velocity: 0.8,
+            start: synth.frames(),
+            frames: 480_000,
+            voicing: VOICING_SAMPLED,
+        });
+        render(&synth, 96_000);
+        assert_eq!(peak(&render(&synth, 4800)), 0.0);
+    }
+
+    #[test]
+    fn sampled_voicing_without_a_bank_falls_back_to_the_synth() {
+        let synth = Synth::new(SR);
+        synth.send(Cmd::NoteAt {
+            hz: 440.0,
+            velocity: 0.8,
+            start: 0,
+            frames: 9600,
+            voicing: VOICING_SAMPLED,
+        });
+        assert!(peak(&render(&synth, 4800)) > 0.05);
     }
 
     #[test]

@@ -48,6 +48,13 @@ final class AudioEngine {
     private var pump: Timer?
     private var toneTimer: Timer?
     private var rebuilding = false
+    /// Recordings for the sampled "Voices" instrument; nil until decoded.
+    private var bank: OpaquePointer?
+    /// True once the sampled voices can be played.
+    private(set) var voicesReady = false
+    let recorder = Recorder()
+    /// Called after every successful (re)build of the audio graph.
+    var stateListeners: [() -> Void] = []
 
     /// Shared with the capture thread, which only ever try-locks.
     private final class Shared {
@@ -60,6 +67,7 @@ final class AudioEngine {
     private let shared = Shared()
 
     init() {
+        loadVoices()
         shared.frames.reserveCapacity(64)
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(configChanged),
@@ -90,12 +98,44 @@ final class AudioEngine {
         clp_synth_metronome(synth, Float(bpm), volume, UInt8(beatsPerBar))
     }
 
+    // MARK: sampled voices
+
+    /// Decode the bundled "ah" recordings (one every four semitones, MIDI
+    /// 40…80) off the main thread and hand them to the synth.
+    private func loadVoices() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let bank = clp_bank_new() else { return }
+            var loaded = 0
+            for midi in stride(from: 40, through: 80, by: 4) {
+                let name = String(format: "ah_%03d", midi)
+                guard let url = Bundle.main.url(forResource: name, withExtension: "m4a"),
+                      let file = try? AVAudioFile(forReading: url),
+                      let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
+                                                    frameCapacity: AVAudioFrameCount(file.length)),
+                      (try? file.read(into: buffer)) != nil,
+                      let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { continue }
+                clp_bank_add(bank, Float(midi), Float(file.processingFormat.sampleRate), samples, Int(buffer.frameLength))
+                loaded += 1
+            }
+            guard loaded > 0 else { return }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                // From here on the bank is shared with the audio thread and never changes.
+                self.bank = bank
+                self.voicesReady = true
+                clp_synth_set_bank(self.synth, bank)
+                self.stateListeners.forEach { $0() }
+            }
+        }
+    }
+
     // MARK: scheduled notes (score playback)
 
     /// The synth clock in samples; scheduled notes are timed against it.
     var frames: UInt64 { clp_synth_frames(synth) }
 
     /// Start a note at `startFrame` on the synth clock, lasting `seconds`.
+    /// `voicing` 5 is the triangle synth, 6 the sampled voices.
     func scheduleNote(hz: Double, velocity: Float, startFrame: UInt64, seconds: Double, voicing: Int = 5) {
         clp_synth_note_at(synth, Float(hz), velocity, startFrame,
                           UInt32(max(1, seconds * sampleRate)), UInt8(voicing))
@@ -165,6 +205,8 @@ final class AudioEngine {
     }
 
     private func teardown() {
+        // The formats may change under a recording; close it cleanly instead.
+        if recorder.isRecording { recorder.stop(interrupted: true) }
         pump?.invalidate(); pump = nil
         toneTimer?.invalidate(); toneTimer = nil
         engine.stop()
@@ -221,16 +263,20 @@ final class AudioEngine {
             if synth == nil || rate != sampleRate {
                 if let old = synth { clp_synth_free(old) }
                 synth = clp_synth_new(Float(rate))
+                if let bank { clp_synth_set_bank(synth, bank) }
                 sampleRate = rate
                 onSynthReset()
             }
 
+            let tap = recorder.tap
             guard let synth,
                   let mono = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1) else { return }
             let source = AVAudioSourceNode(format: mono) { _, _, frameCount, bufferList -> OSStatus in
                 let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
                 guard let out = buffers.first?.mData else { return noErr }
-                clp_synth_render(synth, out.assumingMemoryBound(to: Float.self), Int(frameCount))
+                let samples = out.assumingMemoryBound(to: Float.self)
+                clp_synth_render(synth, samples, Int(frameCount))
+                if tap.on { clp_ring_push(tap.music, samples, Int(frameCount)) }
                 return noErr
             }
             engine.attach(source)
@@ -241,7 +287,9 @@ final class AudioEngine {
                 let shared = self.shared
                 let sink = AVAudioSinkNode { _, frameCount, bufferList -> OSStatus in
                     guard let data = bufferList.pointee.mBuffers.mData else { return noErr }
-                    AudioEngine.feed(shared, UnsafePointer(data.assumingMemoryBound(to: Float.self)), Int(frameCount))
+                    let samples = UnsafePointer(data.assumingMemoryBound(to: Float.self))
+                    AudioEngine.feed(shared, samples, Int(frameCount))
+                    if tap.on { clp_ring_push(tap.mic, samples, Int(frameCount)) }
                     return noErr
                 }
                 engine.attach(sink)
@@ -254,11 +302,15 @@ final class AudioEngine {
             #endif
             try engine.start()
             running = true
+            recorder.musicRate = rate
+            recorder.micRate = inputFormat?.sampleRate ?? (micOn ? 48_000 : 0)
+            recorder.roundTripLatency = session.outputLatency + session.inputLatency + session.ioBufferDuration
 
             if micOn {
                 if let hz = Self.debugToneHz { startDebugTone(hz) }
                 startPump()
             }
+            stateListeners.forEach { $0() }
         } catch {
             micOn = false
             running = false
@@ -322,13 +374,17 @@ final class AudioEngine {
         var phase: Float = 0
         var block = [Float](repeating: 0, count: 480)
         let shared = self.shared
+        let tap = recorder.tap
         let timer = Timer(timeInterval: 0.01, repeats: true) { _ in
             for i in block.indices {
                 block[i] = 0.3 * sinf(phase)
                 phase += 2 * .pi * hz / rate
                 if phase > 2 * .pi { phase -= 2 * .pi }
             }
-            block.withUnsafeBufferPointer { AudioEngine.feed(shared, $0.baseAddress!, $0.count) }
+            block.withUnsafeBufferPointer {
+                AudioEngine.feed(shared, $0.baseAddress!, $0.count)
+                if tap.on { clp_ring_push(tap.mic, $0.baseAddress!, $0.count) }
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         toneTimer = timer

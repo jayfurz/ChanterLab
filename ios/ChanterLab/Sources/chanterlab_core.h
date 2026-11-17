@@ -59,6 +59,24 @@ void clp_synth_note_at(const ClpSynth *s, float hz, float velocity, uint64_t sta
                        uint8_t voicing);
 void clp_synth_clear_scheduled(const ClpSynth *s);
 
+// ── Sampled instrument. Fill a bank, then share it; after that it must not
+//    change and must outlive every synth. Voicing 6 in clp_synth_note_at. ────
+typedef struct ClpBank ClpBank;
+
+ClpBank *clp_bank_new(void);
+void clp_bank_add(ClpBank *bank, float root_midi, float sample_rate, const float *samples, size_t len);
+void clp_synth_set_bank(const ClpSynth *s, const ClpBank *bank);
+
+// ── Recording rings: one thread pushes, one pops; never blocks. ─────────────
+typedef struct ClpRing ClpRing;
+
+ClpRing *clp_ring_new(size_t capacity);
+void clp_ring_free(ClpRing *r);
+size_t clp_ring_push(const ClpRing *r, const float *samples, size_t len);
+size_t clp_ring_pop(const ClpRing *r, float *out, size_t len);
+size_t clp_ring_len(const ClpRing *r);
+uint64_t clp_ring_dropped(const ClpRing *r);
+
 // ── Scores and scoring (JSON in, JSON out; free with clp_string_free) ───────
 char *clp_score_parse(const char *xml, uint32_t verse);
 char *clp_score_lap(const char *targets_json, const char *samples_json, bool strict);

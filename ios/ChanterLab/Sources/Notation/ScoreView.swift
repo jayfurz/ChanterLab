@@ -56,7 +56,9 @@ struct ScoreView: View {
                 .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in lastTouch = Date() })
                 .task(id: LayoutKey(width: geo.size.width, revision: model.scoreRevision)) {
                     guard let score = model.score else { layout = .empty; return }
-                    layout = ScoreLayout(score: score, width: geo.size.width)
+                    // Larger staves where the screen allows (iPad); phone size otherwise.
+                    let sp: CGFloat = geo.size.width >= 900 ? 10 : geo.size.width >= 600 ? 8.5 : 6.5
+                    layout = ScoreLayout(score: score, width: geo.size.width, sp: sp)
                     shownSystem = -1
                 }
                 .onReceive(Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()) { _ in

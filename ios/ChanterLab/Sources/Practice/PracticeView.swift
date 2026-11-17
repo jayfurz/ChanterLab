@@ -6,6 +6,9 @@ struct PracticeView: View {
     @State private var showLibrary = false
     @State private var showSettings = false
     @AppStorage("practice.view") private var viewMode = ViewMode.split
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// iPad and other wide layouts.
+    private var roomy: Bool { sizeClass == .regular }
 
     enum ViewMode: String, CaseIterable {
         case split, score, lane
@@ -38,7 +41,7 @@ struct PracticeView: View {
                     if viewMode == .split { Divider().overlay(Theme.rule) }
                     if viewMode != .score {
                         LaneView(model: model)
-                            .frame(maxHeight: viewMode == .split ? 190 : .infinity)
+                            .frame(maxHeight: viewMode == .split ? (roomy ? 300 : 190) : .infinity)
                     }
                 }
                 if model.loading { ProgressView().controlSize(.large).tint(.white) }
@@ -128,15 +131,15 @@ struct PracticeView: View {
 
     // MARK: voices
 
-    @ViewBuilder
     private var voices: some View {
-        if let score = model.score, score.parts.count > 1 {
-            HStack(spacing: 8) {
+        HStack(spacing: 8) {
+            if let score = model.score, score.parts.count > 1 {
                 Text("I sing").font(.caption).foregroundStyle(Theme.dim)
                 ForEach(score.parts) { part in
                     let selected = part.index == model.voice
                     Button { model.voice = part.index } label: {
-                        Text(part.voiceKey.count <= 2 ? part.voiceName : "Part \(part.index + 1)")
+                        // Full names where there is room; S A T B on a phone.
+                        Text(part.voiceKey.count > 2 ? "Part \(part.index + 1)" : roomy ? part.voiceName : part.voiceKey)
                             .font(.system(size: 13, weight: .semibold))
                             .lineLimit(1)
                             .padding(.horizontal, 10)
@@ -146,12 +149,13 @@ struct PracticeView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 8)
-            .background(Theme.panel)
+            Spacer(minLength: 0)
+            RecordControls(model: model)
         }
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .background(Theme.panel)
     }
 
     // MARK: transport
@@ -215,6 +219,41 @@ struct PracticeView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(Theme.panel)
+    }
+}
+
+/// Record button with a running clock, and a share button for the last take.
+private struct RecordControls: View {
+    let model: PracticeModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let started = model.recordingStarted {
+                TimelineView(.periodic(from: started, by: 1)) { context in
+                    let seconds = max(0, Int(context.date.timeIntervalSince(started)))
+                    Text(String(format: "%d:%02d", seconds / 60, seconds % 60))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(.red)
+                }
+            } else if let url = model.recordingURL {
+                ShareLink(item: url) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(width: 34, height: 30)
+                        .foregroundStyle(.white)
+                        .background(Theme.key, in: Capsule())
+                }
+                .accessibilityLabel("Share recording")
+            }
+            Button { model.toggleRecording() } label: {
+                Image(systemName: model.recording ? "stop.circle.fill" : "record.circle")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(model.recording ? Color.red : Color.white)
+                    .frame(width: 34, height: 30)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(model.recording ? "Stop recording" : "Record")
+        }
     }
 }
 
@@ -295,6 +334,10 @@ struct PracticeSettings: View {
                     }
                 }
                 Section {
+                    Picker("Accompaniment", selection: $model.sampledVoices) {
+                        Text("Synth").tag(false)
+                        Text("Voices").tag(true)
+                    }
                     Toggle("Also play my part", isOn: $model.hearMine)
                     Picker("Scoring", selection: $model.strict) {
                         Text("Relaxed (±50¢)").tag(false)
@@ -303,6 +346,19 @@ struct PracticeSettings: View {
                     Toggle("Colour notes by result", isOn: $model.showVerdicts)
                 } header: {
                     Text("Sound and scoring")
+                }
+                Section {
+                    LabeledContent("Mix") {
+                        HStack {
+                            Text("Music").font(.caption).foregroundStyle(.secondary)
+                            Slider(value: $model.recordBalance, in: 0...1)
+                            Text("Voice").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Recording")
+                } footer: {
+                    Text("Sets how loud the accompaniment and your voice are in the recorded file. It does not change what you hear.")
                 }
                 Section {
                     LabeledContent("Voice response") {

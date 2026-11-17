@@ -6,7 +6,9 @@ import SwiftUI
 struct LaneView: View {
     let model: PracticeModel
 
-    private let pointsPerSecond: CGFloat = 68
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// Scroll speed: a little faster on wide screens so notes are not cramped.
+    private var pointsPerSecond: CGFloat { sizeClass == .regular ? 96 : 68 }
     private let nowFraction: CGFloat = 0.33
 
     static let verdictColors: [Verdict: Color] = [
@@ -102,7 +104,7 @@ struct LaneView: View {
                     }
                     context.fill(bar, with: .color(color))
                     if let lyric = note.lyric {
-                        context.draw(Text(lyric).font(.system(size: 11)).foregroundStyle(active ? .white : Theme.dim),
+                        context.draw(Text(lyric).font(.system(size: sizeClass == .regular ? 14 : 11)).foregroundStyle(active ? .white : Theme.dim),
                                      at: CGPoint(x: x0, y: plot + lyricBand / 2), anchor: .leading)
                     }
                 }
