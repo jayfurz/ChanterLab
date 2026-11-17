@@ -1,2 +1,4 @@
 *.xcodeproj
 build/
+Core/
+Info.plist

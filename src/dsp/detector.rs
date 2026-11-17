@@ -14,7 +14,7 @@
 // Index-based loops below mirror the cepstrum algorithm step-for-step (and the
 // JS reference implementation in voice_worklet.js); keep them as range loops.
 #[allow(clippy::needless_range_loop)]
-#[cfg(feature = "worklet")]
+#[cfg(any(feature = "worklet", feature = "ffi"))]
 pub mod fft {
     use realfft::num_complex::Complex;
     use realfft::{ComplexToReal, RealFftPlanner, RealToComplex};

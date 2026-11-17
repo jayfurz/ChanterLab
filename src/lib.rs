@@ -9,6 +9,8 @@
 //! exports are gated here; all core logic lives in `tuning/`.
 
 pub mod dsp;
+#[cfg(feature = "ffi")]
+pub mod ffi;
 pub mod tuning;
 #[cfg(feature = "worklet")]
 pub mod worklet;

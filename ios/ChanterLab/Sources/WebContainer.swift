@@ -2,7 +2,13 @@ import SwiftUI
 import WebKit
 
 /// The web app lives at this origin; the shell only hosts it.
-let appURL = URL(string: "https://chanterlab.com/")!
+let appURL: URL = {
+    #if DEBUG
+    // Point a debug build at a dev server: CHANTERLAB_URL=http://192.168.x.y:8000/
+    if let s = ProcessInfo.processInfo.environment["CHANTERLAB_URL"], let u = URL(string: s) { return u }
+    #endif
+    return URL(string: "https://chanterlab.com/")!
+}()
 
 struct WebContainer: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -13,7 +19,10 @@ struct WebContainer: UIViewRepresentable {
         // No tap-to-unlock dance for playback; the mic prompt still appears once.
         config.mediaTypesRequiringUserActionForPlayback = []
 
+        config.userContentController.add(context.coordinator.audio, name: NativeAudio.handlerName)
+
         let web = WKWebView(frame: .zero, configuration: config)
+        context.coordinator.audio.web = web
         web.navigationDelegate = context.coordinator
         web.uiDelegate = context.coordinator
         web.isOpaque = false
@@ -31,6 +40,17 @@ struct WebContainer: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         weak var web: WKWebView?
+        let audio = NativeAudio()
+
+        #if DEBUG
+        // CHANTERLAB_AUTOMIC=1 turns the mic on after load (simulator smoke test).
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard ProcessInfo.processInfo.environment["CHANTERLAB_AUTOMIC"] == "1" else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                webView.evaluateJavaScript("document.getElementById('micBtn')?.click()", completionHandler: nil)
+            }
+        }
+        #endif
 
         // Grant the mic to our own origin only; the OS-level permission prompt
         // (NSMicrophoneUsageDescription) still appears the first time.
