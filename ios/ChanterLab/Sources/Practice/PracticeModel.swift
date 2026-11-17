@@ -33,6 +33,8 @@ struct OneEuroFilter {
 /// A note of the loop window, in seconds from the window start.
 struct LaneNote {
     let part: Int
+    /// Index in the part's `notes` (what the engraved heads point at).
+    let noteIndex: Int
     /// Index among the selected part's window notes (matches scoring details); -1 for other parts.
     let targetIndex: Int
     let midi: Int
@@ -60,6 +62,8 @@ final class PracticeModel {
 
     private(set) var piece: Piece?
     private(set) var score: Score?
+    /// Bumped whenever `score` is replaced, so the engraving is laid out again.
+    private(set) var scoreRevision = 0
     private(set) var loading = false
     var errorMessage: String?
     @ObservationIgnored private var xml: String?
@@ -105,6 +109,24 @@ final class PracticeModel {
     @ObservationIgnored private(set) var lane: [LaneNote] = []
     /// Length of the loop window in seconds.
     @ObservationIgnored private(set) var windowSeconds = 0.0
+    @ObservationIgnored private(set) var windowStartBeat = 0.0
+
+    /// Where the singer is in the score, in beats from its start.
+    var heardBeat: Double {
+        guard windowSeconds > 0 else { return windowStartBeat }
+        let heard = max(0, heardTime)
+        let local = loops ? heard.truncatingRemainder(dividingBy: windowSeconds) : min(heard, windowSeconds)
+        return windowStartBeat + local / secondsPerBeat
+    }
+
+    /// Result of the last scored lap for a note of the singer's part, by note index.
+    var noteVerdicts: [Int: Verdict] {
+        var result: [Int: Verdict] = [:]
+        for note in lane where note.targetIndex >= 0 {
+            if let verdict = verdicts[note.targetIndex] { result[note.noteIndex] = verdict }
+        }
+        return result
+    }
     /// Lowest and highest MIDI in the selected part (drives the lane's pitch range).
     @ObservationIgnored private(set) var midiRange = 48...72
     @ObservationIgnored private(set) var samples: [SungSample] = []
@@ -167,6 +189,7 @@ final class PracticeModel {
             self.xml = xml
             self.piece = piece
             self.score = score
+            scoreRevision += 1
             // A shift or loop chosen for one piece means nothing in the next.
             verse = 1
             transpose = 0
@@ -192,6 +215,7 @@ final class PracticeModel {
     private func reparse() {
         guard let xml, let parsed = try? Score.parse(xml: xml, verse: verse) else { return }
         score = parsed
+        scoreRevision += 1
         rebuildWindow(restart: false)
     }
 
@@ -237,9 +261,11 @@ final class PracticeModel {
         var notes: [LaneNote] = []
         for part in score.parts {
             var targetIndex = 0
-            for note in part.notes where note.startBeat >= beats.lowerBound && note.startBeat < beats.upperBound {
+            for (noteIndex, note) in part.notes.enumerated()
+            where note.startBeat >= beats.lowerBound && note.startBeat < beats.upperBound {
                 let mine = part.index == voice
                 notes.append(LaneNote(part: part.index,
+                                      noteIndex: noteIndex,
                                       targetIndex: mine ? targetIndex : -1,
                                       midi: note.midi + transpose,
                                       start: (note.startBeat - beats.lowerBound) * spb,
@@ -251,6 +277,7 @@ final class PracticeModel {
         }
         lane = notes.sorted { $0.start < $1.start }
         windowSeconds = (beats.upperBound - beats.lowerBound) * spb
+        windowStartBeat = beats.lowerBound
         let mine = lane.filter { $0.part == voice }.map(\.midi)
         midiRange = (mine.min() ?? 55)...(mine.max() ?? 67)
         verdicts = [:]

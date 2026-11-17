@@ -248,6 +248,10 @@ final class AudioEngine {
                 engine.connect(engine.inputNode, to: sink, format: inputFormat)
             }
 
+            #if DEBUG
+            // Simulator runs play through the Mac's speakers; CHANTERLAB_MUTE=1 keeps them quiet.
+            if ProcessInfo.processInfo.environment["CHANTERLAB_MUTE"] == "1" { engine.mainMixerNode.outputVolume = 0 }
+            #endif
             try engine.start()
             running = true
 
