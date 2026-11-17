@@ -203,6 +203,12 @@ final class ScalesModel {
         if grid.applyPthora(at: moria, genus: genus, degree: degree) { gridChanged() }
     }
 
+    /// Put a chroa (or clear it, with "") on the degree at `moria`.
+    func applyShading(_ shading: String, at moria: Int) {
+        guard let degree = cell(at: moria)?.degree else { return }
+        if grid.applyShading(shading, at: moria, degree: degree) { gridChanged() }
+    }
+
     func shiftAccidental(at moria: Int, by delta: Int) {
         guard let cell = cell(at: moria) else { return }
         grid.setAccidental(at: moria, cell.accidental + delta)

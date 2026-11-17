@@ -185,6 +185,9 @@ private struct CellInspector: View {
     private let genera = [("Diatonic", "Diatonic"), ("Hard Chromatic", "HardChromatic"),
                           ("Soft Chromatic", "SoftChromatic"), ("Western", "Western")]
     private let degrees = ["Ni", "Pa", "Vou", "Ga", "Di", "Ke", "Zo"]
+    private let chroai = [("Zygos", "Zygos"), ("Kliton", "Kliton"), ("Spathi", "Spathi"),
+                          ("Enharmonic (ajem)", "Enharmonic"), ("General sharp", "DiesisGeniki"),
+                          ("General flat", "YfesisGeniki")]
 
     var body: some View {
         Group {
@@ -212,6 +215,15 @@ private struct CellInspector: View {
                                             model.applyPthora(at: moria, genus: genus, degree: degree)
                                         }
                                     }
+                                }
+                            }
+                            if cell.degree != nil {
+                                Menu("Chroa") {
+                                    ForEach(chroai, id: \.1) { name, shading in
+                                        Button(name) { model.applyShading(shading, at: moria) }
+                                    }
+                                    Divider()
+                                    Button("Clear chroa") { model.applyShading("", at: moria) }
                                 }
                             }
                             Divider()

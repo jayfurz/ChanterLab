@@ -9,7 +9,7 @@ ports checked against it.
 
 | Screen | Contents |
 |---|---|
-| **Scales** | Ladder with hold-to-play keys, sung-pitch scope, Byzantine presets (incl. 12/24-ET) and Hindustani presets, key editing (accidentals, enable/disable, pthora), drone, metronome, reference pitch, voicings |
+| **Scales** | Ladder with hold-to-play keys, sung-pitch scope, Byzantine presets (incl. 12/24-ET) and Hindustani presets, key editing (accidentals, enable/disable, pthora, chroa), drone, metronome, reference pitch, voicings |
 | **Practice** | Catalog (same manifest as the web app, cached), part playback, loop / sections, tempo, transpose, verses, scrolling note lane with lyrics and sung trace, lap scoring with worst measures |
 
 One `AVAudioEngine` (`Sources/Audio/AudioEngine.swift`) owns playback and
@@ -22,7 +22,7 @@ raw mic. The echo canceller follows route changes.
 - Engraved notation (the web app's OSMD score view); practice shows the lane only
 - Sampled "ah" voices for accompaniment (synth only)
 - Recording and export, section check (whole-choir analysis)
-- Scales: chroa/shading palette, exercises, glyph score practice
+- Scales: exercises, glyph score practice
 
 ## Build
 

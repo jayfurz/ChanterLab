@@ -72,6 +72,15 @@ final class TuningGrid {
         return clp_grid_apply_custom_genus(raw, Int32(moria), degree, name, json, root)
     }
 
+    /// Apply a chroa / general accidental the way the web palette drops it on a
+    /// degree. `shading`: Zygos, Kliton, Spathi, Enharmonic, DiesisGeniki,
+    /// YfesisGeniki, or "" to clear.
+    @discardableResult
+    func applyShading(_ shading: String, at moria: Int, degree: String) -> Bool {
+        let json = #"{"type":"shading","shading":"\#(shading)","dropMoria":\#(moria),"dropDegree":"\#(degree)"}"#
+        return clp_grid_apply_symbol_drop(raw, json)
+    }
+
     @discardableResult
     func removePthora(at moria: Int) -> Bool { clp_grid_remove_pthora(raw, Int32(moria)) }
 
