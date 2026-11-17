@@ -9,6 +9,14 @@
 //! exports are gated here; all core logic lives in `tuning/`.
 
 pub mod dsp;
+#[cfg(feature = "ffi")]
+pub mod ffi;
+#[cfg(feature = "serde")]
+pub mod names;
+#[cfg(feature = "ffi")]
+pub mod score;
+pub mod scoring;
+pub mod synth;
 pub mod tuning;
 #[cfg(feature = "worklet")]
 pub mod worklet;
@@ -17,7 +25,10 @@ pub mod worklet;
 mod main_exports {
     use wasm_bindgen::prelude::*;
 
-    use crate::tuning::{Degree, Genus, Shading, SymbolDrop, TuningGrid};
+    use crate::names::{
+        parse_custom_genus, parse_degree, parse_genus, parse_shading, parse_symbol_drop,
+    };
+    use crate::tuning::TuningGrid;
 
     /// WASM-exported handle to a `TuningGrid`.
     ///
@@ -114,23 +125,11 @@ mod main_exports {
             intervals_json: &str,
             canonical_root: &str,
         ) -> bool {
-            let (Some(d), Some(root)) = (parse_degree(target_degree), parse_degree(canonical_root))
-            else {
+            let (Some(d), Some(genus)) = (
+                parse_degree(target_degree),
+                parse_custom_genus(name, intervals_json, canonical_root),
+            ) else {
                 return false;
-            };
-            let Ok(intervals) = serde_json::from_str::<Vec<i32>>(intervals_json) else {
-                return false;
-            };
-            if intervals.len() != 7
-                || intervals.iter().any(|&step| step <= 0)
-                || intervals.iter().sum::<i32>() != 72
-            {
-                return false;
-            }
-            let genus = Genus::Custom {
-                name: name.to_string(),
-                intervals,
-                canonical_root: root,
             };
             self.inner.apply_pthora(moria, genus, d)
         }
@@ -198,126 +197,6 @@ mod main_exports {
         pub fn clear_override(&mut self, moria: i32) {
             self.inner.clear_override(moria);
         }
-    }
-
-    // ── String → enum helpers ─────────────────────────────────────────────
-
-    fn parse_degree(s: &str) -> Option<Degree> {
-        match s {
-            "Ni" => Some(Degree::Ni),
-            "Pa" => Some(Degree::Pa),
-            "Vou" => Some(Degree::Vou),
-            "Ga" => Some(Degree::Ga),
-            "Di" => Some(Degree::Di),
-            "Ke" => Some(Degree::Ke),
-            "Zo" => Some(Degree::Zo),
-            _ => None,
-        }
-    }
-
-    fn parse_genus(s: &str) -> Option<Genus> {
-        match s {
-            "Diatonic" => Some(Genus::Diatonic),
-            "Western" => Some(Genus::Western),
-            "HardChromatic" => Some(Genus::HardChromatic),
-            "SoftChromatic" => Some(Genus::SoftChromatic),
-            "GraveDiatonic" => Some(Genus::GraveDiatonic),
-            "EnharmonicZo" => Some(Genus::EnharmonicZo),
-            "EnharmonicGa" => Some(Genus::EnharmonicGa),
-            "Chromatic12" => Genus::equal_temperament(12),
-            "Chromatic24" => Genus::equal_temperament(24),
-            _ => None,
-        }
-    }
-
-    fn parse_shading(s: &str) -> Option<Shading> {
-        match s {
-            "Zygos" => Some(Shading::Zygos),
-            "Kliton" => Some(Shading::Kliton),
-            "Spathi" | "SpathiKe" | "SpathiGa" => Some(Shading::Spathi),
-            "Enharmonic" => Some(Shading::Enharmonic),
-            _ => None,
-        }
-    }
-
-    fn parse_symbol_drop(json: &str) -> Option<SymbolDrop> {
-        #[derive(serde::Deserialize)]
-        #[serde(tag = "type")]
-        enum JsDrop {
-            #[serde(rename = "pthora")]
-            Pthora {
-                genus: String,
-                degree: String,
-                #[serde(default)]
-                phase: Option<u8>,
-                #[serde(rename = "dropMoria")]
-                drop_moria: i32,
-                #[serde(rename = "dropDegree")]
-                drop_degree: String,
-            },
-            #[serde(rename = "shading")]
-            Shading {
-                shading: String,
-                #[serde(rename = "dropMoria")]
-                drop_moria: i32,
-                #[serde(rename = "dropDegree")]
-                drop_degree: String,
-            },
-        }
-
-        let drop = serde_json::from_str::<JsDrop>(json).ok()?;
-        let symbol_drop = match drop {
-            JsDrop::Pthora {
-                genus,
-                degree,
-                phase,
-                drop_moria,
-                drop_degree,
-            } => {
-                let genus = parse_genus(&genus)?;
-                let target_degree = parse_degree(&degree)?;
-                let drop_degree = parse_degree(&drop_degree)?;
-                SymbolDrop::Pthora {
-                    drop_moria,
-                    drop_degree,
-                    genus,
-                    target_degree,
-                    target_phase: phase,
-                }
-            }
-            JsDrop::Shading {
-                shading,
-                drop_moria,
-                drop_degree,
-            } => {
-                let drop_degree = parse_degree(&drop_degree)?;
-                match shading.as_str() {
-                    "" => SymbolDrop::ClearChroa {
-                        drop_moria,
-                        drop_degree,
-                    },
-                    "DiesisGeniki" => SymbolDrop::Geniki {
-                        drop_moria,
-                        drop_degree,
-                        shift: 6,
-                    },
-                    "YfesisGeniki" => SymbolDrop::Geniki {
-                        drop_moria,
-                        drop_degree,
-                        shift: -6,
-                    },
-                    _ => {
-                        let symbol = parse_shading(&shading)?;
-                        SymbolDrop::Chroa {
-                            drop_moria,
-                            drop_degree,
-                            symbol,
-                        }
-                    }
-                }
-            }
-        };
-        Some(symbol_drop)
     }
 
     #[cfg(test)]

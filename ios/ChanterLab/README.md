@@ -1,6 +1,59 @@
-# ChanterLab iOS shell
+# ChanterLab for iOS
 
-Thin WKWebView host for https://chanterlab.com (see docs/IOS-EVALUATION-2026-07.md §4 for what a
-wrapper does and does not fix: it does NOT fix the VPIO mic+speaker crackle). Needs XcodeGen
-(`xcodegen generate`) then open/build `ChanterLab.xcodeproj`. For a device build, set the
-signing team in Xcode first.
+A native SwiftUI app. Tuning, pitch detection, synthesis, MusicXML parsing and
+lap scoring are the Rust core (`chanterlab-core`, feature `ffi`) behind a C ABI,
+so the app and the web build compute the same things from the same code or from
+ports checked against it.
+
+## What is native
+
+| Screen | Contents |
+|---|---|
+| **Scales** | Ladder with hold-to-play keys, sung-pitch scope, Byzantine presets (incl. 12/24-ET) and Hindustani presets, key editing (accidentals, enable/disable, pthora, chroa), drone, metronome, reference pitch, voicings |
+| **Practice** | Catalog (same manifest as the web app, cached), part playback, loop / sections, tempo, transpose, verses, scrolling note lane with lyrics and sung trace, lap scoring with worst measures |
+
+One `AVAudioEngine` (`Sources/Audio/AudioEngine.swift`) owns playback and
+capture. With the mic on and no headphones it runs Apple's echo canceller so
+the accompaniment stays out of the pitch tracker; with headphones it takes the
+raw mic. The echo canceller follows route changes.
+
+## Not ported yet
+
+- Engraved notation (the web app's OSMD score view); practice shows the lane only
+- Sampled "ah" voices for accompaniment (synth only)
+- Recording and export, section check (whole-choir analysis)
+- Scales: exercises, glyph score practice
+
+## Build
+
+The Rust static libraries are built on any machine with the iOS targets
+(`rustup target add aarch64-apple-ios aarch64-apple-ios-sim`):
+
+```sh
+ios/build_core.sh            # → ios/ChanterLab/Core/{iphoneos,iphonesimulator}/
+cd ios/ChanterLab
+xcodegen generate            # → ChanterLab.xcodeproj (not committed)
+open ChanterLab.xcodeproj    # run on a device from Xcode (signing needs the GUI keychain)
+```
+
+`Sources/chanterlab_core.h` mirrors `src/ffi.rs` by hand; change both together
+and rerun `ios/build_core.sh`.
+
+## Debug launch switches (DEBUG builds, environment variables)
+
+| Variable | Effect |
+|---|---|
+| `CHANTERLAB_TONE=<hz>` | Feed a sine to the detector instead of opening the mic (the simulator has no usable input over SSH) |
+| `CHANTERLAB_TAB=practice` | Open on the Practice tab |
+| `CHANTERLAB_AUTOMIC=1` | Scales: mic on at launch |
+| `CHANTERLAB_PRESET=<label>`, `CHANTERLAB_EDIT=1` | Scales: load a scale, open edit mode |
+| `CHANTERLAB_AUTOPLAY=1`, `CHANTERLAB_LOOP=1` | Practice: play the first piece (looping two measures), mic on |
+
+With `simctl launch`, prefix each with `SIMCTL_CHILD_`.
+
+## Verified so far
+
+Simulator only, with synthetic tones: a 196 Hz tone reads Di on the diatonic
+ladder; in Practice a 440 Hz tone over a looped passage of A4s scores 100 % with
+the bars turning green. Real microphone capture, audible output, the echo
+canceller and latency values have not been checked on a device.
