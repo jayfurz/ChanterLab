@@ -13,6 +13,9 @@ pub mod dsp;
 pub mod ffi;
 #[cfg(feature = "serde")]
 pub mod names;
+#[cfg(feature = "ffi")]
+pub mod score;
+pub mod scoring;
 pub mod synth;
 pub mod tuning;
 #[cfg(feature = "worklet")]

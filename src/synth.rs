@@ -7,10 +7,12 @@
 //! never allocates, locks or blocks.
 
 use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 const K: usize = 8;
-const MAX_VOICES: usize = 24;
+const MAX_VOICES: usize = 32;
+/// Notes scheduled ahead of time and not yet started.
+const MAX_PENDING: usize = 128;
 const ATTACK_S: f32 = 0.005;
 const RELEASE_S: f32 = 0.08;
 const VEL_RAMP_S: f32 = 0.02;
@@ -20,7 +22,7 @@ const QUEUE_LEN: usize = 256;
 const MIX_GAIN: f32 = 0.5;
 
 /// Harmonic weights per voicing: (keyboard voice, ison drone). Normalised at use.
-const VOICINGS: [([f32; K], [f32; K]); 5] = [
+const VOICINGS: [([f32; K], [f32; K]); 6] = [
     // Sine
     (
         [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -45,6 +47,11 @@ const VOICINGS: [([f32; K], [f32; K]); 5] = [
     (
         [1.0, 0.85, 0.70, 0.55, 0.45, 0.35, 0.25, 0.18],
         [1.0, 0.90, 0.75, 0.60, 0.48, 0.36, 0.26, 0.18],
+    ),
+    // Triangle (the practice accompaniment): odd partials at 1 / k².
+    (
+        [1.0, 0.0, 0.1111, 0.0, 0.04, 0.0, 0.0204, 0.0],
+        [1.0, 0.0, 0.1111, 0.0, 0.04, 0.0, 0.0204, 0.0],
     ),
 ];
 
@@ -76,8 +83,20 @@ pub enum Cmd {
         hz: f32,
         volume: f32,
     },
-    /// Index into the voicing table: Sine, Organ, Reed, Flute, String.
+    /// Index into the voicing table: Sine, Organ, Reed, Flute, String, Triangle.
     Voicing(u8),
+    /// Start a note at sample `start` of the synth's clock (see
+    /// [`Synth::frames`]) and release it `frames` samples later. A start in
+    /// the past sounds at once. `voicing` indexes the voicing table.
+    NoteAt {
+        hz: f32,
+        velocity: f32,
+        start: u64,
+        frames: u32,
+        voicing: u8,
+    },
+    /// Drop every scheduled note and release those already sounding.
+    ClearScheduled,
     Master(f32),
     /// One metronome tick.
     Click {
@@ -108,6 +127,8 @@ enum Kind {
     Key,
     Ison,
     Click,
+    /// A scheduled note; releases itself at `off_at`.
+    Seq,
 }
 
 #[derive(Clone, Copy)]
@@ -122,6 +143,8 @@ struct Voice {
     env: f32,
     stage: Stage,
     age: u64,
+    /// Clock sample at which a scheduled note releases.
+    off_at: u64,
 }
 
 impl Voice {
@@ -136,6 +159,7 @@ impl Voice {
         env: 0.0,
         stage: Stage::Dead,
         age: 0,
+        off_at: u64::MAX,
     };
 
     fn sounding(&self) -> bool {
@@ -151,6 +175,19 @@ struct State {
     target_master: f32,
     clock: u64,
     metro: Option<Metro>,
+    /// Samples rendered since the synth was created.
+    now: u64,
+    pending: [Pending; MAX_PENDING],
+    pending_len: usize,
+}
+
+#[derive(Clone, Copy)]
+struct Pending {
+    hz: f32,
+    velocity: f32,
+    start: u64,
+    frames: u32,
+    voicing: u8,
 }
 
 struct Metro {
@@ -212,6 +249,7 @@ impl Queue {
 /// calls [`render`](Self::render); neither side may be shared further.
 pub struct Synth {
     queue: Queue,
+    frames: AtomicU64,
     state: UnsafeCell<State>,
 }
 
@@ -224,6 +262,7 @@ impl Synth {
     pub fn new(sample_rate: f32) -> Self {
         Self {
             queue: Queue::new(),
+            frames: AtomicU64::new(0),
             state: UnsafeCell::new(State {
                 sample_rate,
                 voices: [Voice::DEAD; MAX_VOICES],
@@ -232,6 +271,15 @@ impl Synth {
                 target_master: 0.8,
                 clock: 0,
                 metro: None,
+                now: 0,
+                pending: [Pending {
+                    hz: 0.0,
+                    velocity: 0.0,
+                    start: 0,
+                    frames: 0,
+                    voicing: 0,
+                }; MAX_PENDING],
+                pending_len: 0,
             }),
         }
     }
@@ -249,6 +297,13 @@ impl Synth {
             state.apply(cmd);
         }
         state.render(out);
+        self.frames.store(state.now, Ordering::Release);
+    }
+
+    /// The synth's clock: samples rendered so far, as of the last completed
+    /// render call. Any thread. `NoteAt` start times are on this clock.
+    pub fn frames(&self) -> u64 {
+        self.frames.load(Ordering::Acquire)
     }
 }
 
@@ -306,6 +361,29 @@ impl State {
                 }
             }
             Cmd::Master(level) => self.target_master = level.clamp(0.0, 1.5),
+            Cmd::NoteAt {
+                hz,
+                velocity,
+                start,
+                frames,
+                voicing,
+            } => {
+                // A full schedule drops the note rather than disturb the rest.
+                if self.pending_len < MAX_PENDING && hz > 0.0 {
+                    self.pending[self.pending_len] = Pending {
+                        hz,
+                        velocity,
+                        start,
+                        frames,
+                        voicing,
+                    };
+                    self.pending_len += 1;
+                }
+            }
+            Cmd::ClearScheduled => {
+                self.pending_len = 0;
+                self.release_where(|v| v.kind == Kind::Seq);
+            }
             Cmd::Click { hz, volume } => {
                 let mut amps = [0.0; K];
                 amps[0] = 1.0;
@@ -343,11 +421,54 @@ impl State {
         }
     }
 
-    /// Render `out`, splitting it at metronome ticks so each lands on its sample.
+    /// Start every scheduled note that is due and return how many samples
+    /// remain until the next one.
+    fn start_due_notes(&mut self) -> Option<u64> {
+        let now = self.now;
+        let mut next: Option<u64> = None;
+        let mut i = 0;
+        while i < self.pending_len {
+            let p = self.pending[i];
+            if p.start > now {
+                next = Some(next.map_or(p.start - now, |n| n.min(p.start - now)));
+                i += 1;
+                continue;
+            }
+            self.pending_len -= 1;
+            self.pending[i] = self.pending[self.pending_len];
+            let voicing = (p.voicing as usize).min(VOICINGS.len() - 1);
+            let slot = self.start(
+                Kind::Seq,
+                0,
+                p.hz,
+                p.velocity,
+                normalised(VOICINGS[voicing].0),
+                Stage::Attack,
+            );
+            self.voices[slot].off_at = now + p.frames as u64;
+        }
+        next
+    }
+
+    /// Render `out`, splitting it at metronome ticks and scheduled note starts
+    /// so each lands on its sample.
     fn render(&mut self, out: &mut [f32]) {
         let mut done = 0;
         while done < out.len() {
             let mut take = out.len() - done;
+            let now = self.now;
+            for v in self.voices.iter_mut() {
+                if v.kind == Kind::Seq && v.sounding() {
+                    if v.off_at <= now {
+                        v.stage = Stage::Release;
+                    } else {
+                        take = take.min((v.off_at - now).min(usize::MAX as u64) as usize);
+                    }
+                }
+            }
+            if let Some(until) = self.start_due_notes() {
+                take = take.min(until.min(usize::MAX as u64) as usize);
+            }
             let mut tick = None;
             if let Some(m) = self.metro.as_mut() {
                 if m.until_next < 1.0 {
@@ -368,6 +489,7 @@ impl State {
             }
             self.render_span(&mut out[done..done + take]);
             done += take;
+            self.now += take as u64;
         }
     }
 
@@ -379,14 +501,22 @@ impl State {
         }
     }
 
-    fn start(&mut self, kind: Kind, id: i32, hz: f32, velocity: f32, amps: [f32; K], stage: Stage) {
+    fn start(
+        &mut self,
+        kind: Kind,
+        id: i32,
+        hz: f32,
+        velocity: f32,
+        amps: [f32; K],
+        stage: Stage,
+    ) -> usize {
         // Steal order: a free slot, else the oldest releasing voice, else the oldest key.
         let slot = self
             .voices
             .iter()
             .position(|v| v.stage == Stage::Dead)
             .or_else(|| self.oldest(|v| matches!(v.stage, Stage::Release | Stage::Decay)))
-            .or_else(|| self.oldest(|v| v.kind == Kind::Key))
+            .or_else(|| self.oldest(|v| matches!(v.kind, Kind::Key | Kind::Seq)))
             .unwrap_or(0);
         self.clock += 1;
         self.voices[slot] = Voice {
@@ -400,7 +530,9 @@ impl State {
             env: if stage == Stage::Decay { 1.0 } else { 0.0 },
             stage,
             age: self.clock,
+            off_at: u64::MAX,
         };
+        slot
     }
 
     fn oldest(&self, pred: impl Fn(&Voice) -> bool) -> Option<usize> {
@@ -628,6 +760,48 @@ mod tests {
         });
         render(&synth, 24_000);
         assert_eq!(peak(&render(&synth, 48_000)), 0.0);
+    }
+
+    #[test]
+    fn scheduled_notes_start_and_stop_on_their_samples() {
+        let synth = Synth::new(SR);
+        render(&synth, 1000);
+        assert_eq!(synth.frames(), 1000);
+        synth.send(Cmd::NoteAt {
+            hz: 440.0,
+            velocity: 0.8,
+            start: 5000,
+            frames: 9600,
+            voicing: 0,
+        });
+        let out = render(&synth, 30_000); // clock 1000..31000
+        let first = out.iter().position(|s| s.abs() > 1e-4).unwrap() + 1000;
+        assert!((5000..5004).contains(&first), "started at {first}");
+        // Released at 14600, silent after the 80 ms release.
+        let last = out.iter().rposition(|s| s.abs() > 1e-4).unwrap() + 1000;
+        assert!(
+            (14_600 + 3700..14_600 + 3845).contains(&last),
+            "ended at {last}"
+        );
+        assert!((crossings_hz(&out[4000..13_600]) - 440.0).abs() < 3.0);
+    }
+
+    #[test]
+    fn clearing_the_schedule_silences_pending_and_sounding_notes() {
+        let synth = Synth::new(SR);
+        for (i, start) in [0u64, 48_000].into_iter().enumerate() {
+            synth.send(Cmd::NoteAt {
+                hz: 220.0 * (i + 1) as f32,
+                velocity: 0.8,
+                start,
+                frames: 96_000,
+                voicing: 5,
+            });
+        }
+        assert!(peak(&render(&synth, 4800)) > 0.1);
+        synth.send(Cmd::ClearScheduled);
+        render(&synth, 9600);
+        assert_eq!(peak(&render(&synth, 96_000)), 0.0);
     }
 
     #[test]

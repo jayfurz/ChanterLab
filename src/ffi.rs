@@ -434,6 +434,99 @@ pub unsafe extern "C" fn clp_synth_click(s: *const Synth, hz: f32, volume: f32) 
     synth_send(s, Cmd::Click { hz, volume });
 }
 
+/// The synth clock in samples (as of the last render). Any thread.
+///
+/// # Safety
+/// `s` must be a live synth.
+#[no_mangle]
+pub unsafe extern "C" fn clp_synth_frames(s: *const Synth) -> u64 {
+    s.as_ref().map_or(0, Synth::frames)
+}
+
+/// Schedule a note on the synth clock: start at sample `start`, release
+/// `frames` later. `voicing` as in `clp_synth_set_voicing`, plus 5 Triangle.
+///
+/// # Safety
+/// `s` must be a live synth.
+#[no_mangle]
+pub unsafe extern "C" fn clp_synth_note_at(
+    s: *const Synth,
+    hz: f32,
+    velocity: f32,
+    start: u64,
+    frames: u32,
+    voicing: u8,
+) {
+    synth_send(
+        s,
+        Cmd::NoteAt {
+            hz,
+            velocity,
+            start,
+            frames,
+            voicing,
+        },
+    );
+}
+
+/// Drop scheduled notes and release the ones sounding.
+///
+/// # Safety
+/// `s` must be a live synth.
+#[no_mangle]
+pub unsafe extern "C" fn clp_synth_clear_scheduled(s: *const Synth) {
+    synth_send(s, Cmd::ClearScheduled);
+}
+
+// ── Scores and scoring ────────────────────────────────────────────────────
+
+/// Parse MusicXML into the practice note model (JSON; see `score::Score`),
+/// with lyrics for `verse` (1-based). On failure returns `{"error": "..."}`.
+///
+/// # Safety
+/// `xml` must be NUL-terminated. Free the result with `clp_string_free`.
+#[no_mangle]
+pub unsafe extern "C" fn clp_score_parse(xml: *const c_char, verse: u32) -> *mut c_char {
+    let result = match str_arg(xml) {
+        Some(xml) => crate::score::parse(xml, verse).map_err(|e| e.0),
+        None => Err("score text is not valid UTF-8".to_string()),
+    };
+    string_out(match result {
+        Ok(score) => serde_json::to_string(&score).unwrap_or_default(),
+        Err(e) => serde_json::json!({ "error": e }).to_string(),
+    })
+}
+
+/// Score a lap. `targets_json`: `[{midi, startSec, endSec, measure?}]`;
+/// `samples_json`: `[{tSec, midi}]` (voiced frames only). Returns the report
+/// as JSON (see `scoring::Report`), or null on malformed input.
+///
+/// # Safety
+/// Both strings must be NUL-terminated. Free the result with `clp_string_free`.
+#[no_mangle]
+pub unsafe extern "C" fn clp_score_lap(
+    targets_json: *const c_char,
+    samples_json: *const c_char,
+    strict: bool,
+) -> *mut c_char {
+    use crate::scoring::{score_notes, Config, Sample, Target};
+    let parsed = str_arg(targets_json)
+        .and_then(|t| serde_json::from_str::<Vec<Target>>(t).ok())
+        .zip(str_arg(samples_json).and_then(|s| serde_json::from_str::<Vec<Sample>>(s).ok()));
+    let Some((targets, samples)) = parsed else {
+        return core::ptr::null_mut();
+    };
+    let cfg = if strict {
+        Config::STRICT
+    } else {
+        Config::RELAXED
+    };
+    match serde_json::to_string(&score_notes(&targets, &samples, &cfg)) {
+        Ok(json) => string_out(json),
+        Err(_) => core::ptr::null_mut(),
+    }
+}
+
 /// Sample-accurate metronome; `bpm <= 0` stops it. The first beat of every
 /// `beats_per_bar` is accented (0 = no accent).
 ///
@@ -588,6 +681,40 @@ mod tests {
             assert_eq!(clp_grid_toggle_cell(g, 0), 0);
             assert_eq!(clp_grid_toggle_cell(g, 0), 1);
             clp_grid_free(g);
+        }
+    }
+
+    #[test]
+    fn score_and_lap_c_abi() {
+        unsafe {
+            let xml = cstr(
+                "<score-partwise><part-list><score-part id=\"P1\"><part-name>Soprano</part-name></score-part></part-list>\
+                 <part id=\"P1\"><measure number=\"1\"><attributes><divisions>1</divisions></attributes>\
+                 <note><pitch><step>A</step><octave>4</octave></pitch><duration>2</duration></note></measure></part></score-partwise>",
+            );
+            let score: serde_json::Value =
+                serde_json::from_str(&take(clp_score_parse(xml.as_ptr(), 1))).unwrap();
+            assert_eq!(score["parts"][0]["notes"][0]["midi"], 69);
+            assert_eq!(score["parts"][0]["notes"][0]["durBeat"], 2.0);
+
+            let bad: serde_json::Value =
+                serde_json::from_str(&take(clp_score_parse(cstr("<a>").as_ptr(), 1))).unwrap();
+            assert!(bad["error"].is_string());
+
+            let targets = cstr(r#"[{"midi":69,"startSec":0,"endSec":1,"measure":1}]"#);
+            let samples: Vec<String> = (0..60)
+                .map(|i| format!(r#"{{"tSec":{},"midi":69.1}}"#, i as f64 / 60.0))
+                .collect();
+            let samples = cstr(&format!("[{}]", samples.join(",")));
+            let report: serde_json::Value = serde_json::from_str(&take(clp_score_lap(
+                targets.as_ptr(),
+                samples.as_ptr(),
+                false,
+            )))
+            .unwrap();
+            assert_eq!(report["hitPct"], 100);
+            assert_eq!(report["details"][0]["result"], "hit");
+            assert!(clp_score_lap(cstr("nope").as_ptr(), samples.as_ptr(), false).is_null());
         }
     }
 
