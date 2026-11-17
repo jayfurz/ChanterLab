@@ -18,12 +18,16 @@ struct PitchFrame {
 ///
 /// Main thread only, except the two render callbacks.
 final class AudioEngine {
-    /// Detector readings, delivered on the main thread.
-    var onPitch: (([PitchFrame]) -> Void)?
-    /// The synth was rebuilt (first start or a sample-rate change) and has no
-    /// state: the owner must re-send voicing, volume, drone and metronome.
-    var onSynthReset: (() -> Void)?
-    var onError: ((String) -> Void)?
+    /// Detector readings, delivered on the main thread to every screen.
+    var pitchListeners: [([PitchFrame]) -> Void] = []
+    /// The synth was rebuilt (first start or a sample-rate change): it has no
+    /// state and its clock restarted, so owners must re-send what they need.
+    var resetListeners: [() -> Void] = []
+    var errorListeners: [(String) -> Void] = []
+
+    private func onPitch(_ frames: [PitchFrame]) { pitchListeners.forEach { $0(frames) } }
+    private func onSynthReset() { resetListeners.forEach { $0() } }
+    private func onError(_ message: String) { errorListeners.forEach { $0(message) } }
 
     private(set) var micOn = false
     private(set) var running = false
@@ -86,6 +90,25 @@ final class AudioEngine {
         clp_synth_metronome(synth, Float(bpm), volume, UInt8(beatsPerBar))
     }
 
+    // MARK: scheduled notes (score playback)
+
+    /// The synth clock in samples; scheduled notes are timed against it.
+    var frames: UInt64 { clp_synth_frames(synth) }
+
+    /// Start a note at `startFrame` on the synth clock, lasting `seconds`.
+    func scheduleNote(hz: Double, velocity: Float, startFrame: UInt64, seconds: Double, voicing: Int = 5) {
+        clp_synth_note_at(synth, Float(hz), velocity, startFrame,
+                          UInt32(max(1, seconds * sampleRate)), UInt8(voicing))
+    }
+
+    func clearScheduled() { clp_synth_clear_scheduled(synth) }
+
+    /// Seconds between handing a sample to the system and hearing it.
+    var outputLatency: Double {
+        let session = AVAudioSession.sharedInstance()
+        return session.outputLatency + session.ioBufferDuration
+    }
+
     // MARK: lifecycle
 
     /// Start output if it is not running yet (first note, drone or metronome).
@@ -116,7 +139,7 @@ final class AudioEngine {
             DispatchQueue.main.async {
                 guard let self else { return }
                 guard granted else {
-                    self.onError?("Microphone access is off. Allow it in Settings → ChanterLab.")
+                    self.onError("Microphone access is off. Allow it in Settings → ChanterLab.")
                     return
                 }
                 self.micOn = true
@@ -199,7 +222,7 @@ final class AudioEngine {
                 if let old = synth { clp_synth_free(old) }
                 synth = clp_synth_new(Float(rate))
                 sampleRate = rate
-                onSynthReset?()
+                onSynthReset()
             }
 
             guard let synth,
@@ -235,7 +258,7 @@ final class AudioEngine {
         } catch {
             micOn = false
             running = false
-            onError?(error.localizedDescription)
+            onError(error.localizedDescription)
         }
     }
 
@@ -286,7 +309,7 @@ final class AudioEngine {
         let frames = shared.frames
         shared.frames.removeAll(keepingCapacity: true)
         os_unfair_lock_unlock(&shared.lock)
-        if !frames.isEmpty { onPitch?(frames) }
+        if !frames.isEmpty { onPitch(frames) }
     }
 
     private func startDebugTone(_ hz: Float) {

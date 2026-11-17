@@ -1,28 +1,59 @@
-# ChanterLab iOS app
+# ChanterLab for iOS
 
-WKWebView UI (https://chanterlab.com) + a native audio engine that replaces WebKit's audio stack
-piece by piece. Background: `docs/IOS-EVALUATION-2026-07.md` §5 (Option C).
+A native SwiftUI app. Tuning, pitch detection, synthesis, MusicXML parsing and
+lap scoring are the Rust core (`chanterlab-core`, feature `ffi`) behind a C ABI,
+so the app and the web build compute the same things from the same code or from
+ports checked against it.
 
-## Milestones
+## What is native
 
-1. **Rust C ABI** — done. `src/ffi.rs` (feature `ffi`): the same HPF → gate → FFT detector the web
-   worklet uses, as `clp_tracker_*`. `ios/build_core.sh` cross-compiles it (works from Linux).
-2. **Native mic capture** — code done, simulator-verified with a synthetic tone only.
-   `Sources/NativeAudio.swift` captures with AVAudioEngine and posts pitch frames to
-   `window.__chanterlabNativeAudio`; `training-prototype/scope.js` uses it instead of getUserMedia
-   whenever the `chanterlabAudio` message handler exists. **Real-mic capture is untested** (the
-   simulator's audio input is unavailable over SSH) — first device run is the test.
-3. **Native playback + clock** — not started. Accompaniment still plays through WebAudio, so the
-   two audio stacks share one AVAudioSession; whether that fights or crackles is a device question.
-4. **Recording, calibration, background audio** — not started. Recording is unavailable while the
-   native mic is active (there is no MediaStream to tap).
+| Screen | Contents |
+|---|---|
+| **Scales** | Ladder with hold-to-play keys, sung-pitch scope, Byzantine presets (incl. 12/24-ET) and Hindustani presets, key editing (accidentals, enable/disable, pthora), drone, metronome, reference pitch, voicings |
+| **Practice** | Catalog (same manifest as the web app, cached), part playback, loop / sections, tempo, transpose, verses, scrolling note lane with lyrics and sung trace, lap scoring with worst measures |
+
+One `AVAudioEngine` (`Sources/Audio/AudioEngine.swift`) owns playback and
+capture. With the mic on and no headphones it runs Apple's echo canceller so
+the accompaniment stays out of the pitch tracker; with headphones it takes the
+raw mic. The echo canceller follows route changes.
+
+## Not ported yet
+
+- Engraved notation (the web app's OSMD score view); practice shows the lane only
+- Sampled "ah" voices for accompaniment (synth only)
+- Recording and export, section check (whole-choir analysis)
+- Scales: chroa/shading palette, exercises, glyph score practice
 
 ## Build
 
-    ios/build_core.sh                      # Rust static libs -> ios/ChanterLab/Core/
-    cd ios/ChanterLab && xcodegen generate # then build ChanterLab.xcodeproj
+The Rust static libraries are built on any machine with the iOS targets
+(`rustup target add aarch64-apple-ios aarch64-apple-ios-sim`):
 
-Device builds must be started from Xcode on the Mac (codesign cannot reach the keychain over SSH).
+```sh
+ios/build_core.sh            # → ios/ChanterLab/Core/{iphoneos,iphonesimulator}/
+cd ios/ChanterLab
+xcodegen generate            # → ChanterLab.xcodeproj (not committed)
+open ChanterLab.xcodeproj    # run on a device from Xcode (signing needs the GUI keychain)
+```
 
-Debug-only environment switches: `CHANTERLAB_URL` (load a dev server), `CHANTERLAB_TONE=<hz>` (feed
-a sine to the detector instead of the mic), `CHANTERLAB_AUTOMIC=1` (press Mic after load).
+`Sources/chanterlab_core.h` mirrors `src/ffi.rs` by hand; change both together
+and rerun `ios/build_core.sh`.
+
+## Debug launch switches (DEBUG builds, environment variables)
+
+| Variable | Effect |
+|---|---|
+| `CHANTERLAB_TONE=<hz>` | Feed a sine to the detector instead of opening the mic (the simulator has no usable input over SSH) |
+| `CHANTERLAB_TAB=practice` | Open on the Practice tab |
+| `CHANTERLAB_AUTOMIC=1` | Scales: mic on at launch |
+| `CHANTERLAB_PRESET=<label>`, `CHANTERLAB_EDIT=1` | Scales: load a scale, open edit mode |
+| `CHANTERLAB_AUTOPLAY=1`, `CHANTERLAB_LOOP=1` | Practice: play the first piece (looping two measures), mic on |
+
+With `simctl launch`, prefix each with `SIMCTL_CHILD_`.
+
+## Verified so far
+
+Simulator only, with synthetic tones: a 196 Hz tone reads Di on the diatonic
+ladder; in Practice a 440 Hz tone over a looped passage of A4s scores 100 % with
+the bars turning green. Real microphone capture, audible output, the echo
+canceller and latency values have not been checked on a device.

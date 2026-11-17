@@ -53,5 +53,14 @@ void clp_synth_set_voicing(const ClpSynth *s, uint8_t index);
 void clp_synth_set_master(const ClpSynth *s, float level);
 void clp_synth_click(const ClpSynth *s, float hz, float volume);
 void clp_synth_metronome(const ClpSynth *s, float bpm, float volume, uint8_t beats_per_bar);
+// Scheduled notes run on the synth clock (samples rendered so far).
+uint64_t clp_synth_frames(const ClpSynth *s);
+void clp_synth_note_at(const ClpSynth *s, float hz, float velocity, uint64_t start, uint32_t frames,
+                       uint8_t voicing);
+void clp_synth_clear_scheduled(const ClpSynth *s);
+
+// ── Scores and scoring (JSON in, JSON out; free with clp_string_free) ───────
+char *clp_score_parse(const char *xml, uint32_t verse);
+char *clp_score_lap(const char *targets_json, const char *samples_json, bool strict);
 
 #endif

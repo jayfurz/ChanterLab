@@ -73,7 +73,7 @@ struct TracePoint {
 /// State and behaviour of the scales screen.
 @Observable
 final class ScalesModel {
-    let audio = AudioEngine()
+    let audio: AudioEngine
     private var grid: TuningGrid
 
     private(set) var cells: [Cell] = []
@@ -111,7 +111,8 @@ final class ScalesModel {
     private let defaults = UserDefaults.standard
     @ObservationIgnored private var smoothedMoria: Double?
 
-    init() {
+    init(audio: AudioEngine) {
+        self.audio = audio
         let d = UserDefaults.standard
         let grid = d.string(forKey: "grid").flatMap(TuningGrid.init(json:)) ?? TuningGrid()
         self.grid = grid
@@ -125,11 +126,12 @@ final class ScalesModel {
         beatsPerBar = d.object(forKey: "beatsPerBar") as? Int ?? 4
         reloadCells()
 
-        audio.onSynthReset = { [weak self] in self?.resendSynthState() }
-        audio.onPitch = { [weak self] frames in self?.ingest(frames) }
-        audio.onError = { [weak self] message in
-            self?.errorMessage = message
-            self?.micOn = false
+        audio.resetListeners.append { [weak self] in self?.resendSynthState() }
+        audio.pitchListeners.append { [weak self] frames in self?.ingest(frames) }
+        audio.errorListeners.append { [weak self] message in
+            guard let self, self.micOn else { return }
+            self.errorMessage = message
+            self.micOn = false
         }
 
         #if DEBUG

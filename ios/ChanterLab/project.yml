@@ -14,7 +14,7 @@ targets:
   ChanterLab:
     type: application
     platform: iOS
-    sources: [Sources, Assets.xcassets]
+    sources: [Sources, Assets.xcassets, Resources]
     info:
       path: Info.plist
       properties:
