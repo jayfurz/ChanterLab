@@ -20,8 +20,104 @@ pub struct Note {
     pub measure: i32,
     /// Syllable for the selected verse; a trailing "-" continues the word.
     pub lyric: Option<String>,
+    /// The syllable is this part's own text (printed under its staff), not
+    /// one borrowed from another part for the practice lane.
+    pub own_lyric: bool,
     #[serde(skip)]
     lyric_verses: HashMap<u32, String>,
+}
+
+/// A notehead as engraved.
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Head {
+    /// Diatonic position: `octave * 7 + step` with C = 0 (so C4 is 28, E4 is 30).
+    pub pos: i32,
+    /// Printed accidental, as MusicXML names it ("sharp", "flat", "natural", ...).
+    pub accidental: Option<String>,
+    pub tie_start: bool,
+    pub tie_stop: bool,
+    /// Index into the part's `notes`; a tied continuation points at the note it extends.
+    pub note: usize,
+}
+
+/// A note, chord or rest as engraved.
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Event {
+    pub start_beat: f64,
+    pub dur_beat: f64,
+    /// "breve", "whole", "half", "quarter", "eighth" or "16th".
+    pub kind: String,
+    pub dots: u8,
+    /// Stem direction when the engraving gives one.
+    pub stem_up: Option<bool>,
+    /// Beam state per level (level 1 first): "begin", "continue", "end",
+    /// "forward hook" or "backward hook".
+    pub beams: Vec<String>,
+    /// Empty for a rest.
+    pub heads: Vec<Head>,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Clef {
+    /// "G", "F" or "C".
+    pub sign: String,
+    pub line: i32,
+    /// -1 for a treble clef sounding an octave lower (tenor).
+    pub octave_change: i32,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeSignature {
+    pub beats: String,
+    pub beat_type: String,
+    /// False for chant engraved in free rhythm (the signature is not printed).
+    pub visible: bool,
+}
+
+/// One measure of one staff, with only the attributes that change in it.
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StaffMeasure {
+    pub number: i32,
+    pub start_beat: f64,
+    pub end_beat: f64,
+    pub clef: Option<Clef>,
+    pub fifths: Option<i32>,
+    pub time: Option<TimeSignature>,
+    /// Right barline: "regular", "none", "light-light", "light-heavy", ...
+    pub barline: String,
+    /// The source engraving starts a new line here.
+    pub new_system: bool,
+    pub events: Vec<Event>,
+}
+
+/// Note value for a duration when the file does not name one.
+fn kind_for(dur_beat: f64) -> (&'static str, u8) {
+    const KINDS: [(&str, f64); 6] = [
+        ("breve", 8.0),
+        ("whole", 4.0),
+        ("half", 2.0),
+        ("quarter", 1.0),
+        ("eighth", 0.5),
+        ("16th", 0.25),
+    ];
+    for (name, beats) in KINDS {
+        if dur_beat >= beats * 1.5 - 1e-6 && dur_beat < beats * 2.0 - 1e-6 {
+            return (name, 1);
+        }
+        if dur_beat >= beats - 1e-6 {
+            return (name, 0);
+        }
+    }
+    ("16th", 0)
+}
+
+fn step_index(step: &str) -> i32 {
+    "CDEFGAB".find(step).map_or(0, |i| i as i32)
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -32,6 +128,8 @@ pub struct Part {
     pub voice_name: String,
     pub index: usize,
     pub notes: Vec<Note>,
+    /// The part as engraved, measure by measure.
+    pub staff: Vec<StaffMeasure>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -177,6 +275,7 @@ pub fn parse(xml: &str, verse: u32) -> Result<Score, ParseError> {
             // Onset of the last pitched note; chord followers share it.
             let mut last_onset: Option<f64> = None;
 
+            let mut staff: Vec<StaffMeasure> = Vec::new();
             let measures: Vec<Node> = all(part_node, "measure").collect();
             measure_count = measure_count.max(measures.len());
 
@@ -186,6 +285,7 @@ pub fn parse(xml: &str, verse: u32) -> Result<Score, ParseError> {
                     .and_then(parse_int)
                     .filter(|n| *n != 0)
                     .unwrap_or(m_idx as i32 + 1);
+                let (mut new_clef, mut new_fifths, mut new_time) = (None, None, None);
                 for attributes in all(*measure_node, "attributes") {
                     if let Some(d) = text_of(attributes, "divisions")
                         .as_deref()
@@ -196,8 +296,30 @@ pub fn parse(xml: &str, verse: u32) -> Result<Score, ParseError> {
                     }
                     if let Some(f) = text_of(attributes, "fifths").as_deref().and_then(parse_int) {
                         fifths = f;
+                        new_fifths = Some(f);
+                    }
+                    if let Some(clef) = first(attributes, "clef") {
+                        new_clef = Some(Clef {
+                            sign: text_of(clef, "sign").unwrap_or_else(|| "G".into()),
+                            line: text_of(clef, "line")
+                                .as_deref()
+                                .and_then(parse_int)
+                                .unwrap_or(2),
+                            octave_change: text_of(clef, "clef-octave-change")
+                                .as_deref()
+                                .and_then(parse_int)
+                                .unwrap_or(0),
+                        });
+                    }
+                    if let Some(time) = first(attributes, "time") {
+                        new_time = Some(TimeSignature {
+                            beats: text_of(time, "beats").unwrap_or_default(),
+                            beat_type: text_of(time, "beat-type").unwrap_or_default(),
+                            visible: time.attribute("print-object") != Some("no"),
+                        });
                     }
                 }
+                let mut events: Vec<Event> = Vec::new();
                 if index == 0 {
                     // First heading printed above the staff in this measure.
                     let heading = all(*measure_node, "direction")
@@ -232,11 +354,46 @@ pub fn parse(xml: &str, verse: u32) -> Result<Score, ParseError> {
                             } else {
                                 beat
                             };
-                            let pitch = if first(child, "rest").is_some() {
-                                None
-                            } else {
-                                first(child, "pitch")
+                            let is_rest = first(child, "rest").is_some();
+                            let pitch = if is_rest { None } else { first(child, "pitch") };
+                            let printed = child.attribute("print-object") != Some("no");
+                            let (fallback_kind, fallback_dots) = kind_for(dur_beat);
+                            let new_event = || Event {
+                                start_beat: onset,
+                                dur_beat,
+                                kind: text_of(child, "type")
+                                    .filter(|t| !t.is_empty())
+                                    .unwrap_or_else(|| fallback_kind.to_string()),
+                                dots: match all(child, "dot").count() as u8 {
+                                    0 if first(child, "type").is_none() => fallback_dots,
+                                    n => n,
+                                },
+                                stem_up: match text_of(child, "stem").as_deref() {
+                                    Some("up") => Some(true),
+                                    Some("down") => Some(false),
+                                    _ => None,
+                                },
+                                beams: {
+                                    let mut beams: Vec<(i32, String)> = child
+                                        .children()
+                                        .filter(|n| n.is_element() && n.tag_name().name() == "beam")
+                                        .map(|b| {
+                                            (
+                                                b.attribute("number")
+                                                    .and_then(parse_int)
+                                                    .unwrap_or(1),
+                                                b.text().unwrap_or("").trim().to_string(),
+                                            )
+                                        })
+                                        .collect();
+                                    beams.sort_by_key(|(level, _)| *level);
+                                    beams.into_iter().map(|(_, state)| state).collect()
+                                },
+                                heads: Vec::new(),
                             };
+                            if is_rest && printed && dur_beat > 0.0 {
+                                events.push(new_event());
+                            }
                             if let Some(pitch) = pitch {
                                 let step = text_of(pitch, "step").unwrap_or_default();
                                 let octave =
@@ -286,25 +443,62 @@ pub fn parse(xml: &str, verse: u32) -> Result<Score, ParseError> {
                                     // than re-attacking.
                                     let tie_stop = all(child, "tie")
                                         .any(|t| t.attribute("type") == Some("stop"));
-                                    let merged = tie_stop
-                                        && notes.iter_mut().rev().take(8).any(|prev| {
-                                            let continues = prev.midi == midi
-                                                && (prev.start_beat + prev.dur_beat - onset).abs()
-                                                    < 1e-6;
-                                            if continues {
-                                                prev.dur_beat += dur_beat;
+                                    let continued = if tie_stop {
+                                        (notes.len().saturating_sub(8)..notes.len()).rev().find(
+                                            |&k| {
+                                                notes[k].midi == midi
+                                                    && (notes[k].start_beat + notes[k].dur_beat
+                                                        - onset)
+                                                        .abs()
+                                                        < 1e-6
+                                            },
+                                        )
+                                    } else {
+                                        None
+                                    };
+                                    let note_index = match continued {
+                                        Some(k) => {
+                                            notes[k].dur_beat += dur_beat;
+                                            k
+                                        }
+                                        None => {
+                                            notes.push(Note {
+                                                midi,
+                                                start_beat: onset,
+                                                dur_beat,
+                                                measure,
+                                                lyric: None,
+                                                own_lyric: false,
+                                                lyric_verses,
+                                            });
+                                            notes.len() - 1
+                                        }
+                                    };
+                                    if printed {
+                                        let head = Head {
+                                            pos: octave * 7 + step_index(&step),
+                                            accidental: text_of(child, "accidental")
+                                                .filter(|a| !a.is_empty()),
+                                            tie_start: all(child, "tie")
+                                                .any(|t| t.attribute("type") == Some("start")),
+                                            tie_stop,
+                                            note: note_index,
+                                        };
+                                        // A chord follower joins the note it sounds with.
+                                        match events.last_mut() {
+                                            Some(event)
+                                                if is_chord
+                                                    && !event.heads.is_empty()
+                                                    && event.start_beat == onset =>
+                                            {
+                                                event.heads.push(head)
                                             }
-                                            continues
-                                        });
-                                    if !merged {
-                                        notes.push(Note {
-                                            midi,
-                                            start_beat: onset,
-                                            dur_beat,
-                                            measure,
-                                            lyric: None,
-                                            lyric_verses,
-                                        });
+                                            _ => {
+                                                let mut event = new_event();
+                                                event.heads.push(head);
+                                                events.push(event);
+                                            }
+                                        }
                                     }
                                     last_onset = Some(onset);
                                 }
@@ -320,6 +514,24 @@ pub fn parse(xml: &str, verse: u32) -> Result<Score, ParseError> {
                 if beat < measure_start {
                     beat = measure_start;
                 }
+                staff.push(StaffMeasure {
+                    number: measure,
+                    start_beat: measure_start,
+                    end_beat: beat,
+                    clef: new_clef,
+                    fifths: new_fifths,
+                    time: new_time,
+                    barline: all(*measure_node, "barline")
+                        .filter(|b| b.attribute("location").unwrap_or("right") == "right")
+                        .find_map(|b| text_of(b, "bar-style"))
+                        .filter(|style| !style.is_empty())
+                        .unwrap_or_else(|| "regular".to_string()),
+                    new_system: first(*measure_node, "print").is_some_and(|p| {
+                        p.attribute("new-system") == Some("yes")
+                            || p.attribute("new-page") == Some("yes")
+                    }),
+                    events,
+                });
             }
 
             Part {
@@ -327,6 +539,7 @@ pub fn parse(xml: &str, verse: u32) -> Result<Score, ParseError> {
                 voice_name,
                 index,
                 notes,
+                staff,
             }
         })
         .collect();
@@ -365,6 +578,7 @@ fn apply_verse(parts: &mut [Part], verse: u32) {
             None if !full_verse => note.lyric_verses.get(&1).cloned(),
             None => None,
         };
+        note.own_lyric = note.lyric.is_some();
     }
     propagate_lyrics(parts);
 }
@@ -619,6 +833,66 @@ mod tests {
     fn malformed_xml_is_an_error_not_a_panic() {
         assert!(parse("<score-partwise><part>", 1).is_err());
         assert_eq!(parse("<score-partwise/>", 1).unwrap().parts.len(), 0);
+    }
+
+    #[test]
+    fn engraving_keeps_what_the_page_shows() {
+        let attrs = "<attributes><divisions>2</divisions><key><fifths>-1</fifths></key>\
+            <time print-object=\"no\"><beats>4</beats><beat-type>4</beat-type></time>\
+            <clef><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef></attributes>";
+        let eighth = |step: &str, beam: &str, extra: &str| {
+            format!("<note><pitch><step>{step}</step><octave>4</octave></pitch><duration>1</duration><type>eighth</type><stem>up</stem><beam number=\"1\">{beam}</beam>{extra}</note>")
+        };
+        let body = format!(
+            "<measure number=\"1\">{attrs}{}{}\
+             <note><rest/><duration>1</duration><type>eighth</type></note>\
+             <note><pitch><step>B</step><alter>0</alter><octave>4</octave></pitch><duration>3</duration><type>quarter</type><dot/><accidental>natural</accidental><stem>down</stem><tie type=\"start\"/></note>\
+             <barline location=\"right\"><bar-style>none</bar-style></barline></measure>\
+             <measure number=\"2\"><print new-system=\"yes\"/>\
+             <note><pitch><step>B</step><alter>0</alter><octave>4</octave></pitch><duration>4</duration><tie type=\"stop\"/></note>\
+             <note><chord/><pitch><step>D</step><octave>5</octave></pitch><duration>4</duration></note></measure>",
+            eighth("E", "begin", ""),
+            eighth("F", "end", ""),
+        );
+        let score = parse(&doc(&[("Tenor", &body)]), 1).unwrap();
+        let part = &score.parts[0];
+        let m1 = &part.staff[0];
+        assert_eq!(m1.clef.as_ref().unwrap().octave_change, -1);
+        assert_eq!(m1.fifths, Some(-1));
+        assert!(!m1.time.as_ref().unwrap().visible);
+        assert_eq!(m1.barline, "none");
+        assert_eq!((m1.start_beat, m1.end_beat), (0.0, 3.0));
+        let kinds: Vec<(&str, u8, usize)> = m1
+            .events
+            .iter()
+            .map(|e| (e.kind.as_str(), e.dots, e.heads.len()))
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                ("eighth", 0, 1),
+                ("eighth", 0, 1),
+                ("eighth", 0, 0),
+                ("quarter", 1, 1)
+            ]
+        );
+        assert_eq!(m1.events[0].beams, ["begin"]);
+        assert_eq!(m1.events[0].heads[0].pos, 30); // E4
+        assert_eq!(m1.events[3].stem_up, Some(false));
+        assert_eq!(m1.events[3].heads[0].accidental.as_deref(), Some("natural"));
+
+        let m2 = &part.staff[1];
+        assert!(m2.new_system && m2.clef.is_none() && m2.barline == "regular");
+        // No <type>: 2 beats is a half note. The tied B and the D form one chord.
+        assert_eq!(m2.events.len(), 1);
+        assert_eq!(m2.events[0].kind, "half");
+        let heads = &m2.events[0].heads;
+        assert_eq!(heads.len(), 2);
+        // The tied head points at the note it continues; the model has 4 notes.
+        assert_eq!(part.notes.len(), 4);
+        assert_eq!(heads[0].note, m1.events[3].heads[0].note);
+        assert!(heads[0].tie_stop && m1.events[3].heads[0].tie_start);
+        assert_eq!(heads[1].note, 3);
     }
 
     /// The real pieces, when this checkout has them (they are not in git).
