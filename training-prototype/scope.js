@@ -590,41 +590,6 @@ window.TrainingScope = (() => {
     }
   }
 
-  /* ---------- native capture (iOS app) ---------------------------------- *
-   * Inside the ChanterLab iOS app the mic is captured by the app's own audio
-   * engine (ios/ChanterLab), which runs the SAME Rust detector natively and
-   * posts {hz, gateOpen, level} frames here at ~60 Hz. getUserMedia is never
-   * called, so WebKit never builds its voice-processing unit. Dormant in every
-   * browser: nativeBridge() is null unless the app injected its handler.
-   * --------------------------------------------------------------------- */
-  const native = { on: false, frames: 0, voiced: 0, sampleRate: null, lastError: null };
-  function nativeBridge() {
-    const h = window.webkit && window.webkit.messageHandlers;
-    return (h && h.chanterlabAudio) || null;
-  }
-  function nativePost(msg) {
-    const b = nativeBridge();
-    if (b) { try { b.postMessage(msg); } catch (e) { native.lastError = String(e); } }
-  }
-  window.__chanterlabNativeAudio = {
-    onPitch(msg) {
-      if (!mic.on || !native.on || !msg) return;
-      native.frames++;
-      if (msg.gateOpen && msg.hz > 0) {
-        native.voiced++;
-        pushVoicedFreq(msg.hz, performance.now() / 1000);
-      } else {
-        lastDetect.quiet = false;
-        lastDetect.fresh = Math.max(0, lastDetect.fresh - 1);
-      }
-    },
-    onState(msg) {
-      if (!msg) return;
-      if (typeof msg.sampleRate === 'number') native.sampleRate = msg.sampleRate;
-      if (msg.error) native.lastError = String(msg.error);
-    },
-  };
-
   /* ---------- public API ------------------------------------------------ */
 
   // Select the pitch-detection front-end: 'js' (default) or 'wasm'. Takes
@@ -650,8 +615,7 @@ window.TrainingScope = (() => {
   // A/B hook (issue #80).
   function detectorInfo() {
     return {
-      mode: native.on ? 'native' : detectorMode,
-      native: nativeBridge() ? { frames: native.frames, voiced: native.voiced, sampleRate: native.sampleRate, lastError: native.lastError } : null,
+      mode: detectorMode,
       active: detectorMode === 'wasm' ? (!!wasm.node && wasm.ready) : mic.on,
       wasmReady: wasm.ready,
       framesSeen: wasm.frames,
@@ -712,14 +676,6 @@ window.TrainingScope = (() => {
   async function micStart(audioCtx) {
     if (mic.on) return true;
     mic.ctx = audioCtx;
-    if (nativeBridge()) {
-      // iOS app: the native engine owns capture + detection (see above).
-      native.frames = 0; native.voiced = 0; native.lastError = null;
-      nativePost({ type: 'micStart', processing: !!mic.processing, gate: WASM_GATE_THRESHOLD });
-      native.on = true;
-      mic.on = true;
-      return true;
-    }
     mic.stream = await navigator.mediaDevices.getUserMedia(micConstraints());
     mic.src = audioCtx.createMediaStreamSource(mic.stream);
     mic.analyser = audioCtx.createAnalyser();
@@ -748,7 +704,6 @@ window.TrainingScope = (() => {
 
   function micStop() {
     stopWasmDetector();                 // no-op unless a wasm node is live
-    if (native.on) { nativePost({ type: 'micStop' }); native.on = false; }
     if (mic.src) { try { mic.src.disconnect(); } catch (e) { /* already gone */ } }
     if (mic.stream) mic.stream.getTracks().forEach((tr) => tr.stop());
     mic.on = false; mic.stream = null; mic.src = null; mic.analyser = null;
@@ -764,7 +719,6 @@ window.TrainingScope = (() => {
     if (mic.processing === processing) return true;
     mic.processing = processing;
     if (!mic.on) return true;                     // applied on next micStart
-    if (native.on) { nativePost({ type: 'setProcessing', processing }); return true; }
     const oldStream = mic.stream, oldSrc = mic.src;
     try {
       const stream = await navigator.mediaDevices.getUserMedia(micConstraints());
