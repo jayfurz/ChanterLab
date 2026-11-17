@@ -266,7 +266,8 @@ final class ScalesModel {
         audio.setMaster(Float(volume))
         sendIson()
         sendMetronome()
-        held.removeAll()
+        // `held` is left alone: the very first key press is what starts the
+        // engine, and clearing it here would orphan that note (never released).
     }
 
     /// Silence everything this screen is producing (another screen takes over audio).
