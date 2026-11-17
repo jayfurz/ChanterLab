@@ -9,7 +9,7 @@ ports checked against it.
 
 | Screen | Contents |
 |---|---|
-| **Scales** | Ladder with hold-to-play keys, sung-pitch scope, Byzantine presets (incl. 12/24-ET) and Hindustani presets, key editing (accidentals, enable/disable, pthora, chroa), drone, metronome, reference pitch, voicings |
+| **Scales** | Ladder with hold-to-play keys, sung-pitch scope, Byzantine presets (incl. 12/24-ET) and Hindustani presets, key editing (accidentals, enable/disable, pthora, chroa), exercises, drone, metronome, reference pitch, voicings |
 | **Practice** | Catalog (same manifest as the web app, cached), part playback, loop / sections, tempo, transpose, verses, scrolling note lane with lyrics and sung trace, lap scoring with worst measures |
 
 One `AVAudioEngine` (`Sources/Audio/AudioEngine.swift`) owns playback and
@@ -22,7 +22,7 @@ raw mic. The echo canceller follows route changes.
 - Engraved notation (the web app's OSMD score view); practice shows the lane only
 - Sampled "ah" voices for accompaniment (synth only)
 - Recording and export, section check (whole-choir analysis)
-- Scales: exercises, glyph score practice
+- Scales: glyph score practice
 
 ## Build
 
@@ -46,7 +46,7 @@ and rerun `ios/build_core.sh`.
 | `CHANTERLAB_TONE=<hz>` | Feed a sine to the detector instead of opening the mic (the simulator has no usable input over SSH) |
 | `CHANTERLAB_TAB=practice` | Open on the Practice tab |
 | `CHANTERLAB_AUTOMIC=1` | Scales: mic on at launch |
-| `CHANTERLAB_PRESET=<label>`, `CHANTERLAB_EDIT=1` | Scales: load a scale, open edit mode |
+| `CHANTERLAB_PRESET=<label>`, `CHANTERLAB_EDIT=1`, `CHANTERLAB_EXERCISE=<id>` | Scales: load a scale, open edit mode, start a drill |
 | `CHANTERLAB_AUTOPLAY=1`, `CHANTERLAB_LOOP=1` | Practice: play the first piece (looping two measures), mic on |
 
 With `simctl launch`, prefix each with `SIMCTL_CHILD_`.
