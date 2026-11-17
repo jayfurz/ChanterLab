@@ -50,7 +50,7 @@ struct ScalesView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 4) {
-                        Text(model.presetLabel).font(.headline)
+                        Text(model.presetLabel).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
                         Image(systemName: "chevron.down").font(.caption.weight(.bold))
                     }
                     Text("\(model.tradition.label(forDegree: "Ni")) = \(ScalesModel.noteName(hz: model.refNiHz))")

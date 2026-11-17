@@ -133,7 +133,17 @@ final class ScalesModel {
         }
 
         #if DEBUG
-        // Simulator checks: CHANTERLAB_AUTOMIC=1 turns the mic on at launch.
+        // Simulator checks: CHANTERLAB_PRESET=<label> loads a scale, CHANTERLAB_EDIT=1
+        // opens edit mode, CHANTERLAB_AUTOMIC=1 turns the mic on at launch.
+        let env = ProcessInfo.processInfo.environment
+        if let label = env["CHANTERLAB_PRESET"],
+           let preset = Tradition.allCases.flatMap(\.presets).first(where: { $0.label == label }) {
+            apply(preset)
+        }
+        if env["CHANTERLAB_EDIT"] == "1" {
+            editing = true
+            selectedMoria = 12
+        }
         if ProcessInfo.processInfo.environment["CHANTERLAB_AUTOMIC"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.setMic(true) }
         }
