@@ -135,12 +135,16 @@ final class ScalesModel {
         }
 
         #if DEBUG
-        // Simulator checks: CHANTERLAB_PRESET=<label> loads a scale, CHANTERLAB_EDIT=1
+        // Simulator checks: CHANTERLAB_PRESET=<label> loads a scale, CHANTERLAB_EXERCISE=<id>
+        // starts a drill, CHANTERLAB_EDIT=1
         // opens edit mode, CHANTERLAB_AUTOMIC=1 turns the mic on at launch.
         let env = ProcessInfo.processInfo.environment
         if let label = env["CHANTERLAB_PRESET"],
            let preset = Tradition.allCases.flatMap(\.presets).first(where: { $0.label == label }) {
             apply(preset)
+        }
+        if let id = env["CHANTERLAB_EXERCISE"], let chosen = Exercise.all.first(where: { $0.id == id }) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.start(chosen) }
         }
         if env["CHANTERLAB_EDIT"] == "1" {
             editing = true
@@ -273,6 +277,7 @@ final class ScalesModel {
     /// Silence everything this screen is producing (another screen takes over audio).
     func quiet() {
         if micOn { setMic(false) }
+        if exercise?.running == true { toggleExercisePause() }
         metronomeOn = false
         isonMoria = nil
         sendIson()
@@ -302,6 +307,7 @@ final class ScalesModel {
             // Frames arrive in a burst; spread them back over the time they cover.
             let t = now - Double(frames.count - 1 - i) / 60
             micLevel = frame.level
+            advanceExercise(hz: frame.gateOpen && frame.hz > 0 ? Double(frame.hz) : nil)
             guard frame.gateOpen, frame.hz > 0 else {
                 smoothedMoria = nil
                 if trace.last?.moria != nil { trace.append(TracePoint(time: t, moria: nil)) }
@@ -332,6 +338,57 @@ final class ScalesModel {
                          hz: refNiHz * pow(2, moria / 72),
                          cellMoria: nearest.moria,
                          cents: (moria - Double(nearest.effectiveMoria)) * 1200 / 72)
+    }
+
+    // MARK: exercises
+
+    private(set) var exercise: ExerciseRun?
+    /// Best score per exercise id.
+    private(set) var exerciseBest: [String: Int] = UserDefaults.standard.dictionary(forKey: "exerciseBest") as? [String: Int] ?? [:]
+
+    /// The enabled cell an exercise step asks for: the degree at or above the step's octave.
+    func target(for step: Exercise.Step) -> Cell? {
+        let matches = playable.filter { $0.degree == step.degree }
+        let floor = step.octave * 72
+        return matches.first { $0.effectiveMoria >= floor }
+            ?? matches.min { abs($0.effectiveMoria - floor) < abs($1.effectiveMoria - floor) }
+    }
+
+    var exerciseTarget: Cell? { exercise?.step.flatMap(target(for:)) }
+
+    /// Load the exercise's scale, put the drone on its base note and start listening.
+    func start(_ chosen: Exercise) {
+        tradition = .byzantine
+        if let preset = Tradition.byzantine.presets.first(where: { $0.label == chosen.preset }) { apply(preset) }
+        var run = ExerciseRun(chosen)
+        run.running = true
+        exercise = run
+        if let drone = target(for: Exercise.Step(label: "", degree: chosen.isonDegree, octave: 0, holdSeconds: 0)) {
+            isonMoria = drone.moria
+            sendIson()
+        }
+        if !micOn { setMic(true) }
+    }
+
+    func toggleExercisePause() {
+        guard var run = exercise, !run.finished else { return }
+        run.running.toggle()
+        exercise = run
+        if run.running, !micOn { setMic(true) }
+    }
+
+    func endExercise() {
+        exercise = nil
+    }
+
+    /// One detector frame (1/60 s) of exercise progress.
+    private func advanceExercise(hz: Double?) {
+        guard var run = exercise, run.running, let cell = exerciseTarget else { return }
+        if run.sing(hz: hz, targetHz: self.hz(of: cell), dt: 1.0 / 60) {
+            exerciseBest[run.exercise.id] = max(exerciseBest[run.exercise.id] ?? 0, run.score)
+            defaults.set(exerciseBest, forKey: "exerciseBest")
+        }
+        exercise = run
     }
 
     // MARK: labels

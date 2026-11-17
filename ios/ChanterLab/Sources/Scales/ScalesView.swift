@@ -9,6 +9,7 @@ struct ScalesView: View {
         VStack(spacing: 0) {
             header
             Divider().overlay(Theme.rule)
+            if model.exercise != nil { ExerciseCard(model: model) }
             LadderView(model: model)
             if model.editing { CellInspector(model: model) }
             Divider().overlay(Theme.rule)
@@ -44,6 +45,22 @@ struct ScalesView: View {
                             Label(preset.label, systemImage: "checkmark")
                         } else {
                             Text(preset.label)
+                        }
+                    }
+                }
+                if model.tradition == .byzantine {
+                    Divider()
+                    Menu("Exercises") {
+                        ForEach(Exercise.all) { exercise in
+                            Button {
+                                model.start(exercise)
+                            } label: {
+                                if let best = model.exerciseBest[exercise.id] {
+                                    Text("\(exercise.title)  ·  best \(best)")
+                                } else {
+                                    Text(exercise.title)
+                                }
+                            }
                         }
                     }
                 }
@@ -178,6 +195,55 @@ private struct PitchReadout: View {
     }
 }
 
+/// The running exercise: what to sing, how long is left, and the result.
+private struct ExerciseCard: View {
+    let model: ScalesModel
+
+    var body: some View {
+        if let run = model.exercise {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(run.exercise.title).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    if !run.finished {
+                        Button(run.running ? "Pause" : "Resume") { model.toggleExercisePause() }
+                    } else {
+                        Button("Again") { model.start(run.exercise) }
+                    }
+                    Button("Done") { model.endExercise() }
+                }
+                .font(.subheadline)
+                .tint(Theme.gold)
+
+                if run.finished {
+                    Text("\(run.verdict) · \(run.score)/100").font(.title3.weight(.bold))
+                } else if let step = run.step {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(model.tradition.label(forDegree: step.degree) + (step.octave > 0 ? "′" : ""))
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                        Text("\(run.stepIndex + 1) of \(run.exercise.steps.count)")
+                            .font(.caption).foregroundStyle(Theme.dim)
+                        Spacer()
+                        Text(hint(run)).font(.caption).monospacedDigit().foregroundStyle(Theme.dim)
+                    }
+                    ProgressView(value: run.progress).tint(Theme.gold)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Theme.panel)
+        }
+    }
+
+    private func hint(_ run: ExerciseRun) -> String {
+        guard model.exerciseTarget != nil else { return "That note is switched off on the ladder" }
+        guard let error = run.liveError else { return "Sing until the bar fills (±\(Int(run.exercise.tolerance)) moria)" }
+        let direction = error > 0.2 ? "lower" : error < -0.2 ? "lift" : "hold"
+        return String(format: "%@ %+.1f moria", direction, error)
+    }
+}
+
 /// Edit-mode strip for the selected key.
 private struct CellInspector: View {
     let model: ScalesModel
@@ -265,8 +331,8 @@ struct ScalesSettings: View {
     @Bindable var model: ScalesModel
     @Environment(\.dismiss) private var dismiss
 
-    /// Common reference pitches for the base note, A2 … A3.
-    private let references: [(String, Double)] = (45...57).map { midi in
+    /// Common reference pitches for the base note, A2 … E♭4 (bass to high voices).
+    private let references: [(String, Double)] = (45...63).map { midi in
         let hz = 440 * pow(2, Double(midi - 69) / 12)
         return (ScalesModel.noteName(hz: hz), hz)
     }
