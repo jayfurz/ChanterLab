@@ -37,8 +37,9 @@ struct ScoreLayout {
     struct System: Identifiable {
         let id: Int
         var measures: [Measure]
-        /// Top line of each staff, from the system's top.
-        let staffTops: [CGFloat]
+        /// Top line of each staff, from the system's top; nil for a part that is
+        /// silent for the whole line (its empty staff is left out).
+        let staffTops: [CGFloat?]
         let height: CGFloat
         /// Clef, key and (when it is to be printed) time signature in force at the start.
         let clefs: [ScoreClef]
@@ -130,15 +131,20 @@ struct ScoreLayout {
             naturals.append(Natural(width: x + rightPad, offsets: offsets, start: start, end: end))
         }
 
-        // Vertical layout is the same for every system.
         let hasLyrics = parts.map { part in part.notes.contains { $0.ownLyric } }
-        var staffTops: [CGFloat] = []
-        var y = sp * 4
-        for index in parts.indices {
-            staffTops.append(y)
-            y += sp * 4 + sp * (hasLyrics[index] ? 7.2 : 5) + sp * 3.2
+        /// Staff positions for a line, leaving out parts with nothing printed on it.
+        func verticals(measures: Range<Int>) -> (tops: [CGFloat?], height: CGFloat) {
+            var active = parts.map { part in part.staff[measures].contains { !$0.events.isEmpty } }
+            if !active.contains(true) { active = active.map { _ in true } }
+            var tops: [CGFloat?] = []
+            var y = sp * 4
+            for index in parts.indices {
+                guard active[index] else { tops.append(nil); continue }
+                tops.append(y)
+                y += sp * 4 + sp * (hasLyrics[index] ? 7.2 : 5) + sp * 3.2
+            }
+            return (tops, y - sp * 1.5)
         }
-        let systemHeight = y - sp * 1.5
 
         func prefixWidth(at m: Int, first: Bool) -> CGFloat {
             let key = CGFloat(fifthsAt.map { abs($0[m]) }.max() ?? 0)
@@ -176,7 +182,8 @@ struct ScoreLayout {
                                     columns: n.offsets.map { Column(beat: $0.beat, x: x + $0.x * scale) }))
                 x += w
             }
-            systems.append(System(id: systems.count, measures: laid, staffTops: staffTops, height: systemHeight,
+            let vertical = verticals(measures: m..<end)
+            systems.append(System(id: systems.count, measures: laid, staffTops: vertical.tops, height: vertical.height,
                                   clefs: clefAt.map { $0[m] }, fifths: fifthsAt.map { $0[m] },
                                   times: first ? timeAt.map { $0[m] } : timeAt.map { _ in nil },
                                   contentX: contentX))

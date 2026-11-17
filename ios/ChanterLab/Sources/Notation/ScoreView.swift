@@ -99,7 +99,8 @@ private struct SystemView: View {
                     _ = timeline.date
                     guard model.transport != .stopped,
                           let position = layout.position(beat: model.heardBeat), position.system == system.id,
-                          let top = system.staffTops.first, let bottom = system.staffTops.last else { return }
+                          let top = system.staffTops.compactMap({ $0 }).first,
+                          let bottom = system.staffTops.compactMap({ $0 }).last else { return }
                     let sp = layout.sp
                     let rect = CGRect(x: position.x - sp * 0.3, y: top - sp, width: sp * 1.8,
                                       height: bottom + sp * 5 - (top - sp))
@@ -167,15 +168,15 @@ private struct Engraver {
     mutating func draw() {
         guard let score, !system.measures.isEmpty else { return }
         for (index, part) in score.parts.enumerated() where index < system.staffTops.count {
-            drawStaff(part: part, index: index)
+            if let top = system.staffTops[index] { drawStaff(part: part, index: index, top: top) }
         }
-        if score.parts.count > 1, let first = system.staffTops.first, let last = system.staffTops.last {
+        let tops = system.staffTops.compactMap { $0 }
+        if tops.count > 1, let first = tops.first, let last = tops.last {
             line(0.5, first, 0.5, last + sp * 4, color: lineColor, width: 1)
         }
     }
 
-    private mutating func drawStaff(part: ScorePart, index: Int) {
-        let top = system.staffTops[index]
+    private mutating func drawStaff(part: ScorePart, index: Int, top: CGFloat) {
         let mine = index == voice
         let ink = mine ? myInk : otherInk
         for i in 0..<5 {
@@ -199,7 +200,8 @@ private struct Engraver {
         // numbered measure into several unbarred ones; those are not renumbered).
         let firstIndex = system.measures[0].index
         let number = part.staff[firstIndex].number
-        if index == 0, firstIndex > 0, number != part.staff[firstIndex - 1].number {
+        if top == system.staffTops.compactMap({ $0 }).first, firstIndex > 0,
+           number != part.staff[firstIndex - 1].number {
             context.draw(Text("\(number)").font(.system(size: sp * 1.4)).foregroundStyle(Theme.dim),
                          at: CGPoint(x: sp * 0.5, y: top - sp * 3.2), anchor: .topLeading)
         }
